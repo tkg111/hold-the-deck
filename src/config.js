@@ -25,14 +25,23 @@ export const RARITY = {
   common: { label: 'Common', color: 0xb0bec5 },
   rare: { label: 'Rare', color: 0x42a5f5 },
   epic: { label: 'Epic', color: 0xba68c8 },
+  legendary: { label: 'Legendary', color: 0xff9800 },
 };
 
 // catchphrase: one-line Manglish intro shown the first time the hero is pulled.
 // Optional effects per hero:
-//   stun:  { chance, duration }   — stunned enemies can't move or attack
-//   area:  { radius }             — hit lands on everything within radius of the target
-//   slow:  { factor, duration }   — movement and attack speed multiplied by factor
-//   curse: { bonus, duration }    — enemy takes (1 + bonus)x damage from ALL heroes
+//   stun:   { chance, duration }    — stunned enemies can't move or attack
+//   area:   { radius }              — hit lands on everything within radius of the target
+//   slow:   { factor, duration }    — movement and attack speed multiplied by factor
+//   curse:  { bonus, duration }     — enemy takes (1 + bonus)x damage from ALL heroes
+//   poison: { ratio, duration }     — deals ratio x hit damage per second for duration
+//   pierce: { maxTargets, length, hitRadius } — skims along the enemy line from the
+//                                     front enemy for `length` px, hitting each enemy once
+//   lob:    { flightTime, arcHeight } — arcing shot aimed where the target will be
+//   crit:   { chance, multiplier }  — chance for a multiplied hit
+//   aura:   { damageBonus, damageBonusPerLevel, attackSpeedBonus } — doesn't attack;
+//           buffs the other heroes on the same floor. damageBonus grows per level
+//           and with stars (same star bonus as damage).
 export const HEROES = {
   budakLastik: {
     name: 'Budak Lastik',
@@ -89,6 +98,71 @@ export const HEROES = {
     projectileSize: 7,
     curse: { bonus: 0.3, duration: 4000 },
     catchphrase: "Don't play-play ah, later I sumpah you!",
+  },
+  pemburuSumpit: {
+    name: 'Pemburu Sumpit',
+    shortName: 'Sumpit',
+    rarity: 'rare',
+    color: 0x558b2f,
+    damage: 4,
+    attackInterval: 900,
+    range: 720,
+    projectileSpeed: 850,
+    projectileColor: 0xc5e1a5,
+    projectileSize: 3,
+    poison: { ratio: 0.75, duration: 4000 },
+    catchphrase: 'One tiup only. Slowly-slowly you feel it.',
+  },
+  pakcikMamak: {
+    name: 'Pakcik Mamak',
+    shortName: 'Mamak',
+    rarity: 'rare',
+    color: 0xeceff1,
+    damage: 8,
+    attackInterval: 1700,
+    range: 650,
+    projectileSpeed: 430,
+    projectileColor: 0xf3d9a4,
+    projectileSize: 9,
+    pierce: { maxTargets: 6, length: 300, hitRadius: 22 },
+    catchphrase: 'Roti canai satu, terbang! Boss, tambah lagi?',
+  },
+  uncleDurian: {
+    name: 'Uncle Durian',
+    shortName: 'Durian',
+    rarity: 'epic',
+    color: 0x9e9d24,
+    damage: 24,
+    attackInterval: 3200,
+    range: 650,
+    projectileColor: 0x827717,
+    projectileSize: 11,
+    area: { radius: 95 },
+    lob: { flightTime: 1000, arcHeight: 150 },
+    catchphrase: 'Smell also can kill you, you know or not?',
+  },
+  pendekarSilat: {
+    name: 'Pendekar Silat',
+    shortName: 'Silat',
+    rarity: 'legendary',
+    color: 0x263238,
+    damage: 40,
+    attackInterval: 1300,
+    range: 680,
+    projectileSpeed: 950,
+    projectileColor: 0xffca28,
+    projectileSize: 6,
+    crit: { chance: 0.35, multiplier: 2.5 },
+    catchphrase: 'Steady, bang. One hit enough lah.',
+  },
+  tokPenghulu: {
+    name: 'Tok Penghulu',
+    shortName: 'Penghulu',
+    rarity: 'legendary',
+    color: 0x1565c0,
+    damage: 0,
+    aura: { damageBonus: 0.5, damageBonusPerLevel: 0.04, attackSpeedBonus: 0.3 },
+    catchphrase: 'Everybody listen to me, can? Gotong-royong time!',
   },
 };
 
@@ -180,7 +254,9 @@ export const ECONOMY = {
 export const PACKS = {
   cost: 3,
   // Rarity weights; renormalized over rarities that actually have heroes.
-  rates: { common: 0.5, rare: 0.3, epic: 0.2 },
+  rates: { common: 0.45, rare: 0.3, epic: 0.18, legendary: 0.07 },
+  // Pity: a Legendary is guaranteed within this many packs.
+  legendaryPity: 30,
   maxStars: 5,
   // Total damage bonus at each star count (index = stars). Each star adds more than the last.
   starDamageBonus: [0, 0.1, 0.25, 0.45, 0.7, 1.0],
@@ -191,14 +267,16 @@ export const PACKS = {
 // Pack-opening presentation, per rarity of the hero being pulled.
 export const PACK_FX = {
   // How long the envelope shakes and glows before flipping (ms). Rarer = longer.
-  buildUp: { common: 700, rare: 1300, epic: 2000 },
+  buildUp: { common: 700, rare: 1300, epic: 2000, legendary: 2900 },
   // The glow starts gold and shifts to the rarity colour over this last
   // fraction of the build-up, so the hint lands just before the reveal.
   hintFraction: 0.45,
   // Maximum shake angle (degrees) at the end of the build-up.
-  shakeAngle: { common: 4, rare: 7, epic: 10 },
+  shakeAngle: { common: 4, rare: 7, epic: 10, legendary: 14 },
   // Confetti pieces fired when a NEW hero is revealed.
-  confetti: { common: 40, rare: 90, epic: 160 },
+  confetti: { common: 40, rare: 90, epic: 160, legendary: 280 },
+  // Full-screen flash on reveal (ms, 0 = none).
+  revealFlash: { common: 0, rare: 0, epic: 0, legendary: 450 },
   // Pause between the card reveal and the new-hero splash (ms).
   splashDelay: 700,
 };

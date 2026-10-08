@@ -1,4 +1,4 @@
-import { ECONOMY, HEROES, HOUSE, PACKS, STARTING_HEROES, UPGRADES } from '../config.js';
+import { ECONOMY, HEROES, HOUSE, PACKS, RARITY, STARTING_HEROES, UPGRADES } from '../config.js';
 
 const scaledCost = ({ baseCost, costGrowth }, level) => Math.round(baseCost * costGrowth ** level);
 
@@ -10,6 +10,7 @@ export class Progress {
     this.gold = ECONOMY.startingGold;
     this.angPow = ECONOMY.startingAngPow;
     this.lastBossRewardWave = 0;    // stops boss Ang Pow being farmed on retries
+    this.packsSinceLegendary = 0;   // pity counter
     this.houseHpLevel = 0;
     this.floors = HOUSE.startingFloors;
     this.owned = [...STARTING_HEROES];
@@ -44,6 +45,7 @@ export class Progress {
       heroStars: ownedOnly(this.heroStars),
       slots: this.slots.map((id) => (id && owned.includes(id) ? id : null)),
       muted: this.muted,
+      packsSinceLegendary: this.packsSinceLegendary,
     };
   }
 
@@ -61,6 +63,7 @@ export class Progress {
     p.houseHpLevel = int(data.houseHpLevel, 0);
     p.floors = int(data.floors, HOUSE.startingFloors, HOUSE.maxFloors);
     p.muted = data.muted === true;
+    p.packsSinceLegendary = int(data.packsSinceLegendary, 0, PACKS.legendaryPity - 1);
 
     const owned = Array.isArray(data.owned) ? data.owned.filter((id) => id in HEROES) : [];
     p.owned = [...new Set([...STARTING_HEROES, ...owned])];
@@ -85,7 +88,13 @@ export class Progress {
   // --- Heroes & slots ---
 
   isOwned(id) { return this.devUnlockAll || this.owned.includes(id); }
-  get ownedHeroes() { return Object.keys(HEROES).filter((id) => this.isOwned(id)); }
+  // Owned hero ids, Common first (stable within a rarity).
+  get ownedHeroes() {
+    const order = Object.keys(RARITY);
+    return Object.keys(HEROES)
+      .filter((id) => this.isOwned(id))
+      .sort((a, b) => order.indexOf(HEROES[a].rarity) - order.indexOf(HEROES[b].rarity));
+  }
   heroLevel(id) { return this.heroLevels[id] ?? 1; }
   heroStarCount(id) { return this.heroStars[id] ?? 0; }
   get slotCount() { return this.floors * HOUSE.slotsPerFloor; }
@@ -133,6 +142,33 @@ export class Progress {
     return HEROES[id].damage
       * (1 + (level - 1) * UPGRADES.heroLevel.damagePerLevel)
       * (1 + starBonus);
+  }
+
+  // Damage bonus an aura hero (Tok Penghulu) gives his floor, e.g. 0.5 = +50%.
+  heroAuraBonus(id, level = this.heroLevel(id)) {
+    const { aura } = HEROES[id];
+    const starBonus = PACKS.starDamageBonus[this.heroStarCount(id)];
+    return (aura.damageBonus + (level - 1) * aura.damageBonusPerLevel) * (1 + starBonus);
+  }
+
+  // Buffs from aura heroes for each active hero: slot -> { damage, attackSpeed }
+  // multipliers. An aura hero buffs the others on its floor, not itself.
+  get floorBuffs() {
+    const buffs = {};
+    const floorOf = (slot) => Math.floor(slot / HOUSE.slotsPerFloor);
+    const active = this.activeHeroes;
+    for (const { slot } of active) buffs[slot] = { damage: 1, attackSpeed: 1, buffed: false };
+    for (const src of active) {
+      const { aura } = HEROES[src.id];
+      if (!aura) continue;
+      for (const { slot } of active) {
+        if (slot === src.slot || floorOf(slot) !== floorOf(src.slot)) continue;
+        buffs[slot].damage *= 1 + this.heroAuraBonus(src.id);
+        buffs[slot].attackSpeed *= 1 + aura.attackSpeedBonus;
+        buffs[slot].buffed = true;
+      }
+    }
+    return buffs;
   }
 
   waveClearGold(wave = this.wave) {
@@ -191,13 +227,19 @@ export class Progress {
     return entries.map(([rarity, w]) => ({ rarity, chance: w / total }));
   }
 
-  static rollHero(random = Math.random) {
+  // Packs left until the pity guarantee: a Legendary is certain on this pack
+  // number at the latest (1 = the next pack).
+  get packsUntilPity() { return PACKS.legendaryPity - this.packsSinceLegendary; }
+
+  static rollHero(random = Math.random, forceRarity = null) {
     let roll = random();
     const rates = Progress.packRates();
-    let rarity = rates[rates.length - 1].rarity;
-    for (const r of rates) {
-      if (roll < r.chance) { rarity = r.rarity; break; }
-      roll -= r.chance;
+    let rarity = forceRarity ?? rates[rates.length - 1].rarity;
+    if (!forceRarity) {
+      for (const r of rates) {
+        if (roll < r.chance) { rarity = r.rarity; break; }
+        roll -= r.chance;
+      }
     }
     const pool = Object.keys(HEROES).filter((id) => HEROES[id].rarity === rarity);
     return pool[Math.floor(random() * pool.length)];
@@ -207,21 +249,24 @@ export class Progress {
   openPack(random = Math.random) {
     if (!this.canOpenPack) return null;
     this.angPow -= PACKS.cost;
-    const id = Progress.rollHero(random);
+    const pity = this.packsUntilPity <= 1;
+    const id = Progress.rollHero(random, pity ? 'legendary' : null);
+    if (HEROES[id].rarity === 'legendary') this.packsSinceLegendary = 0;
+    else this.packsSinceLegendary++;
 
     if (!this.owned.includes(id)) {
       this.owned.push(id);
       // Generous: drop a new hero straight into the first free slot.
       const free = this.slots.slice(0, this.slotCount).indexOf(null);
       if (free !== -1) this.slots[free] = id;
-      return { id, isNew: true, stars: 0, refund: 0, slot: free };
+      return { id, pity, isNew: true, stars: 0, refund: 0, slot: free };
     }
     if (this.heroStarCount(id) < PACKS.maxStars) {
       this.heroStars[id] = this.heroStarCount(id) + 1;
-      return { id, isNew: false, stars: this.heroStars[id], refund: 0 };
+      return { id, pity, isNew: false, stars: this.heroStars[id], refund: 0 };
     }
     this.angPow += PACKS.maxStarRefund;
-    return { id, isNew: false, stars: PACKS.maxStars, refund: PACKS.maxStarRefund };
+    return { id, pity, isNew: false, stars: PACKS.maxStars, refund: PACKS.maxStarRefund };
   }
 
   levelHero(id) {

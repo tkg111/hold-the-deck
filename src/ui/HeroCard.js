@@ -10,7 +10,10 @@ const TEXT = { fontFamily: 'sans-serif', color: '#ffffff' };
 //   stars:      number to show a 5-star row, or null to hide it
 //   level:      number to show "Lv N", or null to hide it
 //   silhouette: draw an unknown, not-yet-collected hero
-export function createHeroCard(scene, x, y, id, { scale = 1, stars = null, level = null, silhouette = false } = {}) {
+//   showEffect: include the one-line effect description
+export function createHeroCard(scene, x, y, id, {
+  scale = 1, stars = null, level = null, silhouette = false, showEffect = true,
+} = {}) {
   const s = (n) => n * scale;
   const px = (n) => `${Math.round(n * scale)}px`;
   const w = s(BASE_W);
@@ -49,9 +52,11 @@ export function createHeroCard(scene, x, y, id, { scale = 1, stars = null, level
       .setOrigin(0.5, 0));
     textY += s(18);
   }
-  card.add(scene.add.text(0, textY + s(2), describeHero(def), {
-    ...TEXT, fontSize: px(11), color: '#5d4037', align: 'center', wordWrap: { width: w - s(24) },
-  }).setOrigin(0.5, 0));
+  if (showEffect) {
+    card.add(scene.add.text(0, textY + s(2), describeHero(def), {
+      ...TEXT, fontSize: px(11), color: '#5d4037', align: 'center', wordWrap: { width: w - s(24) },
+    }).setOrigin(0.5, 0));
+  }
 
   if (stars != null) {
     const row = '★'.repeat(stars) + '☆'.repeat(PACKS.maxStars - stars);

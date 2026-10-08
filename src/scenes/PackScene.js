@@ -13,6 +13,9 @@ const CARD_H = HERO_CARD_SIZE.height;
 const CARD_X = DISPLAY.width / 2;
 const CARD_Y = 270;
 const ENVELOPE_GOLD = 0xffd54f;
+// Build-up glow starts neutral white so the shift toward any rarity colour
+// (including Legendary's orange-gold) reads as the hint.
+const HINT_START = 0xffffff;
 const CONFETTI_COLORS = [0xffd54f, 0xe53935, 0xffffff, 0x66bb6a, 0x29b6f6];
 
 const TEXT = { fontFamily: 'sans-serif', color: '#ffffff' };
@@ -45,6 +48,7 @@ export class PackScene extends Phaser.Scene {
     const rates = Progress.packRates()
       .map(({ rarity, chance }) => `${RARITY[rarity].label} ${Math.round(chance * 100)}%`).join('  ·  ');
     this.add.text(CARD_X, 96, rates, { ...TEXT, fontSize: '13px', color: '#b0bec5' }).setOrigin(0.5);
+    this.pityText = this.add.text(CARD_X, 116, '', { ...TEXT, fontSize: '13px', color: '#ffb74d' }).setOrigin(0.5);
 
     this.glow = this.add.rectangle(CARD_X, CARD_Y, CARD_W + 36, CARD_H + 36, 0xffffff, 0).setVisible(false);
     this.card = this.add.container(CARD_X, CARD_Y);
@@ -68,6 +72,14 @@ export class PackScene extends Phaser.Scene {
     const { angPow } = this.progress;
     this.walletText.setText(`You have ${angPow} Ang Pow  ·  Pack costs ${PACKS.cost}`);
     this.openButton.setLabel(`Open (${PACKS.cost} Ang Pow)`);
+    // Hold the pity line while a pack is opening: the counter resets the moment
+    // a Legendary is rolled, which would spoil the reveal.
+    if (!this.busy) {
+      const n = this.progress.packsUntilPity;
+      this.pityText.setText(n <= 1
+        ? 'Next pack is a guaranteed Legendary!'
+        : `Legendary guaranteed within ${n} packs`);
+    }
     this.openButton.setEnabled(!this.busy && this.progress.canOpenPack);
     this.closeButton.setEnabled(!this.busy);
   }
@@ -122,12 +134,12 @@ export class PackScene extends Phaser.Scene {
     const rarity = HEROES[result.id].rarity;
     const duration = PACK_FX.buildUp[rarity];
     const maxAngle = PACK_FX.shakeAngle[rarity];
-    const from = Phaser.Display.Color.ValueToColor(ENVELOPE_GOLD);
+    const from = Phaser.Display.Color.ValueToColor(HINT_START);
     const to = Phaser.Display.Color.ValueToColor(RARITY[rarity].color);
     const hintStart = 1 - PACK_FX.hintFraction;
 
-    this.glow.setVisible(true).setFillStyle(ENVELOPE_GOLD, 0).setScale(1).setAlpha(1);
-    sfx.shake(duration);
+    this.glow.setVisible(true).setFillStyle(HINT_START, 0).setScale(1).setAlpha(1);
+    sfx.shake(duration, rarity);
 
     this.tweens.addCounter({
       from: 0,
@@ -167,6 +179,8 @@ export class PackScene extends Phaser.Scene {
     const rarity = HEROES[result.id].rarity;
     const rarityColor = RARITY[rarity].color;
     sfx.reveal(rarity, result.isNew);
+    const flash = PACK_FX.revealFlash[rarity];
+    if (flash) this.cameras.main.flash(flash, 255, 236, 179);
 
     this.glow.setFillStyle(rarityColor, 0.55).setVisible(true).setScale(0.95).setAlpha(1);
     this.tweens.add({ targets: this.glow, scale: 1.1, alpha: 0.5, duration: 700, yoyo: true, repeat: -1 });
@@ -174,16 +188,19 @@ export class PackScene extends Phaser.Scene {
     const name = HEROES[result.id].name;
     let message;
     let color;
+    if (result.pity) {
+      message = `Pity! `;
+    }
     if (result.isNew) {
-      message = result.slot >= 0
+      message = (message ?? '') + (result.slot >= 0
         ? `NEW HERO! ${name} joins slot ${result.slot + 1}`
-        : `NEW HERO! ${name} — assign a slot on the house`;
+        : `NEW HERO! ${name} — assign a slot on the house`);
       color = '#ffd54f';
     } else if (result.refund) {
-      message = `${name} is at max stars — +${result.refund} Ang Pow back`;
+      message = (message ?? '') + `${name} is at max stars — +${result.refund} Ang Pow back`;
       color = '#b0bec5';
     } else {
-      message = `Duplicate! ${name} is now ★${result.stars}`;
+      message = (message ?? '') + `Duplicate! ${name} is now ★${result.stars}`;
       color = cssColor(rarityColor);
     }
     this.resultText.setText(message).setColor(color).setAlpha(0);
@@ -236,7 +253,8 @@ export class PackScene extends Phaser.Scene {
     }
     this.tweens.add({ targets: rays, angle: 360, duration: 16000, repeat: -1 });
 
-    const title = this.add.text(cx, 42, 'NEW HERO!', {
+    const legendary = def.rarity === 'legendary';
+    const title = this.add.text(cx, 42, legendary ? 'NEW LEGENDARY HERO!' : 'NEW HERO!', {
       ...TEXT, fontSize: '36px', fontStyle: 'bold', color: '#ffd54f', stroke: '#000000', strokeThickness: 6,
     }).setOrigin(0.5);
     const card = createHeroCard(this, cx, cardY, result.id, { scale: 1.3, stars: 0 });

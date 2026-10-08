@@ -2,18 +2,25 @@ import Phaser from 'phaser';
 import { HEROES, RARITY } from '../config.js';
 import { cssColor, starLabel } from './format.js';
 
-const WIDTH = 300;
-const ROW_HEIGHT = 48;
-const HEADER = 40;
+const WIDTH = 440;
+const ROW_HEIGHT = 38;
+const HEADER = 36;
 
 const pct = (n) => `${Math.round(n * 100)}%`;
 const secs = (ms) => `${+(ms / 1000).toFixed(1)}s`;
 
 // One-line summary of a hero's effect, built from its config numbers.
 export function describeHero(def) {
+  if (def.aura) {
+    return `No attack. Floor buff: +${pct(def.aura.damageBonus)} dmg, +${pct(def.aura.attackSpeedBonus)} speed`;
+  }
   const parts = [];
   if (def.stun) parts.push(`${pct(def.stun.chance)} chance to stun ${secs(def.stun.duration)}`);
+  if (def.lob) parts.push('lobbed');
   if (def.area) parts.push('area hit');
+  if (def.pierce) parts.push(`pierces up to ${def.pierce.maxTargets} enemies in a line`);
+  if (def.poison) parts.push(`poison: ${pct(def.poison.ratio)} dmg/s for ${secs(def.poison.duration)}`);
+  if (def.crit) parts.push(`${pct(def.crit.chance)} crit chance for ${def.crit.multiplier}x damage`);
   if (def.slow) parts.push(`slows ${pct(1 - def.slow.factor)} for ${secs(def.slow.duration)}`);
   if (def.curse) parts.push(`curse: +${pct(def.curse.bonus)} damage taken from all`);
   const text = parts.join(', ') || 'Fast shots, no effect';
@@ -37,7 +44,7 @@ export class HeroPicker extends Phaser.GameObjects.Container {
 
     this.add(this.scene.add.rectangle(0, 0, WIDTH, height, 0x1b1f2a, 0.95)
       .setOrigin(0).setStrokeStyle(2, 0xffeb3b, 0.6));
-    this.add(this.scene.add.text(14, 10, `Slot ${slot + 1}  ·  choose a hero`, {
+    this.add(this.scene.add.text(14, 8, `Slot ${slot + 1}  ·  choose a hero`, {
       fontFamily: 'sans-serif', fontSize: '16px', color: '#ffffff', fontStyle: 'bold',
     }));
     const close = this.scene.add.text(WIDTH - 14, 8, '✕', {
@@ -62,18 +69,17 @@ export class HeroPicker extends Phaser.GameObjects.Container {
       const rarity = RARITY[def.rarity];
       const where = progress.slotOf(id);
       const note = where === slot ? '  (here)' : where >= 0 ? `  (slot ${where + 1})` : '';
-      row.add(this.scene.add.rectangle(8, 8, 12, 26, def.color).setOrigin(0).setStrokeStyle(2, rarity.color));
+      row.add(this.scene.add.rectangle(8, 5, 12, 22, def.color).setOrigin(0).setStrokeStyle(2, rarity.color));
       const stars = starLabel(progress.heroStarCount(id));
-      row.add(this.scene.add.text(28, 5, `${def.name}  ·  Lv ${progress.heroLevel(id)}${stars ? `  ${stars}` : ''}${note}`, {
+      row.add(this.scene.add.text(28, 2, `${def.name}  ·  Lv ${progress.heroLevel(id)}${stars ? `  ${stars}` : ''}${note}`, {
         fontFamily: 'sans-serif', fontSize: '14px', color: '#ffffff',
       }));
-      row.add(this.scene.add.text(28, 23, `${rarity.label} · ${describeHero(def)}`, {
+      row.add(this.scene.add.text(28, 18, `${rarity.label} · ${describeHero(def)}`, {
         fontFamily: 'sans-serif', fontSize: '11px',
         color: cssColor(rarity.color),
-        wordWrap: { width: WIDTH - 50 },
       }));
     } else {
-      row.add(this.scene.add.text(28, 13, 'Leave empty', {
+      row.add(this.scene.add.text(28, 9, 'Leave empty', {
         fontFamily: 'sans-serif', fontSize: '14px', color: '#b0bec5', fontStyle: 'italic',
       }));
     }

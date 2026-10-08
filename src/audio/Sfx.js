@@ -8,7 +8,11 @@ const REVEAL_NOTES = {
   common: [523.25, 659.25],
   rare: [523.25, 659.25, 783.99, 1046.5],
   epic: [523.25, 659.25, 783.99, 1046.5, 1318.5, 1568.0],
+  legendary: [392.0, 523.25, 659.25, 783.99, 1046.5, 1318.5, 1568.0, 2093.0],
 };
+
+// Build-up hum end pitch per rarity: rarer pulls rise higher.
+const SHAKE_PEAK = { common: 260, rare: 330, epic: 420, legendary: 560 };
 
 class Sfx {
   constructor() {
@@ -75,11 +79,12 @@ class Sfx {
   }
 
   // Build-up: paper rattles that speed up, over a rising hum.
-  shake(durationMs) {
+  shake(durationMs, rarity = 'common') {
     const t = this.ready();
     if (t == null) return;
     const d = durationMs / 1000;
-    this.tone({ freq: 110, endFreq: 330, type: 'triangle', start: t, duration: d, volume: 0.18, attack: d * 0.6 });
+    const peak = SHAKE_PEAK[rarity] ?? SHAKE_PEAK.common;
+    this.tone({ freq: 110, endFreq: peak, type: 'triangle', start: t, duration: d, volume: 0.18, attack: d * 0.6 });
     let at = 0;
     let gap = 0.13;
     while (at < d) {
@@ -104,6 +109,13 @@ class Sfx {
     notes.forEach((freq, i) => {
       this.tone({ freq, type: 'triangle', start: t + i * 0.09, duration: 0.6, volume: 0.35 });
     });
+    if (rarity === 'legendary') {
+      // Sustained major chord under the arpeggio.
+      const chordAt = t + notes.length * 0.09;
+      for (const freq of [523.25, 659.25, 783.99]) {
+        this.tone({ freq, type: 'sine', start: chordAt, duration: 1.4, volume: 0.18, attack: 0.05 });
+      }
+    }
     if (isNew) {
       const end = t + notes.length * 0.09;
       for (let i = 0; i < 6; i++) {

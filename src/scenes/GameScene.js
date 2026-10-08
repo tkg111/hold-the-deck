@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { DISPLAY, PACKS } from '../config.js';
+import { DISPLAY, HEROES, PACKS } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
 import { applyRenderScale } from '../display.js';
 import { House } from '../entities/House.js';
@@ -78,8 +78,11 @@ export class GameScene extends Phaser.Scene {
 
     this.upgradePanel = new UpgradePanel(this, 540, 70, this.progress, () => this.onUpgradePurchased());
 
-    this.heroPicker = new HeroPicker(this, 225, 100, (id) => this.onHeroPicked(id));
-    this.heroPicker.on('closed', () => this.house.selectSlot(-1));
+    this.heroPicker = new HeroPicker(this, 225, 52, (id) => this.onHeroPicked(id));
+    this.heroPicker.on('closed', () => {
+      this.house.selectSlot(-1);
+      this.refreshUi();  // brings the upgrade panel back
+    });
     this.slotHint = this.add.text(16, DISPLAY.groundY + 14, 'Click a slot to assign a hero', {
       fontFamily: 'sans-serif', fontSize: '13px', color: '#ffffff', stroke: '#000000', strokeThickness: 3,
     });
@@ -134,7 +137,7 @@ export class GameScene extends Phaser.Scene {
     this.packButton.setLabel(`Packs  (${this.progress.angPow}/${PACKS.cost})`);
     if (idle && this.progress.canOpenPack) this.packPulse.resume();
     else { this.packPulse.pause(); this.packButton.setScale(1); }
-    this.upgradePanel.setVisible(idle);
+    this.upgradePanel.setVisible(idle && !this.heroPicker.visible);
     this.slotHint.setVisible(idle);
     this.devButton?.setVisible(idle);
     this.devAngPowButton?.setVisible(idle);
@@ -197,14 +200,24 @@ export class GameScene extends Phaser.Scene {
   // Recreate hero objects from the slot assignments in progress.
   rebuildHeroes() {
     for (const h of this.heroes) h.destroy();
-    this.heroes = this.progress.activeHeroes.map(({ id, slot }) =>
-      new Hero(this, id, this.house.slotPosition(slot), this.progress.heroDamage(id), this.progress.heroStarCount(id)));
+    const p = this.progress;
+    const buffs = p.floorBuffs;
+    this.heroes = p.activeHeroes.map(({ id, slot }) => {
+      const buff = buffs[slot];
+      return new Hero(this, id, this.house.slotPosition(slot), {
+        damage: p.heroDamage(id) * buff.damage,
+        attackInterval: (HEROES[id].attackInterval ?? 0) / buff.attackSpeed,
+        stars: p.heroStarCount(id),
+        buffed: buff.buffed,
+      });
+    });
   }
 
   onSlotClicked(slot) {
     if (this.state !== STATE.IDLE) return;
     this.house.selectSlot(slot);
     this.heroPicker.open(slot, this.progress);
+    this.upgradePanel.setVisible(false);  // the picker needs the room
   }
 
   onHeroPicked(id) {
@@ -212,6 +225,8 @@ export class GameScene extends Phaser.Scene {
     this.heroPicker.close();
     this.house.sync(this.progress);
     this.rebuildHeroes();
+    this.upgradePanel.rebuild();  // it lists the heroes on the house
+    this.refreshUi();
     this.save();
   }
 

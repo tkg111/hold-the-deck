@@ -1,77 +1,125 @@
 import { HEROES } from '../config.js';
 import { starLabel } from '../ui/format.js';
-import { Projectile } from './Projectile.js';
+import { LobProjectile, PiercingProjectile, Projectile } from './Projectile.js';
+
+const BUFF_COLOR = 0xffd54f;
 
 export class Hero {
-  constructor(scene, id, { x, y }, damage, stars = 0) {
+  // damage and attackInterval come from Progress (level, stars, floor buffs).
+  constructor(scene, id, { x, y }, { damage, attackInterval, stars = 0, buffed = false }) {
     this.scene = scene;
     this.id = id;
     this.def = HEROES[id];
-    this.damage = damage;  // set from Progress; changes with level
+    this.damage = damage;
+    this.attackInterval = attackInterval;
     this.x = x;
     this.y = y;
     this.cooldown = 0;
 
+    // Gold glow: steady around Tok Penghulu, pulsing behind the heroes he buffs.
+    this.glow = null;
+    if (this.def.aura || buffed) {
+      this.glow = scene.add.rectangle(x, y, 26, 36, BUFF_COLOR, this.def.aura ? 0.45 : 0.3)
+        .setStrokeStyle(2, BUFF_COLOR, 0.9);
+      if (buffed) scene.tweens.add({ targets: this.glow, alpha: 0.35, duration: 700, yoyo: true, repeat: -1 });
+    }
     this.body = scene.add.rectangle(x, y, 18, 28, this.def.color).setStrokeStyle(2, 0x1b1b1b);
-    this.label = scene.add.text(x, y - 24, `${this.def.shortName}${stars ? ` ${starLabel(stars)}` : ''}`, {
-      fontFamily: 'sans-serif', fontSize: '10px', color: '#ffffff',
+
+    // Name on top, stars on a second line, so neighbouring labels don't collide.
+    const label = stars ? `${this.def.shortName}\n${starLabel(stars)}` : this.def.shortName;
+    this.label = scene.add.text(x, y - 17, label, {
+      fontFamily: 'sans-serif', fontSize: '10px', color: '#ffffff', align: 'center',
       stroke: '#000000', strokeThickness: 3,
-    }).setOrigin(0.5);
+    }).setOrigin(0.5, 1).setLineSpacing(-2);
   }
 
-  // Returns a new Projectile if the hero fired this frame.
+  // Returns a new projectile if the hero fired this frame.
   update(dt, enemies) {
+    if (this.def.aura) return null;  // support hero: never attacks
     this.cooldown -= dt;
     if (this.cooldown > 0) return null;
 
     const target = this.pickTarget(enemies);
     if (!target) return null;
 
-    this.cooldown = this.def.attackInterval;
+    this.cooldown = this.attackInterval;
     this.scene.tweens.add({ targets: this.body, scaleX: 1.2, duration: 60, yoyo: true });
+    return this.fire(target);
+  }
+
+  fire(target) {
+    const { def } = this;
+    const onHit = (hit, x, y) => this.onHit(hit, x, y);
+    if (def.lob) {
+      // Aim where the target will be when the lob lands.
+      const lead = target.isStunned ? 0
+        : target.speed * (target.isSlowed ? target.slowFactor : 1) * def.lob.flightTime / 1000;
+      const minX = this.scene.house.right + target.def.width / 2;
+      return new LobProjectile(this.scene, {
+        x: this.x, y: this.y,
+        destX: Math.max(minX, target.x - lead), destY: target.y,
+        flightTime: def.lob.flightTime, arcHeight: def.lob.arcHeight,
+        color: def.projectileColor, size: def.projectileSize, onHit,
+      });
+    }
+    if (def.pierce) {
+      return new PiercingProjectile(this.scene, {
+        x: this.x, y: this.y, target,
+        speed: def.projectileSpeed, color: def.projectileColor, size: def.projectileSize,
+        ...def.pierce,
+        enemies: () => this.scene.enemies,
+        onHit,
+      });
+    }
     return new Projectile(this.scene, {
       x: this.x, y: this.y, target,
-      speed: this.def.projectileSpeed,
-      color: this.def.projectileColor,
-      size: this.def.projectileSize,
-      onHit: (hit, x, y) => this.onHit(hit, x, y),
+      speed: def.projectileSpeed, color: def.projectileColor, size: def.projectileSize, onHit,
     });
   }
 
   // Closest living enemy to the house that's within range. The Bomoh prefers
-  // enemies that aren't cursed yet so the curse spreads across the wave.
+  // enemies that aren't cursed yet, and the Pemburu Sumpit ones not yet
+  // poisoned, so their effects spread across the wave.
   pickTarget(enemies) {
+    const { curse, poison } = this.def;
     let best = null;
-    let bestUncursed = null;
+    let bestFresh = null;
     for (const e of enemies) {
       if (!e.alive) continue;
       if (Math.hypot(e.x - this.x, e.y - this.y) > this.def.range) continue;
       if (!best || e.x < best.x) best = e;
-      if (!e.isCursed && (!bestUncursed || e.x < bestUncursed.x)) bestUncursed = e;
+      const fresh = (curse && !e.isCursed) || (poison && !e.isPoisoned);
+      if (fresh && (!bestFresh || e.x < bestFresh.x)) bestFresh = e;
     }
-    return (this.def.curse && bestUncursed) || best;
+    return bestFresh || best;
   }
 
   onHit(target, x, y) {
-    const { area, stun, slow, curse } = this.def;
+    const { area, stun, slow, curse, poison, crit } = this.def;
     let victims;
     if (area) {
       victims = this.scene.enemies.filter((e) => e.alive && Math.hypot(e.x - x, e.y - y) <= area.radius);
       this.showAreaHit(x, y, area.radius);
     } else {
-      victims = target ? [target] : [];
+      victims = target && target.alive ? [target] : [];
     }
 
     for (const e of victims) {
-      e.takeDamage(this.damage);
+      let damage = this.damage;
+      if (crit && Math.random() < crit.chance) {
+        damage *= crit.multiplier;
+        this.scene.floatText(e.x, e.y - e.def.height / 2 - 26, 'CRIT!', '#ffca28');
+      }
+      e.takeDamage(damage);
       if (!e.alive) continue;
       if (stun && Math.random() < stun.chance) e.applyStun(stun.duration);
       if (slow) e.applySlow(slow.factor, slow.duration);
       if (curse) e.applyCurse(curse.bonus, curse.duration);
+      if (poison) e.applyPoison(this.damage * poison.ratio, poison.duration);
     }
   }
 
-  // Expanding net ring where an area shot lands.
+  // Expanding ring where an area shot lands.
   showAreaHit(x, y, radius) {
     const ring = this.scene.add.circle(x, y, radius, this.def.projectileColor, 0.15)
       .setStrokeStyle(2, this.def.projectileColor, 0.9).setScale(0.2).setDepth(5);
@@ -81,6 +129,10 @@ export class Hero {
   }
 
   destroy() {
+    if (this.glow) {
+      this.scene.tweens.killTweensOf(this.glow);
+      this.glow.destroy();
+    }
     this.body.destroy();
     this.label.destroy();
   }

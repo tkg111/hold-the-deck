@@ -37,9 +37,9 @@ Waves are endless and scale in difficulty.
 | **Toyol** | Fast thief | Fast, low HP. On reaching the house, steals a % of gold instead of dealing damage, then disappears. |
 | **Hantu Galah** | Boss | Appears every 10 waves with a reduced escort. Very high HP, slow, hits the house hard. **Status resist:** stun and slow last half as long on it, so it can't be stun-locked. |
 
-## Heroes (v0.1)
+## Heroes
 
-All heroes are ranged and attack from the house.
+All heroes are ranged and attack from the house, except Tok Penghulu, who supports.
 
 | Hero | Rarity | Attack | Effect |
 |---|---|---|---|
@@ -47,8 +47,15 @@ All heroes are ranged and attack from the house.
 | **Mak Cik Selipar** | Common | Medium speed/damage | 25% chance to stun for 1s (no movement or attacks) |
 | **Nelayan** | Rare | Slow, area | Net slows all enemies in the area by 50% for 2.5s (movement and attack speed) |
 | **Bomoh** | Epic | Medium | Curse: cursed enemies take +30% damage from all heroes for 4s. Prefers targets that aren't cursed yet. |
+| **Pemburu Sumpit** | Rare | Fast blowpipe darts | Poison: deals 75% of the hit's damage per second for 4s. Re-poisoning refreshes the timer and keeps the stronger tick; curse boosts poison too. Prefers targets that aren't poisoned yet. |
+| **Pakcik Mamak** | Rare | Slow, piercing | Roti canai flies to the front of the enemy line, then skims along it for 300px, hitting up to 6 enemies once each. |
+| **Uncle Durian** | Epic | Very slow, lobbed | Durian arcs (1s flight) to where the target will be when it lands, then hits everything within a large area. |
+| **Pendekar Silat** | Legendary | Heavy single hits | 35% chance to crit for 2.5x damage ("CRIT!" pops up). Strongest against tough enemies and bosses. |
+| **Tok Penghulu** | Legendary | Doesn't attack | Buffs the other hero on his floor: +50% damage (+4% per level, scaled by his stars) and +30% attack speed. Gold glow on him and on buffed heroes. |
 
-Status effects are shown on the enemy: yellow circling stars (stunned), blue net (slowed), pulsing purple aura (cursed).
+Status effects are shown on the enemy: yellow circling stars (stunned), blue net (slowed), pulsing purple aura (cursed), green tint with rising bubbles and a green HP bar (poisoned).
+
+Rarities: Common, Rare, Epic, **Legendary**. Each hero has a placeholder Manglish catchphrase in config.
 
 Heroes have:
 - **Level:** raised with gold. +20% base damage per level.
@@ -67,25 +74,25 @@ Heroes have:
 
 - One pack type, bought with Ang Pow.
 - Each pack gives 1 hero.
-- Starting drop rates (tune during playtesting): Common 50%, Rare 30%, Epic 20%.
-  (Legendary tier added later; rates get rebalanced then.)
+- Drop rates: Common 45%, Rare 30%, Epic 18%, Legendary 7%. Within a rarity, each hero is equally likely.
+- **Pity:** a Legendary is guaranteed within 30 packs. The counter resets on any Legendary (natural or guaranteed) and is shown in the pack screen ("Legendary guaranteed within N packs"). It only updates after the reveal so it never spoils a natural Legendary.
 - Costs 3 Ang Pow. Rates are renormalized over rarities that actually have heroes, so an empty tier never breaks the odds.
 - **New hero:** unlocked, added to the roster, and automatically placed in the first free slot if there is one.
 - **Duplicate:** +1 star for that hero. A duplicate of a 5-star hero refunds 1 Ang Pow instead.
 
 ### Opening a pack
 
-1. **Build-up:** the red envelope shakes harder and glows brighter. Rarer pulls build up longer and shake harder (Common 0.7s / Rare 1.3s / Epic 2.0s). The glow starts envelope-gold and shifts to the rarity colour over the last 45% of the build-up, so the player gets a hint just before the reveal. A synthesized rattle-and-rising-hum plays over it.
+1. **Build-up:** the red envelope shakes harder and glows brighter. Rarer pulls build up longer and shake harder (Common 0.7s / Rare 1.3s / Epic 2.0s / Legendary 2.9s). The glow starts white and shifts to the rarity colour over the last 45% of the build-up, so the player gets a hint just before the reveal. A synthesized rattle-and-rising-hum plays over it; the hum rises higher for rarer pulls.
 2. **Flip:** the card flips (whoosh sound) to the hero's card.
-3. **Reveal:** a chime that gets longer and higher with rarity; the card glows in its rarity colour. New heroes also get a sparkle sound and a **confetti burst** (40 / 90 / 160 pieces for Common / Rare / Epic).
-4. **New-hero splash:** the first time a hero is pulled, a big intro card appears over rotating light rays: "NEW HERO!", the card with name and rarity, and the hero's one-line **Manglish catchphrase** (stored per hero in config). Click to continue. Duplicates skip the splash.
+3. **Reveal:** a chime that gets longer and higher with rarity (Legendary adds a sustained chord and a warm full-screen flash); the card glows in its rarity colour. New heroes also get a sparkle sound and a **confetti burst** (40 / 90 / 160 / 280 pieces for Common / Rare / Epic / Legendary).
+4. **New-hero splash:** the first time a hero is pulled, a big intro card appears over rotating light rays: "NEW HERO!" ("NEW LEGENDARY HERO!" for Legendaries), the card with name and rarity, and the hero's one-line **Manglish catchphrase** (stored per hero in config). Click to continue. Duplicates skip the splash.
 
 - Should be affordable roughly every few waves. With the current numbers it is faster than that: 10 waves pay 25 Ang Pow (10 per-wave + 10 milestone + 5 boss), about 8 packs, so tune `PACKS.cost` or the rewards if pulls feel too frequent.
 
 ## Collection Book
 
 - Opened from the **Collection** button between waves.
-- Shows every hero in the game with an "N/M collected" count.
+- Shows every hero in the game, grouped by rarity, with an "N/M collected" count. Cards shrink to fit as the roster grows.
 - Owned heroes appear as their card with level and stars. Unowned heroes are dark silhouettes with "???" for the name, so the player can see how many are left to find without spoiling who they are.
 
 ## Sound
@@ -116,13 +123,17 @@ Each step should leave the game playable.
 - Loading is defensive: out-of-range or unknown values are clamped or dropped, and an unreadable save is kept aside as a backup instead of being lost.
 - **Reset progress** button (between waves) wipes the save after a confirmation.
 
+## Between-wave UI
+
+- **Upgrade panel:** house HP, build floor, and a level-up row for each hero currently placed on the house (Tok Penghulu's row shows his floor buff).
+- **Hero picker:** click a house slot to see every owned hero (grouped by rarity) with level, stars and effect; the upgrade panel hides while it's open.
+- Bottom bar: Collection, Start Wave, Packs; Sound toggle and Reset progress in the corner.
+
 ## Later (not in v0.1)
 
 - **Prestige: "Pindah Kampung."** Reset waves and house upgrades for permanent currency (*Semangat*) that buys permanent bonuses. Heroes and pack progress are kept.
 - Active hero skills
 - More enemies: Pontianak (flying, only some heroes can hit), Penanggal (floating head, high damage, low HP)
-- Legendary heroes: Pendekar Silat, Tok Penghulu (buffs heroes on his floor)
-- Pack pity counter
 - Music (sound effects exist; no background music yet)
 - Save export/import
 - Real pixel art

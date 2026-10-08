@@ -4,6 +4,7 @@ import { DISPLAY } from '../config.js';
 const STUN_COLOR = 0xffeb3b;
 const SLOW_COLOR = 0x4fc3f7;
 const CURSE_COLOR = 0xb620e0;
+const POISON_COLOR = 0x76ff03;
 
 export class Enemy {
   constructor(scene, def, { x, yOffset, hpMultiplier, damageMultiplier, gold }) {
@@ -23,6 +24,8 @@ export class Enemy {
     this.slowFactor = 1;
     this.curseTime = 0;
     this.curseBonus = 0;
+    this.poisonTime = 0;
+    this.poisonDps = 0;
 
     this.x = x;
     this.y = DISPLAY.groundY - def.height / 2 + yOffset;
@@ -45,6 +48,7 @@ export class Enemy {
   get isStunned() { return this.stunTime > 0; }
   get isSlowed() { return this.slowTime > 0; }
   get isCursed() { return this.curseTime > 0; }
+  get isPoisoned() { return this.poisonTime > 0; }
 
   // --- Status effects ---
 
@@ -62,7 +66,19 @@ export class Enemy {
     this.curseTime = Math.max(this.curseTime, duration);
   }
 
+  // Re-poisoning refreshes the timer and keeps the stronger tick.
+  applyPoison(damagePerSecond, duration) {
+    this.poisonDps = this.isPoisoned ? Math.max(this.poisonDps, damagePerSecond) : damagePerSecond;
+    this.poisonTime = Math.max(this.poisonTime, duration);
+  }
+
   tickStatus(dt) {
+    if (this.isPoisoned) {
+      const tick = Math.min(dt, this.poisonTime);
+      this.poisonTime -= tick;
+      this.takeDamage(this.poisonDps * tick / 1000, { flash: false });
+      if (!this.alive) return;
+    }
     this.stunTime = Math.max(0, this.stunTime - dt);
     this.slowTime = Math.max(0, this.slowTime - dt);
     this.curseTime = Math.max(0, this.curseTime - dt);
@@ -73,6 +89,7 @@ export class Enemy {
   update(dt, house) {
     if (!this.alive) return;
     this.tickStatus(dt);
+    if (!this.alive) return;  // poison can finish it off
 
     if (!this.isStunned) {
       // Slow affects both walking and attack rate.
@@ -114,11 +131,14 @@ export class Enemy {
     });
   }
 
-  takeDamage(amount) {
+  // flash: false for damage over time, so poison ticks don't strobe the body.
+  takeDamage(amount, { flash = true } = {}) {
     if (!this.alive) return;
     this.hp -= this.isCursed ? amount * (1 + this.curseBonus) : amount;
-    this.body.setFillStyle(0xff5555);
-    this.scene.time.delayedCall(60, () => this.alive && this.body.setFillStyle(this.def.color));
+    if (flash) {
+      this.body.setFillStyle(0xff5555);
+      this.scene.time.delayedCall(60, () => this.alive && this.body.setFillStyle(this.def.color));
+    }
     if (this.hp <= 0) this.die();
     else this.drawHpBar();
   }
@@ -158,7 +178,8 @@ export class Enemy {
     const pct = Phaser.Math.Clamp(this.hp / this.maxHp, 0, 1);
     this.hpBar.clear();
     this.hpBar.fillStyle(0x000000, 0.6).fillRect(x, y, w, 4);
-    this.hpBar.fillStyle(this.isCursed ? CURSE_COLOR : 0xe53935).fillRect(x, y, w * pct, 4);
+    const barColor = this.isCursed ? CURSE_COLOR : this.isPoisoned ? POISON_COLOR : 0xe53935;
+    this.hpBar.fillStyle(barColor).fillRect(x, y, w * pct, 4);
   }
 
   drawStatus() {
@@ -174,6 +195,17 @@ export class Enemy {
       const pulse = 0.5 + 0.5 * Math.sin(t / 120);
       g.fillStyle(CURSE_COLOR, 0.25).fillRect(left, top, w, h);
       g.lineStyle(3, CURSE_COLOR, 0.5 + 0.5 * pulse).strokeRect(left - 3, top - 3, w + 6, h + 6);
+    }
+
+    // Poison: sickly green tint with bubbles rising off the body.
+    if (this.isPoisoned) {
+      g.fillStyle(POISON_COLOR, 0.28).fillRect(left, top, w, h);
+      for (let i = 0; i < 3; i++) {
+        const phase = (t / 700 + i / 3) % 1;
+        const bx = this.x + Math.sin(i * 2.4 + t / 300) * w * 0.35;
+        const by = top + h * 0.4 - phase * (h * 0.4 + 14);
+        g.fillStyle(POISON_COLOR, 1 - phase).fillCircle(bx, by, 2.8 * (1 - phase * 0.5));
+      }
     }
 
     // Slow: blue net drawn over the body.

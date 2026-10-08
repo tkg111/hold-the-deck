@@ -4,12 +4,14 @@ export const SAVE_KEY = 'kampung-defense/save';
 const CORRUPT_BACKUP_KEY = 'kampung-defense/save-corrupt-backup';
 
 // Bump when the saved shape changes, and add a migration from the old version.
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 
 // MIGRATIONS[n] upgrades a version-n save to version n + 1.
 const MIGRATIONS = {
   // v2: sound mute setting saved with progress.
   1: (data) => ({ ...data, muted: false }),
+  // v3: Legendary pity counter.
+  2: (data) => ({ ...data, packsSinceLegendary: 0 }),
 };
 
 function migrate(save) {
