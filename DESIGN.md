@@ -72,8 +72,27 @@ Heroes have:
 - Costs 3 Ang Pow. Rates are renormalized over rarities that actually have heroes, so an empty tier never breaks the odds.
 - **New hero:** unlocked, added to the roster, and automatically placed in the first free slot if there is one.
 - **Duplicate:** +1 star for that hero. A duplicate of a 5-star hero refunds 1 Ang Pow instead.
-- Simple card-flip reveal, glow color based on rarity.
+
+### Opening a pack
+
+1. **Build-up:** the red envelope shakes harder and glows brighter. Rarer pulls build up longer and shake harder (Common 0.7s / Rare 1.3s / Epic 2.0s). The glow starts envelope-gold and shifts to the rarity colour over the last 45% of the build-up, so the player gets a hint just before the reveal. A synthesized rattle-and-rising-hum plays over it.
+2. **Flip:** the card flips (whoosh sound) to the hero's card.
+3. **Reveal:** a chime that gets longer and higher with rarity; the card glows in its rarity colour. New heroes also get a sparkle sound and a **confetti burst** (40 / 90 / 160 pieces for Common / Rare / Epic).
+4. **New-hero splash:** the first time a hero is pulled, a big intro card appears over rotating light rays: "NEW HERO!", the card with name and rarity, and the hero's one-line **Manglish catchphrase** (stored per hero in config). Click to continue. Duplicates skip the splash.
+
 - Should be affordable roughly every few waves. With the current numbers it is faster than that: 10 waves pay 25 Ang Pow (10 per-wave + 10 milestone + 5 boss), about 8 packs, so tune `PACKS.cost` or the rewards if pulls feel too frequent.
+
+## Collection Book
+
+- Opened from the **Collection** button between waves.
+- Shows every hero in the game with an "N/M collected" count.
+- Owned heroes appear as their card with level and stars. Unowned heroes are dark silhouettes with "???" for the name, so the player can see how many are left to find without spoiling who they are.
+
+## Sound
+
+- All sound effects are synthesized with the Web Audio API; there are no audio files.
+- Current effects: pack build-up, card flip, reveal chime (scales with rarity), new-hero sparkle, UI clicks.
+- **Sound: On/Off** toggle on the main screen (usable mid-wave), saved with progress.
 
 ## Starting Numbers
 
@@ -104,6 +123,6 @@ Each step should leave the game playable.
 - More enemies: Pontianak (flying, only some heroes can hit), Penanggal (floating head, high damage, low HP)
 - Legendary heroes: Pendekar Silat, Tok Penghulu (buffs heroes on his floor)
 - Pack pity counter
-- Sound and music
+- Music (sound effects exist; no background music yet)
 - Save export/import
 - Real pixel art

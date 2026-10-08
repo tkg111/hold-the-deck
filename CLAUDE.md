@@ -1,0 +1,24 @@
+# Kampung Defense
+
+Grow Castle-style idle defense game. Phaser 3 + Vite, deployed to GitHub Pages
+by `.github/workflows/deploy.yml` on every push to `main`.
+
+## Rules
+
+- **After each feature, update DESIGN.md to match.** The design doc must
+  describe how the game actually works now, including decisions made while
+  building (new mechanics, changed rules, new screens, reward sources).
+- All balance and presentation numbers live in `src/config.js`. Don't hardcode
+  tunable values elsewhere. Numbers quoted in DESIGN.md should match config.
+- Changing the saved shape (`Progress.toSave()`) means bumping `SAVE_VERSION`
+  in `src/systems/Save.js` and adding a migration from the previous version.
+
+## Conventions
+
+- Layout uses 960x540 logical units (`DISPLAY` in config). The canvas renders
+  at `RENDER_SCALE`x and every scene must call `applyRenderScale(this)` first
+  in `create()` (see `src/display.js`).
+- Dev-only tools live in `src/dev/` and are loaded via a dynamic import behind
+  `import.meta.env.DEV`, so they never ship in production builds.
+- Stop the dev server before running `npm ci` on Windows (it locks a native
+  binary in `node_modules`).
