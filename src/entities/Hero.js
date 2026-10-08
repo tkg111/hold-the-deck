@@ -1,8 +1,9 @@
 import { HEROES } from '../config.js';
+import { starLabel } from '../ui/format.js';
 import { Projectile } from './Projectile.js';
 
 export class Hero {
-  constructor(scene, id, { x, y }, damage) {
+  constructor(scene, id, { x, y }, damage, stars = 0) {
     this.scene = scene;
     this.id = id;
     this.def = HEROES[id];
@@ -12,7 +13,7 @@ export class Hero {
     this.cooldown = 0;
 
     this.body = scene.add.rectangle(x, y, 18, 28, this.def.color).setStrokeStyle(2, 0x1b1b1b);
-    this.label = scene.add.text(x, y - 24, this.def.shortName, {
+    this.label = scene.add.text(x, y - 24, `${this.def.shortName}${stars ? ` ${starLabel(stars)}` : ''}`, {
       fontFamily: 'sans-serif', fontSize: '10px', color: '#ffffff',
       stroke: '#000000', strokeThickness: 3,
     }).setOrigin(0.5);

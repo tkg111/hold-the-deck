@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { DISPLAY } from './config.js';
 import { GameScene } from './scenes/GameScene.js';
+import { PackScene } from './scenes/PackScene.js';
 
 const game = new Phaser.Game({
   type: Phaser.AUTO,
@@ -12,7 +13,7 @@ const game = new Phaser.Game({
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
   },
-  scene: [GameScene],
+  scene: [GameScene, PackScene],
 });
 
 // Handy for poking at state from the browser console during development.

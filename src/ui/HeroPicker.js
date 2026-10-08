@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { HEROES, RARITY } from '../config.js';
-import { cssColor } from './color.js';
+import { cssColor, starLabel } from './format.js';
 
 const WIDTH = 300;
 const ROW_HEIGHT = 48;
@@ -63,7 +63,8 @@ export class HeroPicker extends Phaser.GameObjects.Container {
       const where = progress.slotOf(id);
       const note = where === slot ? '  (here)' : where >= 0 ? `  (slot ${where + 1})` : '';
       row.add(this.scene.add.rectangle(8, 8, 12, 26, def.color).setOrigin(0).setStrokeStyle(2, rarity.color));
-      row.add(this.scene.add.text(28, 5, `${def.name}  ·  Lv ${progress.heroLevel(id)}${note}`, {
+      const stars = starLabel(progress.heroStarCount(id));
+      row.add(this.scene.add.text(28, 5, `${def.name}  ·  Lv ${progress.heroLevel(id)}${stars ? `  ${stars}` : ''}${note}`, {
         fontFamily: 'sans-serif', fontSize: '14px', color: '#ffffff',
       }));
       row.add(this.scene.add.text(28, 23, `${rarity.label} · ${describeHero(def)}`, {

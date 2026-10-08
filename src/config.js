@@ -160,6 +160,23 @@ export const ECONOMY = {
   // Wave clear bonus: waveClearBase + (wave - 1) * waveClearPerWave
   waveClearBase: 10,
   waveClearPerWave: 4,
+
+  // Ang Pow: earned on milestone waves and boss kills, spent on packs.
+  startingAngPow: 3,        // enough for one pack right away
+  angPowMilestoneEvery: 5,  // clearing every Nth wave pays out
+  angPowPerMilestone: 5,
+  angPowPerBoss: 5,         // first kill of each boss wave only
+};
+
+export const PACKS = {
+  cost: 3,
+  // Rarity weights; renormalized over rarities that actually have heroes.
+  rates: { common: 0.5, rare: 0.3, epic: 0.2 },
+  maxStars: 5,
+  // Total damage bonus at each star count (index = stars). Each star adds more than the last.
+  starDamageBonus: [0, 0.1, 0.25, 0.45, 0.7, 1.0],
+  // Duplicate of a max-star hero refunds this much Ang Pow instead.
+  maxStarRefund: 1,
 };
 
 // Upgrade cost at level L: round(baseCost * costGrowth ^ L)

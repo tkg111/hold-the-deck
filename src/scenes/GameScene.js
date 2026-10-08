@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { DISPLAY } from '../config.js';
+import { DISPLAY, PACKS } from '../config.js';
 import { House } from '../entities/House.js';
 import { Hero } from '../entities/Hero.js';
 import { Progress } from '../systems/Progress.js';
@@ -59,6 +59,8 @@ export class GameScene extends Phaser.Scene {
     this.hpBar = this.add.graphics();
     this.goldText = this.add.text(DISPLAY.width - 16, 12, '', { ...TEXT_STYLE, color: '#ffd54f' })
       .setOrigin(1, 0);
+    this.angPowText = this.add.text(DISPLAY.width - 16, 38, '', { ...TEXT_STYLE, fontSize: '16px', color: '#ff8a80' })
+      .setOrigin(1, 0);
 
     this.banner = this.add.text(DISPLAY.width / 2, 40, '', { ...TEXT_STYLE, fontSize: '32px' })
       .setOrigin(0.5).setAlpha(0).setDepth(10);
@@ -77,6 +79,14 @@ export class GameScene extends Phaser.Scene {
       width: 180, height: 44, label: 'Start Wave', fontSize: '22px',
       onClick: () => this.startWave(),
     });
+    this.packButton = new Button(this, DISPLAY.width / 2 + 190, DISPLAY.height - 40, {
+      width: 160, height: 44, label: 'Packs', color: 0xb71c1c, fontSize: '20px',
+      onClick: () => this.openPacks(),
+    });
+    // Gentle pulse while a pack is affordable.
+    this.packPulse = this.tweens.add({
+      targets: this.packButton, scale: 1.06, duration: 500, yoyo: true, repeat: -1, paused: true,
+    });
   }
 
   refreshUi() {
@@ -85,6 +95,7 @@ export class GameScene extends Phaser.Scene {
     this.waveText.setText(`Wave ${this.progress.wave}${boss ? '  ·  BOSS' : ''}`)
       .setColor(boss ? '#ff8a80' : '#ffffff');
     this.goldText.setText(`Gold ${this.progress.gold}`);
+    this.angPowText.setText(`Ang Pow ${this.progress.angPow}`);
     this.hpText.setText(`House HP ${Math.ceil(this.house.hp)} / ${this.house.maxHp}`);
 
     const pct = this.house.hp / this.house.maxHp;
@@ -93,9 +104,14 @@ export class GameScene extends Phaser.Scene {
     this.hpBar.fillStyle(pct > 0.3 ? 0x43a047 : 0xe53935).fillRect(16, 64, 200 * pct, 10);
 
     this.startButton.setVisible(idle);
+    this.packButton.setVisible(idle);
+    this.packButton.setLabel(`Packs  (${this.progress.angPow}/${PACKS.cost})`);
+    if (idle && this.progress.canOpenPack) this.packPulse.resume();
+    else { this.packPulse.pause(); this.packButton.setScale(1); }
     this.upgradePanel.setVisible(idle);
     this.slotHint.setVisible(idle);
     this.devButton?.setVisible(idle);
+    this.devAngPowButton?.setVisible(idle);
     if (idle) this.upgradePanel.refresh();
   }
 
@@ -113,7 +129,12 @@ export class GameScene extends Phaser.Scene {
 
   onEnemyKilled(enemy) {
     this.progress.gold += enemy.gold;
-    this.floatText(enemy.x, enemy.y - enemy.def.height / 2 - 12, `+${enemy.gold}`);
+    const top = enemy.y - enemy.def.height / 2;
+    this.floatText(enemy.x, top - 12, `+${enemy.gold}`);
+    if (enemy.def.boss) {
+      const angPow = this.progress.claimBossAngPow();
+      if (angPow) this.floatText(enemy.x, top - 32, `+${angPow} Ang Pow`, '#ff8a80');
+    }
   }
 
   onEnemyStole(enemy) {
@@ -132,7 +153,7 @@ export class GameScene extends Phaser.Scene {
   rebuildHeroes() {
     for (const h of this.heroes) h.destroy();
     this.heroes = this.progress.activeHeroes.map(({ id, slot }) =>
-      new Hero(this, id, this.house.slotPosition(slot), this.progress.heroDamage(id)));
+      new Hero(this, id, this.house.slotPosition(slot), this.progress.heroDamage(id), this.progress.heroStarCount(id)));
   }
 
   onSlotClicked(slot) {
@@ -148,13 +169,19 @@ export class GameScene extends Phaser.Scene {
     this.rebuildHeroes();
   }
 
-  // Owned heroes changed (dev toggle now, packs in step 5).
+  // Owned heroes or stars changed (packs, dev toggle).
   onRosterChanged() {
     if (this.heroPicker.visible) this.heroPicker.close();
     this.upgradePanel.rebuild();
     this.house.sync(this.progress);
     this.rebuildHeroes();
     this.refreshUi();
+  }
+
+  openPacks() {
+    if (this.state !== STATE.IDLE) return;
+    if (this.heroPicker.visible) this.heroPicker.close();
+    this.scene.launch('PackScene', { progress: this.progress, onClose: () => this.onRosterChanged() });
   }
 
   startWave() {
@@ -181,9 +208,14 @@ export class GameScene extends Phaser.Scene {
     this.projectiles = [];
 
     if (won) {
-      const reward = this.progress.waveClearGold();
-      this.progress.gold += reward;
-      this.showBanner(`Wave ${this.progress.wave} cleared!  +${reward} gold`, '#ffeb3b');
+      const gold = this.progress.waveClearGold();
+      const angPow = this.progress.waveClearAngPow();
+      this.progress.gold += gold;
+      this.progress.angPow += angPow;
+      this.showBanner(
+        `Wave ${this.progress.wave} cleared!  +${gold} gold${angPow ? `  +${angPow} Ang Pow` : ''}`,
+        '#ffeb3b',
+      );
       this.progress.wave++;
     } else {
       // Kill gold earned this wave is kept; the wave just doesn't advance.

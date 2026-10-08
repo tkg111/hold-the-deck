@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { HEROES, HOUSE, UPGRADES } from '../config.js';
 import { Button } from './Button.js';
+import { starLabel } from './format.js';
 
 const WIDTH = 380;
 const ROW_HEIGHT = 54;
@@ -40,7 +41,10 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
         buy: () => p.buildFloor(),
       },
       ...p.ownedHeroes.map((id) => ({
-        title: () => `${HEROES[id].name}  ·  Lv ${p.heroLevel(id)}`,
+        title: () => {
+          const stars = starLabel(p.heroStarCount(id));
+          return `${HEROES[id].name}  ·  Lv ${p.heroLevel(id)}${stars ? `  ${stars}` : ''}`;
+        },
         detail: () => `Damage ${fmt(p.heroDamage(id))} → ${fmt(p.heroDamage(id, p.heroLevel(id) + 1))}`,
         cost: () => p.heroLevelCost(id),
         buy: () => p.levelHero(id),
