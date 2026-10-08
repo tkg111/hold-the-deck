@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { DISPLAY, GAME_TITLE, HEROES, SPRITES } from '../config.js';
+import { HEROES, SPRITES } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
 import { applyRenderScale } from '../display.js';
 import {
@@ -11,20 +11,16 @@ import { clearSave, loadProgress, saveProgress } from '../systems/Save.js';
 import { isBossWave, WaveManager } from '../systems/WaveManager.js';
 import { Button } from '../ui/Button.js';
 import { ConfirmDialog } from '../ui/ConfirmDialog.js';
-import { pearlsLabel } from '../ui/format.js';
+import { fmtNumber, pearlsLabel } from '../ui/format.js';
 import { HeroPicker } from '../ui/HeroPicker.js';
-import { UpgradePanel } from '../ui/UpgradePanel.js';
+import { Shipwright } from '../ui/Shipwright.js';
+import { Bar, icon, outlined, panel, px, text, UI } from '../ui/kit.js';
 
 const STATE = { IDLE: 'idle', RUNNING: 'running' };
 
-// The HUD sits in the sky and the bottom buttons in the near water, clear of
-// the ship (left) and the enemies' lane (layout.json).
-const BUTTON_Y = 512;
 
-const TEXT_STYLE = {
-  fontFamily: 'sans-serif', fontSize: '20px', color: '#ffffff',
-  stroke: '#000000', strokeThickness: 4,
-};
+// Gold amounts floating up from kills.
+const GOLD_TEXT = '#ffd86a';
 
 export class GameScene extends Phaser.Scene {
   constructor() {
@@ -73,7 +69,7 @@ export class GameScene extends Phaser.Scene {
     this.refreshUi();
     if (data.prestigeRewards) {
       const { renown, pearls } = data.prestigeRewards;
-      this.showBanner(`A new voyage begins!  +${renown} Renown  +${pearlsLabel(pearls)}`, '#80cbc4');
+      this.showBanner(`A new voyage begins!  +${renown} Renown  +${pearlsLabel(pearls)}`);
     }
   }
 
@@ -85,137 +81,120 @@ export class GameScene extends Phaser.Scene {
       .setDepth(DEPTH.foreground).play(FOREGROUND_ANIM);
   }
 
+  // HUD and buttons, laid out in art pixels after ui_mock_battle.png and
+  // ui_mock_between_waves.png: wave and hull top-left, gold and Pearls
+  // top-right with settings and sound under them, the enemies-left bar
+  // top-centre during waves, and between waves the Shipwright on the right and
+  // SET SAIL! / Chests / Crew / Voyage along the bottom.
   createUi() {
-    this.titleText = this.add.text(DISPLAY.width / 2, 14, GAME_TITLE, {
-      ...TEXT_STYLE, fontSize: '16px', fontStyle: 'bold', color: '#ffe082', strokeThickness: 3,
-    }).setOrigin(0.5).setAlpha(0.9);
-    this.waveText = this.add.text(16, 12, '', TEXT_STYLE);
-    this.hpText = this.add.text(16, 40, '', { ...TEXT_STYLE, fontSize: '16px' });
-    this.hpBar = this.add.graphics();
-    this.goldText = this.add.text(DISPLAY.width - 16, 12, '', { ...TEXT_STYLE, color: '#ffd54f' })
-      .setOrigin(1, 0);
-    this.pearlsText = this.add.text(DISPLAY.width - 16, 38, '', { ...TEXT_STYLE, fontSize: '16px', color: '#e0f7fa' })
-      .setOrigin(1, 0);
+    panel(this, px(6), px(6), px(110), px(24), 'wood');
+    icon(this, px(19), px(18), 'wave');
+    this.waveText = text(this, px(29), px(18), '', outlined()).setOrigin(0, 0.5);
+    icon(this, px(16), px(41), 'hull');
+    this.hullBar = new Bar(this, px(24), px(36), px(92), px(10), UI.colors.hull);
 
-    this.banner = this.add.text(DISPLAY.width / 2, 40, '', {
-      ...TEXT_STYLE, fontSize: '32px', align: 'center', wordWrap: { width: 480 },
-    }).setOrigin(0.5).setAlpha(0).setDepth(10);
+    this.enemiesBar = new Bar(this, px(172), px(12), px(136), px(12), UI.colors.progress);
 
-    this.upgradePanel = new UpgradePanel(this, 560, 62, this.progress, () => this.onUpgradePurchased());
+    panel(this, px(330), px(6), px(144), px(24), 'wood');
+    icon(this, px(344), px(18), 'gold');
+    this.goldText = text(this, px(352), px(18), '', outlined()).setOrigin(0, 0.5);
+    icon(this, px(421), px(18), 'pearl');
+    this.pearlsText = text(this, px(428), px(18), '', outlined()).setOrigin(0, 0.5);
+    // Settings: currently just Reset progress (with a confirmation).
+    this.settingsButton = new Button(this, px(443), px(43), {
+      width: px(18), height: px(18), icon: 'gear', onClick: () => this.confirmReset(),
+    });
+    this.muteButton = new Button(this, px(465), px(43), {
+      width: px(18), height: px(18), icon: 'sound_on', onClick: () => this.toggleMute(),
+    });
 
-    this.heroPicker = new HeroPicker(this, 330, 28, (id) => this.onHeroPicked(id));
+    this.banner = this.add.container(px(222), px(40)).setDepth(10).setAlpha(0);
+
+    this.shipwright = new Shipwright(this, px(273), px(64), px(200), this.progress, () => this.onUpgradePurchased());
+    this.heroPicker = new HeroPicker(this, px(273), px(64), px(200), (id) => this.onHeroPicked(id));
     this.heroPicker.on('closed', () => {
       this.ship.selectSlot(-1);
-      this.refreshUi();  // brings the upgrade panel back
-    });
-    this.slotHint = this.add.text(16, 82, 'Click a slot to assign a hero', {
-      fontFamily: 'sans-serif', fontSize: '13px', color: '#ffffff', stroke: '#000000', strokeThickness: 3,
+      this.refreshUi();  // brings the Shipwright back
     });
 
     if (import.meta.env.DEV) import('../dev/devTools.js').then((m) => m.installDevTools(this));
 
-    this.startButton = new Button(this, 560, BUTTON_Y, {
-      width: 160, height: 40, label: 'Start Wave', fontSize: '22px',
-      onClick: () => this.startWave(),
+    this.startButton = new Button(this, px(218), px(246), {
+      width: px(96), height: px(28), style: 'gold', label: 'SET SAIL!', onClick: () => this.startWave(),
     });
-    this.packButton = new Button(this, 735, BUTTON_Y, {
-      width: 150, height: 40, label: 'Chests', color: 0x8d5a17, fontSize: '18px',
-      onClick: () => this.openPacks(),
+    this.packButton = new Button(this, px(304), px(248), {
+      width: px(64), height: px(24), icon: 'chest', label: 'Chests', onClick: () => this.openPacks(),
     });
-    // Gentle pulse while a pack is affordable.
-    this.prestigeButton = new Button(this, 380, 94, {
-      width: 210, height: 32, label: '', color: 0x00796b, fontSize: '15px',
-      onClick: () => this.openPrestige(),
+    this.collectionButton = new Button(this, px(370), px(248), {
+      width: px(60), height: px(24), icon: 'book', label: 'Crew', onClick: () => this.openCollection(),
     });
-    this.prestigePulse = this.tweens.add({
-      targets: this.prestigeButton, scale: 1.05, duration: 600, yoyo: true, repeat: -1, paused: true,
-    });
-    this.collectionButton = new Button(this, 400, BUTTON_Y, {
-      width: 120, height: 40, label: 'Crew', color: 0x37474f, fontSize: '18px',
-      onClick: () => this.openCollection(),
-    });
-    this.muteButton = new Button(this, DISPLAY.width - 60, DISPLAY.height - 42, {
-      width: 100, height: 22, label: '', color: 0x455a64, fontSize: '12px',
-      onClick: () => this.toggleMute(),
-    });
-    this.resetButton = new Button(this, DISPLAY.width - 60, DISPLAY.height - 16, {
-      width: 100, height: 22, label: 'Reset progress', color: 0x455a64, fontSize: '12px',
-      onClick: () => this.confirmReset(),
-    });
-    this.packPulse = this.tweens.add({
-      targets: this.packButton, scale: 1.06, duration: 500, yoyo: true, repeat: -1, paused: true,
+    this.prestigeButton = new Button(this, px(439), px(248), {
+      width: px(70), height: px(24), icon: 'renown', label: 'Voyage', onClick: () => this.openPrestige(),
     });
   }
 
   refreshUi() {
     const idle = this.state === STATE.IDLE;
-    const boss = isBossWave(this.progress.wave);
-    this.waveText.setText(`Wave ${this.progress.wave}${boss ? '  ·  BOSS' : ''}`)
-      .setColor(boss ? '#ff8a80' : '#ffffff');
-    this.goldText.setText(`Gold ${this.progress.gold}`);
-    this.pearlsText.setText(`Pearls ${this.progress.pearls}`);
-    this.hpText.setText(`Hull HP ${Math.ceil(this.ship.hp)} / ${this.ship.maxHp}`);
-
-    const pct = this.ship.hp / this.ship.maxHp;
-    this.hpBar.clear();
-    this.hpBar.fillStyle(0x000000, 0.5).fillRect(16, 64, 200, 10);
-    this.hpBar.fillStyle(pct > 0.3 ? 0x43a047 : 0xe53935).fillRect(16, 64, 200 * pct, 10);
-
-    this.startButton.setVisible(idle);
-    this.packButton.setVisible(idle);
-    this.collectionButton.setVisible(idle);
-    this.prestigeButton.setVisible(idle);
     const p = this.progress;
-    this.prestigeButton.setLabel(p.canPrestige
-      ? `New Voyage!  ✦ +${p.prestigeRewards.renown}`
-      : `New Voyage  ✦ ${p.renown}`);
-    if (idle && p.canPrestige) this.prestigePulse.resume();
-    else { this.prestigePulse.pause(); this.prestigeButton.setScale(1); }
-    this.muteButton.setLabel(`Sound: ${this.progress.muted ? 'Off' : 'On'}`);
-    this.resetButton.setVisible(idle);
-    this.packButton.setLabel(`Chests  (${this.progress.pearls}/${this.progress.packCost})`);
-    if (idle && this.progress.canOpenPack) this.packPulse.resume();
-    else { this.packPulse.pause(); this.packButton.setScale(1); }
-    this.upgradePanel.setVisible(idle && !this.heroPicker.visible);
-    this.slotHint.setVisible(idle);
+    const boss = isBossWave(p.wave);
+    this.waveText.setText(`WAVE ${p.wave}${boss ? ' BOSS' : ''}`);
+    const waveColor = boss ? UI.colors.warn : UI.colors.text;
+    if (this.waveText.style.color !== waveColor) this.waveText.setColor(waveColor);
+    this.goldText.setText(fmtNumber(p.gold));
+    this.pearlsText.setText(fmtNumber(p.pearls));
+    this.hullBar.setValue(this.ship.hp / this.ship.maxHp,
+      `${fmtNumber(Math.ceil(this.ship.hp))} / ${fmtNumber(this.ship.maxHp)}`);
+
+    this.enemiesBar.setVisible(!idle);
+    if (!idle) {
+      const left = this.waves.queue.length + this.enemies.filter((e) => e.alive).length;
+      this.enemiesBar.setValue(left / Math.max(1, this.waves.total), `${left} ENEMIES LEFT`);
+    }
+
+    for (const b of [this.startButton, this.packButton, this.collectionButton, this.prestigeButton]) b.setVisible(idle);
+    // Red dots: a chest is affordable / a new voyage is available.
+    this.packButton.setDot(p.canOpenPack);
+    this.prestigeButton.setDot(p.canPrestige);
+    if (this.settingsButton.enabled !== idle) this.settingsButton.setEnabled(idle);
+    this.muteButton.setIcon(p.muted ? 'sound_off' : 'sound_on');
+    this.shipwright.setVisible(idle && !this.heroPicker.visible);
     this.devButton?.setVisible(idle);
     this.devPearlsButton?.setVisible(idle);
     this.devWaveButton?.setVisible(idle);
-    if (idle) this.upgradePanel.refresh();
+    if (idle) this.shipwright.refresh();
   }
 
-  // Long messages drop to a smaller size and wrap, so they stay clear of the HUD.
-  showBanner(message, color) {
-    const long = message.length > 34;
-    this.banner.setFontSize(long ? 24 : 32).setText(message).setColor(color).setAlpha(1);
+  // A wood plaque under the top bar with a short message, fading out.
+  showBanner(message, color = UI.colors.text) {
+    this.banner.removeAll(true);
+    const label = text(this, 0, 0, message, outlined({ color, align: 'center', wrap: px(196) })).setOrigin(0.5);
+    const w = Math.ceil((label.displayWidth + px(16)) / px(2)) * px(2);
+    const h = Math.ceil((label.displayHeight + px(8)) / px(2)) * px(2);
+    this.banner.add([panel(this, -w / 2, -h / 2, w, h, 'wood'), label]);
     this.tweens.killTweensOf(this.banner);
-    this.tweens.add({ targets: this.banner, alpha: 0, delay: 1500, duration: 500 });
-    // The game title shares the top of the screen; hide it while the banner shows.
-    this.tweens.killTweensOf(this.titleText);
-    this.titleText.setAlpha(0);
-    this.tweens.add({ targets: this.titleText, alpha: 0.9, delay: 2000, duration: 300 });
+    this.banner.setAlpha(1);
+    this.tweens.add({ targets: this.banner, alpha: 0, delay: 1700, duration: 400 });
   }
 
-  floatText(x, y, message, color = '#ffd54f') {
-    const t = this.add.text(x, y, message, { ...TEXT_STYLE, fontSize: '14px', color, strokeThickness: 3 })
-      .setOrigin(0.5);
-    this.tweens.add({ targets: t, y: y - 30, alpha: 0, duration: 700, onComplete: () => t.destroy() });
+  floatText(x, y, message, color = UI.colors.text) {
+    const t = text(this, x, y, message, { font: 'small', ...outlined({ color }) }).setOrigin(0.5);
+    this.tweens.add({ targets: t, y: y - px(14), alpha: 0, duration: 700, onComplete: () => t.destroy() });
   }
 
   onEnemyKilled(enemy) {
     const gold = this.progress.earnGold(enemy.gold);
     const top = enemy.y - enemy.def.height / 2;
-    this.floatText(enemy.x, top - 12, `+${gold}`);
+    this.floatText(enemy.x, top - px(6), `+${gold}`, GOLD_TEXT);
     if (enemy.def.boss) {
       const pearls = this.progress.claimBossPearls();
-      if (pearls) this.floatText(enemy.x, top - 32, `+${pearlsLabel(pearls)}`, '#e0f7fa');
+      if (pearls) this.floatText(enemy.x, top - px(16), `+${pearlsLabel(pearls)}`);
     }
   }
 
   onEnemyStole(enemy) {
     const amount = Math.min(this.progress.gold, Math.ceil(this.progress.gold * enemy.def.stealPercent));
     this.progress.gold -= amount;
-    this.floatText(enemy.x, enemy.y - 24, amount > 0 ? `-${amount} gold` : 'nothing to steal!', '#ff8a80');
+    this.floatText(enemy.x, enemy.y - px(12), amount > 0 ? `-${amount} gold` : 'nothing to steal!', UI.colors.warn);
   }
 
   save() {
@@ -253,7 +232,6 @@ export class GameScene extends Phaser.Scene {
       return new Hero(this, id, this.ship.slotPosition(slot), {
         damage: p.heroDamage(id) * buff.damage,
         attackInterval: (HEROES[id].attackInterval ?? 0) / buff.attackSpeed,
-        stars: p.heroStarCount(id),
         buffed: buff.buffed,
       });
     });
@@ -263,7 +241,7 @@ export class GameScene extends Phaser.Scene {
     if (this.state !== STATE.IDLE) return;
     this.ship.selectSlot(slot);
     this.heroPicker.open(slot, this.progress);
-    this.upgradePanel.setVisible(false);  // the picker needs the room
+    this.shipwright.setVisible(false);  // the picker takes its place
   }
 
   onHeroPicked(id) {
@@ -271,7 +249,7 @@ export class GameScene extends Phaser.Scene {
     this.heroPicker.close();
     this.ship.sync(this.progress);
     this.rebuildHeroes();
-    this.upgradePanel.rebuild();  // it lists the heroes on the ship
+    this.shipwright.rebuild();  // it lists the heroes on the ship
     this.refreshUi();
     this.save();
   }
@@ -279,7 +257,7 @@ export class GameScene extends Phaser.Scene {
   // Owned heroes or stars changed (packs, dev toggle).
   onRosterChanged() {
     if (this.heroPicker.visible) this.heroPicker.close();
-    this.upgradePanel.rebuild();
+    this.shipwright.rebuild();
     this.ship.sync(this.progress);
     this.rebuildHeroes();
     this.refreshUi();
@@ -327,14 +305,14 @@ export class GameScene extends Phaser.Scene {
   startWave() {
     if (this.state !== STATE.IDLE) return;
     if (this.heroes.length === 0) {
-      this.showBanner('Assign a hero to a slot first!', '#ff8a80');
+      this.showBanner('Assign a hero to a slot first!', UI.colors.warn);
       return;
     }
     if (this.heroPicker.visible) this.heroPicker.close();
     this.ship.setSlotsEnabled(false);
     this.ship.restore();
     this.waves.start(this.progress.wave);
-    if (isBossWave(this.progress.wave)) this.showBanner('The Kraken rises!', '#ff8a80');
+    if (isBossWave(this.progress.wave)) this.showBanner('The Kraken rises!', UI.colors.warn);
     this.state = STATE.RUNNING;
     this.refreshUi();
   }
@@ -353,12 +331,11 @@ export class GameScene extends Phaser.Scene {
       this.progress.pearls += pearls;
       this.showBanner(
         `Wave ${this.progress.wave} cleared!  +${gold} gold${pearls ? `  +${pearlsLabel(pearls)}` : ''}`,
-        '#ffeb3b',
       );
       this.progress.advanceWave();
     } else {
       // Kill gold earned this wave is kept; the wave just doesn't advance.
-      this.showBanner('The ship has sunk…', '#ff8a80');
+      this.showBanner('The ship has sunk...', UI.colors.warn);
     }
     this.ship.restore();
     this.ship.setSlotsEnabled(true);

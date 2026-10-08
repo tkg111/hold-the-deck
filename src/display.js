@@ -1,4 +1,3 @@
-import Phaser from 'phaser';
 import { DISPLAY } from './config.js';
 
 // The game's base resolution is DISPLAY.baseWidth x baseHeight (480x270) art
@@ -42,24 +41,6 @@ export function applyRenderScale(scene) {
     .centerOn(DISPLAY.width / 2, DISPLAY.height / 2);
 }
 
-// Phaser renders Text at resolution 1 unless told otherwise, which looks soft
-// once the camera zooms in. Default every scene.add.text() to the camera zoom;
-// a style that sets its own resolution still wins.
-export function installCrispText() {
-  const factory = Phaser.GameObjects.GameObjectFactory.prototype;
-  const addText = factory.text;
-  factory.text = function text(x, y, content, style = {}) {
-    return addText.call(this, x, y, content, { resolution: renderZoom(), ...style });
-  };
-}
-
-function eachText(list, fn) {
-  for (const obj of list) {
-    if (obj instanceof Phaser.GameObjects.Text) fn(obj);
-    else if (obj.list) eachText(obj.list, fn);
-  }
-}
-
 // Show the canvas at its physical size (CSS pixels = physical / dpr).
 function fitCanvas(game) {
   const { width, height } = canvasSize();
@@ -68,7 +49,8 @@ function fitCanvas(game) {
 }
 
 // Keep the whole-number scale in step with the window: resize the canvas,
-// re-zoom every scene's camera and re-render text at the new resolution.
+// re-zoom every scene's camera. (UI text is drawn one texel per art pixel and
+// scaled like the sprites, so it needs nothing here.)
 export function installIntegerScaling(game) {
   fitCanvas(game);
   const update = () => {
@@ -78,7 +60,6 @@ export function installIntegerScaling(game) {
       for (const scene of game.scene.scenes) {
         if (!scene.cameras?.main) continue;
         applyRenderScale(scene);
-        eachText(scene.children.list, (t) => t.setResolution(renderZoom()));
       }
     }
     fitCanvas(game);

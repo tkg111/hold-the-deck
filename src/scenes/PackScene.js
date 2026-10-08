@@ -7,30 +7,33 @@ import { saveProgress } from '../systems/Save.js';
 import { Button } from '../ui/Button.js';
 import { createHeroCard, HERO_CARD_SIZE } from '../ui/HeroCard.js';
 import { cssColor, pearlsLabel } from '../ui/format.js';
+import {
+  icon, onParchment, outlined, panel, px, subText, text, UI,
+} from '../ui/kit.js';
 
-const CARD_W = HERO_CARD_SIZE.width;
-const CARD_H = HERO_CARD_SIZE.height;
+const CARD_W = HERO_CARD_SIZE.large.width;
+const CARD_H = HERO_CARD_SIZE.large.height;
 const CARD_X = DISPLAY.width / 2;
-const CARD_Y = 270;
-const CHEST_Y = 300;           // centre of the chest body
-const CHEST_W = 200;
-const CHEST_H = 110;
-const LID_Y = CHEST_Y - CHEST_H / 2;   // hinge line, top of the body
-const GOLD = 0xc9a227;
+const CARD_Y = px(146);
+// The chest is the kit's 12px chest icon blown up by a whole number.
+const CHEST_SCALE = 6;
+const CHEST_Y = px(142);       // centre of the chest
+const CHEST_W = px(12 * CHEST_SCALE);
+const CHEST_H = px(12 * CHEST_SCALE);
+const LID_Y = CHEST_Y - CHEST_H / 4;   // where the light pours out
 // Build-up glow starts neutral white so the shift toward any rarity colour
 // (including Legendary's orange) reads as the hint.
 const HINT_START = 0xffffff;
 const CONFETTI_COLORS = [0xffd54f, 0xe53935, 0xffffff, 0x66bb6a, 0x29b6f6];
 
-const TEXT = { fontFamily: 'sans-serif', color: '#ffffff' };
 
 // Overlay scene for opening treasure chests (packs). Launched on top of
 // GameScene with { progress, onClose }; the full-screen backdrop swallows
 // clicks underneath.
 //
-// Opening flow: build-up (the chest rattles, glows, and light leaks from the
-// lid in a colour that hints the rarity) → open (lid swings back, light spills
-// out, the hero card rises out) → reveal (chime, glow, confetti for new heroes)
+// Opening flow: build-up (the chest rattles, glows, and light leaks out of
+// it in a colour that hints the rarity) → open (light spills out and the hero
+// card rises out) → reveal (chime, glow, confetti for new heroes)
 // → new-crewmate splash.
 export class PackScene extends Phaser.Scene {
   constructor() {
@@ -49,29 +52,30 @@ export class PackScene extends Phaser.Scene {
     this.add.rectangle(0, 0, DISPLAY.width, DISPLAY.height, 0x000000, 0.8)
       .setOrigin(0).setInteractive();
 
-    this.add.text(CARD_X, 36, 'Treasure Chest', { ...TEXT, fontSize: '30px', fontStyle: 'bold', color: '#ffd54f' })
-      .setOrigin(0.5);
-    this.walletText = this.add.text(CARD_X, 72, '', { ...TEXT, fontSize: '16px' }).setOrigin(0.5);
+    // Title plate and a parchment strip with the wallet, rates and pity.
+    panel(this, CARD_X - px(80), px(4), px(160), px(20), 'wood');
+    text(this, CARD_X, px(14), 'TREASURE CHEST', outlined()).setOrigin(0.5);
+    panel(this, CARD_X - px(150), px(28), px(300), px(34), 'parchment');
+    this.walletText = text(this, CARD_X, px(32), '', onParchment({ font: 'small' })).setOrigin(0.5, 0);
     const rates = Progress.packRates()
-      .map(({ rarity, chance }) => `${RARITY[rarity].label} ${Math.round(chance * 100)}%`).join('  ·  ');
-    this.add.text(CARD_X, 96, rates, { ...TEXT, fontSize: '13px', color: '#b0bec5' }).setOrigin(0.5);
-    this.pityText = this.add.text(CARD_X, 116, '', { ...TEXT, fontSize: '13px', color: '#ffb74d' }).setOrigin(0.5);
+      .map(({ rarity, chance }) => `${RARITY[rarity].label} ${Math.round(chance * 100)}%`).join('  ');
+    text(this, CARD_X, px(42), rates.toUpperCase(), subText()).setOrigin(0.5, 0);
+    this.pityText = text(this, CARD_X, px(52), '', subText({ color: UI.colors.warn })).setOrigin(0.5, 0);
 
-    this.chestGlow = this.add.rectangle(CARD_X, CHEST_Y - 10, CHEST_W + 60, CHEST_H + 90, 0xffffff, 0);
+    this.chestGlow = this.add.rectangle(CARD_X, CHEST_Y, CHEST_W + px(30), CHEST_H + px(30), 0xffffff, 0);
     this.light = this.add.graphics({ x: CARD_X, y: LID_Y });
     this.buildChest();
-    this.cardGlow = this.add.rectangle(CARD_X, CARD_Y, CARD_W + 36, CARD_H + 36, 0xffffff, 0).setVisible(false);
+    this.cardGlow = this.add.rectangle(CARD_X, CARD_Y, CARD_W + px(12), CARD_H + px(12), 0xffffff, 0).setVisible(false);
     this.card = this.add.container(CARD_X, CARD_Y).setVisible(false);
 
-    this.resultText = this.add.text(CARD_X, 418, '', { ...TEXT, fontSize: '20px', fontStyle: 'bold', align: 'center' })
-      .setOrigin(0.5);
+    this.resultText = text(this, CARD_X, px(233), '', outlined({ align: 'center', wrap: px(440) })).setOrigin(0.5);
 
-    this.openButton = new Button(this, CARD_X - 100, 480, {
-      width: 180, height: 44, label: '', color: 0x8d5a17, fontSize: '18px',
+    this.openButton = new Button(this, CARD_X - px(50), px(257), {
+      width: px(90), height: px(22), style: 'gold', icon: 'pearl', label: '',
       onClick: () => this.openPack(),
     });
-    this.closeButton = new Button(this, CARD_X + 100, 480, {
-      width: 180, height: 44, label: 'Done', color: 0x546e7a, fontSize: '18px',
+    this.closeButton = new Button(this, CARD_X + px(50), px(257), {
+      width: px(90), height: px(22), label: 'Done',
       onClick: () => this.close(),
     });
     this.refresh();
@@ -80,15 +84,15 @@ export class PackScene extends Phaser.Scene {
   refresh() {
     const { pearls } = this.progress;
     const cost = this.progress.packCost;
-    this.walletText.setText(`You have ${pearlsLabel(pearls)}  ·  A chest costs ${pearlsLabel(cost)}`);
-    this.openButton.setLabel(`Open (${pearlsLabel(cost)})`);
+    this.walletText.setText(`YOU HAVE ${pearlsLabel(pearls).toUpperCase()}  -  A CHEST COSTS ${cost}`);
+    this.openButton.setLabel(`Open ${cost}`);
     // Hold the pity line while a chest is opening: the counter resets the
     // moment a Legendary is rolled, which would spoil the reveal.
     if (!this.busy) {
       const n = this.progress.packsUntilPity;
       this.pityText.setText(n <= 1
-        ? 'Next chest is a guaranteed Legendary!'
-        : `Legendary guaranteed within ${n} chests`);
+        ? 'NEXT CHEST IS A GUARANTEED LEGENDARY!'
+        : `LEGENDARY GUARANTEED WITHIN ${n} CHESTS`);
     }
     this.openButton.setEnabled(!this.busy && this.progress.canOpenPack);
     this.closeButton.setEnabled(!this.busy);
@@ -105,41 +109,20 @@ export class PackScene extends Phaser.Scene {
 
   // --- The chest ---
 
-  // Wooden chest with gold bands. The lid is its own container, hinged at the
-  // top of the body, so it can rattle and swing open.
+  // The chest: the kit's chest icon, scaled up.
   buildChest() {
     this.chest = this.add.container(CARD_X, CHEST_Y);
-    const body = this.add.graphics();
-    body.fillStyle(0x6d4520).fillRect(-CHEST_W / 2, -CHEST_H / 2, CHEST_W, CHEST_H);
-    body.lineStyle(1, 0x4a2c12, 0.8);
-    for (let y = -CHEST_H / 2 + 22; y < CHEST_H / 2; y += 22) body.lineBetween(-CHEST_W / 2, y, CHEST_W / 2, y);
-    body.fillStyle(GOLD);
-    for (const x of [-CHEST_W / 2 + 22, CHEST_W / 2 - 36]) body.fillRect(x, -CHEST_H / 2, 14, CHEST_H);
-    body.fillRect(-16, -CHEST_H / 2 + 6, 32, 36);              // lock plate
-    body.fillStyle(0x2b1a0b).fillCircle(0, -CHEST_H / 2 + 20, 4).fillRect(-2, -CHEST_H / 2 + 22, 4, 10);
-    body.lineStyle(3, 0x3e2410).strokeRect(-CHEST_W / 2, -CHEST_H / 2, CHEST_W, CHEST_H);
-
-    // Light leaking through the lid seam during the build-up.
-    this.seam = this.add.rectangle(0, -CHEST_H / 2, CHEST_W - 8, 4, 0xffffff, 0);
-
-    this.lid = this.add.container(0, -CHEST_H / 2);
-    const lid = this.add.graphics();
-    lid.fillStyle(0x7a4e24).fillRoundedRect(-CHEST_W / 2 - 4, -48, CHEST_W + 8, 48, { tl: 24, tr: 24, bl: 0, br: 0 });
-    lid.fillStyle(GOLD);
-    for (const x of [-CHEST_W / 2 + 22, CHEST_W / 2 - 36]) lid.fillRect(x, -46, 14, 46);
-    lid.lineStyle(3, 0x3e2410).strokeRoundedRect(-CHEST_W / 2 - 4, -48, CHEST_W + 8, 48, { tl: 24, tr: 24, bl: 0, br: 0 });
-    this.lid.add(lid);
-
-    this.tapText = this.add.text(0, CHEST_H / 2 + 26, 'Tap Open', { ...TEXT, fontSize: '14px', color: '#ffe082' })
-      .setOrigin(0.5);
-    this.chest.add([body, this.seam, this.lid, this.tapText]);
+    const body = icon(this, 0, 0, 'chest').setScale(px(CHEST_SCALE));
+    // Light leaking out of the chest during the build-up.
+    this.seam = this.add.rectangle(0, -CHEST_H / 4, CHEST_W - px(16), px(2), 0xffffff, 0);
+    this.tapText = text(this, 0, CHEST_H / 2 + px(8), 'TAP OPEN', { font: 'small', ...outlined() }).setOrigin(0.5);
+    this.chest.add([body, this.seam, this.tapText]);
   }
 
-  // Close the lid and put the chest back for the next opening.
+  // Put the chest back for the next opening.
   resetChest() {
-    this.tweens.killTweensOf([this.chest, this.lid, this.light, this.cardGlow, this.card]);
+    this.tweens.killTweensOf([this.chest, this.light, this.cardGlow, this.card]);
     this.chest.setPosition(CARD_X, CHEST_Y).setAngle(0).setAlpha(1).setVisible(true);
-    this.lid.setPosition(0, -CHEST_H / 2).setScale(1).setAngle(0);
     this.seam.setFillStyle(0xffffff, 0);
     this.tapText.setVisible(false);
     this.light.clear().setAlpha(0).setScale(1);
@@ -158,7 +141,7 @@ export class PackScene extends Phaser.Scene {
       g.fillStyle(color, i % 2 ? 0.22 : 0.34);
       g.fillTriangle(x0 - 10, 0, x0 + 10, 0, spread, -280);
     }
-    g.fillStyle(0xffffff, 0.5).fillRect(-CHEST_W / 2 + 6, -4, CHEST_W - 12, 6);
+    g.fillStyle(0xffffff, 0.5).fillRect(-CHEST_W / 2 + px(4), -px(2), CHEST_W - px(8), px(3));
   }
 
   // --- Flow ---
@@ -176,7 +159,7 @@ export class PackScene extends Phaser.Scene {
   }
 
   // Rattle harder and glow brighter over a rarity-dependent time. The glow and
-  // the light leaking from the lid are white at first and shift to the rarity
+  // the light leaking from the chest are white at first and shift to the rarity
   // colour near the end.
   buildUp(result) {
     const rarity = HEROES[result.id].rarity;
@@ -198,7 +181,6 @@ export class PackScene extends Phaser.Scene {
         this.chest.setAngle(Math.sin(t / 32) * amp * 0.6);
         this.chest.x = CARD_X + Math.sin(t / 21) * amp * 0.5;
         this.chest.y = CHEST_Y - Math.abs(Math.sin(t / 55)) * amp * 0.6;   // little hops
-        this.lid.y = -CHEST_H / 2 - Math.abs(Math.sin(t / 37)) * (1 + 5 * k);  // lid jiggles
 
         const hint = k < hintStart ? 0 : (k - hintStart) / PACK_FX.hintFraction;
         const c = Phaser.Display.Color.Interpolate.ColorWithColor(from, to, 100, hint * 100);
@@ -212,7 +194,7 @@ export class PackScene extends Phaser.Scene {
     });
   }
 
-  // Lid swings back, light spills out, and the hero card rises from the chest.
+  // Light spills out of the chest and the hero card rises from it.
   open(result) {
     const rarityColor = RARITY[HEROES[result.id].rarity].color;
     this.chest.setAngle(0).setPosition(CARD_X, CHEST_Y);
@@ -223,7 +205,6 @@ export class PackScene extends Phaser.Scene {
     this.card.setPosition(CARD_X, CHEST_Y).setScale(0.15).setAlpha(0).setVisible(true);
     sfx.flip();
 
-    this.tweens.add({ targets: this.lid, y: -CHEST_H / 2 - 34, scaleY: 0.3, duration: 220, ease: 'Back.easeOut' });
     this.tweens.add({ targets: this.light, alpha: 1, scaleY: 1, duration: 320, ease: 'Quad.easeOut' });
     this.tweens.add({
       targets: this.card, y: CARD_Y, scale: 1, alpha: 1, duration: 480, delay: 260, ease: 'Back.easeOut',
@@ -252,20 +233,20 @@ export class PackScene extends Phaser.Scene {
     if (result.isNew) {
       message = (message ?? '') + (result.slot >= 0
         ? `NEW CREWMATE! ${name} joins slot ${result.slot + 1}`
-        : `NEW CREWMATE! ${name} — assign a slot on the ship`);
-      color = '#ffd54f';
+        : `NEW CREWMATE! ${name}: assign a slot on the ship`);
+      color = UI.colors.text;
     } else if (result.refund) {
-      message = (message ?? '') + `${name} is at max stars — +${pearlsLabel(result.refund)} back`;
-      color = '#b0bec5';
+      message = (message ?? '') + `${name} is at max stars: +${pearlsLabel(result.refund)} back`;
+      color = UI.colors.text;
     } else {
-      message = (message ?? '') + `Duplicate! ${name} is now ★${result.stars}`;
+      message = (message ?? '') + `Duplicate! ${name} now has ${result.stars} star${result.stars === 1 ? '' : 's'}`;
       color = cssColor(rarityColor);
     }
     this.resultText.setText(message).setColor(color).setAlpha(0);
     this.tweens.add({ targets: this.resultText, alpha: 1, duration: 250 });
 
     if (result.isNew) {
-      this.confetti(CARD_X, CARD_Y - 40, PACK_FX.confetti[rarity], rarityColor);
+      this.confetti(CARD_X, CARD_Y - px(20), PACK_FX.confetti[rarity], rarityColor);
       this.time.delayedCall(PACK_FX.splashDelay, () => this.showSplash(result));
     } else {
       this.busy = false;
@@ -293,7 +274,7 @@ export class PackScene extends Phaser.Scene {
     const def = HEROES[result.id];
     const rarity = RARITY[def.rarity];
     const cx = DISPLAY.width / 2;
-    const cardY = 250;
+    const cardY = px(124);
     const splash = this.add.container(0, 0).setDepth(50);
 
     const backdrop = this.add.rectangle(0, 0, DISPLAY.width, DISPLAY.height, 0x05070a, 0.9)
@@ -311,15 +292,21 @@ export class PackScene extends Phaser.Scene {
     this.tweens.add({ targets: rays, angle: 360, duration: 16000, repeat: -1 });
 
     const legendary = def.rarity === 'legendary';
-    const title = this.add.text(cx, 42, legendary ? 'NEW LEGENDARY CREWMATE!' : 'NEW CREWMATE!', {
-      ...TEXT, fontSize: '36px', fontStyle: 'bold', color: '#ffd54f', stroke: '#000000', strokeThickness: 6,
+    const titleText = text(this, 0, 0, legendary ? 'NEW LEGENDARY CREWMATE!' : 'NEW CREWMATE!', {
+      ...outlined({ color: '#ffd86a' }), size: 2,
     }).setOrigin(0.5);
-    const card = createHeroCard(this, cx, cardY, result.id, { scale: 1.3, stars: 0 });
-    const quote = this.add.text(cx, 448, `“${def.catchphrase}”`, {
-      ...TEXT, fontSize: '22px', fontStyle: 'italic', align: 'center',
-      stroke: '#000000', strokeThickness: 4, wordWrap: { width: 760 },
-    }).setOrigin(0.5);
-    const hint = this.add.text(cx, 508, 'Tap anywhere to continue', { ...TEXT, fontSize: '14px', color: '#90a4ae' })
+    const titleW = Math.ceil((titleText.displayWidth + px(20)) / px(2)) * px(2);
+    const title = this.add.container(cx, px(22), [
+      panel(this, -titleW / 2, -px(17), titleW, px(34), 'wood'), titleText,
+    ]);
+    const card = createHeroCard(this, cx, cardY, result.id, { stars: 0 });
+    const quoteText = text(this, 0, 0, `"${def.catchphrase}"`, onParchment({ align: 'center', wrap: px(400) }))
+      .setOrigin(0.5);
+    const quoteH = Math.ceil((quoteText.displayHeight + px(10)) / px(2)) * px(2);
+    const quote = this.add.container(cx, px(226), [
+      panel(this, -px(212), -quoteH / 2, px(424), quoteH, 'parchment'), quoteText,
+    ]);
+    const hint = text(this, cx, px(260), 'TAP ANYWHERE TO CONTINUE', { font: 'small', ...outlined() })
       .setOrigin(0.5).setAlpha(0);
 
     splash.add([backdrop, rays, title, card, quote, hint]);

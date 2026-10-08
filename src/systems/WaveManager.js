@@ -31,6 +31,7 @@ export class WaveManager {
   constructor(scene) {
     this.scene = scene;
     this.queue = [];
+    this.total = 0;
     this.spawnTimer = 0;
     this.spawnInterval = WAVES.spawnInterval;
     this.hpMultiplier = 1;
@@ -43,6 +44,7 @@ export class WaveManager {
   start(wave) {
     const n = wave - 1;
     this.queue = composeWave(wave);
+    this.total = this.queue.length;  // for the enemies-left bar
     this.hpMultiplier = 1 + n * WAVES.hpGrowth;
     this.damageMultiplier = 1 + n * WAVES.damageGrowth;
     this.goldMultiplier = 1 + n * ECONOMY.killGoldGrowth;

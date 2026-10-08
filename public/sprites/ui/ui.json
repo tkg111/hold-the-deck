@@ -1,0 +1,50 @@
+{
+  "fonts": {
+    "main": {
+      "family": "Jersey 10",
+      "size": 16,
+      "source": "Google Fonts"
+    },
+    "small": {
+      "family": "Silkscreen",
+      "size": 8,
+      "source": "Google Fonts"
+    },
+    "note": "render at exactly these sizes (or 2x) with smoothing off"
+  },
+  "nineSlice": {
+    "panel_wood.png": 8,
+    "panel_parchment.png": 8,
+    "btn_*.png": 5,
+    "bar_frame.png": 3
+  },
+  "icons": {
+    "sheet": "icons_sheet.png",
+    "size": 12,
+    "order": [
+      "gold",
+      "pearl",
+      "hull",
+      "wave",
+      "chest",
+      "book",
+      "sound_on",
+      "sound_off",
+      "renown",
+      "arrow_up",
+      "sword",
+      "hammer",
+      "crew",
+      "gear"
+    ]
+  },
+  "colors": {
+    "text": "#fff3d6",
+    "textOnGold": "#3e2716",
+    "textOnParchment": "#2a1a10",
+    "subText": "#7a5a3a",
+    "hull": "#d0353c",
+    "progress": "#5a8ad0",
+    "warn": "#ff6a5a"
+  }
+}

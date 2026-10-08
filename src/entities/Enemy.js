@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { SPRITES } from '../config.js';
 import { LAYOUT, laneFeetY } from '../layout.js';
 import { findAnim, sheetKey, SPLASH_ANIM } from '../sprites.js';
+import { outlined, text, UI } from '../ui/kit.js';
 import { DEPTH } from './Ship.js';
 
 const STUN_COLOR = 0xffeb3b;
@@ -80,10 +81,8 @@ export class Enemy {
     this.statusFx = scene.add.graphics().setDepth(DEPTH.enemyOverlay);
     this.hpBar = scene.add.graphics().setDepth(DEPTH.enemyOverlay);
     this.nameTag = def.boss
-      ? scene.add.text(this.x, 0, def.name, {
-        fontFamily: 'sans-serif', fontSize: '13px', color: '#ff8a80',
-        stroke: '#000000', strokeThickness: 3,
-      }).setOrigin(0.5, 1).setDepth(DEPTH.enemyOverlay)
+      ? text(scene, this.x, 0, def.name.toUpperCase(), { font: 'small', ...outlined({ color: UI.colors.warn }) })
+        .setOrigin(0.5, 1).setDepth(DEPTH.enemyOverlay)
       : null;
     this.drawHpBar();
   }

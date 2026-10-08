@@ -26,31 +26,39 @@ export const SPRITES = {
   // Visible height of each hero sprite in sprite pixels (feet on the bottom
   // row), so shots and labels come from the body rather than empty space.
   heroes: {
-    cabinBoy: { key: 'cabin_boy', height: 29 },
-    shipsCook: { key: 'ships_cook', height: 32 },
-    netThrower: { key: 'net_thrower', height: 29 },
-    voodooPriestess: { key: 'voodoo_priestess', height: 32 },
-    grogBrewer: { key: 'grog_brewer', height: 28 },
-    harpooner: { key: 'harpooner', height: 28 },
-    cannoneer: { key: 'cannoneer', height: 27 },
-    duelist: { key: 'the_duelist', height: 32 },
-    captain: { key: 'the_captain', height: 31 },
+    // faceTop: first row of the head; the UI crops a FACE-sized face from there.
+    cabinBoy: { key: 'cabin_boy', height: 29, faceTop: 3 },
+    shipsCook: { key: 'ships_cook', height: 32, faceTop: 0 },
+    netThrower: { key: 'net_thrower', height: 29, faceTop: 3 },
+    voodooPriestess: { key: 'voodoo_priestess', height: 32, faceTop: 0 },
+    grogBrewer: { key: 'grog_brewer', height: 28, faceTop: 4 },
+    harpooner: { key: 'harpooner', height: 28, faceTop: 4 },
+    cannoneer: { key: 'cannoneer', height: 27, faceTop: 5 },
+    duelist: { key: 'the_duelist', height: 32, faceTop: 0 },
+    captain: { key: 'the_captain', height: 31, faceTop: 1 },
   },
-  // Hero cards show the sprite at the largest whole-number scale whose 32px
-  // frame fits this many card units (multiplied by the card's own scale),
-  // feet at cardPortraitFeetY below the card centre.
-  cardPortraitHeight: 96,
-  cardPortraitFeetY: 8,
-  // Name labels of two heroes on the same deck closer than this (layout units)
-  // are staggered: the second one is raised by labelStagger.
-  labelMinSpacing: 48,
-  labelStagger: 22,
+  // Crew faces in the UI: this box of each hero's 32x32 sprite (x, width and
+  // height in art pixels; y comes from faceTop).
+  face: { x: 6, width: 16, height: 14 },
   // The Kraken's splash while it rises (layout.json describes it in a note):
   // 64x24 frames, drawn with its top this many art pixels above the waterline.
   krakenSplash: { key: 'splash_sheet', frameWidth: 64, frameHeight: 24, frames: 3, fps: 8, aboveWater: 23 },
   // Clickable area over each ship slot (layout units, standing on the slot);
   // narrower where a deck's slots are closer together than maxWidth.
   slotZone: { maxWidth: 40, height: 60 },
+};
+
+// The UI kit (public/sprites/ui/): panels, buttons, bar, icons and ui.json
+// (fonts, 9-slice sizes, icon order, colours). UI sizes are in art pixels.
+export const UI_KIT = {
+  path: 'ui/',
+  fontTimeout: 4000,      // ms to wait for Google Fonts before starting anyway
+  starColor: '#ffc83a',
+  starEmptyColor: '#c9b48a',
+  dividerColor: '#d9c39a', // lines between parchment rows
+  dotRadius: 3,           // red "something to do" dot on buttons
+  shipwrightRows: 5,      // rows visible at once; more scroll
+  rowHeight: 28,
 };
 
 export const SHIP = {

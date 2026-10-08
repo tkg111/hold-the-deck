@@ -1,13 +1,14 @@
-import { DISPLAY } from '../config.js';
 import { Button } from '../ui/Button.js';
+import { px } from '../ui/kit.js';
 
 // Development-only controls. Loaded via dynamic import behind
 // import.meta.env.DEV, so none of this ships in production builds.
 export function installDevTools(scene) {
   const { progress } = scene;
-  const label = () => `DEV: all heroes ${progress.devUnlockAll ? 'ON' : 'OFF'}`;
-  scene.devButton = new Button(scene, 92, DISPLAY.height - 12, {
-    width: 168, height: 21, label: label(), color: 0x546e7a, fontSize: '12px',
+  const small = { height: px(12), font: 'small' };
+  const label = () => `DEV ALL HEROES ${progress.devUnlockAll ? 'ON' : 'OFF'}`;
+  scene.devButton = new Button(scene, px(52), px(262), {
+    ...small, width: px(100), label: label(),
     onClick: () => {
       if (scene.state !== 'idle') return;
       progress.setDevUnlockAll(!progress.devUnlockAll);
@@ -15,15 +16,15 @@ export function installDevTools(scene) {
       scene.onRosterChanged();
     },
   });
-  scene.devPearlsButton = new Button(scene, 50, DISPLAY.height - 36, {
-    width: 84, height: 21, label: 'DEV: +10 pearl', color: 0x546e7a, fontSize: '11px',
+  scene.devPearlsButton = new Button(scene, px(26), px(249), {
+    ...small, width: px(48), label: '+10 PRL',
     onClick: () => {
       progress.pearls += 10;
       scene.refreshUi();
     },
   });
-  scene.devWaveButton = new Button(scene, 135, DISPLAY.height - 36, {
-    width: 82, height: 21, label: 'DEV: +10 wave', color: 0x546e7a, fontSize: '11px',
+  scene.devWaveButton = new Button(scene, px(78), px(249), {
+    ...small, width: px(48), label: '+10 WAVE',
     onClick: () => {
       if (scene.state !== 'idle') return;
       for (let i = 0; i < 10; i++) progress.advanceWave();

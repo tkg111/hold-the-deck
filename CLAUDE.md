@@ -24,6 +24,8 @@ Game title: `GAME_TITLE` in `src/config.js` and `<title>` in `index.html`.
   positions come from `public/sprites/layout.json` (see `src/layout.js`).
   Every scene must call `applyRenderScale(this)` first
   in `create()` (see `src/display.js`).
+- UI uses the kit in `src/ui/kit.js`: create text with its `text()` (pixel fonts,
+  no smoothing), never `scene.add.text`, and lay UI out in art pixels with `px()`.
 - Dev-only tools live in `src/dev/` and are loaded via a dynamic import behind
   `import.meta.env.DEV`, so they never ship in production builds.
 - Stop the dev server before running `npm ci` on Windows (it locks a native

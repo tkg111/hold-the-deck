@@ -1,5 +1,6 @@
 import { ENEMIES, SHIP, SPRITES } from './config.js';
 import { initLayout, LAYOUT } from './layout.js';
+import { preloadUi } from './ui/kit.js';
 
 export const SHIP_SLOTS_KEY = 'ship_slots';
 const ANIMATIONS_KEY = 'animations';
@@ -38,6 +39,7 @@ export function preloadSprites(scene) {
   load.once(`filecomplete-json-${LAYOUT_KEY}`, (key, type, data) => {
     load.spritesheet(FOREGROUND_KEY, `${FOREGROUND_KEY}.png`, { frameWidth: data.size[0], frameHeight: data.size[1] });
   });
+  preloadUi(scene);
   load.json(ANIMATIONS_KEY, `${ANIMATIONS_KEY}.json`);
   load.once(`filecomplete-json-${ANIMATIONS_KEY}`, (key, type, data) => {
     for (const [name, { frameWidth, frameHeight }] of Object.entries(data)) {

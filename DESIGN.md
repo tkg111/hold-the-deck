@@ -18,7 +18,10 @@ Passion project — no real money, no ads, no timers. Everything is earned throu
 - **Ship sprites:** `ship_stage1/2/3.png` (160x160) show the ship with 1, 2 or 3 decks built; the one matching the current deck count is shown. Heroes are drawn between it and the matching `ship_stageN_front.png` railing layer, so they stand behind the railings. Hero slot positions come from `ship_slots.json` (each deck's 2 slots as centre x and feet y in sprite pixels). Where two slots on a deck are close together, the second hero's name label sits higher so the labels don't overlap. Empty slots show a frame and a "+".
 - **Character sprites:** heroes, the Drowned Sailor and the Thief Monkey are 32x32 with the feet on the bottom row; they stand on their slot (heroes) or the lane (enemies). The Kraken is 64x64. Rectangle placeholders stand the same way.
 - **Animation:** in battle, characters are animated from `<name>_sheet.png`, with frame sizes, frame lists and fps from `animations.json`. Crewmates loop "idle" and play "attack" each time they fire, then return to idle; each one's idle starts on a frame staggered by slot so the crew doesn't bob in sync. The Drowned Sailor and Thief Monkey loop "walk" while moving and stand still otherwise. The Kraken loops "idle" and plays "attack" each time it hits the ship. Animations slow down with the enemy when slowed and freeze while stunned. Characters without an animation fall back to their single PNG (a little lunge or squash when they attack).
-- **Hero cards** (chest reveal, new-crewmate splash, Crew Roster) show the hero's sprite at the largest whole-number scale that fits the card (3x on the chest and splash cards, 2x in the roster), using the single `<name>.png` rather than the sheet. Heroes not collected yet show as a black silhouette of their sprite.
+- **UI kit:** `public/sprites/ui/` holds 9-slice wood and parchment panels, gold and wood buttons (normal / hover / pressed / disabled images, used for those states), a bar frame and a 12px icon sheet; `ui.json` gives the fonts, slice sizes, icon order and colours. Mock-ups: `ui_mock_battle.png` and `ui_mock_between_waves.png` in the project root.
+- **Fonts:** Jersey 10 at 16px (main) and Silkscreen at 8px (small), loaded from Google Fonts before the game starts. Text is drawn at exactly those sizes (or 2x for the splash title), one texel per art pixel with anti-aliasing thresholded away, then scaled up like the sprites, so it is as crisp as the art.
+- **Hero cards** (chest reveal, new-crewmate splash, Crew Roster): parchment under a wood plate naming the rarity, the hero's single `<name>.png` at 2x, name, pixel stars, level and (on the large card) effect. Heroes not collected yet are a wood card with a black silhouette of their sprite and "???".
+- **Crew faces:** the Shipwright and hero picker show each hero's face, cropped from their single sprite.
 
 ## Core Loop
 
@@ -93,8 +96,8 @@ Heroes have:
 
 ### Opening a chest
 
-1. **Build-up:** the treasure chest rattles harder (its lid jiggles and it hops) and glows brighter. Rarer pulls build up longer and shake harder (Common 0.7s / Rare 1.3s / Epic 2.0s / Legendary 2.9s). The glow, and light leaking from under the lid, start white and shift to the rarity colour over the last 45% of the build-up, so the player gets a hint just before the reveal. A synthesized rattle-and-rising-hum plays over it; the hum rises higher for rarer pulls.
-2. **Open:** the lid swings back (whoosh sound), rays of light in the rarity colour spill out, and the hero's card rises out of the chest.
+1. **Build-up:** the treasure chest (the kit's chest icon at 6x) rattles harder (it hops) and glows brighter. Rarer pulls build up longer and shake harder (Common 0.7s / Rare 1.3s / Epic 2.0s / Legendary 2.9s). The glow, and light leaking out of the chest, start white and shift to the rarity colour over the last 45% of the build-up, so the player gets a hint just before the reveal. A synthesized rattle-and-rising-hum plays over it; the hum rises higher for rarer pulls.
+2. **Open:** with a whoosh, rays of light in the rarity colour spill out, and the hero's card rises out of the chest.
 3. **Reveal:** a chime that gets longer and higher with rarity (Legendary adds a sustained chord and a warm full-screen flash); the card glows in its rarity colour. New heroes also get a sparkle sound and a **confetti burst** (40 / 90 / 160 / 280 pieces for Common / Rare / Epic / Legendary).
 4. **New-hero splash:** the first time a hero is pulled, a big intro card appears over rotating light rays: "NEW CREWMATE!" ("NEW LEGENDARY CREWMATE!" for Legendaries), the card with name and rarity, and the hero's one-line **pirate catchphrase** (stored per hero in config). Click to continue. Duplicates skip the splash.
 
@@ -128,8 +131,8 @@ Bonus gold carries fractions between kills, so +10% on small kill rewards still 
 ## Crew Roster (collection book)
 
 - Opened from the **Crew** button between waves.
-- Shows every hero in the game, grouped by rarity, with an "N/M collected" count. Cards shrink to fit as the roster grows.
-- Owned heroes appear as their card with level and stars. Unowned heroes are dark silhouettes with "???" for the name, so the player can see how many are left to find without spoiling who they are.
+- Shows every hero in the game as small cards, five to a row, grouped by rarity, with an "N/M FOUND" count beside the title plate.
+- Owned heroes appear as their card with level and stars. Unowned heroes are black silhouettes with "???" for the name, so the player can see how many are left to find without spoiling who they are.
 
 ## Sound
 
@@ -161,10 +164,14 @@ Each step should leave the game playable. (Built under the kampung theme; names 
 
 ## Between-wave UI
 
-- **Upgrade panel:** hull HP, build deck, and a level-up row for each hero currently placed on the ship (The Captain's row shows his deck buff).
-- **Hero picker:** click a ship slot to see every owned hero (grouped by rarity) with level, stars and effect; the upgrade panel hides while it's open.
-- HUD (wave, hull HP, gold, Pearls, slot hint) and the New Voyage button sit in the sky; the upgrade panel and hero picker are compact enough to stay above the enemy lane and right of the ship.
-- Bottom bar, in the near water below the lane and right of the ship: Crew, Start Wave, Chests; Sound toggle and Reset progress in the corner.
+Layout follows `ui_mock_battle.png` and `ui_mock_between_waves.png`.
+
+- **Always:** a wood plaque with the wave (red "BOSS" on boss waves) and a hull bar top-left; a wood plaque with gold and Pearls top-right, with a settings button (gear: Reset progress, with a confirmation, between waves only) and a sound toggle under it. Short messages (wave cleared, ship sunk, the Kraken rises) appear on a wood plaque under the top bar. Crew have no name labels on the ship.
+- **During a wave:** an enemies-left bar at top-centre ("N ENEMIES LEFT", the fill shrinking as the wave is beaten). The between-wave panel and buttons are hidden.
+- **Shipwright** (between waves only): a parchment panel under a wood title plate with rows for Hull (level, HP per level), Build deck (decks built) and each hero on the ship (face, level, damage or The Captain's buff), each with a gold buy button showing the gold cost (grey when unaffordable, MAX when maxed). Five rows show at a time; with more, arrows by the title plate and the mouse wheel scroll it.
+- **Hero picker:** click a ship slot to see every owned hero in the same panel (face, rarity, level, stars and where they're placed), plus "Leave empty"; it replaces the Shipwright while open.
+- **Bottom bar** (between waves): **SET SAIL!** (starts the wave), **Chests** (with a red dot when a chest is affordable), **Crew** (the Crew Roster) and **Voyage** (New Voyage, with a red dot once a new voyage is available).
+- The New Voyage screen and confirmation, and the reset confirmation, use the same parchment panels, wood plates and buttons.
 
 ## Later (not in v0.1)
 
@@ -172,4 +179,4 @@ Each step should leave the game playable. (Built under the kampung theme; names 
 - More enemies: Cursed Gulls (flying, only some heroes can hit), Floating Skulls (high damage, low HP)
 - Music (sound effects exist; no background music yet)
 - Save export/import
-- Pixel art for the chest and the hero picker icons
+- Game speed toggle (the battle mock-up shows an "x2" button)

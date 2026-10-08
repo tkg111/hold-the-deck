@@ -1,10 +1,7 @@
-import Phaser from 'phaser';
-import { HEROES, RARITY } from '../config.js';
-import { cssColor, starLabel } from './format.js';
-
-const WIDTH = 440;
-const ROW_HEIGHT = 32;  // the full roster fits above the enemy lane
-const HEADER = 36;
+import { HEROES, RARITY, UI_KIT } from '../config.js';
+import { rarityTextColor, starLabel } from './format.js';
+import { face, hexColor, onParchment, px, subText, text, UI } from './kit.js';
+import { ScrollPanel } from './ScrollPanel.js';
 
 const pct = (n) => `${Math.round(n * 100)}%`;
 const secs = (ms) => `${+(ms / 1000).toFixed(1)}s`;
@@ -27,40 +24,29 @@ export function describeHero(def) {
   return text[0].toUpperCase() + text.slice(1);
 }
 
-// Popup listing owned heroes for one slot. Picking calls onPick(heroId | null).
-export class HeroPicker extends Phaser.GameObjects.Container {
-  constructor(scene, x, y, onPick) {
-    super(scene, x, y);
+// Popup listing owned heroes for one slot, on the same scrolling parchment as
+// the Shipwright (which it replaces while open). Picking calls onPick(heroId | null).
+export class HeroPicker extends ScrollPanel {
+  constructor(scene, x, y, width, onPick) {
+    super(scene, x, y, width, { title: 'SLOT', onClose: () => this.close() });
     this.onPick = onPick;
     this.setDepth(20).setVisible(false);
-    scene.add.existing(this);
   }
 
   open(slot, progress) {
-    this.removeAll(true);
-    const heroes = progress.ownedHeroes;
-    const rows = [...heroes, null];  // null = leave the slot empty
-    const height = HEADER + rows.length * ROW_HEIGHT + 8;
-
-    this.add(this.scene.add.rectangle(0, 0, WIDTH, height, 0x1b1f2a, 0.95)
-      .setOrigin(0).setStrokeStyle(2, 0xffeb3b, 0.6));
-    this.add(this.scene.add.text(14, 8, `Slot ${slot + 1}  ·  choose a hero`, {
-      fontFamily: 'sans-serif', fontSize: '16px', color: '#ffffff', fontStyle: 'bold',
-    }));
-    const close = this.scene.add.text(WIDTH - 14, 8, '✕', {
-      fontFamily: 'sans-serif', fontSize: '18px', color: '#b0bec5',
-    }).setOrigin(1, 0).setInteractive({ useHandCursor: true });
-    close.on('pointerdown', () => this.close());
-    this.add(close);
-
-    rows.forEach((id, i) => this.add(this.createRow(id, slot, progress, HEADER + i * ROW_HEIGHT)));
+    const rows = [...progress.ownedHeroes, null];  // null = leave the slot empty
+    this.setTitle(`SLOT ${slot + 1}`);
+    this.offset = 0;
+    this.setRows(rows.map((id) => this.createRow(id, slot, progress)));
     this.setVisible(true);
   }
 
-  createRow(id, slot, progress, y) {
-    const row = this.scene.add.container(8, y);
+  createRow(id, slot, progress) {
+    const { scene } = this;
+    const row = scene.add.container(0, 0);
     const current = progress.slots[slot] === id;
-    const bg = this.scene.add.rectangle(0, 0, WIDTH - 16, ROW_HEIGHT - 6, 0xffffff, current ? 0.12 : 0.04)
+    const h = px(UI_KIT.rowHeight - 3);
+    const bg = scene.add.rectangle(0, -px(1), this.innerWidth, h, hexColor(UI.colors.subText), current ? 0.25 : 0)
       .setOrigin(0).setInteractive({ useHandCursor: true });
     row.add(bg);
 
@@ -68,31 +54,27 @@ export class HeroPicker extends Phaser.GameObjects.Container {
       const def = HEROES[id];
       const rarity = RARITY[def.rarity];
       const where = progress.slotOf(id);
-      const note = where === slot ? '  (here)' : where >= 0 ? `  (slot ${where + 1})` : '';
-      row.add(this.scene.add.rectangle(8, 2, 12, 22, def.color).setOrigin(0).setStrokeStyle(2, rarity.color));
+      const note = where === slot ? '  HERE' : where >= 0 ? `  SLOT ${where + 1}` : '';
       const stars = starLabel(progress.heroStarCount(id));
-      row.add(this.scene.add.text(28, 0, `${def.name}  ·  Lv ${progress.heroLevel(id)}${stars ? `  ${stars}` : ''}${note}`, {
-        fontFamily: 'sans-serif', fontSize: '13px', color: '#ffffff',
-      }));
-      row.add(this.scene.add.text(28, 15, `${rarity.label} · ${describeHero(def)}`, {
-        fontFamily: 'sans-serif', fontSize: '10px',
-        color: cssColor(rarity.color),
-      }));
+      row.add([
+        face(scene, px(6), px(11), id),
+        text(scene, px(16), px(-1), def.name, onParchment()),
+        text(scene, px(16), px(15), `${rarity.label}  LV ${progress.heroLevel(id)}${stars ? `  ${stars}` : ''}${note}`,
+          subText({ color: rarityTextColor(def.rarity) })),
+      ]);
     } else {
-      row.add(this.scene.add.text(28, 6, 'Leave empty', {
-        fontFamily: 'sans-serif', fontSize: '14px', color: '#b0bec5', fontStyle: 'italic',
-      }));
+      row.add(text(scene, px(16), px(6), 'Leave empty', subText()));
     }
 
-    bg.on('pointerover', () => bg.setFillStyle(0xffffff, 0.18));
-    bg.on('pointerout', () => bg.setFillStyle(0xffffff, current ? 0.12 : 0.04));
+    bg.on('pointerover', () => bg.setFillAlpha(current ? 0.35 : 0.15));
+    bg.on('pointerout', () => bg.setFillAlpha(current ? 0.25 : 0));
     bg.on('pointerdown', () => this.onPick(id));
     return row;
   }
 
   close() {
     this.setVisible(false);
-    this.removeAll(true);
+    this.setRows([]);
     this.emit('closed');
   }
 }

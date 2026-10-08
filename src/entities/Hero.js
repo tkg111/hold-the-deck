@@ -2,7 +2,6 @@ import { HEROES, SPRITES } from '../config.js';
 import { laneFeetY } from '../layout.js';
 import { findAnim, sheetKey } from '../sprites.js';
 import { DEPTH } from './Ship.js';
-import { starLabel } from '../ui/format.js';
 import { LobProjectile, nearestLiving, PiercingProjectile, Projectile } from './Projectile.js';
 
 const BUFF_COLOR = 0xffd54f;
@@ -10,8 +9,8 @@ const BUFF_COLOR = 0xffd54f;
 export class Hero {
   // damage and attackInterval come from Progress (level, stars, deck buffs).
   // The hero stands with its feet at (x, feetY); this.y is the middle of its
-  // body, where shots start. labelLift raises the name label (see Ship.loadSlots).
-  constructor(scene, id, { index, x, feetY, labelLift = 0 }, { damage, attackInterval, stars = 0, buffed = false }) {
+  // body, where shots start.
+  constructor(scene, id, { index, x, feetY }, { damage, attackInterval, buffed = false }) {
     this.scene = scene;
     this.id = id;
     this.def = HEROES[id];
@@ -47,12 +46,6 @@ export class Hero {
     }
     this.body.setDepth(DEPTH.hero);
 
-    // Name on top, stars on a second line, so neighbouring labels don't collide.
-    const label = stars ? `${this.def.shortName}\n${starLabel(stars)}` : this.def.shortName;
-    this.label = scene.add.text(x, feetY - height - 1 - labelLift, label, {
-      fontFamily: 'sans-serif', fontSize: '10px', color: '#ffffff', align: 'center',
-      stroke: '#000000', strokeThickness: 3,
-    }).setOrigin(0.5, 1).setLineSpacing(-2).setDepth(DEPTH.heroLabel);
   }
 
   // Loop the idle animation. When placed on the ship, the start frame is
@@ -171,6 +164,5 @@ export class Hero {
       this.glow.destroy();
     }
     this.body.destroy();
-    this.label.destroy();
   }
 }

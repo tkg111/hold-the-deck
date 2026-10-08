@@ -4,7 +4,7 @@ import { SHIP_SLOTS_KEY, shipFrontKey, shipStageKey } from '../sprites.js';
 
 // Draw order, back to front, as layout.json's drawOrder: background, ship,
 // crew, enemies, The Kraken (and its splash), the animated foreground, then
-// the ship's front railing layer. Slot markers, labels and enemy HP bars go
+// the ship's front railing layer. Slot markers and enemy HP bars go
 // on top of the scene; projectiles and UI stay above all of these.
 export const DEPTH = {
   background: -20,
@@ -16,7 +16,6 @@ export const DEPTH = {
   foreground: -14,
   shipFront: -13,
   slotMarkers: -12,
-  heroLabel: -11,
   enemyOverlay: -10,
 };
 
@@ -100,7 +99,6 @@ export class Ship {
           x: xs[i],
           feetY: this.spriteTop + p.feetY * s,
           zoneWidth: Math.min(SLOT_ZONE.maxWidth, spacing - 2),
-          labelLift: i % 2 === 1 && spacing < SPRITES.labelMinSpacing ? SPRITES.labelStagger : 0,
         });
       });
     }
@@ -113,8 +111,7 @@ export class Ship {
   get slotCount() { return this.decks * SHIP.slotsPerDeck; }
   get isDestroyed() { return this.hp <= 0; }
 
-  // Where a hero in the given slot stands: centre x, feet y, and how far to
-  // raise its label so it clears its deck neighbour's.
+  // Where a hero in the given slot stands: centre x and feet y.
   slotPosition(slot) {
     return this.slots[slot];
   }
