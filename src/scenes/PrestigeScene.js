@@ -3,7 +3,7 @@ import {
   DISPLAY, HEROES, PACKS, PRESTIGE, RENOWN_SHOP, SHIP, UI_KIT,
 } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
-import { applyRenderScale } from '../display.js';
+import { applyRenderScale, fillView } from '../display.js';
 import { Button } from '../ui/Button.js';
 import { fmtNumber as fmt, pearlsLabel } from '../ui/format.js';
 import {
@@ -32,7 +32,7 @@ export class PrestigeScene extends Phaser.Scene {
     const p = this.progress;
     const cx = DISPLAY.width / 2;
 
-    this.add.rectangle(0, 0, DISPLAY.width, DISPLAY.height, 0x0d1117, 0.9).setOrigin(0).setInteractive();
+    fillView(this, 0x0d1117, 0.9);
     panel(this, cx - 70, 4, 140, PLATE_H, 'wood');
     text(this, cx, 14, 'NEW VOYAGE', light()).setOrigin(0.5);
     text(this, cx, 30, `VOYAGES SO FAR: ${p.prestigeCount}   BEST WAVE: ${p.bestWave}`, { font: 'small', ...light() })
@@ -148,7 +148,7 @@ export class PrestigeScene extends Phaser.Scene {
     const modal = this.add.container(0, 0).setDepth(50);
     const cx = DISPLAY.width / 2;
     modal.add([
-      this.add.rectangle(0, 0, DISPLAY.width, DISPLAY.height, 0x000000, 0.85).setOrigin(0).setInteractive(),
+      fillView(this, 0x000000, 0.85),
       panel(this, 10, 16, 460, 244, 'wood'),
       text(this, cx, 30, 'Set sail on a new voyage?', light()).setOrigin(0.5),
     ]);

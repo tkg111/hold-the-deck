@@ -192,8 +192,8 @@ export const hexColor = (css) => Phaser.Display.Color.HexStringToColor(css).colo
 export class Bar extends Phaser.GameObjects.Container {
   constructor(scene, x, y, w, h, fillColor) {
     super(scene, x, y);
-    this.w = w;
-    this.h = h;
+    // (Not this.w: Phaser's setPosition(x, y, z, w) overwrites it.)
+    this.barWidth = w;
     this.frameImg = nineSlice(scene, 0, 0, w, h, 'bar_frame');
     this.fill = scene.add.rectangle(1, 1, 0, h - 2, hexColor(fillColor)).setOrigin(0);
     this.label = text(scene, w / 2, h / 2, '', light({ font: 'small' })).setOrigin(0.5);
@@ -203,7 +203,7 @@ export class Bar extends Phaser.GameObjects.Container {
 
   setValue(pct, label) {
     // Whole pixels, so the fill edge lines up with the frame's pixels.
-    this.fill.width = Math.round(Phaser.Math.Clamp(pct, 0, 1) * (this.w - 2));
+    this.fill.width = Math.round(Phaser.Math.Clamp(pct, 0, 1) * (this.barWidth - 2));
     if (label != null) this.label.setText(label);
     return this;
   }

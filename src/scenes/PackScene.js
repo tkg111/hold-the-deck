@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { DISPLAY, HEROES, PACK_FX, RARITY } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
-import { applyRenderScale } from '../display.js';
+import { applyRenderScale, fillView } from '../display.js';
 import { Progress } from '../systems/Progress.js';
 import { saveProgress } from '../systems/Save.js';
 import { Button } from '../ui/Button.js';
@@ -49,8 +49,7 @@ export class PackScene extends Phaser.Scene {
   create() {
     applyRenderScale(this);
     this.ensureConfettiTexture();
-    this.add.rectangle(0, 0, DISPLAY.width, DISPLAY.height, 0x000000, 0.8)
-      .setOrigin(0).setInteractive();
+    fillView(this, 0x000000, 0.8);
 
     // Title plate and a parchment strip with the wallet, rates and pity.
     panel(this, CARD_X - 80, 4, 160, 20, 'wood');
@@ -274,17 +273,18 @@ export class PackScene extends Phaser.Scene {
     const cardY = 124;
     const splash = this.add.container(0, 0).setDepth(50);
 
-    const backdrop = this.add.rectangle(0, 0, DISPLAY.width, DISPLAY.height, 0x05070a, 0.9)
-      .setOrigin(0).setInteractive({ useHandCursor: true });
+    const backdrop = fillView(this, 0x05070a, 0.9);
+    backdrop.input.cursor = 'pointer';
 
     // Slowly turning light rays behind the card.
     const rays = this.add.graphics({ x: cx, y: cardY });
     rays.fillStyle(rarity.color, 0.16);
     const RAYS = 14;
+    const reach = Math.hypot(this.view.width, this.view.height);  // past every corner of the view
     for (let i = 0; i < RAYS; i++) {
       const a = (i / RAYS) * Math.PI * 2;
       const b = a + Math.PI / RAYS;
-      rays.fillTriangle(0, 0, Math.cos(a) * 300, Math.sin(a) * 300, Math.cos(b) * 300, Math.sin(b) * 300);
+      rays.fillTriangle(0, 0, Math.cos(a) * reach, Math.sin(a) * reach, Math.cos(b) * reach, Math.sin(b) * reach);
     }
     this.tweens.add({ targets: rays, angle: 360, duration: 16000, repeat: -1 });
 

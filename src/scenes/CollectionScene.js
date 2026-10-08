@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { DISPLAY, HEROES, RARITY } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
-import { applyRenderScale } from '../display.js';
+import { applyRenderScale, fillView } from '../display.js';
 import { Button } from '../ui/Button.js';
 import { createHeroCard, HERO_CARD_SIZE } from '../ui/HeroCard.js';
 import { light, panel, text } from '../ui/kit.js';
@@ -33,7 +33,7 @@ export class CollectionScene extends Phaser.Scene {
     const owned = ids.filter((id) => p.isOwned(id));
     const cx = DISPLAY.width / 2;
 
-    this.add.rectangle(0, 0, DISPLAY.width, DISPLAY.height, 0x0d1117, 0.9).setOrigin(0).setInteractive();
+    fillView(this, 0x0d1117, 0.9);
     panel(this, cx - 70, 4, 140, 20, 'wood');
     text(this, cx, 14, 'CREW ROSTER', light()).setOrigin(0.5);
     text(this, cx + 76, 14, `${owned.length}/${ids.length} FOUND`, { font: 'small', ...light() })

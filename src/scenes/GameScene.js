@@ -1,11 +1,13 @@
 import Phaser from 'phaser';
-import { GAME_SPEEDS, HEROES } from '../config.js';
+import { DISPLAY, GAME_SPEEDS, HEROES } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
-import { applyRenderScale } from '../display.js';
 import {
-  BACKGROUND_KEY, createAnimations, FOREGROUND_ANIM, FOREGROUND_KEY, preloadSprites,
-} from '../sprites.js';
-import { DEPTH, Ship } from '../entities/Ship.js';
+  applyRenderScale, fullscreenSupported, isFullscreen, toggleFullscreen,
+} from '../display.js';
+import { LAYOUT, shiftIsland } from '../layout.js';
+import { Scenery } from '../scenery.js';
+import { createAnimations, preloadSprites } from '../sprites.js';
+import { Ship } from '../entities/Ship.js';
 import { Hero } from '../entities/Hero.js';
 import { clearSave, loadProgress, saveProgress } from '../systems/Save.js';
 import { isBossWave, WaveManager } from '../systems/WaveManager.js';
@@ -34,8 +36,11 @@ export class GameScene extends Phaser.Scene {
   // data.progress / data.prestigeRewards are passed when restarting after a
   // New Voyage, so the new run doesn't depend on re-reading storage.
   create(data = {}) {
-    applyRenderScale(this);
+    // The battle fills the window from the bottom-left: the ship stays there,
+    // the island moves out to the right edge, extra height is sky.
+    applyRenderScale(this, { x: 0, y: 1 });
     createAnimations(this);
+    shiftIsland(this.view.width - DISPLAY.width);
     this.progress = data.progress ?? loadProgress();
     sfx.init(this.game);
     sfx.setMuted(this.progress.muted);
@@ -44,7 +49,8 @@ export class GameScene extends Phaser.Scene {
     this.enemies = [];
     this.projectiles = [];
 
-    this.drawBackground();
+    this.scenery = new Scenery(this);
+    this.scenery.layout(this.view);
     this.ship = new Ship(this, this.progress);
     this.heroes = [];
     this.rebuildHeroes();
@@ -55,15 +61,20 @@ export class GameScene extends Phaser.Scene {
       'enemy-killed': this.onEnemyKilled,
       'enemy-stole': this.onEnemyStole,
       'slot-clicked': this.onSlotClicked,
+      'view-resize': this.onViewResize,
     };
     for (const [name, fn] of Object.entries(handlers)) this.events.on(name, fn, this);
     // Also save when the tab is hidden or closed, so kill gold from an
     // unfinished wave isn't lost (same as losing a wave: gold is kept).
     const onPageHide = () => this.save();
     window.addEventListener('pagehide', onPageHide);
+    // Fullscreen can also be left with Esc, so follow the browser's state.
+    const onFullscreenChange = () => this.refreshUi();
+    document.addEventListener('fullscreenchange', onFullscreenChange);
     this.events.once('shutdown', () => {
       for (const [name, fn] of Object.entries(handlers)) this.events.off(name, fn, this);
       window.removeEventListener('pagehide', onPageHide);
+      document.removeEventListener('fullscreenchange', onFullscreenChange);
     });
 
     this.createUi();
@@ -74,46 +85,59 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  // The battle scene: bg.png behind everything, and the animated foreground
-  // (near water and island) over the enemies so they wade into the sea.
-  drawBackground() {
-    this.add.image(0, 0, BACKGROUND_KEY).setOrigin(0).setDepth(DEPTH.background);
-    this.add.sprite(0, 0, FOREGROUND_KEY).setOrigin(0)
-      .setDepth(DEPTH.foreground).play(FOREGROUND_ANIM);
+  // The window changed size: move the island (and enemies on their way from
+  // it) and re-anchor the HUD.
+  onViewResize(view) {
+    const oldSpawnX = LAYOUT.enemySpawnX;
+    shiftIsland(view.width - DISPLAY.width);
+    this.scenery.layout(view);
+    for (const e of this.enemies) e.rescaleLane(oldSpawnX, LAYOUT.enemySpawnX);
+    this.layoutUi(view);
   }
 
   // HUD and buttons, laid out in art pixels after ui_mock_battle.png and
   // ui_mock_between_waves.png: wave and hull top-left, gold and Pearls
-  // top-right with settings and sound under them, the enemies-left bar
-  // top-centre during waves, and between waves the Shipwright on the right and
-  // SET SAIL! / Chests / Crew / Voyage along the bottom.
+  // top-right with settings, sound and fullscreen under them, the
+  // enemies-left bar top-centre during waves, and between waves the
+  // Shipwright on the right and SET SAIL! / Chests / Crew / Voyage along the
+  // bottom. Positions are in the base 480x270 layout; each group is a
+  // container that layoutUi() moves to its corner or edge of the view.
   createUi() {
-    panel(this, 6, 6, 110, 24, 'wood');
-    icon(this, 19, 18, 'wave');
+    const group = (...items) => this.add.container(0, 0, items);
+
     this.waveText = text(this, 29, 18, '', light()).setOrigin(0, 0.5);
-    icon(this, 16, 41, 'hull');
     this.hullBar = new Bar(this, 24, 36, 92, 10, UI.colors.hull);
+    this.topLeft = group(
+      panel(this, 6, 6, 110, 24, 'wood'), icon(this, 19, 18, 'wave'), this.waveText,
+      icon(this, 16, 41, 'hull'), this.hullBar,
+    );
 
     this.enemiesBar = new Bar(this, 172, 12, 136, 12, UI.colors.progress);
+    this.topCenter = group(this.enemiesBar);
 
-    panel(this, 330, 6, 144, 24, 'wood');
-    icon(this, 344, 18, 'gold');
     this.goldText = text(this, 352, 18, '', light()).setOrigin(0, 0.5);
-    icon(this, 421, 18, 'pearl');
     this.pearlsText = text(this, 428, 18, '', light()).setOrigin(0, 0.5);
     // Settings: currently just Reset progress (with a confirmation).
-    this.settingsButton = new Button(this, 443, 43, {
+    this.settingsButton = new Button(this, 421, 43, {
       width: 18, height: 18, icon: 'gear', onClick: () => this.confirmReset(),
     });
-    this.muteButton = new Button(this, 465, 43, {
+    this.muteButton = new Button(this, 443, 43, {
       width: 18, height: 18, icon: 'sound_on', onClick: () => this.toggleMute(),
     });
+    this.fullscreenButton = new Button(this, 465, 43, {
+      width: 18, height: 18, icon: 'fullscreen', onRelease: true, onClick: () => this.toggleFullscreen(),
+    }).setVisible(fullscreenSupported());
+    this.topRight = group(
+      panel(this, 330, 6, 144, 24, 'wood'), icon(this, 344, 18, 'gold'), this.goldText,
+      icon(this, 421, 18, 'pearl'), this.pearlsText,
+      this.settingsButton, this.muteButton, this.fullscreenButton,
+    );
 
     // Over the sky between the ship and the Shipwright.
-    this.banner = this.add.container(188, 80).setDepth(10).setAlpha(0);
+    this.banner = this.add.container(0, 0).setDepth(10).setAlpha(0);
 
-    this.shipwright = new Shipwright(this, 273, 64, 200, this.progress, () => this.onUpgradePurchased());
-    this.heroPicker = new HeroPicker(this, 273, 64, 200, (id) => this.onHeroPicked(id));
+    this.shipwright = new Shipwright(this, 0, 0, 200, this.progress, () => this.onUpgradePurchased());
+    this.heroPicker = new HeroPicker(this, 0, 0, 200, (id) => this.onHeroPicked(id));
     this.heroPicker.on('closed', () => {
       this.ship.selectSlot(-1);
       this.refreshUi();  // brings the Shipwright back
@@ -137,6 +161,27 @@ export class GameScene extends Phaser.Scene {
     this.prestigeButton = new Button(this, 439, 248, {
       width: 70, height: 24, icon: 'renown', label: 'Voyage', onClick: () => this.openPrestige(),
     });
+    this.bottomBar = group(
+      this.startButton, this.packButton, this.collectionButton, this.speedButton, this.prestigeButton,
+    );
+
+    this.layoutUi(this.view);
+  }
+
+  // Anchor the HUD to the view: plaques to their top corners, the enemies bar
+  // to the top centre, the Shipwright (and hero picker) to the right and the
+  // button bar to the bottom right, under the Shipwright. (The view's left
+  // and bottom edges are the base layout's; see create().)
+  layoutUi(view) {
+    const right = view.right - DISPLAY.width;
+    const center = Math.round(view.centerX - DISPLAY.width / 2);
+    this.topLeft.setPosition(view.left, view.top);
+    this.topCenter.setPosition(center, view.top);
+    this.topRight.setPosition(right, view.top);
+    this.banner.setPosition(188 + Math.round((view.width - DISPLAY.width) / 2), view.top + 80);
+    this.shipwright.setPosition(right + 273, view.top + 64);
+    this.heroPicker.setPosition(right + 273, view.top + 64);
+    this.bottomBar.setPosition(right, view.bottom - DISPLAY.height);
   }
 
   refreshUi() {
@@ -164,6 +209,7 @@ export class GameScene extends Phaser.Scene {
     this.prestigeButton.setDot(p.canPrestige);
     if (this.settingsButton.enabled !== idle) this.settingsButton.setEnabled(idle);
     this.muteButton.setIcon(p.muted ? 'sound_off' : 'sound_on');
+    this.fullscreenButton.setIcon(isFullscreen() ? 'windowed' : 'fullscreen');
     this.shipwright.setVisible(idle && !this.heroPicker.visible);
     this.devButton?.setVisible(idle);
     this.devPearlsButton?.setVisible(idle);
@@ -312,6 +358,11 @@ export class GameScene extends Phaser.Scene {
     this.save();
   }
 
+  toggleFullscreen() {
+    sfx.click();
+    toggleFullscreen();
+  }
+
   openPacks() {
     if (this.state !== STATE.IDLE) return;
     if (this.heroPicker.visible) this.heroPicker.close();
@@ -379,6 +430,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   update(_time, delta) {
+    this.scenery.syncForeground();
     if (this.state !== STATE.RUNNING) return;
     // Clamp so a backgrounded tab doesn't teleport enemies on return.
     const dt = Math.min(delta, 100) * this.speed;

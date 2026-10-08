@@ -18,7 +18,7 @@ const ROW_INSET = 9;       // rows' left / right margin inside the parchment
 export class ScrollPanel extends Phaser.GameObjects.Container {
   constructor(scene, x, y, width, { title, visibleRows = UI_KIT.shipwrightRows, onClose = null }) {
     super(scene, x, y);
-    this.w = width;
+    this.panelWidth = width;  // not this.w: Phaser's setPosition(x, y, z, w) overwrites it
     this.visibleRows = visibleRows;
     this.rowHeight = UI_KIT.rowHeight;
     this.offset = 0;
@@ -74,12 +74,12 @@ export class ScrollPanel extends Phaser.GameObjects.Container {
     this.offset = Phaser.Math.Clamp(this.offset, 0, this.maxOffset);
     const shown = Math.min(rows.length, this.visibleRows);
     const height = (TOP_PAD + BOTTOM_PAD) + shown * this.rowHeight;
-    this.parchment.setSize(this.w / 1, height / 1);
+    this.parchment.setSize(this.panelWidth, height);
     this.layoutRows();
     return this;
   }
 
-  get innerWidth() { return this.w - (2 * ROW_INSET); }
+  get innerWidth() { return this.panelWidth - (2 * ROW_INSET); }
   get maxOffset() { return Math.max(0, this.rows.length - this.visibleRows); }
 
   scroll(by) {

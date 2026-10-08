@@ -12,6 +12,21 @@ export const DISPLAY = {
   height: 270,
 };
 
+// Filling a view bigger than the base resolution (see src/display.js and
+// src/scenery.js). The battle scene keeps bg.png's island at the right edge
+// and the ship at the bottom-left; extra width is sea in between, extra height
+// is sky above.
+export const SCENERY = {
+  // Sea and sky to the left of bg.png (and the near water of fg_sheet.png) are
+  // its leftmost mirrorWidth columns, repeated mirror-wise so the seams match.
+  // Stays left of the beach (sand starts at x = 302 on the bottom row).
+  mirrorWidth: 288,
+  // Above bg.png the sky bands keep going: each band darker than the one
+  // below it by the same step as bg.png's top two, as tall as its second
+  // band, up to this many; higher than that the last colour carries on.
+  maxExtraSkyBands: 5,
+};
+
 // Pixel art, drawn with Phaser's pixelArt setting. Scene positions come from
 // public/sprites/layout.json.
 export const SPRITES = {

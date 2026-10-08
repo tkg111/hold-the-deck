@@ -1,10 +1,18 @@
 // The battle scene's layout from public/sprites/layout.json (in base pixels).
 // Filled by initLayout() once the file has loaded.
+//
+// When the view is wider than the base 480 pixels, the island (with its beach,
+// the enemy lane and the Kraken's rising spot) is anchored to the right edge
+// and the ship stays at the left, with more sea in between: shiftIsland(dx)
+// moves everything island-side right by dx. Ship-side points (the ship, where
+// enemies stop, where the Kraken glides to) never move.
 export const LAYOUT = {};
+
+let base = null;
 
 export function initLayout(json) {
   const { rise, advance } = json.kraken;
-  Object.assign(LAYOUT, {
+  base = {
     shipX: json.shipPos.x,           // top-left of ship_stageN.png
     shipY: json.shipPos.y,
     waterY: json.waterY,
@@ -21,6 +29,17 @@ export function initLayout(json) {
       toX: advance.toX,
     },
     foreground: { frames: json.foreground.frames, fps: json.foreground.fps },
+  };
+  shiftIsland(LAYOUT.islandShift ?? 0);
+}
+
+export function shiftIsland(dx) {
+  Object.assign(LAYOUT, base, {
+    islandShift: dx,
+    enemySpawnX: base.enemySpawnX + dx,
+    // The lane's ship end stays put; the rest moves with the island.
+    lane: base.lane.map(([x, y]) => [x > base.shipContactX ? x + dx : x, y]),
+    kraken: { ...base.kraken, x: base.kraken.x + dx },
   });
 }
 

@@ -10,10 +10,12 @@ const PRESS_SHIFT = 1;
 // A 9-slice kit button centred on (x, y): 'gold' or 'wood' style, with the
 // kit's normal / hover / pressed / disabled images. Content is an optional
 // 12px icon and a label in the main, small or big font: light text on wood,
-// dark on gold (the big font only comes light).
+// dark on gold (the big font only comes light). onClick fires on press, or on
+// release with onRelease: true (browsers only allow fullscreen from a touch
+// once it's released).
 export class Button extends Phaser.GameObjects.Container {
   constructor(scene, x, y, {
-    width, height = 20, label = '', icon = null, style = 'wood', font = 'main', onClick,
+    width, height = 20, label = '', icon = null, style = 'wood', font = 'main', onClick, onRelease = false,
   }) {
     // Whole pixels, so the label lands on whole pixels too.
     super(scene, Math.round(x), Math.round(y));
@@ -21,8 +23,6 @@ export class Button extends Phaser.GameObjects.Container {
     this.enabled = true;
     this.hovered = false;
     this.pressed = false;
-    this.w = width;
-    this.h = height;
 
     this.bg = nineSlice(scene, -Math.floor(width / 2), -Math.floor(height / 2), width, height, `btn_${style}_normal`);
     this.icon = icon ? makeIcon(scene, 0, 0, icon) : null;
@@ -40,9 +40,14 @@ export class Button extends Phaser.GameObjects.Container {
       if (!this.enabled) return;
       this.pressed = true;
       this.paint();
-      onClick();
+      if (!onRelease) onClick();
     });
-    this.bg.on('pointerup', () => { this.pressed = false; this.paint(); });
+    this.bg.on('pointerup', () => {
+      const clicked = this.pressed && onRelease;
+      this.pressed = false;
+      this.paint();
+      if (clicked) onClick();
+    });
 
     scene.add.existing(this);
   }

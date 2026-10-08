@@ -92,6 +92,18 @@ export class Enemy {
     this.body.setPosition(this.x, feetY);
   }
 
+  // The view was resized mid-wave and the island moved (spawn x from
+  // oldSpawnX to newSpawnX): keep the same share of the way left to walk.
+  rescaleLane(oldSpawnX, newSpawnX) {
+    if (!this.alive || this.x <= this.stopX) return;
+    const k = (newSpawnX - this.stopX) / (oldSpawnX - this.stopX);
+    this.x = Math.max(this.stopX, this.stopX + (this.x - this.stopX) * k);
+    if (this.splash) this.splash.setX(Math.round(this.x - this.frameW / 2));
+    this.setFeetY(this.def.emerges ? this.feetY : laneFeetY(this.x));
+    this.nameTag?.setPosition(this.x, this.hpBarY - 2);
+    this.drawHpBar();
+  }
+
   get isRising() { return this.riseTime > 0; }
   // Whether heroes can aim at or hit it.
   get targetable() { return this.alive && !this.isRising; }

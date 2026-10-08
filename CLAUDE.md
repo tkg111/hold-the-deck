@@ -19,12 +19,14 @@ Game title: `GAME_TITLE` in `src/config.js` and `<title>` in `index.html`.
 ## Conventions
 
 - The base resolution is 480x270 pixels (`DISPLAY` in config), shown at the
-  largest whole-number scale that fits the window. All positions, sizes,
+  largest whole-number scale that fits the window; the view then grows to fill
+  the window (`scene.view`, updated with a `view-resize` scene event), so
+  anchor UI to its edges rather than to 480x270. All positions, sizes,
   distances and speeds are in these pixels, and sprites and text are drawn at
   1x. Battle scene positions come from `public/sprites/layout.json` (see
   `src/layout.js`).
   Every scene must call `applyRenderScale(this)` first
-  in `create()` (see `src/display.js`).
+  in `create()` (see `src/display.js`); full-view backdrops use `fillView()`.
 - UI uses the kit in `src/ui/kit.js`: create text with its `text()` (bitmap
   fonts from `public/sprites/ui/fonts/`, unscaled, snapped to whole pixels),
   never `scene.add.text`. Use the light fonts on wood, wood buttons and over
