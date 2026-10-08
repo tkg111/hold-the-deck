@@ -39,7 +39,7 @@ Waves are endless and scale in difficulty.
 
 ## Heroes
 
-All heroes are ranged and attack from the house, except Tok Penghulu, who supports.
+All heroes are ranged and attack from the house, except Tok Penghulu, who supports. If a shot's target dies while it is in flight, the shot switches to the nearest living enemy (a lobbed durian bends its arc to land on it); shots only fizzle when no enemies are left.
 
 | Hero | Rarity | Attack | Effect |
 |---|---|---|---|

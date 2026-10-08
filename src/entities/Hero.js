@@ -1,6 +1,6 @@
 import { HEROES } from '../config.js';
 import { starLabel } from '../ui/format.js';
-import { LobProjectile, PiercingProjectile, Projectile } from './Projectile.js';
+import { LobProjectile, nearestLiving, PiercingProjectile, Projectile } from './Projectile.js';
 
 const BUFF_COLOR = 0xffd54f;
 
@@ -49,32 +49,37 @@ export class Hero {
 
   fire(target) {
     const { def } = this;
-    const onHit = (hit, x, y) => this.onHit(hit, x, y);
+    const common = {
+      x: this.x, y: this.y, target,
+      color: def.projectileColor, size: def.projectileSize,
+      onHit: (hit, x, y) => this.onHit(hit, x, y),
+      // Used when the target dies mid-flight.
+      findTarget: (x, y) => nearestLiving(this.scene.enemies, x, y),
+    };
     if (def.lob) {
-      // Aim where the target will be when the lob lands.
-      const lead = target.isStunned ? 0
-        : target.speed * (target.isSlowed ? target.slowFactor : 1) * def.lob.flightTime / 1000;
-      const minX = this.scene.house.right + target.def.width / 2;
       return new LobProjectile(this.scene, {
-        x: this.x, y: this.y,
-        destX: Math.max(minX, target.x - lead), destY: target.y,
+        ...common,
         flightTime: def.lob.flightTime, arcHeight: def.lob.arcHeight,
-        color: def.projectileColor, size: def.projectileSize, onHit,
+        aimAt: (enemy, msLeft) => this.leadPoint(enemy, msLeft),
       });
     }
     if (def.pierce) {
       return new PiercingProjectile(this.scene, {
-        x: this.x, y: this.y, target,
-        speed: def.projectileSpeed, color: def.projectileColor, size: def.projectileSize,
-        ...def.pierce,
+        ...common, ...def.pierce,
+        speed: def.projectileSpeed,
         enemies: () => this.scene.enemies,
-        onHit,
       });
     }
-    return new Projectile(this.scene, {
-      x: this.x, y: this.y, target,
-      speed: def.projectileSpeed, color: def.projectileColor, size: def.projectileSize, onHit,
-    });
+    return new Projectile(this.scene, { ...common, speed: def.projectileSpeed });
+  }
+
+  // Where an enemy will be after msLeft, for lobbed shots: walking left at its
+  // current (possibly slowed) speed, standing still if stunned, never past the house.
+  leadPoint(enemy, msLeft) {
+    const lead = enemy.isStunned ? 0
+      : enemy.speed * (enemy.isSlowed ? enemy.slowFactor : 1) * msLeft / 1000;
+    const minX = this.scene.house.right + enemy.def.width / 2;
+    return { x: Math.max(minX, enemy.x - lead), y: enemy.y };
   }
 
   // Closest living enemy to the house that's within range. The Bomoh prefers
