@@ -1,4 +1,4 @@
-import { HEROES, PACKS, RARITY } from '../config.js';
+import { HEROES, PACKS, RARITY, SPRITES } from '../config.js';
 import { describeHero } from './HeroPicker.js';
 
 const BASE_W = 190;
@@ -28,7 +28,7 @@ export function createHeroCard(scene, x, y, id, {
       scene.add.rectangle(0, -h / 2 + s(18), w, s(36), 0x37474f),
       scene.add.text(0, -h / 2 + s(18), '???', { ...TEXT, fontSize: px(15), fontStyle: 'bold', color: '#90a4ae' })
         .setOrigin(0.5),
-      scene.add.rectangle(0, s(-32), s(52), s(76), 0x000000).setStrokeStyle(s(3), 0x000000),
+      heroPortrait(scene, id, scale, { silhouette: true }),
       scene.add.text(0, s(30), '???', { ...TEXT, fontSize: px(20), fontStyle: 'bold', color: '#78909c' })
         .setOrigin(0.5),
       scene.add.text(0, s(58), 'Not collected yet', { ...TEXT, fontSize: px(12), color: '#607d8b' })
@@ -42,7 +42,7 @@ export function createHeroCard(scene, x, y, id, {
     scene.add.rectangle(0, -h / 2 + s(18), w, s(36), rarity.color),
     scene.add.text(0, -h / 2 + s(18), rarity.label.toUpperCase(), { ...TEXT, fontSize: px(15), fontStyle: 'bold' })
       .setOrigin(0.5),
-    scene.add.rectangle(0, s(-32), s(52), s(76), def.color).setStrokeStyle(s(3), 0x1b1b1b),
+    heroPortrait(scene, id, scale),
     scene.add.text(0, s(22), def.name, { ...TEXT, fontSize: px(18), fontStyle: 'bold', color: '#3e2723' })
       .setOrigin(0.5),
   ]);
@@ -63,6 +63,22 @@ export function createHeroCard(scene, x, y, id, {
     card.add(scene.add.text(0, h / 2 - s(20), row, { ...TEXT, fontSize: px(18), color: '#f9a825' }).setOrigin(0.5));
   }
   return card;
+}
+
+// The hero's sprite at a whole-number scale that fits the card (black when
+// silhouette), or a rectangle in its colour if it has no sprite yet.
+function heroPortrait(scene, id, scale, { silhouette = false } = {}) {
+  const sprite = SPRITES.heroes[id];
+  if (!sprite) {
+    return scene.add.rectangle(0, -32 * scale, 52 * scale, 76 * scale, silhouette ? 0x000000 : HEROES[id].color)
+      .setStrokeStyle(3 * scale, silhouette ? 0x000000 : 0x1b1b1b);
+  }
+  const frame = scene.textures.getFrame(sprite.key);
+  const pixelScale = Math.max(1, Math.floor(SPRITES.cardPortraitHeight * scale / frame.height));
+  const image = scene.add.image(0, SPRITES.cardPortraitFeetY * scale, sprite.key)
+    .setOrigin(0.5, 1).setScale(pixelScale);
+  if (silhouette) image.setTintFill(0x000000);
+  return image;
 }
 
 export const HERO_CARD_SIZE = { width: BASE_W, height: BASE_H };

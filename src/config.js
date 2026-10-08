@@ -24,7 +24,20 @@ export const SPRITES = {
   // row), so shots and labels come from the body rather than empty space.
   heroes: {
     cabinBoy: { key: 'cabin_boy', height: 29 },
+    shipsCook: { key: 'ships_cook', height: 32 },
+    netThrower: { key: 'net_thrower', height: 29 },
+    voodooPriestess: { key: 'voodoo_priestess', height: 32 },
+    grogBrewer: { key: 'grog_brewer', height: 28 },
+    harpooner: { key: 'harpooner', height: 28 },
+    cannoneer: { key: 'cannoneer', height: 27 },
+    duelist: { key: 'the_duelist', height: 32 },
+    captain: { key: 'the_captain', height: 31 },
   },
+  // Hero cards show the sprite at the largest whole-number scale whose 32px
+  // frame fits this many card units (multiplied by the card's own scale),
+  // feet at cardPortraitFeetY below the card centre.
+  cardPortraitHeight: 96,
+  cardPortraitFeetY: 8,
   // Name labels of two heroes on the same deck closer than this (layout units)
   // are staggered: the second one is raised by labelStagger.
   labelMinSpacing: 48,
@@ -210,8 +223,9 @@ export const ENEMIES = {
   thiefMonkey: {
     name: 'Thief Monkey',
     color: 0x8d5a3b,
-    width: 16,
-    height: 24,
+    sprite: 'thief_monkey',   // 32x32, feet on the bottom row
+    width: 28,
+    height: 50,
     hp: 8,
     speed: 130,
     damage: 0,          // doesn't attack the ship...
@@ -223,8 +237,9 @@ export const ENEMIES = {
     name: 'The Kraken',
     boss: true,
     color: 0x6a1b9a,
-    width: 28,
-    height: 140,
+    sprite: 'the_kraken',     // 64x64, flat bottom on the waterline
+    width: 112,
+    height: 120,
     hp: 400,
     speed: 18,
     damage: 25,
