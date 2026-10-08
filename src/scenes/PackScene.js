@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { DISPLAY, HEROES, PACKS, RARITY } from '../config.js';
+import { applyRenderScale } from '../display.js';
 import { Progress } from '../systems/Progress.js';
 import { saveProgress } from '../systems/Save.js';
 import { Button } from '../ui/Button.js';
@@ -27,6 +28,7 @@ export class PackScene extends Phaser.Scene {
   }
 
   create() {
+    applyRenderScale(this);
     this.add.rectangle(0, 0, DISPLAY.width, DISPLAY.height, 0x000000, 0.8)
       .setOrigin(0).setInteractive();
 

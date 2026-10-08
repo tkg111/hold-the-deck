@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { DISPLAY, PACKS } from '../config.js';
+import { applyRenderScale } from '../display.js';
 import { House } from '../entities/House.js';
 import { Hero } from '../entities/Hero.js';
 import { clearSave, loadProgress, saveProgress } from '../systems/Save.js';
@@ -22,6 +23,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   create() {
+    applyRenderScale(this);
     this.progress = loadProgress();
     this.state = STATE.IDLE;
     this.enemies = [];
