@@ -3,7 +3,7 @@ import { HEROES, HOUSE, UPGRADES } from '../config.js';
 import { Button } from './Button.js';
 
 const WIDTH = 380;
-const ROW_HEIGHT = 62;
+const ROW_HEIGHT = 54;
 const HEADER = 46;
 
 const fmt = (n) => (Number.isInteger(n) ? `${n}` : n.toFixed(1));
@@ -15,8 +15,15 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
     super(scene, x, y);
     this.progress = progress;
     this.onPurchase = onPurchase;
+    scene.add.existing(this);
+    this.rebuild();
+  }
 
-    const p = progress;
+  // Recreate all rows, e.g. when the owned hero roster changes.
+  rebuild() {
+    this.removeAll(true);
+    const { scene } = this;
+    const p = this.progress;
     const defs = [
       {
         title: () => `House HP  ·  Lv ${p.houseHpLevel}`,
@@ -32,9 +39,9 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
         cost: () => p.floorCost(),
         buy: () => p.buildFloor(),
       },
-      ...Object.keys(p.heroLevels).map((id) => ({
-        title: () => `${HEROES[id].name}  ·  Lv ${p.heroLevels[id]}`,
-        detail: () => `Damage ${fmt(p.heroDamage(id))} → ${fmt(p.heroDamage(id, p.heroLevels[id] + 1))}`,
+      ...p.ownedHeroes.map((id) => ({
+        title: () => `${HEROES[id].name}  ·  Lv ${p.heroLevel(id)}`,
+        detail: () => `Damage ${fmt(p.heroDamage(id))} → ${fmt(p.heroDamage(id, p.heroLevel(id) + 1))}`,
         cost: () => p.heroLevelCost(id),
         buy: () => p.levelHero(id),
       })),
@@ -48,19 +55,18 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
     }));
 
     this.rows = defs.map((def, i) => this.createRow(def, HEADER + i * ROW_HEIGHT));
-    scene.add.existing(this);
     this.refresh();
   }
 
   createRow(def, y) {
-    const title = this.scene.add.text(16, y + 8, '', {
+    const title = this.scene.add.text(16, y + 6, '', {
       fontFamily: 'sans-serif', fontSize: '16px', color: '#ffffff',
     });
-    const detail = this.scene.add.text(16, y + 30, '', {
+    const detail = this.scene.add.text(16, y + 27, '', {
       fontFamily: 'sans-serif', fontSize: '13px', color: '#b0bec5',
     });
-    const button = new Button(this.scene, WIDTH - 70, y + 26, {
-      width: 112, height: 36, label: '', color: 0xc9a227, fontSize: '15px',
+    const button = new Button(this.scene, WIDTH - 70, y + 24, {
+      width: 112, height: 34, label: '', color: 0xc9a227, fontSize: '15px',
       onClick: () => {
         if (def.buy()) this.onPurchase();
       },

@@ -18,9 +18,21 @@ export const HOUSE = {
   slotsPerFloor: 2,
 };
 
+export const RARITY = {
+  common: { label: 'Common', color: 0xb0bec5 },
+  rare: { label: 'Rare', color: 0x42a5f5 },
+  epic: { label: 'Epic', color: 0xba68c8 },
+};
+
+// Optional effects per hero:
+//   stun:  { chance, duration }   — stunned enemies can't move or attack
+//   area:  { radius }             — hit lands on everything within radius of the target
+//   slow:  { factor, duration }   — movement and attack speed multiplied by factor
+//   curse: { bonus, duration }    — enemy takes (1 + bonus)x damage from ALL heroes
 export const HEROES = {
   budakLastik: {
     name: 'Budak Lastik',
+    shortName: 'Lastik',
     rarity: 'common',
     color: 0x4caf50,
     damage: 5,
@@ -30,7 +42,49 @@ export const HEROES = {
     projectileColor: 0xdddddd,
     projectileSize: 5,
   },
+  makCikSelipar: {
+    name: 'Mak Cik Selipar',
+    shortName: 'Selipar',
+    rarity: 'common',
+    color: 0xff7043,
+    damage: 9,
+    attackInterval: 900,
+    range: 650,
+    projectileSpeed: 500,
+    projectileColor: 0xffab91,
+    projectileSize: 7,
+    stun: { chance: 0.25, duration: 1000 },
+  },
+  nelayan: {
+    name: 'Nelayan',
+    shortName: 'Nelayan',
+    rarity: 'rare',
+    color: 0x29b6f6,
+    damage: 6,
+    attackInterval: 2200,
+    range: 600,
+    projectileSpeed: 380,
+    projectileColor: 0x81d4fa,
+    projectileSize: 9,
+    area: { radius: 75 },
+    slow: { factor: 0.5, duration: 2500 },
+  },
+  bomoh: {
+    name: 'Bomoh',
+    shortName: 'Bomoh',
+    rarity: 'epic',
+    color: 0x7e57c2,
+    damage: 8,
+    attackInterval: 1100,
+    range: 650,
+    projectileSpeed: 450,
+    projectileColor: 0xce93d8,
+    projectileSize: 7,
+    curse: { bonus: 0.3, duration: 4000 },
+  },
 };
+
+export const STARTING_HEROES = ['budakLastik'];
 
 export const ENEMIES = {
   jerangkung: {
@@ -67,6 +121,7 @@ export const ENEMIES = {
     damage: 25,
     attackInterval: 1500,
     gold: 50,
+    statusResist: 0.5,  // stun and slow durations multiplied by this
   },
 };
 

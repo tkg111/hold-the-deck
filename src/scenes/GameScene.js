@@ -5,6 +5,7 @@ import { Hero } from '../entities/Hero.js';
 import { Progress } from '../systems/Progress.js';
 import { isBossWave, WaveManager } from '../systems/WaveManager.js';
 import { Button } from '../ui/Button.js';
+import { HeroPicker } from '../ui/HeroPicker.js';
 import { UpgradePanel } from '../ui/UpgradePanel.js';
 
 const STATE = { IDLE: 'idle', RUNNING: 'running' };
@@ -27,19 +28,19 @@ export class GameScene extends Phaser.Scene {
 
     this.drawBackground();
     this.house = new House(this, this.progress);
-
-    // Budak Lastik is fixed in slot 0. Slot assignment comes in step 4.
-    this.heroes = [
-      new Hero(this, 'budakLastik', this.house.slotPosition(0), this.progress.heroDamage('budakLastik')),
-    ];
+    this.heroes = [];
+    this.rebuildHeroes();
 
     this.waves = new WaveManager(this);
     // Scene events outlive a restart, so unhook on shutdown to avoid double handlers.
-    this.events.on('enemy-killed', this.onEnemyKilled, this);
-    this.events.on('enemy-stole', this.onEnemyStole, this);
+    const handlers = {
+      'enemy-killed': this.onEnemyKilled,
+      'enemy-stole': this.onEnemyStole,
+      'slot-clicked': this.onSlotClicked,
+    };
+    for (const [name, fn] of Object.entries(handlers)) this.events.on(name, fn, this);
     this.events.once('shutdown', () => {
-      this.events.off('enemy-killed', this.onEnemyKilled, this);
-      this.events.off('enemy-stole', this.onEnemyStole, this);
+      for (const [name, fn] of Object.entries(handlers)) this.events.off(name, fn, this);
     });
 
     this.createUi();
@@ -64,6 +65,14 @@ export class GameScene extends Phaser.Scene {
 
     this.upgradePanel = new UpgradePanel(this, 540, 70, this.progress, () => this.onUpgradePurchased());
 
+    this.heroPicker = new HeroPicker(this, 225, 100, (id) => this.onHeroPicked(id));
+    this.heroPicker.on('closed', () => this.house.selectSlot(-1));
+    this.slotHint = this.add.text(16, DISPLAY.groundY + 14, 'Click a slot on the house to assign heroes', {
+      fontFamily: 'sans-serif', fontSize: '13px', color: '#ffffff', stroke: '#000000', strokeThickness: 3,
+    });
+
+    if (import.meta.env.DEV) import('../dev/devTools.js').then((m) => m.installDevTools(this));
+
     this.startButton = new Button(this, DISPLAY.width / 2, DISPLAY.height - 40, {
       width: 180, height: 44, label: 'Start Wave', fontSize: '22px',
       onClick: () => this.startWave(),
@@ -85,6 +94,8 @@ export class GameScene extends Phaser.Scene {
 
     this.startButton.setVisible(idle);
     this.upgradePanel.setVisible(idle);
+    this.slotHint.setVisible(idle);
+    this.devButton?.setVisible(idle);
     if (idle) this.upgradePanel.refresh();
   }
 
@@ -113,12 +124,47 @@ export class GameScene extends Phaser.Scene {
 
   onUpgradePurchased() {
     this.house.sync(this.progress);
-    for (const h of this.heroes) h.damage = this.progress.heroDamage(h.id);
+    this.rebuildHeroes();
+    this.refreshUi();
+  }
+
+  // Recreate hero objects from the slot assignments in progress.
+  rebuildHeroes() {
+    for (const h of this.heroes) h.destroy();
+    this.heroes = this.progress.activeHeroes.map(({ id, slot }) =>
+      new Hero(this, id, this.house.slotPosition(slot), this.progress.heroDamage(id)));
+  }
+
+  onSlotClicked(slot) {
+    if (this.state !== STATE.IDLE) return;
+    this.house.selectSlot(slot);
+    this.heroPicker.open(slot, this.progress);
+  }
+
+  onHeroPicked(id) {
+    this.progress.assignHero(this.house.selectedSlot, id);
+    this.heroPicker.close();
+    this.house.sync(this.progress);
+    this.rebuildHeroes();
+  }
+
+  // Owned heroes changed (dev toggle now, packs in step 5).
+  onRosterChanged() {
+    if (this.heroPicker.visible) this.heroPicker.close();
+    this.upgradePanel.rebuild();
+    this.house.sync(this.progress);
+    this.rebuildHeroes();
     this.refreshUi();
   }
 
   startWave() {
     if (this.state !== STATE.IDLE) return;
+    if (this.heroes.length === 0) {
+      this.showBanner('Assign a hero to a slot first!', '#ff8a80');
+      return;
+    }
+    if (this.heroPicker.visible) this.heroPicker.close();
+    this.house.setSlotsEnabled(false);
     this.house.restore();
     this.waves.start(this.progress.wave);
     if (isBossWave(this.progress.wave)) this.showBanner('Hantu Galah approaches!', '#ff8a80');
@@ -144,6 +190,7 @@ export class GameScene extends Phaser.Scene {
       this.showBanner('The house has fallen…', '#ff8a80');
     }
     this.house.restore();
+    this.house.setSlotsEnabled(true);
     this.refreshUi();
   }
 

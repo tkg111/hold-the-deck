@@ -4,15 +4,56 @@ export class House {
   constructor(scene, progress) {
     this.scene = scene;
     this.graphics = scene.add.graphics();
+    this.slotZones = [];
+    this.selectedSlot = -1;
+    this.slotsEnabled = true;
     this.sync(progress);
   }
 
-  // Pull floors / max HP from progress after an upgrade. Refills HP.
+  // Pull floors / max HP / slot contents from progress. Refills HP.
   sync(progress) {
     this.floors = progress.floors;
     this.maxHp = progress.houseMaxHp;
     this.hp = this.maxHp;
+    this.slotHeroes = progress.slots.slice(0, progress.slotCount);
     this.draw();
+    this.createSlotZones();
+  }
+
+  // Clickable areas over each usable slot; emit 'slot-clicked' with the index.
+  createSlotZones() {
+    for (const z of this.slotZones) z.destroy();
+    this.slotZones = [];
+    for (let s = 0; s < this.slotCount; s++) {
+      const { x, y } = this.slotPosition(s);
+      const zone = this.scene.add.rectangle(x, y, 30, 40, 0xffffff, 0)
+        .setDepth(3).setInteractive({ useHandCursor: true });
+      zone.on('pointerover', () => { zone.hovered = true; this.paintSlotZones(); });
+      zone.on('pointerout', () => { zone.hovered = false; this.paintSlotZones(); });
+      zone.on('pointerdown', () => this.slotsEnabled && this.scene.events.emit('slot-clicked', s));
+      this.slotZones.push(zone);
+    }
+    this.setSlotsEnabled(this.slotsEnabled);
+  }
+
+  setSlotsEnabled(enabled) {
+    this.slotsEnabled = enabled;
+    for (const z of this.slotZones) z.input.cursor = enabled ? 'pointer' : 'default';
+    if (!enabled) this.selectedSlot = -1;
+    this.paintSlotZones();
+  }
+
+  selectSlot(slot) {
+    this.selectedSlot = slot;
+    this.paintSlotZones();
+  }
+
+  paintSlotZones() {
+    this.slotZones.forEach((z, s) => {
+      const selected = s === this.selectedSlot;
+      z.setFillStyle(0xffffff, this.slotsEnabled && (z.hovered || selected) ? 0.2 : 0);
+      z.setStrokeStyle(2, 0xffeb3b, selected ? 1 : 0);
+    });
   }
 
   get left() { return HOUSE.x; }
@@ -66,11 +107,16 @@ export class House {
       g.strokeRect(HOUSE.x, y, HOUSE.width, HOUSE.floorHeight);
     }
 
-    // Hero slot frames
-    g.lineStyle(2, 0xfff3e0, 0.5);
+    // Hero slot frames, with a "+" in empty ones
     for (let s = 0; s < this.slotCount; s++) {
       const { x, y } = this.slotPosition(s);
+      g.lineStyle(2, 0xfff3e0, 0.5);
       g.strokeRect(x - 13, y - 18, 26, 36);
+      if (!this.slotHeroes[s]) {
+        g.lineStyle(2, 0xfff3e0, 0.7);
+        g.lineBetween(x - 5, y, x + 5, y);
+        g.lineBetween(x, y - 5, x, y + 5);
+      }
     }
 
     // Roof
