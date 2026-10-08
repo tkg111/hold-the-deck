@@ -1,6 +1,8 @@
 // All balance numbers live here. Placeholders — tune during playtesting.
 // Times are in milliseconds, speeds in pixels/second, distances in pixels.
 
+export const GAME_TITLE = 'Hold the Deck';
+
 // Logical game size: all positions and layout use these units. The canvas is
 // rendered at a multiple of it (see src/display.js) so it stays sharp.
 export const DISPLAY = {

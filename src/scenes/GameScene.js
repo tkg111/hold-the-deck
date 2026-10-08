@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { DISPLAY, HEROES } from '../config.js';
+import { DISPLAY, GAME_TITLE, HEROES } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
 import { applyRenderScale } from '../display.js';
 import { Ship } from '../entities/Ship.js';
@@ -85,6 +85,9 @@ export class GameScene extends Phaser.Scene {
   }
 
   createUi() {
+    this.titleText = this.add.text(DISPLAY.width / 2, 14, GAME_TITLE, {
+      ...TEXT_STYLE, fontSize: '16px', fontStyle: 'bold', color: '#ffe082', strokeThickness: 3,
+    }).setOrigin(0.5).setAlpha(0.9);
     this.waveText = this.add.text(16, 12, '', TEXT_STYLE);
     this.hpText = this.add.text(16, 40, '', { ...TEXT_STYLE, fontSize: '16px' });
     this.hpBar = this.add.graphics();
@@ -186,6 +189,10 @@ export class GameScene extends Phaser.Scene {
     this.banner.setFontSize(long ? 24 : 32).setText(message).setColor(color).setAlpha(1);
     this.tweens.killTweensOf(this.banner);
     this.tweens.add({ targets: this.banner, alpha: 0, delay: 1500, duration: 500 });
+    // The game title shares the top of the screen; hide it while the banner shows.
+    this.tweens.killTweensOf(this.titleText);
+    this.titleText.setAlpha(0);
+    this.tweens.add({ targets: this.titleText, alpha: 0.9, delay: 2000, duration: 300 });
   }
 
   floatText(x, y, message, color = '#ffd54f') {

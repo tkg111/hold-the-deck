@@ -1,9 +1,9 @@
-# Kampung Defense
+# Hold the Deck
 
-Grow Castle-style idle defense game with a pirate theme (reskinned from the
-original kampung theme; the repo and save key keep the old name). Phaser 3 +
-Vite, deployed to GitHub Pages by `.github/workflows/deploy.yml` on every
-push to `main`.
+Grow Castle-style idle defense game with a pirate theme (originally "Kampung
+Defense"; only the save key keeps the old name). Phaser 3 + Vite, deployed to
+GitHub Pages by `.github/workflows/deploy.yml` on every push to `main`.
+Game title: `GAME_TITLE` in `src/config.js` and `<title>` in `index.html`.
 
 ## Rules
 

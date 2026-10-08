@@ -1,8 +1,8 @@
-# Kampung Defense — Design Doc
+# Hold the Deck — Design Doc
 
 A Grow Castle-style idle defense web game. Players defend a pirate ship on the open sea from waves of drowned sailors and sea monsters, using a crew of heroes found in treasure chests.
 
-(The project and repo are still named "Kampung Defense" from the original Malaysian kampung theme; the game was reskinned to pirates with identical mechanics.)
+(Originally "Kampung Defense", set in a Malaysian kampung; reskinned to pirates with identical mechanics and renamed. The browser save key still uses the old name, `kampung-defense/save`, so existing saves keep loading.)
 
 Passion project — no real money, no ads, no timers. Everything is earned through play and should feel generous.
 
