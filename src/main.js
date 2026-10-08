@@ -6,8 +6,7 @@ import { PackScene } from './scenes/PackScene.js';
 import { PrestigeScene } from './scenes/PrestigeScene.js';
 import { loadUiSpec } from './ui/kit.js';
 
-// The UI spec and its fonts load before the game starts, so text never
-// renders in a fallback font first.
+// ui.json (icon order, slice sizes, colours) loads before the game starts.
 loadUiSpec().then(() => {
   const game = new Phaser.Game({
     type: Phaser.AUTO,
@@ -16,8 +15,10 @@ loadUiSpec().then(() => {
     // layout stays in DISPLAY units. installIntegerScaling keeps it in step.
     ...canvasSize(),
     backgroundColor: '#9fd3f2',
-    // Nearest-neighbour filtering and whole-pixel positions for the pixel art.
+    // Nearest-neighbour filtering for the pixel art, and every object drawn on
+    // whole pixels.
     pixelArt: true,
+    roundPixels: true,
     // No automatic fitting: the canvas is a whole-number multiple of the base
     // resolution (see display.js), centered by the page's flex layout.
     scale: { mode: Phaser.Scale.NONE },

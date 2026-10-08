@@ -3,26 +3,22 @@
 
 export const GAME_TITLE = 'Hold the Deck';
 
-// The game's base resolution is 480x270 art pixels, shown at the largest
-// whole-number scale that fits the window (see src/display.js). Positions and
-// UI are laid out in finer units, two per art pixel, so text and UI can sit
-// between art pixels: all game code uses these 960x540 layout units.
+// The game's base resolution: 480x270 pixels, shown at the largest whole-number
+// scale that fits the window (see src/display.js). All positions, sizes,
+// distances and speeds are in these base pixels, and sprites and text are
+// drawn at 1x in them.
 export const DISPLAY = {
-  width: 960,
-  height: 540,
-  baseWidth: 480,
-  baseHeight: 270,
+  width: 480,
+  height: 270,
 };
 
-// Pixel art: every sprite is drawn at the same whole-number scale (with
-// Phaser's pixelArt setting) so pixels stay square and sharp. One art pixel is
-// this many layout units; scene positions come from public/sprites/layout.json.
+// Pixel art, drawn with Phaser's pixelArt setting. Scene positions come from
+// public/sprites/layout.json.
 export const SPRITES = {
-  scale: DISPLAY.width / DISPLAY.baseWidth,
   path: 'sprites/',   // under public/
-  // Heroes without a sprite yet are drawn as a rectangle this size (layout
-  // units), standing on the slot like a sprite would.
-  placeholderHero: { width: 24, height: 50 },
+  // Heroes without a sprite yet are drawn as a rectangle this size, standing
+  // on the slot like a sprite would.
+  placeholderHero: { width: 12, height: 25 },
   // Visible height of each hero sprite in sprite pixels (feet on the bottom
   // row), so shots and labels come from the body rather than empty space.
   heroes: {
@@ -43,16 +39,15 @@ export const SPRITES = {
   // The Kraken's splash while it rises (layout.json describes it in a note):
   // 64x24 frames, drawn with its top this many art pixels above the waterline.
   krakenSplash: { key: 'splash_sheet', frameWidth: 64, frameHeight: 24, frames: 3, fps: 8, aboveWater: 23 },
-  // Clickable area over each ship slot (layout units, standing on the slot);
+  // Clickable area over each ship slot (standing on the slot);
   // narrower where a deck's slots are closer together than maxWidth.
-  slotZone: { maxWidth: 40, height: 60 },
+  slotZone: { maxWidth: 20, height: 30 },
 };
 
 // The UI kit (public/sprites/ui/): panels, buttons, bar, icons and ui.json
-// (fonts, 9-slice sizes, icon order, colours). UI sizes are in art pixels.
+// (9-slice sizes, icon order, colours) and bitmap fonts in ui/fonts/.
 export const UI_KIT = {
   path: 'ui/',
-  fontTimeout: 4000,      // ms to wait for Google Fonts before starting anyway
   starColor: '#ffc83a',
   starEmptyColor: '#c9b48a',
   dividerColor: '#d9c39a', // lines between parchment rows
@@ -101,10 +96,10 @@ export const HEROES = {
     color: 0x66bb6a,
     damage: 5,
     attackInterval: 450,
-    range: 700,
-    projectileSpeed: 650,
+    range: 350,
+    projectileSpeed: 325,
     projectileColor: 0xdddddd,
-    projectileSize: 5,
+    projectileSize: 2.5,
     catchphrase: "Aye aye! Point me at 'em and I'll sling till they sink!",
   },
   shipsCook: {
@@ -114,10 +109,10 @@ export const HEROES = {
     color: 0xff7043,
     damage: 9,
     attackInterval: 900,
-    range: 650,
-    projectileSpeed: 500,
+    range: 325,
+    projectileSpeed: 250,
     projectileColor: 0xffab91,
-    projectileSize: 7,
+    projectileSize: 3.5,
     stun: { chance: 0.25, duration: 1000 },
     catchphrase: 'Complain about me stew one more time, I dare ye!',
   },
@@ -128,11 +123,11 @@ export const HEROES = {
     color: 0x29b6f6,
     damage: 6,
     attackInterval: 2200,
-    range: 600,
-    projectileSpeed: 380,
+    range: 300,
+    projectileSpeed: 190,
     projectileColor: 0x81d4fa,
-    projectileSize: 9,
-    area: { radius: 75 },
+    projectileSize: 4.5,
+    area: { radius: 37.5 },
     slow: { factor: 0.5, duration: 2500 },
     catchphrase: 'Hold still, ye barnacle-brained bilge rats!',
   },
@@ -143,10 +138,10 @@ export const HEROES = {
     color: 0x7e57c2,
     damage: 8,
     attackInterval: 1100,
-    range: 650,
-    projectileSpeed: 450,
+    range: 325,
+    projectileSpeed: 225,
     projectileColor: 0xce93d8,
-    projectileSize: 7,
+    projectileSize: 3.5,
     curse: { bonus: 0.3, duration: 4000 },
     catchphrase: "The spirits whisper yer name... and they're hungry.",
   },
@@ -157,10 +152,10 @@ export const HEROES = {
     color: 0x558b2f,
     damage: 4,
     attackInterval: 900,
-    range: 720,
-    projectileSpeed: 850,
+    range: 360,
+    projectileSpeed: 425,
     projectileColor: 0x9ccc65,
-    projectileSize: 3,
+    projectileSize: 1.5,
     poison: { ratio: 0.75, duration: 4000 },
     catchphrase: "One sip o' me brew and ye'll feel it for days.",
   },
@@ -171,11 +166,11 @@ export const HEROES = {
     color: 0x5d7a8c,
     damage: 8,
     attackInterval: 1700,
-    range: 650,
-    projectileSpeed: 430,
+    range: 325,
+    projectileSpeed: 215,
     projectileColor: 0xcfd8dc,
-    projectileSize: 9,
-    pierce: { maxTargets: 6, length: 300, hitRadius: 22 },
+    projectileSize: 4.5,
+    pierce: { maxTargets: 6, length: 150, hitRadius: 11 },
     catchphrase: "Line 'em up, and I'll skewer the lot of 'em!",
   },
   cannoneer: {
@@ -185,11 +180,11 @@ export const HEROES = {
     color: 0x8d6e63,
     damage: 24,
     attackInterval: 3200,
-    range: 650,
+    range: 325,
     projectileColor: 0x263238,
-    projectileSize: 11,
-    area: { radius: 95 },
-    lob: { flightTime: 1000, arcHeight: 150 },
+    projectileSize: 5.5,
+    area: { radius: 47.5 },
+    lob: { flightTime: 1000, arcHeight: 75 },
     catchphrase: 'FIRE IN THE HOLE! Mind yer heads, lads!',
   },
   duelist: {
@@ -199,10 +194,10 @@ export const HEROES = {
     color: 0xb71c1c,
     damage: 40,
     attackInterval: 1300,
-    range: 680,
-    projectileSpeed: 950,
+    range: 340,
+    projectileSpeed: 475,
     projectileColor: 0xeceff1,
-    projectileSize: 6,
+    projectileSize: 3,
     crit: { chance: 0.35, multiplier: 2.5 },
     catchphrase: "En garde. This won't take long.",
   },
@@ -224,10 +219,10 @@ export const ENEMIES = {
     name: 'Drowned Sailor',
     color: 0x8fb8a8,
     sprite: 'drowned_sailor',  // 32x32, feet on the bottom row
-    width: 26,          // torso width; its arms reach further out front
-    height: 60,         // visible height at SPRITES.scale
+    width: 13,          // torso width; its arms reach further out front
+    height: 30,         // visible height
     hp: 20,
-    speed: 45,
+    speed: 22.5,
     damage: 5,          // per hit on the ship
     attackInterval: 1000,
     gold: 2,            // per kill, before wave scaling
@@ -236,10 +231,10 @@ export const ENEMIES = {
     name: 'Thief Monkey',
     color: 0x8d5a3b,
     sprite: 'thief_monkey',   // 32x32, feet on the bottom row
-    width: 28,
-    height: 50,
+    width: 14,
+    height: 25,
     hp: 8,
-    speed: 130,
+    speed: 65,
     damage: 0,          // doesn't attack the ship...
     attackInterval: 1000,
     gold: 3,
@@ -250,10 +245,10 @@ export const ENEMIES = {
     boss: true,
     color: 0x6a1b9a,
     sprite: 'the_kraken',     // 64x64, flat bottom on the waterline
-    width: 112,
-    height: 120,
+    width: 56,
+    height: 60,
     hp: 400,
-    speed: 18,
+    speed: 9,
     damage: 25,
     attackInterval: 1500,
     gold: 50,

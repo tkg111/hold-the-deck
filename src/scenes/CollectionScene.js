@@ -4,11 +4,11 @@ import { sfx } from '../audio/Sfx.js';
 import { applyRenderScale } from '../display.js';
 import { Button } from '../ui/Button.js';
 import { createHeroCard, HERO_CARD_SIZE } from '../ui/HeroCard.js';
-import { outlined, panel, px, text } from '../ui/kit.js';
+import { light, panel, text } from '../ui/kit.js';
 
 const MAX_PER_ROW = 5;
-const GAP = px(6);
-const GRID_TOP = px(28);
+const GAP = 6;
+const GRID_TOP = 28;
 
 // Overlay listing every hero (the "collection book"): owned ones as parchment
 // cards with level and stars, the rest as black silhouettes on wood.
@@ -34,9 +34,9 @@ export class CollectionScene extends Phaser.Scene {
     const cx = DISPLAY.width / 2;
 
     this.add.rectangle(0, 0, DISPLAY.width, DISPLAY.height, 0x0d1117, 0.9).setOrigin(0).setInteractive();
-    panel(this, cx - px(70), px(4), px(140), px(20), 'wood');
-    text(this, cx, px(14), 'CREW ROSTER', outlined()).setOrigin(0.5);
-    text(this, cx + px(76), px(14), `${owned.length}/${ids.length} FOUND`, { font: 'small', ...outlined() })
+    panel(this, cx - 70, 4, 140, 20, 'wood');
+    text(this, cx, 14, 'CREW ROSTER', light()).setOrigin(0.5);
+    text(this, cx + 76, 14, `${owned.length}/${ids.length} FOUND`, { font: 'small', ...light() })
       .setOrigin(0, 0.5);
 
     const { width: w, height: h } = HERO_CARD_SIZE.small;
@@ -52,8 +52,8 @@ export class CollectionScene extends Phaser.Scene {
         : { size: 'small', silhouette: true });
     });
 
-    new Button(this, DISPLAY.width - px(30), px(14), {
-      width: px(48), height: px(20), label: 'Back', onClick: () => this.close(),
+    new Button(this, DISPLAY.width - 30, 14, {
+      width: 48, height: 20, label: 'Back', onClick: () => this.close(),
     });
   }
 

@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { UI_KIT } from '../config.js';
 import { Button } from './Button.js';
-import { hexColor, icon, outlined, panel, px, text } from './kit.js';
+import { hexColor, icon, light, panel, text } from './kit.js';
 
 // Layout of the panel, in art pixels (from ui_mock_between_waves.png).
 const TITLE_W = 122;
@@ -20,22 +20,22 @@ export class ScrollPanel extends Phaser.GameObjects.Container {
     super(scene, x, y);
     this.w = width;
     this.visibleRows = visibleRows;
-    this.rowHeight = px(UI_KIT.rowHeight);
+    this.rowHeight = UI_KIT.rowHeight;
     this.offset = 0;
     this.rows = [];
 
-    this.parchment = panel(scene, 0, 0, width, px(40), 'parchment');
+    this.parchment = panel(scene, 0, 0, width, 40, 'parchment');
     this.dividers = scene.add.graphics();
     this.rowLayer = scene.add.container(0, 0);
-    const plateX = (width - px(TITLE_W)) / 2;
-    this.plate = panel(scene, plateX, -px(TITLE_OVERLAP), px(TITLE_W), px(TITLE_H), 'wood');
-    this.titleText = text(scene, width / 2, -px(TITLE_OVERLAP) + px(TITLE_H) / 2, title, outlined())
+    const plateX = (width - TITLE_W) / 2;
+    this.plate = panel(scene, plateX, -TITLE_OVERLAP, TITLE_W, TITLE_H, 'wood');
+    this.titleText = text(scene, width / 2, -TITLE_OVERLAP + TITLE_H / 2, title, light())
       .setOrigin(0.5);
 
     // Scroll arrows to the right of the title plate.
-    const ay = -px(TITLE_OVERLAP) + px(TITLE_H) / 2;
-    this.upArrow = icon(scene, plateX + px(TITLE_W) + px(10), ay, 'arrow_up').setInteractive({ useHandCursor: true });
-    this.downArrow = icon(scene, plateX + px(TITLE_W) + px(24), ay, 'arrow_up').setFlipY(true)
+    const ay = -TITLE_OVERLAP + TITLE_H / 2;
+    this.upArrow = icon(scene, plateX + TITLE_W + 10, ay, 'arrow_up').setInteractive({ useHandCursor: true });
+    this.downArrow = icon(scene, plateX + TITLE_W + 24, ay, 'arrow_up').setFlipY(true)
       .setInteractive({ useHandCursor: true });
     this.upArrow.on('pointerdown', () => this.scroll(-1));
     this.downArrow.on('pointerdown', () => this.scroll(1));
@@ -43,8 +43,8 @@ export class ScrollPanel extends Phaser.GameObjects.Container {
     this.add([this.parchment, this.dividers, this.rowLayer, this.plate, this.titleText, this.upArrow, this.downArrow]);
 
     if (onClose) {
-      this.closeButton = new Button(scene, width - px(4), -px(TITLE_OVERLAP) + px(4), {
-        width: px(14), height: px(14), label: 'X', font: 'small', onClick: onClose,
+      this.closeButton = new Button(scene, width - 4, -TITLE_OVERLAP + 4, {
+        width: 14, height: 14, label: 'X', font: 'small', onClick: onClose,
       });
       this.add(this.closeButton);
     }
@@ -73,13 +73,13 @@ export class ScrollPanel extends Phaser.GameObjects.Container {
     this.rowLayer.add(rows);
     this.offset = Phaser.Math.Clamp(this.offset, 0, this.maxOffset);
     const shown = Math.min(rows.length, this.visibleRows);
-    const height = px(TOP_PAD + BOTTOM_PAD) + shown * this.rowHeight;
-    this.parchment.setSize(this.w / px(1), height / px(1));
+    const height = (TOP_PAD + BOTTOM_PAD) + shown * this.rowHeight;
+    this.parchment.setSize(this.w / 1, height / 1);
     this.layoutRows();
     return this;
   }
 
-  get innerWidth() { return this.w - px(2 * ROW_INSET); }
+  get innerWidth() { return this.w - (2 * ROW_INSET); }
   get maxOffset() { return Math.max(0, this.rows.length - this.visibleRows); }
 
   scroll(by) {
@@ -96,11 +96,11 @@ export class ScrollPanel extends Phaser.GameObjects.Container {
       const slot = i - this.offset;
       const visible = slot >= 0 && slot < shown;
       row.setVisible(visible);
-      if (visible) row.setPosition(px(ROW_INSET), px(TOP_PAD) + slot * this.rowHeight);
+      if (visible) row.setPosition(ROW_INSET, TOP_PAD + slot * this.rowHeight);
     });
     g.fillStyle(hexColor(UI_KIT.dividerColor));
     for (let s = 1; s < shown; s++) {
-      g.fillRect(px(ROW_INSET), px(TOP_PAD) + s * this.rowHeight - px(2), this.innerWidth, px(1));
+      g.fillRect(ROW_INSET, TOP_PAD + s * this.rowHeight - 2, this.innerWidth, 1);
     }
     const scrolls = this.maxOffset > 0;
     this.upArrow.setVisible(scrolls).setAlpha(this.offset > 0 ? 1 : 0.35);

@@ -1,7 +1,7 @@
 import { HEROES, PACKS, RARITY, SPRITES } from '../config.js';
 import { cssColor } from './format.js';
 import { describeHero } from './HeroPicker.js';
-import { onParchment, outlined, panel, px, starRow, subText, text, UI } from './kit.js';
+import { dark, light, panel, starRow, subText, text, UI } from './kit.js';
 
 // Card sizes in art pixels. 'large' is the chest reveal and new-crewmate
 // splash; 'small' fits ten to a screen in the Crew Roster (no effect text).
@@ -23,40 +23,40 @@ export function createHeroCard(scene, x, y, id, {
   const S = SIZES[size];
   const def = HEROES[id];
   const rarity = RARITY[def.rarity];
-  const w = px(S.w);
-  const h = px(S.h);
+  const w = S.w;
+  const h = S.h;
   const top = -h / 2;
   const card = scene.add.container(x, y);
 
   card.add(panel(scene, -w / 2, top, w, h, silhouette ? 'wood' : 'parchment'));
-  card.add(panel(scene, -w / 2, top, w, px(S.plate), 'wood'));
-  card.add(text(scene, 0, top + px(S.plate / 2), silhouette ? '???' : rarity.label.toUpperCase(), {
-    font: 'small', ...outlined({ color: silhouette ? UI.colors.subText : rarityColorOnWood(def.rarity) }),
+  card.add(panel(scene, -w / 2, top, w, S.plate, 'wood'));
+  card.add(text(scene, 0, top + (S.plate / 2), silhouette ? '???' : rarity.label.toUpperCase(), {
+    font: 'small', ...light({ color: silhouette ? UI.colors.subText : rarityColorOnWood(def.rarity) }),
   }).setOrigin(0.5));
 
   // Sprite standing on a line below the plate.
-  const feetY = top + px(S.plate + 2) + px(32 * S.spriteScale);
+  const feetY = top + (S.plate + 2) + (32 * S.spriteScale);
   card.add(heroPortrait(scene, id, feetY, S.spriteScale, silhouette));
 
-  let ty = feetY + px(1);
-  card.add(text(scene, 0, ty, silhouette ? '???' : def.name, silhouette ? outlined() : onParchment())
+  let ty = feetY + 1;
+  card.add(text(scene, 0, ty, silhouette ? '???' : def.name, silhouette ? light() : dark())
     .setOrigin(0.5, 0));
-  ty += px(15);
+  ty += 15;
   if (silhouette) {
-    card.add(text(scene, 0, ty + px(2), 'NOT FOUND YET', subText({ color: UI.colors.text })).setOrigin(0.5, 0));
+    card.add(text(scene, 0, ty + 2, 'NOT FOUND YET', light({ font: 'small' })).setOrigin(0.5, 0));
     return card;
   }
   if (stars != null) {
-    card.add(starRow(scene, 0, ty + px(3), stars, PACKS.maxStars));
-    ty += px(8);
+    card.add(starRow(scene, 0, ty + 3, stars, PACKS.maxStars));
+    ty += 8;
   }
   if (level != null) {
     card.add(text(scene, 0, ty, `LV ${level}`, subText()).setOrigin(0.5, 0));
-    ty += px(10);
+    ty += 10;
   }
   if (S.effect) {
-    card.add(text(scene, 0, ty + px(1), describeHero(def).toUpperCase(),
-      subText({ align: 'center', wrap: w - px(10) })).setOrigin(0.5, 0));
+    card.add(text(scene, 0, ty + 1, describeHero(def).toUpperCase(),
+      subText({ align: 'center', wrap: w - 10 })).setOrigin(0.5, 0));
   }
   return card;
 }
@@ -69,15 +69,15 @@ const rarityColorOnWood = (rarity) => cssColor(RARITY[rarity].color);
 function heroPortrait(scene, id, feetY, scale, silhouette) {
   const sprite = SPRITES.heroes[id];
   if (!sprite) {
-    return scene.add.rectangle(0, feetY, px(16 * scale), px(26 * scale), silhouette ? 0x000000 : HEROES[id].color)
+    return scene.add.rectangle(0, feetY, (16 * scale), (26 * scale), silhouette ? 0x000000 : HEROES[id].color)
       .setOrigin(0.5, 1);
   }
-  const image = scene.add.image(0, feetY, sprite.key).setOrigin(0.5, 1).setScale(px(scale));
+  const image = scene.add.image(0, feetY, sprite.key).setOrigin(0.5, 1).setScale(scale);
   if (silhouette) image.setTintFill(0x000000);
   return image;
 }
 
 export const HERO_CARD_SIZE = {
-  large: { width: px(SIZES.large.w), height: px(SIZES.large.h) },
-  small: { width: px(SIZES.small.w), height: px(SIZES.small.h) },
+  large: { width: SIZES.large.w, height: SIZES.large.h },
+  small: { width: SIZES.small.w, height: SIZES.small.h },
 };

@@ -1,7 +1,7 @@
 import { HEROES, SHIP, UPGRADES } from '../config.js';
 import { Button } from './Button.js';
 import { fmtNumber } from './format.js';
-import { face, icon, onParchment, px, subText, text } from './kit.js';
+import { face, icon, dark, subText, text } from './kit.js';
 import { ScrollPanel } from './ScrollPanel.js';
 
 const BUY_W = 68;   // gold buy button, art pixels
@@ -25,21 +25,21 @@ export class Shipwright extends ScrollPanel {
     const p = this.progress;
     const defs = [
       {
-        art: (s) => icon(s, px(6), px(11), 'hull'),
+        art: (s) => icon(s, 6, 11, 'hull'),
         title: () => 'Hull',
         detail: () => `LV ${p.hullHpLevel}  +${UPGRADES.hullHp.hpPerLevel} HP`,
         cost: () => p.hullHpCost(),
         buy: () => p.buyHullHp(),
       },
       {
-        art: (s) => icon(s, px(6), px(11), 'hammer'),
+        art: (s) => icon(s, 6, 11, 'hammer'),
         title: () => 'Build deck',
         detail: () => `${p.decks} / ${SHIP.maxDecks}`,
         cost: () => p.deckCost(),
         buy: () => p.buildDeck(),
       },
       ...p.activeHeroes.map(({ id }) => ({
-        art: (s) => face(s, px(6), px(11), id),
+        art: (s) => face(s, 6, 11, id),
         title: () => HEROES[id].name,
         detail: () => (HEROES[id].aura
           ? `LV ${p.heroLevel(id)}  BUFF +${Math.round(p.heroAuraBonus(id) * 100)}%`
@@ -56,10 +56,10 @@ export class Shipwright extends ScrollPanel {
   createRow(def) {
     const { scene } = this;
     const row = scene.add.container(0, 0);
-    const title = text(scene, px(16), px(-1), '', onParchment());
-    const detail = text(scene, px(16), px(15), '', subText());
-    const button = new Button(scene, this.innerWidth - px(BUY_W / 2), px(2 + BUY_H / 2), {
-      width: px(BUY_W), height: px(BUY_H), style: 'gold', icon: 'gold', label: '',
+    const title = text(scene, 16, -1, '', dark());
+    const detail = text(scene, 16, 15, '', subText());
+    const button = new Button(scene, this.innerWidth - (BUY_W / 2), (2 + BUY_H / 2), {
+      width: BUY_W, height: BUY_H, style: 'gold', icon: 'gold', label: '',
       onClick: () => {
         if (def.buy()) this.onPurchase();
       },

@@ -73,7 +73,7 @@ export class LobProjectile {
     this.startY = y;
     ({ x: this.destX, y: this.destY } = aimAt(target, flightTime));
     // Iron cannonball.
-    this.sprite = scene.add.circle(x, y, size, color).setStrokeStyle(2, 0x000000).setDepth(5);
+    this.sprite = scene.add.circle(x, y, size, color).setStrokeStyle(1, 0x000000).setDepth(5);
   }
 
   // Position along the arc at progress t (0..1).
@@ -141,7 +141,7 @@ export class PiercingProjectile {
     this.hits = new Set();
     this.done = false;
     // Harpoon: a long shaft that points the way it flies.
-    this.sprite = scene.add.rectangle(x, y, size * 3.2, 4, color).setStrokeStyle(1, 0x37474f).setDepth(5);
+    this.sprite = scene.add.rectangle(x, y, size * 3.2, 2, color).setStrokeStyle(1, 0x37474f).setDepth(5);
     this.aimAt(target);
   }
 

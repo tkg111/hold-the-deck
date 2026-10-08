@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { GAME_SPEEDS, HEROES, SPRITES } from '../config.js';
+import { GAME_SPEEDS, HEROES } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
 import { applyRenderScale } from '../display.js';
 import {
@@ -14,7 +14,7 @@ import { ConfirmDialog } from '../ui/ConfirmDialog.js';
 import { fmtNumber, pearlsLabel } from '../ui/format.js';
 import { HeroPicker } from '../ui/HeroPicker.js';
 import { Shipwright } from '../ui/Shipwright.js';
-import { Bar, icon, outlined, panel, px, text, UI } from '../ui/kit.js';
+import { Bar, icon, light, panel, text, UI } from '../ui/kit.js';
 
 const STATE = { IDLE: 'idle', RUNNING: 'running' };
 
@@ -70,15 +70,15 @@ export class GameScene extends Phaser.Scene {
     this.refreshUi();
     if (data.prestigeRewards) {
       const { renown, pearls } = data.prestigeRewards;
-      this.showBanner(`A new voyage begins!  +${renown} Renown  +${pearlsLabel(pearls)}`);
+      this.showBanner('NEW VOYAGE!', { detail: `+${renown} RENOWN  +${pearlsLabel(pearls).toUpperCase()}` });
     }
   }
 
   // The battle scene: bg.png behind everything, and the animated foreground
   // (near water and island) over the enemies so they wade into the sea.
   drawBackground() {
-    this.add.image(0, 0, BACKGROUND_KEY).setOrigin(0).setScale(SPRITES.scale).setDepth(DEPTH.background);
-    this.add.sprite(0, 0, FOREGROUND_KEY).setOrigin(0).setScale(SPRITES.scale)
+    this.add.image(0, 0, BACKGROUND_KEY).setOrigin(0).setDepth(DEPTH.background);
+    this.add.sprite(0, 0, FOREGROUND_KEY).setOrigin(0)
       .setDepth(DEPTH.foreground).play(FOREGROUND_ANIM);
   }
 
@@ -88,31 +88,32 @@ export class GameScene extends Phaser.Scene {
   // top-centre during waves, and between waves the Shipwright on the right and
   // SET SAIL! / Chests / Crew / Voyage along the bottom.
   createUi() {
-    panel(this, px(6), px(6), px(110), px(24), 'wood');
-    icon(this, px(19), px(18), 'wave');
-    this.waveText = text(this, px(29), px(18), '', outlined()).setOrigin(0, 0.5);
-    icon(this, px(16), px(41), 'hull');
-    this.hullBar = new Bar(this, px(24), px(36), px(92), px(10), UI.colors.hull);
+    panel(this, 6, 6, 110, 24, 'wood');
+    icon(this, 19, 18, 'wave');
+    this.waveText = text(this, 29, 18, '', light()).setOrigin(0, 0.5);
+    icon(this, 16, 41, 'hull');
+    this.hullBar = new Bar(this, 24, 36, 92, 10, UI.colors.hull);
 
-    this.enemiesBar = new Bar(this, px(172), px(12), px(136), px(12), UI.colors.progress);
+    this.enemiesBar = new Bar(this, 172, 12, 136, 12, UI.colors.progress);
 
-    panel(this, px(330), px(6), px(144), px(24), 'wood');
-    icon(this, px(344), px(18), 'gold');
-    this.goldText = text(this, px(352), px(18), '', outlined()).setOrigin(0, 0.5);
-    icon(this, px(421), px(18), 'pearl');
-    this.pearlsText = text(this, px(428), px(18), '', outlined()).setOrigin(0, 0.5);
+    panel(this, 330, 6, 144, 24, 'wood');
+    icon(this, 344, 18, 'gold');
+    this.goldText = text(this, 352, 18, '', light()).setOrigin(0, 0.5);
+    icon(this, 421, 18, 'pearl');
+    this.pearlsText = text(this, 428, 18, '', light()).setOrigin(0, 0.5);
     // Settings: currently just Reset progress (with a confirmation).
-    this.settingsButton = new Button(this, px(443), px(43), {
-      width: px(18), height: px(18), icon: 'gear', onClick: () => this.confirmReset(),
+    this.settingsButton = new Button(this, 443, 43, {
+      width: 18, height: 18, icon: 'gear', onClick: () => this.confirmReset(),
     });
-    this.muteButton = new Button(this, px(465), px(43), {
-      width: px(18), height: px(18), icon: 'sound_on', onClick: () => this.toggleMute(),
+    this.muteButton = new Button(this, 465, 43, {
+      width: 18, height: 18, icon: 'sound_on', onClick: () => this.toggleMute(),
     });
 
-    this.banner = this.add.container(px(222), px(40)).setDepth(10).setAlpha(0);
+    // Over the sky between the ship and the Shipwright.
+    this.banner = this.add.container(188, 80).setDepth(10).setAlpha(0);
 
-    this.shipwright = new Shipwright(this, px(273), px(64), px(200), this.progress, () => this.onUpgradePurchased());
-    this.heroPicker = new HeroPicker(this, px(273), px(64), px(200), (id) => this.onHeroPicked(id));
+    this.shipwright = new Shipwright(this, 273, 64, 200, this.progress, () => this.onUpgradePurchased());
+    this.heroPicker = new HeroPicker(this, 273, 64, 200, (id) => this.onHeroPicked(id));
     this.heroPicker.on('closed', () => {
       this.ship.selectSlot(-1);
       this.refreshUi();  // brings the Shipwright back
@@ -120,21 +121,21 @@ export class GameScene extends Phaser.Scene {
 
     if (import.meta.env.DEV) import('../dev/devTools.js').then((m) => m.installDevTools(this));
 
-    this.startButton = new Button(this, px(218), px(246), {
-      width: px(96), height: px(28), style: 'gold', label: 'SET SAIL!', onClick: () => this.startWave(),
+    this.startButton = new Button(this, 211, 246, {
+      width: 120, height: 28, style: 'gold', font: 'big', label: 'SET SAIL!', onClick: () => this.startWave(),
     });
-    this.packButton = new Button(this, px(304), px(248), {
-      width: px(64), height: px(24), icon: 'chest', label: 'Chests', onClick: () => this.openPacks(),
+    this.packButton = new Button(this, 304, 248, {
+      width: 64, height: 24, icon: 'chest', label: 'Chests', onClick: () => this.openPacks(),
     });
-    this.collectionButton = new Button(this, px(370), px(248), {
-      width: px(60), height: px(24), icon: 'book', label: 'Crew', onClick: () => this.openCollection(),
+    this.collectionButton = new Button(this, 370, 248, {
+      width: 60, height: 24, icon: 'book', label: 'Crew', onClick: () => this.openCollection(),
     });
     // Battle speed (bottom-right, during waves): shows the current speed.
-    this.speedButton = new Button(this, px(452), px(250), {
-      width: px(40), height: px(22), label: '', onClick: () => this.cycleSpeed(),
+    this.speedButton = new Button(this, 452, 250, {
+      width: 40, height: 22, label: '', onClick: () => this.cycleSpeed(),
     });
-    this.prestigeButton = new Button(this, px(439), px(248), {
-      width: px(70), height: px(24), icon: 'renown', label: 'Voyage', onClick: () => this.openPrestige(),
+    this.prestigeButton = new Button(this, 439, 248, {
+      width: 70, height: 24, icon: 'renown', label: 'Voyage', onClick: () => this.openPrestige(),
     });
   }
 
@@ -144,7 +145,7 @@ export class GameScene extends Phaser.Scene {
     const boss = isBossWave(p.wave);
     this.waveText.setText(`WAVE ${p.wave}${boss ? ' BOSS' : ''}`);
     const waveColor = boss ? UI.colors.warn : UI.colors.text;
-    if (this.waveText.style.color !== waveColor) this.waveText.setColor(waveColor);
+    if (this.waveText.color !== waveColor) this.waveText.setColor(waveColor);
     this.goldText.setText(fmtNumber(p.gold));
     this.pearlsText.setText(fmtNumber(p.pearls));
     this.hullBar.setValue(this.ship.hp / this.ship.maxHp,
@@ -170,37 +171,46 @@ export class GameScene extends Phaser.Scene {
     if (idle) this.shipwright.refresh();
   }
 
-  // A wood plaque under the top bar with a short message, fading out.
-  showBanner(message, color = UI.colors.text) {
+  // A wood plaque with a short headline in the big font (and an optional
+  // small detail line under it), fading out.
+  showBanner(title, { detail = null, color = UI.colors.text } = {}) {
     this.banner.removeAll(true);
-    const label = text(this, 0, 0, message, outlined({ color, align: 'center', wrap: px(196) })).setOrigin(0.5);
-    const w = Math.ceil((label.displayWidth + px(16)) / px(2)) * px(2);
-    const h = Math.ceil((label.displayHeight + px(8)) / px(2)) * px(2);
-    this.banner.add([panel(this, -w / 2, -h / 2, w, h, 'wood'), label]);
+    const label = text(this, 0, 0, title, light({ font: 'big', color })).setOrigin(0.5, 0);
+    const small = detail ? text(this, 0, label.inkHeight + 5, detail, light({ font: 'small' })).setOrigin(0.5, 0) : null;
+    const w = Math.max(label.inkWidth, small ? small.inkWidth : 0) + 16;
+    const h = label.inkHeight + (small ? small.inkHeight + 5 : 0) + 12;
+    this.banner.add([panel(this, -w / 2, -6, w, h, 'wood'), label, small].filter(Boolean));
     this.tweens.killTweensOf(this.banner);
     this.banner.setAlpha(1);
     this.tweens.add({ targets: this.banner, alpha: 0, delay: 1700, duration: 400 });
   }
 
   floatText(x, y, message, color = UI.colors.text) {
-    const t = text(this, x, y, message, { font: 'small', ...outlined({ color }) }).setOrigin(0.5);
-    this.tweens.add({ targets: t, y: y - px(14), alpha: 0, duration: 700, onComplete: () => t.destroy() });
+    const t = text(this, x, y, message, { font: 'small', ...light({ color }) }).setOrigin(0.5);
+    // Rise through setPosition so the text stays on whole pixels.
+    this.tweens.addCounter({
+      from: 0,
+      to: 1,
+      duration: 700,
+      onUpdate: (tw) => t.setPosition(x, y - 14 * tw.getValue()).setAlpha(1 - tw.getValue()),
+      onComplete: () => t.destroy(),
+    });
   }
 
   onEnemyKilled(enemy) {
     const gold = this.progress.earnGold(enemy.gold);
     const top = enemy.y - enemy.def.height / 2;
-    this.floatText(enemy.x, top - px(6), `+${gold}`, GOLD_TEXT);
+    this.floatText(enemy.x, top - 6, `+${gold}`, GOLD_TEXT);
     if (enemy.def.boss) {
       const pearls = this.progress.claimBossPearls();
-      if (pearls) this.floatText(enemy.x, top - px(16), `+${pearlsLabel(pearls)}`);
+      if (pearls) this.floatText(enemy.x, top - 16, `+${pearlsLabel(pearls)}`);
     }
   }
 
   onEnemyStole(enemy) {
     const amount = Math.min(this.progress.gold, Math.ceil(this.progress.gold * enemy.def.stealPercent));
     this.progress.gold -= amount;
-    this.floatText(enemy.x, enemy.y - px(12), amount > 0 ? `-${amount} gold` : 'nothing to steal!', UI.colors.warn);
+    this.floatText(enemy.x, enemy.y - 12, amount > 0 ? `-${amount} gold` : 'nothing to steal!', UI.colors.warn);
   }
 
   save() {
@@ -311,14 +321,14 @@ export class GameScene extends Phaser.Scene {
   startWave() {
     if (this.state !== STATE.IDLE) return;
     if (this.heroes.length === 0) {
-      this.showBanner('Assign a hero to a slot first!', UI.colors.warn);
+      this.showBanner('ASSIGN A HERO!', { detail: 'CLICK A SLOT ON THE SHIP', color: UI.colors.warn });
       return;
     }
     if (this.heroPicker.visible) this.heroPicker.close();
     this.ship.setSlotsEnabled(false);
     this.ship.restore();
     this.waves.start(this.progress.wave);
-    if (isBossWave(this.progress.wave)) this.showBanner('The Kraken rises!', UI.colors.warn);
+    if (isBossWave(this.progress.wave)) this.showBanner('THE KRAKEN RISES!', { color: UI.colors.warn });
     this.state = STATE.RUNNING;
     this.applySpeed();
     this.refreshUi();
@@ -337,13 +347,13 @@ export class GameScene extends Phaser.Scene {
       const gold = this.progress.earnGold(this.progress.waveClearGold());
       const pearls = this.progress.waveClearPearls();
       this.progress.pearls += pearls;
-      this.showBanner(
-        `Wave ${this.progress.wave} cleared!  +${gold} gold${pearls ? `  +${pearlsLabel(pearls)}` : ''}`,
-      );
+      this.showBanner(`WAVE ${this.progress.wave} CLEARED!`, {
+        detail: `+${fmtNumber(gold)} GOLD${pearls ? `  +${pearlsLabel(pearls).toUpperCase()}` : ''}`,
+      });
       this.progress.advanceWave();
     } else {
       // Kill gold earned this wave is kept; the wave just doesn't advance.
-      this.showBanner('The ship has sunk...', UI.colors.warn);
+      this.showBanner('SHIP SUNK!', { detail: 'UPGRADE AND TRY AGAIN', color: UI.colors.warn });
     }
     this.ship.restore();
     this.ship.setSlotsEnabled(true);

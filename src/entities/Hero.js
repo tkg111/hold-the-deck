@@ -20,29 +20,29 @@ export class Hero {
 
     const sprite = SPRITES.heroes[id];
     const { width } = SPRITES.placeholderHero;
-    const height = sprite ? sprite.height * SPRITES.scale : SPRITES.placeholderHero.height;
+    const height = sprite ? sprite.height : SPRITES.placeholderHero.height;
     this.x = x;
     this.y = feetY - height / 2;
 
     // Gold glow: steady around The Captain, pulsing behind the heroes he buffs.
     this.glow = null;
     if (this.def.aura || buffed) {
-      this.glow = scene.add.rectangle(x, this.y, width + 8, height + 8, BUFF_COLOR, this.def.aura ? 0.45 : 0.3)
-        .setStrokeStyle(2, BUFF_COLOR, 0.9).setDepth(DEPTH.hero);
+      this.glow = scene.add.rectangle(x, this.y, width + 4, height + 4, BUFF_COLOR, this.def.aura ? 0.45 : 0.3)
+        .setStrokeStyle(1, BUFF_COLOR, 0.9).setDepth(DEPTH.hero);
       if (buffed) scene.tweens.add({ targets: this.glow, alpha: 0.35, duration: 700, yoyo: true, repeat: -1 });
     }
     this.idleAnim = sprite && findAnim(scene, sprite.key, 'idle');
     this.attackAnim = sprite && findAnim(scene, sprite.key, 'attack');
     if (this.idleAnim) {
-      this.body = scene.add.sprite(x, feetY, sheetKey(sprite.key)).setOrigin(0.5, 1).setScale(SPRITES.scale);
+      this.body = scene.add.sprite(x, feetY, sheetKey(sprite.key)).setOrigin(0.5, 1);
       this.playIdle(index);
       if (this.attackAnim) {
         this.body.on(`animationcomplete-${this.attackAnim}`, () => this.playIdle());
       }
     } else if (sprite) {
-      this.body = scene.add.image(x, feetY, sprite.key).setOrigin(0.5, 1).setScale(SPRITES.scale);
+      this.body = scene.add.image(x, feetY, sprite.key).setOrigin(0.5, 1);
     } else {
-      this.body = scene.add.rectangle(x, feetY, width, height, this.def.color).setOrigin(0.5, 1).setStrokeStyle(2, 0x1b1b1b);
+      this.body = scene.add.rectangle(x, feetY, width, height, this.def.color).setOrigin(0.5, 1).setStrokeStyle(1, 0x1b1b1b);
     }
     this.body.setDepth(DEPTH.hero);
 
@@ -138,7 +138,7 @@ export class Hero {
       let damage = this.damage;
       if (crit && Math.random() < crit.chance) {
         damage *= crit.multiplier;
-        this.scene.floatText(e.x, e.y - e.def.height / 2 - 26, 'CRIT!', '#ffca28');
+        this.scene.floatText(e.x, e.y - e.def.height / 2 - 13, 'CRIT!', '#ffca28');
       }
       e.takeDamage(damage);
       if (!e.alive) continue;
@@ -152,7 +152,7 @@ export class Hero {
   // Expanding ring where an area shot lands.
   showAreaHit(x, y, radius) {
     const ring = this.scene.add.circle(x, y, radius, this.def.projectileColor, 0.15)
-      .setStrokeStyle(2, this.def.projectileColor, 0.9).setScale(0.2).setDepth(5);
+      .setStrokeStyle(1, this.def.projectileColor, 0.9).setScale(0.2).setDepth(5);
     this.scene.tweens.add({
       targets: ring, scale: 1, alpha: 0, duration: 350, onComplete: () => ring.destroy(),
     });

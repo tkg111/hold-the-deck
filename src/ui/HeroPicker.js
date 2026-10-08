@@ -1,6 +1,6 @@
 import { HEROES, RARITY, UI_KIT } from '../config.js';
 import { rarityTextColor, starLabel } from './format.js';
-import { face, hexColor, onParchment, px, subText, text, UI } from './kit.js';
+import { face, hexColor, dark, subText, text, UI } from './kit.js';
 import { ScrollPanel } from './ScrollPanel.js';
 
 const pct = (n) => `${Math.round(n * 100)}%`;
@@ -45,8 +45,8 @@ export class HeroPicker extends ScrollPanel {
     const { scene } = this;
     const row = scene.add.container(0, 0);
     const current = progress.slots[slot] === id;
-    const h = px(UI_KIT.rowHeight - 3);
-    const bg = scene.add.rectangle(0, -px(1), this.innerWidth, h, hexColor(UI.colors.subText), current ? 0.25 : 0)
+    const h = (UI_KIT.rowHeight - 3);
+    const bg = scene.add.rectangle(0, -1, this.innerWidth, h, hexColor(UI.colors.subText), current ? 0.25 : 0)
       .setOrigin(0).setInteractive({ useHandCursor: true });
     row.add(bg);
 
@@ -57,13 +57,13 @@ export class HeroPicker extends ScrollPanel {
       const note = where === slot ? '  HERE' : where >= 0 ? `  SLOT ${where + 1}` : '';
       const stars = starLabel(progress.heroStarCount(id));
       row.add([
-        face(scene, px(6), px(11), id),
-        text(scene, px(16), px(-1), def.name, onParchment()),
-        text(scene, px(16), px(15), `${rarity.label}  LV ${progress.heroLevel(id)}${stars ? `  ${stars}` : ''}${note}`,
+        face(scene, 6, 11, id),
+        text(scene, 16, -1, def.name, dark()),
+        text(scene, 16, 15, `${rarity.label}  LV ${progress.heroLevel(id)}${stars ? `  ${stars}` : ''}${note}`,
           subText({ color: rarityTextColor(def.rarity) })),
       ]);
     } else {
-      row.add(text(scene, px(16), px(6), 'Leave empty', subText()));
+      row.add(text(scene, 16, 6, 'Leave empty', subText()));
     }
 
     bg.on('pointerover', () => bg.setFillAlpha(current ? 0.35 : 0.15));

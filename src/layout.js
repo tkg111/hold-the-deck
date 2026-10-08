@@ -1,28 +1,24 @@
-import { SPRITES } from './config.js';
-
-// The battle scene's layout from public/sprites/layout.json, converted from
-// art pixels to layout units. Filled by initLayout() once the file has loaded.
+// The battle scene's layout from public/sprites/layout.json (in base pixels).
+// Filled by initLayout() once the file has loaded.
 export const LAYOUT = {};
-
-const u = (px) => px * SPRITES.scale;
 
 export function initLayout(json) {
   const { rise, advance } = json.kraken;
   Object.assign(LAYOUT, {
-    shipX: u(json.shipPos.x),           // top-left of ship_stageN.png
-    shipY: u(json.shipPos.y),
-    waterY: u(json.waterY),
-    enemySpawnX: u(json.enemySpawnX),
-    shipContactX: u(json.shipContactX),
+    shipX: json.shipPos.x,           // top-left of ship_stageN.png
+    shipY: json.shipPos.y,
+    waterY: json.waterY,
+    enemySpawnX: json.enemySpawnX,
+    shipContactX: json.shipContactX,
     // [x, feetY] pairs, right to left as walkers travel.
-    lane: json.lane.points.map(([x, y]) => [u(x), u(y)]).sort((a, b) => b[0] - a[0]),
+    lane: json.lane.points.map(([x, y]) => [x, y]).sort((a, b) => b[0] - a[0]),
     // The Kraken's x / y are the top-left of its frame.
     kraken: {
-      x: u(rise.x),
-      fromY: u(rise.fromY),
-      toY: u(rise.toY),
+      x: rise.x,
+      fromY: rise.fromY,
+      toY: rise.toY,
       riseMs: rise.seconds * 1000,
-      toX: u(advance.toX),
+      toX: advance.toX,
     },
     foreground: { frames: json.foreground.frames, fps: json.foreground.fps },
   });

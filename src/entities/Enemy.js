@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { SPRITES } from '../config.js';
 import { LAYOUT, laneFeetY } from '../layout.js';
 import { findAnim, sheetKey, SPLASH_ANIM } from '../sprites.js';
-import { outlined, text, UI } from '../ui/kit.js';
+import { light, text, UI } from '../ui/kit.js';
 import { DEPTH } from './Ship.js';
 
 const STUN_COLOR = 0xffeb3b;
@@ -51,9 +51,8 @@ export class Enemy {
     } else if (def.sprite) {
       this.body = scene.add.image(0, 0, def.sprite);
     } else {
-      this.body = scene.add.rectangle(0, 0, def.width, def.height, def.color).setStrokeStyle(2, 0x333333);
+      this.body = scene.add.rectangle(0, 0, def.width, def.height, def.color).setStrokeStyle(1, 0x333333);
     }
-    if (def.sprite) this.body.setScale(SPRITES.scale);
     this.body.setOrigin(0.5, 1).setDepth(def.emerges ? DEPTH.kraken : DEPTH.enemy);
 
     // An emerging enemy rises at layout.kraken (whose x / y are the top-left
@@ -70,8 +69,8 @@ export class Enemy {
       this.riseTime = k.riseMs;
       this.setFeetY(k.fromY + this.frameH);
       const s = SPRITES.krakenSplash;
-      this.splash = scene.add.sprite(k.x, LAYOUT.waterY - s.aboveWater * SPRITES.scale, s.key)
-        .setOrigin(0).setScale(SPRITES.scale).setDepth(DEPTH.splash).play(SPLASH_ANIM);
+      this.splash = scene.add.sprite(k.x, LAYOUT.waterY - s.aboveWater, s.key)
+        .setOrigin(0).setDepth(DEPTH.splash).play(SPLASH_ANIM);
     } else {
       this.x = x;
       this.stopX = LAYOUT.shipContactX + def.width / 2;  // front edge at the ship
@@ -81,7 +80,7 @@ export class Enemy {
     this.statusFx = scene.add.graphics().setDepth(DEPTH.enemyOverlay);
     this.hpBar = scene.add.graphics().setDepth(DEPTH.enemyOverlay);
     this.nameTag = def.boss
-      ? text(scene, this.x, 0, def.name.toUpperCase(), { font: 'small', ...outlined({ color: UI.colors.warn }) })
+      ? text(scene, this.x, 0, def.name.toUpperCase(), { font: 'small', ...light({ color: UI.colors.warn }) })
         .setOrigin(0.5, 1).setDepth(DEPTH.enemyOverlay)
       : null;
     this.drawHpBar();
@@ -96,8 +95,8 @@ export class Enemy {
   get isRising() { return this.riseTime > 0; }
   // Whether heroes can aim at or hit it.
   get targetable() { return this.alive && !this.isRising; }
-  get hpBarWidth() { return this.def.boss ? 80 : this.def.width + 8; }
-  get hpBarY() { return this.y - this.def.height / 2 - 8; }
+  get hpBarWidth() { return this.def.boss ? 40 : this.def.width + 4; }
+  get hpBarY() { return Math.round(this.y - this.def.height / 2 - 4); }
   get isStunned() { return this.stunTime > 0; }
   get isSlowed() { return this.slowTime > 0; }
   get isCursed() { return this.curseTime > 0; }
@@ -211,7 +210,7 @@ export class Enemy {
     this.removeOverlays();
     this.scene.tweens.add({
       targets: this.body,
-      x: this.x + 40,
+      x: this.x + 20,
       alpha: 0,
       duration: 250,
       onComplete: () => this.body.destroy(),
@@ -270,28 +269,28 @@ export class Enemy {
 
   drawHpBar() {
     const w = this.hpBarWidth;
-    const x = this.x - w / 2;
+    const x = Math.round(this.x - w / 2);
     const y = this.hpBarY;
     const pct = Phaser.Math.Clamp(this.hp / this.maxHp, 0, 1);
     this.hpBar.clear();
-    this.hpBar.fillStyle(0x000000, 0.6).fillRect(x, y, w, 4);
+    this.hpBar.fillStyle(0x000000, 0.6).fillRect(x, y, w, 2);
     const barColor = this.isCursed ? CURSE_COLOR : this.isPoisoned ? POISON_COLOR : 0xe53935;
-    this.hpBar.fillStyle(barColor).fillRect(x, y, w * pct, 4);
+    this.hpBar.fillStyle(barColor).fillRect(x, y, Math.round(w * pct), 2);
   }
 
   drawStatus() {
     const g = this.statusFx;
     g.clear();
     const { width: w, height: h } = this.def;
-    const left = this.x - w / 2;
-    const top = this.y - h / 2;
+    const left = Math.round(this.x - w / 2);
+    const top = Math.round(this.y - h / 2);
     const t = this.scene.time.now;
 
     // Curse: pulsing purple aura around the body.
     if (this.isCursed) {
       const pulse = 0.5 + 0.5 * Math.sin(t / 120);
       g.fillStyle(CURSE_COLOR, 0.25).fillRect(left, top, w, h);
-      g.lineStyle(3, CURSE_COLOR, 0.5 + 0.5 * pulse).strokeRect(left - 3, top - 3, w + 6, h + 6);
+      g.lineStyle(1, CURSE_COLOR, 0.5 + 0.5 * pulse).strokeRect(left - 2, top - 2, w + 4, h + 4);
     }
 
     // Poison: sickly green tint with bubbles rising off the body.
@@ -300,26 +299,26 @@ export class Enemy {
       for (let i = 0; i < 3; i++) {
         const phase = (t / 700 + i / 3) % 1;
         const bx = this.x + Math.sin(i * 2.4 + t / 300) * w * 0.35;
-        const by = top + h * 0.4 - phase * (h * 0.4 + 14);
-        g.fillStyle(POISON_COLOR, 1 - phase).fillCircle(bx, by, 2.8 * (1 - phase * 0.5));
+        const by = top + h * 0.4 - phase * (h * 0.4 + 7);
+        g.fillStyle(POISON_COLOR, 1 - phase).fillRect(Math.round(bx), Math.round(by), phase < 0.5 ? 2 : 1, phase < 0.5 ? 2 : 1);
       }
     }
 
     // Slow: blue net drawn over the body.
     if (this.isSlowed) {
-      g.lineStyle(1.5, SLOW_COLOR, 0.95);
-      for (let x = left; x <= left + w; x += 6) g.lineBetween(x, top, x, top + h);
-      for (let y = top; y <= top + h; y += 6) g.lineBetween(left, y, left + w, y);
+      g.lineStyle(1, SLOW_COLOR, 0.95);
+      for (let x = left; x <= left + w; x += 3) g.lineBetween(x, top, x, top + h);
+      for (let y = top; y <= top + h; y += 3) g.lineBetween(left, y, left + w, y);
       g.strokeRect(left, top, w, h);
     }
 
     // Stun: yellow stars circling above the head.
     if (this.isStunned) {
-      const cy = this.hpBarY - (this.def.boss ? 22 : 8);
+      const cy = this.hpBarY - (this.def.boss ? 11 : 4);
       g.fillStyle(STUN_COLOR, 1);
       for (let i = 0; i < 3; i++) {
         const a = t / 130 + i * (Math.PI * 2 / 3);
-        g.fillCircle(this.x + Math.cos(a) * 11, cy + Math.sin(a) * 3, 2.5);
+        g.fillRect(Math.round(this.x + Math.cos(a) * 6) - 1, Math.round(cy + Math.sin(a) * 2) - 1, 2, 2);
       }
     }
   }

@@ -7,7 +7,7 @@ import { applyRenderScale } from '../display.js';
 import { Button } from '../ui/Button.js';
 import { fmtNumber as fmt, pearlsLabel } from '../ui/format.js';
 import {
-  Bar, hexColor, icon, onParchment, outlined, panel, px, subText, text, UI,
+  Bar, hexColor, icon, dark, light, panel, subText, text, UI,
 } from '../ui/kit.js';
 
 const PLATE_H = 20;
@@ -33,33 +33,33 @@ export class PrestigeScene extends Phaser.Scene {
     const cx = DISPLAY.width / 2;
 
     this.add.rectangle(0, 0, DISPLAY.width, DISPLAY.height, 0x0d1117, 0.9).setOrigin(0).setInteractive();
-    panel(this, cx - px(70), px(4), px(140), px(PLATE_H), 'wood');
-    text(this, cx, px(14), 'NEW VOYAGE', outlined()).setOrigin(0.5);
-    text(this, cx, px(30), `VOYAGES SO FAR: ${p.prestigeCount}   BEST WAVE: ${p.bestWave}`, { font: 'small', ...outlined() })
+    panel(this, cx - 70, 4, 140, PLATE_H, 'wood');
+    text(this, cx, 14, 'NEW VOYAGE', light()).setOrigin(0.5);
+    text(this, cx, 30, `VOYAGES SO FAR: ${p.prestigeCount}   BEST WAVE: ${p.bestWave}`, { font: 'small', ...light() })
       .setOrigin(0.5);
 
     this.content = this.add.container(0, 0);
     this.buildContent();
 
-    new Button(this, cx, px(256), {
-      width: px(70), height: px(22), label: 'Back', onClick: () => this.close(),
+    new Button(this, cx, 256, {
+      width: 70, height: 22, label: 'Back', onClick: () => this.close(),
     });
   }
 
   // Both panels; rebuilt after a shop purchase.
   buildContent() {
     this.content.removeAll(true);
-    this.buildMovePanel(px(10), px(50), px(220), px(190));
-    this.buildShopPanel(px(240), px(50), px(230), px(190));
+    this.buildMovePanel(10, 50, 220, 190);
+    this.buildShopPanel(240, 50, 230, 190);
   }
 
   // Parchment panel under a wood title plate.
   panel(x, y, w, h, title) {
-    const plateW = px(110);
+    const plateW = 110;
     this.content.add([
       panel(this, x, y, w, h, 'parchment'),
-      panel(this, x + (w - plateW) / 2, y - px(8), plateW, px(PLATE_H), 'wood'),
-      text(this, x + w / 2, y - px(8) + px(PLATE_H / 2), title, outlined()).setOrigin(0.5),
+      panel(this, x + (w - plateW) / 2, y - 8, plateW, PLATE_H, 'wood'),
+      text(this, x + w / 2, y - 8 + (PLATE_H / 2), title, light()).setOrigin(0.5),
     ]);
   }
 
@@ -67,36 +67,36 @@ export class PrestigeScene extends Phaser.Scene {
     const p = this.progress;
     const add = (o) => this.content.add(o);
     this.panel(x, y, w, h, 'SET SAIL');
-    const left = x + px(10);
-    const wrap = w - px(20);
+    const left = x + 10;
+    const wrap = w - 20;
 
     if (!p.canPrestige) {
       const need = PRESTIGE.unlockWave;
-      add(text(this, left, y + px(18), `Unlocks at wave ${need}`, onParchment()));
-      add(text(this, left, y + px(34), `YOU'RE ON WAVE ${p.wave}`, subText()));
-      add(new Bar(this, left, y + px(46), wrap, px(10), UI.colors.progress)
+      add(text(this, left, y + 18, `Unlocks at wave ${need}`, dark()));
+      add(text(this, left, y + 34, `YOU'RE ON WAVE ${p.wave}`, subText()));
+      add(new Bar(this, left, y + 46, wrap, 10, UI.colors.progress)
         .setValue(Math.min(1, (p.wave - 1) / (need - 1)), `${p.wave} / ${need}`));
-      add(text(this, left, y + px(64),
+      add(text(this, left, y + 64,
         'A NEW VOYAGE RESETS YOUR WAVE, GOLD, SHIP AND HERO LEVELS, BUT YOU KEEP YOUR CREW AND THEIR STARS, AND EARN RENOWN FOR PERMANENT BONUSES. THE FURTHER YOU SAIL, THE MORE RENOWN YOU EARN.',
         subText({ wrap, lineSpacing: 2 })));
       return;
     }
 
     const r = p.prestigeRewards;
-    add(text(this, left, y + px(18), `SETTING SAIL NOW (FROM WAVE ${p.wave}) EARNS:`, subText({ wrap })));
-    add(icon(this, left + px(6), y + px(44), 'renown'));
-    add(text(this, left + px(16), y + px(44), `${r.renown} Renown`, onParchment({ size: 2 })).setOrigin(0, 0.5));
-    add(icon(this, left + px(6), y + px(70), 'pearl'));
-    add(text(this, left + px(16), y + px(70), `+${pearlsLabel(r.pearls)}`, onParchment()).setOrigin(0, 0.5));
+    add(text(this, left, y + 18, `SETTING SAIL NOW (FROM WAVE ${p.wave}) EARNS:`, subText({ wrap })));
+    add(icon(this, left + 6, y + 44, 'renown'));
+    add(text(this, left + 16, y + 44, `${r.renown} Renown`, dark()).setOrigin(0, 0.5));
+    add(icon(this, left + 6, y + 70, 'pearl'));
+    add(text(this, left + 16, y + 70, `+${pearlsLabel(r.pearls)}`, dark()).setOrigin(0, 0.5));
 
     // Teaser: what pushing 10 more waves would earn.
     const later = p.wave + 10;
     const laterRenown = Math.floor(PRESTIGE.renownBase * (later / PRESTIGE.unlockWave) ** PRESTIGE.renownExponent);
-    add(text(this, left, y + px(90), `PUSH TO WAVE ${later} FIRST FOR ${laterRenown} RENOWN INSTEAD.`,
+    add(text(this, left, y + 90, `PUSH TO WAVE ${later} FIRST FOR ${laterRenown} RENOWN INSTEAD.`,
       subText({ wrap })));
 
-    add(new Button(this, x + w / 2, y + h - px(20), {
-      width: px(120), height: px(24), style: 'gold', icon: 'renown', label: 'New Voyage...',
+    add(new Button(this, x + w / 2, y + h - 20, {
+      width: 120, height: 24, style: 'gold', icon: 'renown', label: 'New Voyage...',
       onClick: () => this.showConfirm(),
     }));
   }
@@ -112,22 +112,22 @@ export class PrestigeScene extends Phaser.Scene {
     const p = this.progress;
     const add = (o) => this.content.add(o);
     this.panel(x, y, w, h, 'RENOWN SHOP');
-    add(icon(this, x + w - px(30), y + px(8), 'renown'));
-    add(text(this, x + w - px(22), y + px(8), fmt(p.renown), onParchment({ font: 'small' })).setOrigin(0, 0.5));
+    add(icon(this, x + w - 30, y + 8, 'renown'));
+    add(text(this, x + w - 22, y + 8, fmt(p.renown), dark({ font: 'small' })).setOrigin(0, 0.5));
 
-    const rowH = px(40);
+    const rowH = 40;
     Object.entries(RENOWN_SHOP).forEach(([key, bonus], i) => {
-      const ry = y + px(16) + i * rowH;
+      const ry = y + 16 + i * rowH;
       const level = p.renownLevel(key);
       const cost = p.renownCost(key);
       const effect = cost == null
         ? `${bonus.description}: ${this.shopEffect(key, level)} (max)`
         : `${bonus.description}: ${this.shopEffect(key, level)} > ${this.shopEffect(key, level + 1)}`;
-      if (i > 0) add(this.add.rectangle(x + px(8), ry - px(3), w - px(16), px(1), hexColor(UI_KIT.dividerColor)).setOrigin(0));
-      add(text(this, x + px(10), ry - px(1), `${bonus.name}  LV ${level}`, onParchment()));
-      add(text(this, x + px(10), ry + px(15), effect.toUpperCase(), subText({ wrap: w - px(84) })));
-      const button = new Button(this, x + w - px(40), ry + px(14), {
-        width: px(64), height: px(19), style: 'gold', icon: cost == null ? null : 'renown',
+      if (i > 0) add(this.add.rectangle(x + 8, ry - 3, w - 16, 1, hexColor(UI_KIT.dividerColor)).setOrigin(0));
+      add(text(this, x + 10, ry - 1, `${bonus.name}  LV ${level}`, dark()));
+      add(text(this, x + 10, ry + 15, effect.toUpperCase(), subText({ wrap: w - 84 })));
+      const button = new Button(this, x + w - 40, ry + 14, {
+        width: 64, height: 19, style: 'gold', icon: cost == null ? null : 'renown',
         label: cost == null ? 'MAX' : fmt(cost),
         onClick: () => {
           if (!p.buyRenown(key)) return;
@@ -149,8 +149,8 @@ export class PrestigeScene extends Phaser.Scene {
     const cx = DISPLAY.width / 2;
     modal.add([
       this.add.rectangle(0, 0, DISPLAY.width, DISPLAY.height, 0x000000, 0.85).setOrigin(0).setInteractive(),
-      panel(this, px(10), px(16), px(460), px(244), 'wood'),
-      text(this, cx, px(30), 'Set sail on a new voyage?', outlined()).setOrigin(0.5),
+      panel(this, 10, 16, 460, 244, 'wood'),
+      text(this, cx, 30, 'Set sail on a new voyage?', light()).setOrigin(0.5),
     ]);
 
     const leveled = p.ownedHeroes.filter((id) => p.heroLevel(id) > 1);
@@ -194,20 +194,20 @@ export class PrestigeScene extends Phaser.Scene {
       },
     ];
     columns.forEach((col, i) => {
-      const x = px(18 + i * 150);
+      const x = (18 + i * 150);
       modal.add([
-        panel(this, x, px(42), px(144), px(176), 'parchment'),
-        text(this, x + px(8), px(46), col.title, outlined({ color: col.color })),
-        text(this, x + px(8), px(64), col.lines.join('\n').toUpperCase(), onParchment({ font: 'small', wrap: px(128), lineSpacing: 2 })),
+        panel(this, x, 42, 144, 176, 'parchment'),
+        text(this, x + 8, 46, col.title, light({ color: col.color })),
+        text(this, x + 8, 64, col.lines.join('\n').toUpperCase(), dark({ font: 'small', wrap: 128, lineSpacing: 2 })),
       ]);
     });
 
-    modal.add(new Button(this, cx - px(60), px(238), {
-      width: px(100), height: px(24), label: 'Stay aboard',
+    modal.add(new Button(this, cx - 60, 238, {
+      width: 100, height: 24, label: 'Stay aboard',
       onClick: () => modal.destroy(true),
     }));
-    modal.add(new Button(this, cx + px(60), px(238), {
-      width: px(100), height: px(24), style: 'gold', label: 'SET SAIL!',
+    modal.add(new Button(this, cx + 60, 238, {
+      width: 100, height: 24, style: 'gold', label: 'SET SAIL!',
       onClick: () => this.confirmPrestige(),
     }));
   }

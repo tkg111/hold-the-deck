@@ -24,12 +24,11 @@ const SLOT_ZONE = SPRITES.slotZone;
 export class Ship {
   constructor(scene, progress) {
     this.scene = scene;
-    const s = SPRITES.scale;
     this.spriteTop = LAYOUT.shipY;
     this.image = scene.add.image(LAYOUT.shipX, this.spriteTop, shipStageKey(1))
-      .setOrigin(0).setScale(s).setDepth(DEPTH.ship);
+      .setOrigin(0).setDepth(DEPTH.ship);
     this.front = scene.add.image(LAYOUT.shipX, this.spriteTop, shipFrontKey(1))
-      .setOrigin(0).setScale(s).setDepth(DEPTH.shipFront);
+      .setOrigin(0).setDepth(DEPTH.shipFront);
     this.graphics = scene.add.graphics().setDepth(DEPTH.slotMarkers);
     this.slots = this.loadSlots(scene.cache.json.get(SHIP_SLOTS_KEY));
     this.slotZones = [];
@@ -80,25 +79,24 @@ export class Ship {
     this.slotZones.forEach((z, s) => {
       const selected = s === this.selectedSlot;
       z.setFillStyle(0xffffff, this.slotsEnabled && (z.hovered || selected) ? 0.2 : 0);
-      z.setStrokeStyle(2, 0xffeb3b, selected ? 1 : 0);
+      z.setStrokeStyle(1, 0xffeb3b, selected ? 1 : 0);
     });
   }
 
   // ship_slots.json gives each deck's slots in sprite pixels (centre x, feet y);
-  // flatten them into slot order (deck 1 first) in layout units.
+  // flatten them into slot order (deck 1 first) in scene pixels.
   loadSlots(json) {
-    const s = SPRITES.scale;
     const slots = [];
     for (let d = 1; d <= SHIP.maxDecks; d++) {
       const deck = json[`deck${d}`].slice(0, SHIP.slotsPerDeck);
-      const xs = deck.map((p) => LAYOUT.shipX + p.x * s);
+      const xs = deck.map((p) => LAYOUT.shipX + p.x);
       const spacing = Math.min(...xs.slice(1).map((x, i) => Math.abs(x - xs[i])));
       deck.forEach((p, i) => {
         slots.push({
           index: slots.length,
           x: xs[i],
-          feetY: this.spriteTop + p.feetY * s,
-          zoneWidth: Math.min(SLOT_ZONE.maxWidth, spacing - 2),
+          feetY: this.spriteTop + p.feetY,
+          zoneWidth: Math.min(SLOT_ZONE.maxWidth, spacing - 1),
         });
       });
     }
@@ -136,11 +134,16 @@ export class Ship {
       if (this.slotHeroes[s]) continue;
       const { x, feetY, zoneWidth } = this.slots[s];
       const y = feetY - SLOT_ZONE.height / 2;
-      g.lineStyle(2, 0xfff3e0, 0.5);
-      g.strokeRect(x - zoneWidth / 2 + 2, y - SLOT_ZONE.height / 2 + 2, zoneWidth - 4, SLOT_ZONE.height - 4);
-      g.lineStyle(2, 0xfff3e0, 0.8);
-      g.lineBetween(x - 5, y, x + 5, y);
-      g.lineBetween(x, y - 5, x, y + 5);
+      // 1px frame and "+" on whole pixels.
+      const left = Math.round(x - zoneWidth / 2) + 1;
+      const top = Math.round(y - SLOT_ZONE.height / 2) + 1;
+      const cx = Math.round(x);
+      const cy = Math.round(y);
+      g.fillStyle(0xfff3e0, 0.5);
+      g.fillRect(left, top, zoneWidth - 2, 1).fillRect(left, top + SLOT_ZONE.height - 3, zoneWidth - 2, 1);
+      g.fillRect(left, top, 1, SLOT_ZONE.height - 2).fillRect(left + zoneWidth - 3, top, 1, SLOT_ZONE.height - 2);
+      g.fillStyle(0xfff3e0, 0.8);
+      g.fillRect(cx - 2, cy, 5, 1).fillRect(cx, cy - 2, 1, 5);
     }
   }
 }

@@ -8,18 +8,18 @@ import { Button } from '../ui/Button.js';
 import { createHeroCard, HERO_CARD_SIZE } from '../ui/HeroCard.js';
 import { cssColor, pearlsLabel } from '../ui/format.js';
 import {
-  icon, onParchment, outlined, panel, px, subText, text, UI,
+  icon, dark, light, panel, subText, text, UI,
 } from '../ui/kit.js';
 
 const CARD_W = HERO_CARD_SIZE.large.width;
 const CARD_H = HERO_CARD_SIZE.large.height;
 const CARD_X = DISPLAY.width / 2;
-const CARD_Y = px(146);
+const CARD_Y = 142;
 // The chest is the kit's 12px chest icon blown up by a whole number.
 const CHEST_SCALE = 6;
-const CHEST_Y = px(142);       // centre of the chest
-const CHEST_W = px(12 * CHEST_SCALE);
-const CHEST_H = px(12 * CHEST_SCALE);
+const CHEST_Y = 142;       // centre of the chest
+const CHEST_W = (12 * CHEST_SCALE);
+const CHEST_H = (12 * CHEST_SCALE);
 const LID_Y = CHEST_Y - CHEST_H / 4;   // where the light pours out
 // Build-up glow starts neutral white so the shift toward any rarity colour
 // (including Legendary's orange) reads as the hint.
@@ -53,29 +53,29 @@ export class PackScene extends Phaser.Scene {
       .setOrigin(0).setInteractive();
 
     // Title plate and a parchment strip with the wallet, rates and pity.
-    panel(this, CARD_X - px(80), px(4), px(160), px(20), 'wood');
-    text(this, CARD_X, px(14), 'TREASURE CHEST', outlined()).setOrigin(0.5);
-    panel(this, CARD_X - px(150), px(28), px(300), px(34), 'parchment');
-    this.walletText = text(this, CARD_X, px(32), '', onParchment({ font: 'small' })).setOrigin(0.5, 0);
+    panel(this, CARD_X - 80, 4, 160, 20, 'wood');
+    text(this, CARD_X, 14, 'TREASURE CHEST', light()).setOrigin(0.5);
+    panel(this, CARD_X - 150, 28, 300, 34, 'parchment');
+    this.walletText = text(this, CARD_X, 32, '', dark({ font: 'small' })).setOrigin(0.5, 0);
     const rates = Progress.packRates()
       .map(({ rarity, chance }) => `${RARITY[rarity].label} ${Math.round(chance * 100)}%`).join('  ');
-    text(this, CARD_X, px(42), rates.toUpperCase(), subText()).setOrigin(0.5, 0);
-    this.pityText = text(this, CARD_X, px(52), '', subText({ color: UI.colors.warn })).setOrigin(0.5, 0);
+    text(this, CARD_X, 42, rates.toUpperCase(), subText()).setOrigin(0.5, 0);
+    this.pityText = text(this, CARD_X, 52, '', subText({ color: UI.colors.warn })).setOrigin(0.5, 0);
 
-    this.chestGlow = this.add.rectangle(CARD_X, CHEST_Y, CHEST_W + px(30), CHEST_H + px(30), 0xffffff, 0);
+    this.chestGlow = this.add.rectangle(CARD_X, CHEST_Y, CHEST_W + 30, CHEST_H + 30, 0xffffff, 0);
     this.light = this.add.graphics({ x: CARD_X, y: LID_Y });
     this.buildChest();
-    this.cardGlow = this.add.rectangle(CARD_X, CARD_Y, CARD_W + px(12), CARD_H + px(12), 0xffffff, 0).setVisible(false);
+    this.cardGlow = this.add.rectangle(CARD_X, CARD_Y, CARD_W + 12, CARD_H + 12, 0xffffff, 0).setVisible(false);
     this.card = this.add.container(CARD_X, CARD_Y).setVisible(false);
 
-    this.resultText = text(this, CARD_X, px(233), '', outlined({ align: 'center', wrap: px(440) })).setOrigin(0.5);
+    this.resultText = text(this, CARD_X, 233, '', light({ font: 'big' })).setOrigin(0.5);
 
-    this.openButton = new Button(this, CARD_X - px(50), px(257), {
-      width: px(90), height: px(22), style: 'gold', icon: 'pearl', label: '',
+    this.openButton = new Button(this, CARD_X - 50, 257, {
+      width: 90, height: 22, style: 'gold', icon: 'pearl', label: '',
       onClick: () => this.openPack(),
     });
-    this.closeButton = new Button(this, CARD_X + px(50), px(257), {
-      width: px(90), height: px(22), label: 'Done',
+    this.closeButton = new Button(this, CARD_X + 50, 257, {
+      width: 90, height: 22, label: 'Done',
       onClick: () => this.close(),
     });
     this.refresh();
@@ -102,8 +102,8 @@ export class PackScene extends Phaser.Scene {
   ensureConfettiTexture() {
     if (this.textures.exists('confetti')) return;
     const g = this.make.graphics({ x: 0, y: 0 }, false);
-    g.fillStyle(0xffffff).fillRect(0, 0, 8, 4);
-    g.generateTexture('confetti', 8, 4);
+    g.fillStyle(0xffffff).fillRect(0, 0, 4, 2);
+    g.generateTexture('confetti', 4, 2);
     g.destroy();
   }
 
@@ -112,10 +112,10 @@ export class PackScene extends Phaser.Scene {
   // The chest: the kit's chest icon, scaled up.
   buildChest() {
     this.chest = this.add.container(CARD_X, CHEST_Y);
-    const body = icon(this, 0, 0, 'chest').setScale(px(CHEST_SCALE));
+    const body = icon(this, 0, 0, 'chest').setScale(CHEST_SCALE);
     // Light leaking out of the chest during the build-up.
-    this.seam = this.add.rectangle(0, -CHEST_H / 4, CHEST_W - px(16), px(2), 0xffffff, 0);
-    this.tapText = text(this, 0, CHEST_H / 2 + px(8), 'TAP OPEN', { font: 'small', ...outlined() }).setOrigin(0.5);
+    this.seam = this.add.rectangle(0, -CHEST_H / 4, CHEST_W - 16, 2, 0xffffff, 0);
+    this.tapText = text(this, 0, CHEST_H / 2 + 8, 'TAP OPEN', { font: 'small', ...light() }).setOrigin(0.5);
     this.chest.add([body, this.seam, this.tapText]);
   }
 
@@ -136,12 +136,12 @@ export class PackScene extends Phaser.Scene {
     const g = this.light.clear();
     const RAYS = 9;
     for (let i = 0; i < RAYS; i++) {
-      const x0 = -CHEST_W / 2 + 12 + (i / (RAYS - 1)) * (CHEST_W - 24);
+      const x0 = -CHEST_W / 2 + 6 + (i / (RAYS - 1)) * (CHEST_W - 12);
       const spread = x0 * 1.9;
       g.fillStyle(color, i % 2 ? 0.22 : 0.34);
-      g.fillTriangle(x0 - 10, 0, x0 + 10, 0, spread, -280);
+      g.fillTriangle(x0 - 5, 0, x0 + 5, 0, spread, -140);
     }
-    g.fillStyle(0xffffff, 0.5).fillRect(-CHEST_W / 2 + px(4), -px(2), CHEST_W - px(8), px(3));
+    g.fillStyle(0xffffff, 0.5).fillRect(-CHEST_W / 2 + 4, -2, CHEST_W - 8, 3);
   }
 
   // --- Flow ---
@@ -179,8 +179,8 @@ export class PackScene extends Phaser.Scene {
         const t = tween.elapsed;
         const amp = maxAngle * (0.25 + 0.75 * k);
         this.chest.setAngle(Math.sin(t / 32) * amp * 0.6);
-        this.chest.x = CARD_X + Math.sin(t / 21) * amp * 0.5;
-        this.chest.y = CHEST_Y - Math.abs(Math.sin(t / 55)) * amp * 0.6;   // little hops
+        this.chest.x = CARD_X + Math.sin(t / 21) * amp * 0.25;
+        this.chest.y = CHEST_Y - Math.abs(Math.sin(t / 55)) * amp * 0.3;   // little hops
 
         const hint = k < hintStart ? 0 : (k - hintStart) / PACK_FX.hintFraction;
         const c = Phaser.Display.Color.Interpolate.ColorWithColor(from, to, 100, hint * 100);
@@ -202,12 +202,14 @@ export class PackScene extends Phaser.Scene {
     this.drawLight(rarityColor);
     this.light.setScale(1, 0.2);
     this.card.removeAll(true).add(createHeroCard(this, 0, 0, result.id, { stars: result.isNew ? 0 : result.stars }));
-    this.card.setPosition(CARD_X, CHEST_Y).setScale(0.15).setAlpha(0).setVisible(true);
+    this.card.setPosition(CARD_X, CHEST_Y + 40).setAlpha(0).setVisible(true);
     sfx.flip();
 
     this.tweens.add({ targets: this.light, alpha: 1, scaleY: 1, duration: 320, ease: 'Quad.easeOut' });
     this.tweens.add({
-      targets: this.card, y: CARD_Y, scale: 1, alpha: 1, duration: 480, delay: 260, ease: 'Back.easeOut',
+      // Slides up (never scaled, so its text stays 1x) on whole pixels.
+      targets: this.card, y: CARD_Y, alpha: 1, duration: 480, delay: 260, ease: 'Back.easeOut',
+      onUpdate: () => { this.card.y = Math.round(this.card.y); },
       onComplete: () => this.reveal(result),
     });
     this.tweens.add({ targets: this.chest, alpha: 0, duration: 300, delay: 420 });
@@ -224,29 +226,24 @@ export class PackScene extends Phaser.Scene {
     this.cardGlow.setFillStyle(rarityColor, 0.55).setVisible(true).setScale(0.95).setAlpha(1);
     this.tweens.add({ targets: this.cardGlow, scale: 1.1, alpha: 0.5, duration: 700, yoyo: true, repeat: -1 });
 
-    const name = HEROES[result.id].name;
+    // Short headline in the big font; the card shows who it is, and the splash
+    // says where a new crewmate goes.
     let message;
-    let color;
-    if (result.pity) {
-      message = `Pity! `;
-    }
+    let color = UI.colors.text;
     if (result.isNew) {
-      message = (message ?? '') + (result.slot >= 0
-        ? `NEW CREWMATE! ${name} joins slot ${result.slot + 1}`
-        : `NEW CREWMATE! ${name}: assign a slot on the ship`);
-      color = UI.colors.text;
+      message = 'NEW CREWMATE!';
     } else if (result.refund) {
-      message = (message ?? '') + `${name} is at max stars: +${pearlsLabel(result.refund)} back`;
-      color = UI.colors.text;
+      message = `MAX STARS! +${pearlsLabel(result.refund).toUpperCase()}`;
     } else {
-      message = (message ?? '') + `Duplicate! ${name} now has ${result.stars} star${result.stars === 1 ? '' : 's'}`;
+      message = '+1 STAR!';
       color = cssColor(rarityColor);
     }
+    if (result.pity) message = `PITY! ${message}`;
     this.resultText.setText(message).setColor(color).setAlpha(0);
     this.tweens.add({ targets: this.resultText, alpha: 1, duration: 250 });
 
     if (result.isNew) {
-      this.confetti(CARD_X, CARD_Y - px(20), PACK_FX.confetti[rarity], rarityColor);
+      this.confetti(CARD_X, CARD_Y - 20, PACK_FX.confetti[rarity], rarityColor);
       this.time.delayedCall(PACK_FX.splashDelay, () => this.showSplash(result));
     } else {
       this.busy = false;
@@ -256,9 +253,9 @@ export class PackScene extends Phaser.Scene {
 
   confetti(x, y, count, rarityColor) {
     const emitter = this.add.particles(x, y, 'confetti', {
-      speed: { min: 220, max: 560 },
+      speed: { min: 110, max: 280 },
       angle: { min: 200, max: 340 },  // upward fan
-      gravityY: 650,
+      gravityY: 325,
       lifespan: { min: 1400, max: 2400 },
       rotate: { start: 0, end: 720 },
       alpha: { start: 1, end: 0, ease: 'Quad.easeIn' },
@@ -274,7 +271,7 @@ export class PackScene extends Phaser.Scene {
     const def = HEROES[result.id];
     const rarity = RARITY[def.rarity];
     const cx = DISPLAY.width / 2;
-    const cardY = px(124);
+    const cardY = 124;
     const splash = this.add.container(0, 0).setDepth(50);
 
     const backdrop = this.add.rectangle(0, 0, DISPLAY.width, DISPLAY.height, 0x05070a, 0.9)
@@ -287,37 +284,44 @@ export class PackScene extends Phaser.Scene {
     for (let i = 0; i < RAYS; i++) {
       const a = (i / RAYS) * Math.PI * 2;
       const b = a + Math.PI / RAYS;
-      rays.fillTriangle(0, 0, Math.cos(a) * 600, Math.sin(a) * 600, Math.cos(b) * 600, Math.sin(b) * 600);
+      rays.fillTriangle(0, 0, Math.cos(a) * 300, Math.sin(a) * 300, Math.cos(b) * 300, Math.sin(b) * 300);
     }
     this.tweens.add({ targets: rays, angle: 360, duration: 16000, repeat: -1 });
 
     const legendary = def.rarity === 'legendary';
     const titleText = text(this, 0, 0, legendary ? 'NEW LEGENDARY CREWMATE!' : 'NEW CREWMATE!', {
-      ...outlined({ color: '#ffd86a' }), size: 2,
+      ...light({ color: '#ffd86a' }), font: 'big',
     }).setOrigin(0.5);
-    const titleW = Math.ceil((titleText.displayWidth + px(20)) / px(2)) * px(2);
-    const title = this.add.container(cx, px(22), [
-      panel(this, -titleW / 2, -px(17), titleW, px(34), 'wood'), titleText,
+    const titleW = titleText.inkWidth + 20;
+    const title = this.add.container(cx, 22, [
+      panel(this, -titleW / 2, -17, titleW, 34, 'wood'), titleText,
     ]);
     const card = createHeroCard(this, cx, cardY, result.id, { stars: 0 });
-    const quoteText = text(this, 0, 0, `"${def.catchphrase}"`, onParchment({ align: 'center', wrap: px(400) }))
+    const quoteText = text(this, 0, 0, `"${def.catchphrase}"`, dark({ align: 'center', wrap: 400 }))
       .setOrigin(0.5);
-    const quoteH = Math.ceil((quoteText.displayHeight + px(10)) / px(2)) * px(2);
-    const quote = this.add.container(cx, px(226), [
-      panel(this, -px(212), -quoteH / 2, px(424), quoteH, 'parchment'), quoteText,
+    const quoteH = quoteText.inkHeight + 12;
+    const quote = this.add.container(cx, 226, [
+      panel(this, -212, -quoteH / 2, 424, quoteH, 'parchment'), quoteText,
     ]);
-    const hint = text(this, cx, px(260), 'TAP ANYWHERE TO CONTINUE', { font: 'small', ...outlined() })
+    const where = text(this, cx, 249, result.slot >= 0
+      ? `JOINS SLOT ${result.slot + 1}` : 'ASSIGN A SLOT ON THE SHIP', light({ font: 'small' })).setOrigin(0.5);
+    const hint = text(this, cx, 262, 'TAP ANYWHERE TO CONTINUE', { font: 'small', ...light() })
       .setOrigin(0.5).setAlpha(0);
 
-    splash.add([backdrop, rays, title, card, quote, hint]);
+    splash.add([backdrop, rays, title, card, quote, where, hint]);
 
     // Entrance
-    card.setScale(0.3).setAlpha(0);
-    title.setScale(0.5).setAlpha(0);
+    // Entrance: slide in and fade, never scaled, so text stays 1x.
+    card.setAlpha(0).setY(cardY + 24);
+    title.setAlpha(0).setY(title.y - 16);
     quote.setAlpha(0);
-    this.tweens.add({ targets: card, scale: 1, alpha: 1, duration: 450, ease: 'Back.easeOut' });
-    this.tweens.add({ targets: title, scale: 1, alpha: 1, duration: 350, delay: 100, ease: 'Back.easeOut' });
-    this.tweens.add({ targets: quote, alpha: 1, duration: 400, delay: 450 });
+    where.setAlpha(0);
+    const snap = (o) => () => { o.y = Math.round(o.y); };
+    this.tweens.add({ targets: card, y: cardY, alpha: 1, duration: 450, ease: 'Back.easeOut', onUpdate: snap(card) });
+    this.tweens.add({
+      targets: title, y: title.y + 16, alpha: 1, duration: 350, delay: 100, ease: 'Back.easeOut', onUpdate: snap(title),
+    });
+    this.tweens.add({ targets: [quote, where], alpha: 1, duration: 400, delay: 450 });
     this.tweens.add({ targets: hint, alpha: 1, duration: 300, delay: 900 });
 
     // Ignore clicks for a moment so the opening click can't skip it by accident.
@@ -326,7 +330,7 @@ export class PackScene extends Phaser.Scene {
     backdrop.on('pointerdown', () => {
       if (!canDismiss) return;
       sfx.click();
-      this.tweens.killTweensOf([rays, card, title, quote, hint]);
+      this.tweens.killTweensOf([rays, card, title, quote, where, hint]);
       splash.destroy(true);
       this.busy = false;
       this.refresh();

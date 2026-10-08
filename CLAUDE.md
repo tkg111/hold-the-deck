@@ -18,14 +18,17 @@ Game title: `GAME_TITLE` in `src/config.js` and `<title>` in `index.html`.
 
 ## Conventions
 
-- The base resolution is 480x270 art pixels, shown at the largest whole-number
-  scale that fits the window. Layout uses 960x540 logical units (`DISPLAY` in
-  config, 2 per art pixel; sprites are drawn at `SPRITES.scale`). Battle scene
-  positions come from `public/sprites/layout.json` (see `src/layout.js`).
+- The base resolution is 480x270 pixels (`DISPLAY` in config), shown at the
+  largest whole-number scale that fits the window. All positions, sizes,
+  distances and speeds are in these pixels, and sprites and text are drawn at
+  1x. Battle scene positions come from `public/sprites/layout.json` (see
+  `src/layout.js`).
   Every scene must call `applyRenderScale(this)` first
   in `create()` (see `src/display.js`).
-- UI uses the kit in `src/ui/kit.js`: create text with its `text()` (pixel fonts,
-  no smoothing), never `scene.add.text`, and lay UI out in art pixels with `px()`.
+- UI uses the kit in `src/ui/kit.js`: create text with its `text()` (bitmap
+  fonts from `public/sprites/ui/fonts/`, unscaled, snapped to whole pixels),
+  never `scene.add.text`. Use the light fonts on wood, wood buttons and over
+  the scene, and the dark ones on parchment and gold buttons.
 - Dev-only tools live in `src/dev/` and are loaded via a dynamic import behind
   `import.meta.env.DEV`, so they never ship in production builds.
 - Stop the dev server before running `npm ci` on Windows (it locks a native

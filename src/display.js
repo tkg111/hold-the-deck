@@ -1,19 +1,17 @@
 import { DISPLAY } from './config.js';
 
-// The game's base resolution is DISPLAY.baseWidth x baseHeight (480x270) art
+// The game's base resolution is DISPLAY.width x height (480x270)
 // pixels, shown at the largest whole-number scale that fits the window, so
 // every art pixel is a square block of real screen pixels. The canvas is that
 // size in physical pixels; each scene's camera zooms so game code keeps using
 // DISPLAY.width x height layout units. The scale is re-picked when the window
 // (or its devicePixelRatio) changes.
 
-const UNITS_PER_PIXEL = DISPLAY.width / DISPLAY.baseWidth;
-
 function pickPixelScale() {
   const dpr = window.devicePixelRatio || 1;
   const fit = Math.min(
-    (window.innerWidth * dpr) / DISPLAY.baseWidth,
-    (window.innerHeight * dpr) / DISPLAY.baseHeight,
+    (window.innerWidth * dpr) / DISPLAY.width,
+    (window.innerHeight * dpr) / DISPLAY.height,
   );
   return Math.max(1, Math.floor(fit));
 }
@@ -23,12 +21,12 @@ let pixelScale = pickPixelScale();
 // Physical screen pixels per art pixel.
 export const getPixelScale = () => pixelScale;
 // Physical screen pixels per layout unit (the camera zoom).
-const renderZoom = () => pixelScale / UNITS_PER_PIXEL;
+const renderZoom = () => pixelScale;
 
 // Size of the backing canvas for the current scale.
 export const canvasSize = () => ({
-  width: DISPLAY.baseWidth * pixelScale,
-  height: DISPLAY.baseHeight * pixelScale,
+  width: DISPLAY.width * pixelScale,
+  height: DISPLAY.height * pixelScale,
 });
 
 // Call at the start of every scene's create(). Zoom around the default center
