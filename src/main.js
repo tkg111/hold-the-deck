@@ -4,6 +4,7 @@ import { installCrispText, RENDER_SCALE } from './display.js';
 import { CollectionScene } from './scenes/CollectionScene.js';
 import { GameScene } from './scenes/GameScene.js';
 import { PackScene } from './scenes/PackScene.js';
+import { PrestigeScene } from './scenes/PrestigeScene.js';
 
 installCrispText();
 
@@ -19,7 +20,7 @@ const game = new Phaser.Game({
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
   },
-  scene: [GameScene, PackScene, CollectionScene],
+  scene: [GameScene, PackScene, CollectionScene, PrestigeScene],
 });
 
 // Handy for poking at state from the browser console during development.

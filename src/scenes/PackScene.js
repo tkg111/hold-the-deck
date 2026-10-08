@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { DISPLAY, HEROES, PACK_FX, PACKS, RARITY } from '../config.js';
+import { DISPLAY, HEROES, PACK_FX, RARITY } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
 import { applyRenderScale, RENDER_SCALE } from '../display.js';
 import { Progress } from '../systems/Progress.js';
@@ -70,8 +70,9 @@ export class PackScene extends Phaser.Scene {
 
   refresh() {
     const { angPow } = this.progress;
-    this.walletText.setText(`You have ${angPow} Ang Pow  ·  Pack costs ${PACKS.cost}`);
-    this.openButton.setLabel(`Open (${PACKS.cost} Ang Pow)`);
+    const cost = this.progress.packCost;
+    this.walletText.setText(`You have ${angPow} Ang Pow  ·  Pack costs ${cost}`);
+    this.openButton.setLabel(`Open (${cost} Ang Pow)`);
     // Hold the pity line while a pack is opening: the counter resets the moment
     // a Legendary is rolled, which would spoil the reveal.
     if (!this.busy) {

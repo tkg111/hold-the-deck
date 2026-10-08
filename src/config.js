@@ -299,3 +299,51 @@ export const UPGRADES = {
     costGrowth: 1.25,
   },
 };
+
+// Prestige: "Pindah Kampung". Resets the run (wave, gold, house, hero levels)
+// for Semangat, a permanent currency spent in the Semangat shop.
+export const PRESTIGE = {
+  unlockWave: 20,
+  // Semangat = floor(semangatBase * (waveReached / unlockWave) ^ semangatExponent)
+  semangatBase: 10,
+  semangatExponent: 1.5,
+  // Ang Pow lump = floor(waveReached * angPowPerWave)
+  angPowPerWave: 0.5,
+};
+
+// Permanent bonuses bought with Semangat. Cost at level L:
+// round(baseCost * costGrowth ^ L). maxLevel: null = unlimited.
+export const SEMANGAT_SHOP = {
+  heroDamage: {
+    name: 'Semangat Pahlawan',
+    description: 'All hero damage',
+    perLevel: 0.1,          // +10% per level
+    baseCost: 5,
+    costGrowth: 1.5,
+    maxLevel: null,
+  },
+  gold: {
+    name: 'Rezeki Melimpah',
+    description: 'Gold from kills and wave clears',
+    perLevel: 0.1,
+    baseCost: 5,
+    costGrowth: 1.5,
+    maxLevel: null,
+  },
+  houseHp: {
+    name: 'Rumah Kukuh',
+    description: 'House max HP',
+    perLevel: 0.1,
+    baseCost: 4,
+    costGrowth: 1.5,
+    maxLevel: null,
+  },
+  packDiscount: {
+    name: 'Ang Pow Murah',
+    description: 'Pack cost',
+    perLevel: 1,            // -1 Ang Pow per level
+    baseCost: 20,
+    costGrowth: 2.5,
+    maxLevel: 2,            // packs never cost less than 1
+  },
+};

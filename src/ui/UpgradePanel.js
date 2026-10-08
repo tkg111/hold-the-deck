@@ -31,7 +31,7 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
     const defs = [
       {
         title: () => `House HP  ·  Lv ${p.houseHpLevel}`,
-        detail: () => `Max HP ${p.houseMaxHp} → ${p.houseMaxHp + UPGRADES.houseHp.hpPerLevel}`,
+        detail: () => `Max HP ${p.houseMaxHp} → ${p.houseMaxHpAt(p.houseHpLevel + 1)}`,
         cost: () => p.houseHpCost(),
         buy: () => p.buyHouseHp(),
       },

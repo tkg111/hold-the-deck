@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { DISPLAY, HEROES, PACKS } from '../config.js';
+import { DISPLAY, HEROES } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
 import { applyRenderScale } from '../display.js';
 import { House } from '../entities/House.js';
@@ -23,9 +23,11 @@ export class GameScene extends Phaser.Scene {
     super('GameScene');
   }
 
-  create() {
+  // data.progress / data.prestigeRewards are passed when restarting after a
+  // Pindah Kampung, so the new run doesn't depend on re-reading storage.
+  create(data = {}) {
     applyRenderScale(this);
-    this.progress = loadProgress();
+    this.progress = data.progress ?? loadProgress();
     sfx.init(this.game);
     sfx.setMuted(this.progress.muted);
     this.state = STATE.IDLE;
@@ -56,6 +58,10 @@ export class GameScene extends Phaser.Scene {
 
     this.createUi();
     this.refreshUi();
+    if (data.prestigeRewards) {
+      const { semangat, angPow } = data.prestigeRewards;
+      this.showBanner(`Welcome to your new kampung!  +${semangat} Semangat  +${angPow} Ang Pow`, '#80cbc4');
+    }
   }
 
   drawBackground() {
@@ -73,8 +79,9 @@ export class GameScene extends Phaser.Scene {
     this.angPowText = this.add.text(DISPLAY.width - 16, 38, '', { ...TEXT_STYLE, fontSize: '16px', color: '#ff8a80' })
       .setOrigin(1, 0);
 
-    this.banner = this.add.text(DISPLAY.width / 2, 40, '', { ...TEXT_STYLE, fontSize: '32px' })
-      .setOrigin(0.5).setAlpha(0).setDepth(10);
+    this.banner = this.add.text(DISPLAY.width / 2, 40, '', {
+      ...TEXT_STYLE, fontSize: '32px', align: 'center', wordWrap: { width: 480 },
+    }).setOrigin(0.5).setAlpha(0).setDepth(10);
 
     this.upgradePanel = new UpgradePanel(this, 540, 70, this.progress, () => this.onUpgradePurchased());
 
@@ -98,6 +105,13 @@ export class GameScene extends Phaser.Scene {
       onClick: () => this.openPacks(),
     });
     // Gentle pulse while a pack is affordable.
+    this.prestigeButton = new Button(this, 380, 94, {
+      width: 210, height: 32, label: '', color: 0x00796b, fontSize: '15px',
+      onClick: () => this.openPrestige(),
+    });
+    this.prestigePulse = this.tweens.add({
+      targets: this.prestigeButton, scale: 1.05, duration: 600, yoyo: true, repeat: -1, paused: true,
+    });
     this.collectionButton = new Button(this, DISPLAY.width / 2 - 175, DISPLAY.height - 40, {
       width: 150, height: 44, label: 'Collection', color: 0x6d4c41, fontSize: '18px',
       onClick: () => this.openCollection(),
@@ -132,20 +146,30 @@ export class GameScene extends Phaser.Scene {
     this.startButton.setVisible(idle);
     this.packButton.setVisible(idle);
     this.collectionButton.setVisible(idle);
+    this.prestigeButton.setVisible(idle);
+    const p = this.progress;
+    this.prestigeButton.setLabel(p.canPrestige
+      ? `Pindah Kampung!  ✦ +${p.prestigeRewards.semangat}`
+      : `Pindah Kampung  ✦ ${p.semangat}`);
+    if (idle && p.canPrestige) this.prestigePulse.resume();
+    else { this.prestigePulse.pause(); this.prestigeButton.setScale(1); }
     this.muteButton.setLabel(`Sound: ${this.progress.muted ? 'Off' : 'On'}`);
     this.resetButton.setVisible(idle);
-    this.packButton.setLabel(`Packs  (${this.progress.angPow}/${PACKS.cost})`);
+    this.packButton.setLabel(`Packs  (${this.progress.angPow}/${this.progress.packCost})`);
     if (idle && this.progress.canOpenPack) this.packPulse.resume();
     else { this.packPulse.pause(); this.packButton.setScale(1); }
     this.upgradePanel.setVisible(idle && !this.heroPicker.visible);
     this.slotHint.setVisible(idle);
     this.devButton?.setVisible(idle);
     this.devAngPowButton?.setVisible(idle);
+    this.devWaveButton?.setVisible(idle);
     if (idle) this.upgradePanel.refresh();
   }
 
+  // Long messages drop to a smaller size and wrap, so they stay clear of the HUD.
   showBanner(message, color) {
-    this.banner.setText(message).setColor(color).setAlpha(1);
+    const long = message.length > 34;
+    this.banner.setFontSize(long ? 24 : 32).setText(message).setColor(color).setAlpha(1);
     this.tweens.killTweensOf(this.banner);
     this.tweens.add({ targets: this.banner, alpha: 0, delay: 1500, duration: 500 });
   }
@@ -157,9 +181,9 @@ export class GameScene extends Phaser.Scene {
   }
 
   onEnemyKilled(enemy) {
-    this.progress.gold += enemy.gold;
+    const gold = this.progress.earnGold(enemy.gold);
     const top = enemy.y - enemy.def.height / 2;
-    this.floatText(enemy.x, top - 12, `+${enemy.gold}`);
+    this.floatText(enemy.x, top - 12, `+${gold}`);
     if (enemy.def.boss) {
       const angPow = this.progress.claimBossAngPow();
       if (angPow) this.floatText(enemy.x, top - 32, `+${angPow} Ang Pow`, '#ff8a80');
@@ -240,6 +264,22 @@ export class GameScene extends Phaser.Scene {
     this.save();
   }
 
+  openPrestige() {
+    if (this.state !== STATE.IDLE) return;
+    if (this.heroPicker.visible) this.heroPicker.close();
+    sfx.click();
+    this.scene.launch('PrestigeScene', {
+      progress: this.progress,
+      // Shop bonuses change damage, gold and house HP right away.
+      onChange: () => this.onUpgradePurchased(),
+      onClose: () => this.refreshUi(),
+      onPrestige: (rewards) => {
+        this.save();
+        this.scene.restart({ progress: this.progress, prestigeRewards: rewards });
+      },
+    });
+  }
+
   openCollection() {
     if (this.state !== STATE.IDLE) return;
     if (this.heroPicker.visible) this.heroPicker.close();
@@ -286,15 +326,14 @@ export class GameScene extends Phaser.Scene {
     this.projectiles = [];
 
     if (won) {
-      const gold = this.progress.waveClearGold();
+      const gold = this.progress.earnGold(this.progress.waveClearGold());
       const angPow = this.progress.waveClearAngPow();
-      this.progress.gold += gold;
       this.progress.angPow += angPow;
       this.showBanner(
         `Wave ${this.progress.wave} cleared!  +${gold} gold${angPow ? `  +${angPow} Ang Pow` : ''}`,
         '#ffeb3b',
       );
-      this.progress.wave++;
+      this.progress.advanceWave();
     } else {
       // Kill gold earned this wave is kept; the wave just doesn't advance.
       this.showBanner('The house has fallen…', '#ff8a80');

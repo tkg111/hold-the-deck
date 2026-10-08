@@ -15,10 +15,18 @@ export function installDevTools(scene) {
       scene.onRosterChanged();
     },
   });
-  scene.devAngPowButton = new Button(scene, 92, DISPLAY.height - 36, {
-    width: 168, height: 21, label: 'DEV: +10 Ang Pow', color: 0x546e7a, fontSize: '12px',
+  scene.devAngPowButton = new Button(scene, 50, DISPLAY.height - 36, {
+    width: 84, height: 21, label: 'DEV: +10 AP', color: 0x546e7a, fontSize: '11px',
     onClick: () => {
       progress.angPow += 10;
+      scene.refreshUi();
+    },
+  });
+  scene.devWaveButton = new Button(scene, 135, DISPLAY.height - 36, {
+    width: 82, height: 21, label: 'DEV: +10 wave', color: 0x546e7a, fontSize: '11px',
+    onClick: () => {
+      if (scene.state !== 'idle') return;
+      for (let i = 0; i < 10; i++) progress.advanceWave();
       scene.refreshUi();
     },
   });

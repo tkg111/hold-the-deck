@@ -1,4 +1,4 @@
-import { ECONOMY, HEROES, HOUSE, PACKS, RARITY, STARTING_HEROES, UPGRADES } from '../config.js';
+import { ECONOMY, HEROES, HOUSE, PACKS, PRESTIGE, RARITY, SEMANGAT_SHOP, STARTING_HEROES, UPGRADES } from '../config.js';
 
 const scaledCost = ({ baseCost, costGrowth }, level) => Math.round(baseCost * costGrowth ** level);
 
@@ -21,6 +21,13 @@ export class Progress {
     this.slots[0] = STARTING_HEROES[0];
 
     this.muted = false;             // sound effects off
+
+    // Prestige ("Pindah Kampung"): kept across runs.
+    this.semangat = 0;
+    this.semangatShop = {};         // bonus key -> level; missing = 0
+    this.prestigeCount = 0;
+    this.bestWave = 1;              // highest wave ever reached, all runs
+    this.goldFraction = 0;          // carry for fractional bonus gold; not saved
 
     // Dev-only: treat every hero as owned. Not part of saved progress.
     this.devUnlockAll = false;
@@ -46,6 +53,10 @@ export class Progress {
       slots: this.slots.map((id) => (id && owned.includes(id) ? id : null)),
       muted: this.muted,
       packsSinceLegendary: this.packsSinceLegendary,
+      semangat: this.semangat,
+      semangatShop: { ...this.semangatShop },
+      prestigeCount: this.prestigeCount,
+      bestWave: this.bestWave,
     };
   }
 
@@ -64,6 +75,13 @@ export class Progress {
     p.floors = int(data.floors, HOUSE.startingFloors, HOUSE.maxFloors);
     p.muted = data.muted === true;
     p.packsSinceLegendary = int(data.packsSinceLegendary, 0, PACKS.legendaryPity - 1);
+    p.semangat = int(data.semangat, 0);
+    p.prestigeCount = int(data.prestigeCount, 0);
+    p.bestWave = Math.max(p.wave, int(data.bestWave, 1));
+    for (const [key, bonus] of Object.entries(SEMANGAT_SHOP)) {
+      const level = data.semangatShop?.[key];
+      if (level != null) p.semangatShop[key] = int(level, 0, bonus.maxLevel ?? Infinity);
+    }
 
     const owned = Array.isArray(data.owned) ? data.owned.filter((id) => id in HEROES) : [];
     p.owned = [...new Set([...STARTING_HEROES, ...owned])];
@@ -129,10 +147,13 @@ export class Progress {
 
   // --- Derived stats ---
 
-  get houseMaxHp() {
-    return HOUSE.baseHp
-      + this.houseHpLevel * UPGRADES.houseHp.hpPerLevel
+  get houseMaxHp() { return this.houseMaxHpAt(this.houseHpLevel); }
+
+  houseMaxHpAt(hpLevel) {
+    const base = HOUSE.baseHp
+      + hpLevel * UPGRADES.houseHp.hpPerLevel
       + (this.floors - 1) * UPGRADES.floor.hpPerFloor;
+    return Math.round(base * this.semangatMultiplier('houseHp'));
   }
 
   get canBuildFloor() { return this.floors < HOUSE.maxFloors; }
@@ -141,7 +162,8 @@ export class Progress {
     const starBonus = PACKS.starDamageBonus[this.heroStarCount(id)];
     return HEROES[id].damage
       * (1 + (level - 1) * UPGRADES.heroLevel.damagePerLevel)
-      * (1 + starBonus);
+      * (1 + starBonus)
+      * this.semangatMultiplier('heroDamage');
   }
 
   // Damage bonus an aura hero (Tok Penghulu) gives his floor, e.g. 0.5 = +50%.
@@ -171,8 +193,26 @@ export class Progress {
     return buffs;
   }
 
+  // Base wave-clear gold, before the Semangat bonus (see earnGold).
   waveClearGold(wave = this.wave) {
     return ECONOMY.waveClearBase + (wave - 1) * ECONOMY.waveClearPerWave;
+  }
+
+  // Add base gold with the Semangat gold bonus applied; returns the whole gold
+  // paid. Fractions carry over, so +10% on a 2-gold kill still adds up over
+  // several kills instead of rounding away.
+  earnGold(base) {
+    this.goldFraction += base * this.semangatMultiplier('gold');
+    const paid = Math.floor(this.goldFraction + 1e-9);
+    this.goldFraction -= paid;
+    this.gold += paid;
+    return paid;
+  }
+
+  // Move on to the next wave after a clear.
+  advanceWave() {
+    this.wave++;
+    this.bestWave = Math.max(this.bestWave, this.wave);
   }
 
   waveClearAngPow(wave = this.wave) {
@@ -216,7 +256,11 @@ export class Progress {
 
   // --- Packs ---
 
-  get canOpenPack() { return this.angPow >= PACKS.cost; }
+  get packCost() {
+    return Math.max(1, PACKS.cost - this.semangatLevel('packDiscount') * SEMANGAT_SHOP.packDiscount.perLevel);
+  }
+
+  get canOpenPack() { return this.angPow >= this.packCost; }
 
   // Rarity weights limited to rarities that have heroes, so rates stay valid
   // if a tier is empty (e.g. Legendary before its heroes exist).
@@ -248,7 +292,7 @@ export class Progress {
   // Spend Ang Pow and pull one hero. Returns what happened, or null if unaffordable.
   openPack(random = Math.random) {
     if (!this.canOpenPack) return null;
-    this.angPow -= PACKS.cost;
+    this.angPow -= this.packCost;
     const pity = this.packsUntilPity <= 1;
     const id = Progress.rollHero(random, pity ? 'legendary' : null);
     if (HEROES[id].rarity === 'legendary') this.packsSinceLegendary = 0;
@@ -273,5 +317,61 @@ export class Progress {
     if (!this.isOwned(id) || !this.spend(this.heroLevelCost(id))) return false;
     this.heroLevels[id] = this.heroLevel(id) + 1;
     return true;
+  }
+
+  // --- Semangat shop ---
+
+  semangatLevel(key) { return this.semangatShop[key] ?? 0; }
+
+  // e.g. 1.2 for +20%. (Not used for packDiscount, which is a flat amount.)
+  semangatMultiplier(key) {
+    return 1 + this.semangatLevel(key) * SEMANGAT_SHOP[key].perLevel;
+  }
+
+  // Cost of the next level, or null at max level.
+  semangatCost(key) {
+    const bonus = SEMANGAT_SHOP[key];
+    const level = this.semangatLevel(key);
+    if (bonus.maxLevel != null && level >= bonus.maxLevel) return null;
+    return scaledCost(bonus, level);
+  }
+
+  buySemangat(key) {
+    const cost = this.semangatCost(key);
+    if (cost == null || this.semangat < cost) return false;
+    this.semangat -= cost;
+    this.semangatShop[key] = this.semangatLevel(key) + 1;
+    return true;
+  }
+
+  // --- Prestige: Pindah Kampung ---
+
+  get canPrestige() { return this.wave >= PRESTIGE.unlockWave; }
+
+  // What prestiging right now would grant, based on the wave reached this run.
+  get prestigeRewards() {
+    const reached = this.wave;
+    return {
+      semangat: Math.floor(PRESTIGE.semangatBase * (reached / PRESTIGE.unlockWave) ** PRESTIGE.semangatExponent),
+      angPow: Math.floor(reached * PRESTIGE.angPowPerWave),
+    };
+  }
+
+  // Reset the run and pay out. Keeps owned heroes, stars, slot assignments,
+  // Ang Pow, pity, Semangat and shop levels, settings. Returns the rewards.
+  prestige() {
+    if (!this.canPrestige) return null;
+    const rewards = this.prestigeRewards;
+    const fresh = new Progress();
+    this.wave = fresh.wave;
+    this.gold = fresh.gold;
+    this.houseHpLevel = fresh.houseHpLevel;
+    this.floors = fresh.floors;
+    this.heroLevels = {};
+    this.lastBossRewardWave = 0;   // boss Ang Pow can be earned again next run
+    this.semangat += rewards.semangat;
+    this.angPow += rewards.angPow;
+    this.prestigeCount++;
+    return rewards;
   }
 }
