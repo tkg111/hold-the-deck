@@ -1,10 +1,11 @@
 import Phaser from 'phaser';
-import { DISPLAY } from '../config.js';
+import { DISPLAY, SPRITES } from '../config.js';
 
 const STUN_COLOR = 0xffeb3b;
 const SLOW_COLOR = 0x4fc3f7;
 const CURSE_COLOR = 0xb620e0;
 const POISON_COLOR = 0x76ff03;
+const HIT_COLOR = 0xff5555;
 
 export class Enemy {
   constructor(scene, def, { x, yOffset, hpMultiplier, damageMultiplier, gold }) {
@@ -30,8 +31,11 @@ export class Enemy {
     this.x = x;
     this.y = DISPLAY.groundY - def.height / 2 + yOffset;
 
-    this.body = scene.add.rectangle(this.x, this.y, def.width, def.height, def.color)
-      .setStrokeStyle(2, 0x333333);
+    // Sprites stand with their feet on the bottom row; enemies without one yet
+    // are a rectangle of def.width x def.height.
+    this.body = def.sprite
+      ? scene.add.image(this.x, this.y + def.height / 2, def.sprite).setOrigin(0.5, 1).setScale(SPRITES.scale)
+      : scene.add.rectangle(this.x, this.y, def.width, def.height, def.color).setStrokeStyle(2, 0x333333);
     this.statusFx = scene.add.graphics();
     this.hpBar = scene.add.graphics();
     this.nameTag = def.boss
@@ -136,11 +140,20 @@ export class Enemy {
     if (!this.alive) return;
     this.hp -= this.isCursed ? amount * (1 + this.curseBonus) : amount;
     if (flash) {
-      this.body.setFillStyle(0xff5555);
-      this.scene.time.delayedCall(60, () => this.alive && this.body.setFillStyle(this.def.color));
+      this.setFlash(true);
+      this.scene.time.delayedCall(60, () => this.alive && this.setFlash(false));
     }
     if (this.hp <= 0) this.die();
     else this.drawHpBar();
+  }
+
+  setFlash(on) {
+    if (this.def.sprite) {
+      if (on) this.body.setTintFill(HIT_COLOR);
+      else this.body.clearTint();
+    } else {
+      this.body.setFillStyle(on ? HIT_COLOR : this.def.color);
+    }
   }
 
   die() {
@@ -150,7 +163,7 @@ export class Enemy {
     this.scene.tweens.add({
       targets: this.body,
       alpha: 0,
-      scaleY: 0.2,
+      scaleY: this.body.scaleY * 0.2,
       duration: 200,
       onComplete: () => this.body.destroy(),
     });

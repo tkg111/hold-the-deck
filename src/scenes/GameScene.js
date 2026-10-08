@@ -2,7 +2,8 @@ import Phaser from 'phaser';
 import { DISPLAY, GAME_TITLE, HEROES } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
 import { applyRenderScale } from '../display.js';
-import { Ship } from '../entities/Ship.js';
+import { preloadSprites } from '../sprites.js';
+import { DEPTH, Ship } from '../entities/Ship.js';
 import { Hero } from '../entities/Hero.js';
 import { clearSave, loadProgress, saveProgress } from '../systems/Save.js';
 import { isBossWave, WaveManager } from '../systems/WaveManager.js';
@@ -22,6 +23,10 @@ const TEXT_STYLE = {
 export class GameScene extends Phaser.Scene {
   constructor() {
     super('GameScene');
+  }
+
+  preload() {
+    preloadSprites(this);
   }
 
   // data.progress / data.prestigeRewards are passed when restarting after a
@@ -68,7 +73,7 @@ export class GameScene extends Phaser.Scene {
   // Open ocean: sky (the camera background), distant sea from the horizon,
   // and nearer, darker water from the waterline (groundY) where enemies wade.
   drawBackground() {
-    const g = this.add.graphics();
+    const g = this.add.graphics().setDepth(DEPTH.background);
     const horizon = 300;
     const waterY = DISPLAY.groundY;
     g.fillStyle(0x3a86b8).fillRect(0, horizon, DISPLAY.width, waterY - horizon);
@@ -107,7 +112,7 @@ export class GameScene extends Phaser.Scene {
       this.ship.selectSlot(-1);
       this.refreshUi();  // brings the upgrade panel back
     });
-    this.slotHint = this.add.text(16, DISPLAY.groundY + 14, 'Click a slot to assign a hero', {
+    this.slotHint = this.add.text(16, DISPLAY.groundY + 28, 'Click a slot to assign a hero', {
       fontFamily: 'sans-serif', fontSize: '13px', color: '#ffffff', stroke: '#000000', strokeThickness: 3,
     });
 

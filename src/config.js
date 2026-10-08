@@ -12,11 +12,34 @@ export const DISPLAY = {
   maxRenderScale: 3,  // caps the backing canvas at 2880x1620
 };
 
+// Pixel art: every sprite is drawn at the same whole-number scale (with
+// Phaser's pixelArt setting) so pixels stay square and sharp.
+export const SPRITES = {
+  scale: 2,
+  path: 'sprites/',   // under public/
+  // Heroes without a sprite yet are drawn as a rectangle this size (layout
+  // units), standing on the slot like a sprite would.
+  placeholderHero: { width: 24, height: 50 },
+  // Visible height of each hero sprite in sprite pixels (feet on the bottom
+  // row), so shots and labels come from the body rather than empty space.
+  heroes: {
+    cabinBoy: { key: 'cabin_boy', height: 29 },
+  },
+  // Name labels of two heroes on the same deck closer than this (layout units)
+  // are staggered: the second one is raised by labelStagger.
+  labelMinSpacing: 48,
+  labelStagger: 22,
+  // Clickable area over each ship slot (layout units, standing on the slot);
+  // narrower where a deck's slots are closer together than maxWidth.
+  slotZone: { maxWidth: 40, height: 60 },
+};
+
 export const SHIP = {
-  x: 60,              // left edge of the ship
-  width: 140,
-  deckHeight: 90,
-  hullHeight: 50,     // hull below the lowest deck, down to the waterline
+  // The ship sprites are 160x160 sprite pixels (ship_stage1..3 plus a
+  // _front railing layer each), all at the same position.
+  x: 0,               // left edge of the sprite
+  waterlineRow: 140,  // sprite row that sits on the waterline (groundY)
+  hullRightCol: 150,  // sprite column where enemies stop at the hull
   baseHp: 100,
   startingDecks: 1,
   maxDecks: 3,
@@ -31,6 +54,7 @@ export const RARITY = {
 };
 
 // catchphrase: one-line pirate intro shown the first time the hero is pulled.
+// Heroes with art are listed in SPRITES.heroes; the rest use `color` rectangles.
 // Optional effects per hero:
 //   stun:   { chance, duration }    — stunned enemies can't move or attack
 //   area:   { radius }              — hit lands on everything within radius of the target
@@ -174,8 +198,9 @@ export const ENEMIES = {
   drownedSailor: {
     name: 'Drowned Sailor',
     color: 0x8fb8a8,
-    width: 22,
-    height: 44,
+    sprite: 'drowned_sailor',  // 32x32, feet on the bottom row
+    width: 26,          // torso width; its arms reach further out front
+    height: 60,         // visible height at SPRITES.scale
     hp: 20,
     speed: 45,
     damage: 5,          // per hit on the ship

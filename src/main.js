@@ -15,6 +15,8 @@ const game = new Phaser.Game({
   width: DISPLAY.width * RENDER_SCALE,
   height: DISPLAY.height * RENDER_SCALE,
   backgroundColor: '#9fd3f2',
+  // Nearest-neighbour filtering and whole-pixel positions for the pixel art.
+  pixelArt: true,
   scale: {
     // Fit the window while keeping 16:9, centered with letterboxing.
     mode: Phaser.Scale.FIT,

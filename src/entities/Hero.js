@@ -1,4 +1,5 @@
-import { HEROES } from '../config.js';
+import { HEROES, SPRITES } from '../config.js';
+import { DEPTH } from './Ship.js';
 import { starLabel } from '../ui/format.js';
 import { LobProjectile, nearestLiving, PiercingProjectile, Projectile } from './Projectile.js';
 
@@ -6,31 +7,40 @@ const BUFF_COLOR = 0xffd54f;
 
 export class Hero {
   // damage and attackInterval come from Progress (level, stars, deck buffs).
-  constructor(scene, id, { x, y }, { damage, attackInterval, stars = 0, buffed = false }) {
+  // The hero stands with its feet at (x, feetY); this.y is the middle of its
+  // body, where shots start. labelLift raises the name label (see Ship.loadSlots).
+  constructor(scene, id, { x, feetY, labelLift = 0 }, { damage, attackInterval, stars = 0, buffed = false }) {
     this.scene = scene;
     this.id = id;
     this.def = HEROES[id];
     this.damage = damage;
     this.attackInterval = attackInterval;
-    this.x = x;
-    this.y = y;
     this.cooldown = 0;
+
+    const sprite = SPRITES.heroes[id];
+    const { width } = SPRITES.placeholderHero;
+    const height = sprite ? sprite.height * SPRITES.scale : SPRITES.placeholderHero.height;
+    this.x = x;
+    this.y = feetY - height / 2;
 
     // Gold glow: steady around The Captain, pulsing behind the heroes he buffs.
     this.glow = null;
     if (this.def.aura || buffed) {
-      this.glow = scene.add.rectangle(x, y, 26, 36, BUFF_COLOR, this.def.aura ? 0.45 : 0.3)
-        .setStrokeStyle(2, BUFF_COLOR, 0.9);
+      this.glow = scene.add.rectangle(x, this.y, width + 8, height + 8, BUFF_COLOR, this.def.aura ? 0.45 : 0.3)
+        .setStrokeStyle(2, BUFF_COLOR, 0.9).setDepth(DEPTH.hero);
       if (buffed) scene.tweens.add({ targets: this.glow, alpha: 0.35, duration: 700, yoyo: true, repeat: -1 });
     }
-    this.body = scene.add.rectangle(x, y, 18, 28, this.def.color).setStrokeStyle(2, 0x1b1b1b);
+    this.body = sprite
+      ? scene.add.image(x, feetY, sprite.key).setOrigin(0.5, 1).setScale(SPRITES.scale)
+      : scene.add.rectangle(x, feetY, width, height, this.def.color).setOrigin(0.5, 1).setStrokeStyle(2, 0x1b1b1b);
+    this.body.setDepth(DEPTH.hero);
 
     // Name on top, stars on a second line, so neighbouring labels don't collide.
     const label = stars ? `${this.def.shortName}\n${starLabel(stars)}` : this.def.shortName;
-    this.label = scene.add.text(x, y - 17, label, {
+    this.label = scene.add.text(x, feetY - height - 1 - labelLift, label, {
       fontFamily: 'sans-serif', fontSize: '10px', color: '#ffffff', align: 'center',
       stroke: '#000000', strokeThickness: 3,
-    }).setOrigin(0.5, 1).setLineSpacing(-2);
+    }).setOrigin(0.5, 1).setLineSpacing(-2).setDepth(DEPTH.heroLabel);
   }
 
   // Returns a new projectile if the hero fired this frame.
@@ -43,7 +53,7 @@ export class Hero {
     if (!target) return null;
 
     this.cooldown = this.attackInterval;
-    this.scene.tweens.add({ targets: this.body, scaleX: 1.2, duration: 60, yoyo: true });
+    this.scene.tweens.add({ targets: this.body, scaleX: this.body.scaleX * 1.2, duration: 60, yoyo: true });
     return this.fire(target);
   }
 

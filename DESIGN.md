@@ -11,8 +11,10 @@ Passion project — no real money, no ads, no timers. Everything is earned throu
 - **Engine:** Phaser 3 + Vite (JavaScript)
 - **Hosting:** GitHub Pages
 - **Saving:** browser localStorage (auto-save), versioned so old saves can be migrated
-- **Art (v0.1):** colored rectangles / placeholder shapes only. Real pixel art (Piskel) comes later.
-- **Look:** open ocean (sky, distant sea, darker near water where enemies wade), a wooden ship with a planked hull sitting in the water, stacked decks, a mast with a sail and a Jolly Roger.
+- **Art:** pixel-art sprites in `public/sprites/`, drawn with Phaser's `pixelArt` setting (nearest-neighbour, whole-pixel positions) and all scaled by the same whole number (**2x**) so pixels stay square. Sprites so far: the ship (one per deck count), the Cabin Boy and the Drowned Sailor. Everything else is still a coloured rectangle until it gets a sprite.
+- **Look:** open ocean (sky, distant sea, darker near water where enemies wade) with the pirate ship sitting in it, its waterline on the line enemies wade along.
+- **Ship sprites:** `ship_stage1/2/3.png` (160x160) show the ship with 1, 2 or 3 decks built; the one matching the current deck count is shown. Draw order is ship sprite, then heroes, then the matching `ship_stageN_front.png` railing layer, so heroes stand behind the railings. Hero slot positions come from `ship_slots.json` (each deck's 2 slots as centre x and feet y in sprite pixels). Where two slots on a deck are close together, the second hero's name label sits higher so the labels don't overlap. Empty slots show a frame and a "+".
+- **Character sprites:** 32x32 with the feet on the bottom row; they stand on their slot (heroes) or the waterline (enemies). Rectangle placeholders stand the same way.
 
 ## Core Loop
 
@@ -165,4 +167,4 @@ Each step should leave the game playable. (Built under the kampung theme; names 
 - More enemies: Cursed Gulls (flying, only some heroes can hit), Floating Skulls (high damage, low HP)
 - Music (sound effects exist; no background music yet)
 - Save export/import
-- Real pixel art
+- Pixel art for the remaining heroes and enemies, the hero cards and the chest
