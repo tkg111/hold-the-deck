@@ -19,6 +19,8 @@ export class Progress {
     this.slots = Array(HOUSE.maxFloors * HOUSE.slotsPerFloor).fill(null);
     this.slots[0] = STARTING_HEROES[0];
 
+    this.muted = false;             // sound effects off
+
     // Dev-only: treat every hero as owned. Not part of saved progress.
     this.devUnlockAll = false;
   }
@@ -41,6 +43,7 @@ export class Progress {
       heroLevels: ownedOnly(this.heroLevels),
       heroStars: ownedOnly(this.heroStars),
       slots: this.slots.map((id) => (id && owned.includes(id) ? id : null)),
+      muted: this.muted,
     };
   }
 
@@ -57,6 +60,7 @@ export class Progress {
     p.lastBossRewardWave = int(data.lastBossRewardWave, 0);
     p.houseHpLevel = int(data.houseHpLevel, 0);
     p.floors = int(data.floors, HOUSE.startingFloors, HOUSE.maxFloors);
+    p.muted = data.muted === true;
 
     const owned = Array.isArray(data.owned) ? data.owned.filter((id) => id in HEROES) : [];
     p.owned = [...new Set([...STARTING_HEROES, ...owned])];

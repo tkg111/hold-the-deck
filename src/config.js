@@ -27,6 +27,7 @@ export const RARITY = {
   epic: { label: 'Epic', color: 0xba68c8 },
 };
 
+// catchphrase: one-line Manglish intro shown the first time the hero is pulled.
 // Optional effects per hero:
 //   stun:  { chance, duration }   — stunned enemies can't move or attack
 //   area:  { radius }             — hit lands on everything within radius of the target
@@ -44,6 +45,7 @@ export const HEROES = {
     projectileSpeed: 650,
     projectileColor: 0xdddddd,
     projectileSize: 5,
+    catchphrase: 'Aiyo, sure kena one lah! Ready, aim, tembak!',
   },
   makCikSelipar: {
     name: 'Mak Cik Selipar',
@@ -57,6 +59,7 @@ export const HEROES = {
     projectileColor: 0xffab91,
     projectileSize: 7,
     stun: { chance: 0.25, duration: 1000 },
+    catchphrase: 'You want to kena selipar ah? Come, come!',
   },
   nelayan: {
     name: 'Nelayan',
@@ -71,6 +74,7 @@ export const HEROES = {
     projectileSize: 9,
     area: { radius: 75 },
     slow: { factor: 0.5, duration: 2500 },
+    catchphrase: 'Relax lah boss, one net can catch all.',
   },
   bomoh: {
     name: 'Bomoh',
@@ -84,6 +88,7 @@ export const HEROES = {
     projectileColor: 0xce93d8,
     projectileSize: 7,
     curse: { bonus: 0.3, duration: 4000 },
+    catchphrase: "Don't play-play ah, later I sumpah you!",
   },
 };
 
@@ -181,6 +186,21 @@ export const PACKS = {
   starDamageBonus: [0, 0.1, 0.25, 0.45, 0.7, 1.0],
   // Duplicate of a max-star hero refunds this much Ang Pow instead.
   maxStarRefund: 1,
+};
+
+// Pack-opening presentation, per rarity of the hero being pulled.
+export const PACK_FX = {
+  // How long the envelope shakes and glows before flipping (ms). Rarer = longer.
+  buildUp: { common: 700, rare: 1300, epic: 2000 },
+  // The glow starts gold and shifts to the rarity colour over this last
+  // fraction of the build-up, so the hint lands just before the reveal.
+  hintFraction: 0.45,
+  // Maximum shake angle (degrees) at the end of the build-up.
+  shakeAngle: { common: 4, rare: 7, epic: 10 },
+  // Confetti pieces fired when a NEW hero is revealed.
+  confetti: { common: 40, rare: 90, epic: 160 },
+  // Pause between the card reveal and the new-hero splash (ms).
+  splashDelay: 700,
 };
 
 // Upgrade cost at level L: round(baseCost * costGrowth ^ L)

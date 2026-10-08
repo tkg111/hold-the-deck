@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { DISPLAY, PACKS } from '../config.js';
+import { sfx } from '../audio/Sfx.js';
 import { applyRenderScale } from '../display.js';
 import { House } from '../entities/House.js';
 import { Hero } from '../entities/Hero.js';
@@ -25,6 +26,8 @@ export class GameScene extends Phaser.Scene {
   create() {
     applyRenderScale(this);
     this.progress = loadProgress();
+    sfx.init(this.game);
+    sfx.setMuted(this.progress.muted);
     this.state = STATE.IDLE;
     this.enemies = [];
     this.projectiles = [];
@@ -77,7 +80,7 @@ export class GameScene extends Phaser.Scene {
 
     this.heroPicker = new HeroPicker(this, 225, 100, (id) => this.onHeroPicked(id));
     this.heroPicker.on('closed', () => this.house.selectSlot(-1));
-    this.slotHint = this.add.text(16, DISPLAY.groundY + 14, 'Click a slot on the house to assign heroes', {
+    this.slotHint = this.add.text(16, DISPLAY.groundY + 14, 'Click a slot to assign a hero', {
       fontFamily: 'sans-serif', fontSize: '13px', color: '#ffffff', stroke: '#000000', strokeThickness: 3,
     });
 
@@ -92,6 +95,14 @@ export class GameScene extends Phaser.Scene {
       onClick: () => this.openPacks(),
     });
     // Gentle pulse while a pack is affordable.
+    this.collectionButton = new Button(this, DISPLAY.width / 2 - 175, DISPLAY.height - 40, {
+      width: 150, height: 44, label: 'Collection', color: 0x6d4c41, fontSize: '18px',
+      onClick: () => this.openCollection(),
+    });
+    this.muteButton = new Button(this, DISPLAY.width - 66, DISPLAY.height - 44, {
+      width: 116, height: 22, label: '', color: 0x455a64, fontSize: '12px',
+      onClick: () => this.toggleMute(),
+    });
     this.resetButton = new Button(this, DISPLAY.width - 66, DISPLAY.height - 16, {
       width: 116, height: 22, label: 'Reset progress', color: 0x455a64, fontSize: '12px',
       onClick: () => this.confirmReset(),
@@ -117,6 +128,8 @@ export class GameScene extends Phaser.Scene {
 
     this.startButton.setVisible(idle);
     this.packButton.setVisible(idle);
+    this.collectionButton.setVisible(idle);
+    this.muteButton.setLabel(`Sound: ${this.progress.muted ? 'Off' : 'On'}`);
     this.resetButton.setVisible(idle);
     this.packButton.setLabel(`Packs  (${this.progress.angPow}/${PACKS.cost})`);
     if (idle && this.progress.canOpenPack) this.packPulse.resume();
@@ -208,6 +221,22 @@ export class GameScene extends Phaser.Scene {
     this.upgradePanel.rebuild();
     this.house.sync(this.progress);
     this.rebuildHeroes();
+    this.refreshUi();
+    this.save();
+  }
+
+  openCollection() {
+    if (this.state !== STATE.IDLE) return;
+    if (this.heroPicker.visible) this.heroPicker.close();
+    sfx.click();
+    this.scene.launch('CollectionScene', { progress: this.progress, onClose: () => this.refreshUi() });
+  }
+
+  // Works mid-wave too; the setting is saved with progress.
+  toggleMute() {
+    this.progress.muted = !this.progress.muted;
+    sfx.setMuted(this.progress.muted);
+    sfx.click();
     this.refreshUi();
     this.save();
   }

@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { DISPLAY } from './config.js';
 import { installCrispText, RENDER_SCALE } from './display.js';
+import { CollectionScene } from './scenes/CollectionScene.js';
 import { GameScene } from './scenes/GameScene.js';
 import { PackScene } from './scenes/PackScene.js';
 
@@ -18,7 +19,7 @@ const game = new Phaser.Game({
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
   },
-  scene: [GameScene, PackScene],
+  scene: [GameScene, PackScene, CollectionScene],
 });
 
 // Handy for poking at state from the browser console during development.
