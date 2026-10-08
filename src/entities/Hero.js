@@ -1,4 +1,5 @@
 import { HEROES, SPRITES } from '../config.js';
+import { laneFeetY } from '../layout.js';
 import { findAnim, sheetKey } from '../sprites.js';
 import { DEPTH } from './Ship.js';
 import { starLabel } from '../ui/format.js';
@@ -103,12 +104,14 @@ export class Hero {
   }
 
   // Where an enemy will be after msLeft, for lobbed shots: walking left at its
-  // current (possibly slowed) speed, standing still if stunned, never past the ship.
+  // current (possibly slowed) speed, standing still if stunned, never past where
+  // it stops. Walkers follow the lane up or down.
   leadPoint(enemy, msLeft) {
     const lead = enemy.isStunned ? 0
       : enemy.speed * (enemy.isSlowed ? enemy.slowFactor : 1) * msLeft / 1000;
-    const minX = this.scene.ship.right + enemy.def.width / 2;
-    return { x: Math.max(minX, enemy.x - lead), y: enemy.y };
+    const x = Math.max(enemy.stopX, enemy.x - lead);
+    const y = enemy.def.emerges ? enemy.y : laneFeetY(x) - enemy.def.height / 2;
+    return { x, y };
   }
 
   // Closest living enemy to the ship that's within range. The Voodoo Priestess prefers
@@ -119,7 +122,7 @@ export class Hero {
     let best = null;
     let bestFresh = null;
     for (const e of enemies) {
-      if (!e.alive) continue;
+      if (!e.targetable) continue;
       if (Math.hypot(e.x - this.x, e.y - this.y) > this.def.range) continue;
       if (!best || e.x < best.x) best = e;
       const fresh = (curse && !e.isCursed) || (poison && !e.isPoisoned);
@@ -132,10 +135,10 @@ export class Hero {
     const { area, stun, slow, curse, poison, crit } = this.def;
     let victims;
     if (area) {
-      victims = this.scene.enemies.filter((e) => e.alive && Math.hypot(e.x - x, e.y - y) <= area.radius);
+      victims = this.scene.enemies.filter((e) => e.targetable && Math.hypot(e.x - x, e.y - y) <= area.radius);
       this.showAreaHit(x, y, area.radius);
     } else {
-      victims = target && target.alive ? [target] : [];
+      victims = target && target.targetable ? [target] : [];
     }
 
     for (const e of victims) {

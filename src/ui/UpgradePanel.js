@@ -4,8 +4,9 @@ import { Button } from './Button.js';
 import { starLabel } from './format.js';
 
 const WIDTH = 380;
-const ROW_HEIGHT = 44;
-const HEADER = 42;
+// Compact enough that a full ship (8 rows) stays above the enemy lane.
+const ROW_HEIGHT = 32;
+const HEADER = 32;
 
 const fmt = (n) => (Number.isInteger(n) ? `${n}` : n.toFixed(1));
 const pct = (n) => `+${Math.round(n * 100)}%`;
@@ -59,10 +60,10 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
     const height = HEADER + defs.length * ROW_HEIGHT + 8;
     this.add(scene.add.rectangle(0, 0, WIDTH, height, 0x1b1f2a, 0.85)
       .setOrigin(0).setStrokeStyle(2, 0xffffff, 0.2));
-    this.add(scene.add.text(16, 10, 'Upgrades', {
-      fontFamily: 'sans-serif', fontSize: '20px', color: '#ffffff', fontStyle: 'bold',
+    this.add(scene.add.text(16, 7, 'Upgrades', {
+      fontFamily: 'sans-serif', fontSize: '17px', color: '#ffffff', fontStyle: 'bold',
     }));
-    this.add(scene.add.text(WIDTH - 16, 16, 'heroes on the ship', {
+    this.add(scene.add.text(WIDTH - 16, 11, 'heroes on the ship', {
       fontFamily: 'sans-serif', fontSize: '12px', color: '#78909c',
     }).setOrigin(1, 0));
 
@@ -71,14 +72,14 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
   }
 
   createRow(def, y) {
-    const title = this.scene.add.text(16, y + 3, '', {
-      fontFamily: 'sans-serif', fontSize: '15px', color: '#ffffff',
+    const title = this.scene.add.text(16, y + 1, '', {
+      fontFamily: 'sans-serif', fontSize: '14px', color: '#ffffff',
     });
-    const detail = this.scene.add.text(16, y + 22, '', {
-      fontFamily: 'sans-serif', fontSize: '12px', color: '#b0bec5',
+    const detail = this.scene.add.text(16, y + 17, '', {
+      fontFamily: 'sans-serif', fontSize: '11px', color: '#b0bec5',
     });
-    const button = new Button(this.scene, WIDTH - 70, y + 20, {
-      width: 112, height: 30, label: '', color: 0xc9a227, fontSize: '14px',
+    const button = new Button(this.scene, WIDTH - 70, y + 15, {
+      width: 112, height: 26, label: '', color: 0xc9a227, fontSize: '13px',
       onClick: () => {
         if (def.buy()) this.onPurchase();
       },

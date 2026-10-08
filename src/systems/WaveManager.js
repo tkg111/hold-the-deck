@@ -66,8 +66,6 @@ export class WaveManager {
     while (this.spawnTimer <= 0 && this.queue.length) {
       const def = this.queue.shift();
       spawned.push(new Enemy(this.scene, def, {
-        x: WAVES.spawnX,
-        yOffset: def.boss ? 0 : Phaser.Math.Between(-WAVES.laneJitter, 0),
         hpMultiplier: this.hpMultiplier,
         damageMultiplier: this.damageMultiplier,
         gold: Math.round(def.gold * this.goldMultiplier),

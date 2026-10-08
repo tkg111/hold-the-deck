@@ -1,16 +1,23 @@
-import { DISPLAY, SHIP, SPRITES } from '../config.js';
+import { SHIP, SPRITES } from '../config.js';
+import { LAYOUT } from '../layout.js';
 import { SHIP_SLOTS_KEY, shipFrontKey, shipStageKey } from '../sprites.js';
 
-// Draw order, back to front: background, ship, heroes, the ship's front railing
-// layer (so heroes stand behind it), slot markers. Everything else (enemies,
-// UI) stays at the default depth 0 above all of these.
+// Draw order, back to front, as layout.json's drawOrder: background, ship,
+// crew, enemies, The Kraken (and its splash), the animated foreground, then
+// the ship's front railing layer. Slot markers, labels and enemy HP bars go
+// on top of the scene; projectiles and UI stay above all of these.
 export const DEPTH = {
-  background: -10,
-  ship: -5,
-  hero: -4,
-  shipFront: -3,
-  slotMarkers: -2,
-  heroLabel: -1,
+  background: -20,
+  ship: -19,
+  hero: -18,
+  enemy: -17,
+  kraken: -16,
+  splash: -15,
+  foreground: -14,
+  shipFront: -13,
+  slotMarkers: -12,
+  heroLabel: -11,
+  enemyOverlay: -10,
 };
 
 const SLOT_ZONE = SPRITES.slotZone;
@@ -19,10 +26,10 @@ export class Ship {
   constructor(scene, progress) {
     this.scene = scene;
     const s = SPRITES.scale;
-    this.spriteTop = DISPLAY.groundY - SHIP.waterlineRow * s;
-    this.image = scene.add.image(SHIP.x, this.spriteTop, shipStageKey(1))
+    this.spriteTop = LAYOUT.shipY;
+    this.image = scene.add.image(LAYOUT.shipX, this.spriteTop, shipStageKey(1))
       .setOrigin(0).setScale(s).setDepth(DEPTH.ship);
-    this.front = scene.add.image(SHIP.x, this.spriteTop, shipFrontKey(1))
+    this.front = scene.add.image(LAYOUT.shipX, this.spriteTop, shipFrontKey(1))
       .setOrigin(0).setScale(s).setDepth(DEPTH.shipFront);
     this.graphics = scene.add.graphics().setDepth(DEPTH.slotMarkers);
     this.slots = this.loadSlots(scene.cache.json.get(SHIP_SLOTS_KEY));
@@ -85,7 +92,7 @@ export class Ship {
     const slots = [];
     for (let d = 1; d <= SHIP.maxDecks; d++) {
       const deck = json[`deck${d}`].slice(0, SHIP.slotsPerDeck);
-      const xs = deck.map((p) => SHIP.x + p.x * s);
+      const xs = deck.map((p) => LAYOUT.shipX + p.x * s);
       const spacing = Math.min(...xs.slice(1).map((x, i) => Math.abs(x - xs[i])));
       deck.forEach((p, i) => {
         slots.push({
@@ -100,8 +107,9 @@ export class Ship {
     return slots;
   }
 
-  get left() { return SHIP.x; }
-  get right() { return SHIP.x + SHIP.hullRightCol * SPRITES.scale; }
+  get left() { return LAYOUT.shipX; }
+  // Where walking enemies stop (their front edge).
+  get right() { return LAYOUT.shipContactX; }
   get slotCount() { return this.decks * SHIP.slotsPerDeck; }
   get isDestroyed() { return this.hp <= 0; }
 

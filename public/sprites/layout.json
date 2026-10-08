@@ -1,0 +1,63 @@
+{
+  "size": [
+    480,
+    270
+  ],
+  "shipPos": {
+    "x": 0,
+    "y": 98,
+    "note": "top-left of ship_stageN.png"
+  },
+  "waterY": 236,
+  "enemySpawnX": 478,
+  "lane": {
+    "note": "feet y by x: walkers follow this path (interpolate between points)",
+    "points": [
+      [
+        478,
+        230
+      ],
+      [
+        380,
+        230
+      ],
+      [
+        356,
+        242
+      ],
+      [
+        140,
+        242
+      ]
+    ]
+  },
+  "shipContactX": 140,
+  "kraken": {
+    "note": "x,y are the top-left of its 64x64 frame; its lower part is hidden by the waves",
+    "rise": {
+      "x": 232,
+      "fromY": 236,
+      "toY": 180,
+      "seconds": 2.5,
+      "splash": "splash_sheet.png (64x24, 3 frames, 8 fps) at y = waterY - 23, x = same as the Kraken"
+    },
+    "advance": {
+      "toX": 148,
+      "note": "after rising, glide left at its normal speed, then attack"
+    }
+  },
+  "foreground": {
+    "sheet": "fg_sheet.png",
+    "frames": 3,
+    "fps": 3
+  },
+  "drawOrder": [
+    "bg.png",
+    "ship_stageN.png",
+    "crew",
+    "enemies",
+    "the Kraken",
+    "fg_sheet.png",
+    "ship_stageN_front.png"
+  ]
+}

@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
-import { DISPLAY, SPRITES } from '../config.js';
-import { findAnim, sheetKey } from '../sprites.js';
+import { SPRITES } from '../config.js';
+import { LAYOUT, laneFeetY } from '../layout.js';
+import { findAnim, sheetKey, SPLASH_ANIM } from '../sprites.js';
+import { DEPTH } from './Ship.js';
 
 const STUN_COLOR = 0xffeb3b;
 const SLOW_COLOR = 0x4fc3f7;
@@ -9,7 +11,10 @@ const POISON_COLOR = 0x76ff03;
 const HIT_COLOR = 0xff5555;
 
 export class Enemy {
-  constructor(scene, def, { x, yOffset, hpMultiplier, damageMultiplier, gold }) {
+  // Walkers enter at layout.json's enemySpawnX and follow the lane (x is only
+  // an override for testing); an emerging enemy (The Kraken) rises out of the
+  // sea at layout.kraken instead.
+  constructor(scene, def, { x = LAYOUT.enemySpawnX, hpMultiplier, damageMultiplier, gold }) {
     this.scene = scene;
     this.def = def;
     this.maxHp = Math.round(def.hp * hpMultiplier);
@@ -29,39 +34,69 @@ export class Enemy {
     this.poisonTime = 0;
     this.poisonDps = 0;
 
-    this.x = x;
-    this.y = DISPLAY.groundY - def.height / 2 + yOffset;
-
-    // Sprites stand with their feet on the bottom row; enemies without one yet
-    // are a rectangle of def.width x def.height.
+    // Sprites and rectangles alike stand with their feet at (x, feetY);
+    // this.y is the middle of the body (def.width x def.height).
     // Animated ones loop "walk" while moving, or "idle" all the time and
     // play "attack" on each hit.
     this.walkAnim = def.sprite && findAnim(scene, def.sprite, 'walk');
     this.idleAnim = def.sprite && findAnim(scene, def.sprite, 'idle');
     this.attackAnim = def.sprite && findAnim(scene, def.sprite, 'attack');
-    const feetY = this.y + def.height / 2;
     if (this.walkAnim || this.idleAnim) {
-      this.body = scene.add.sprite(this.x, feetY, sheetKey(def.sprite)).setOrigin(0.5, 1).setScale(SPRITES.scale);
+      this.body = scene.add.sprite(0, 0, sheetKey(def.sprite));
       if (this.idleAnim) {
         this.body.play(this.idleAnim);
         if (this.attackAnim) this.body.on(`animationcomplete-${this.attackAnim}`, () => this.body.play(this.idleAnim));
       }
     } else if (def.sprite) {
-      this.body = scene.add.image(this.x, feetY, def.sprite).setOrigin(0.5, 1).setScale(SPRITES.scale);
+      this.body = scene.add.image(0, 0, def.sprite);
     } else {
-      this.body = scene.add.rectangle(this.x, this.y, def.width, def.height, def.color).setStrokeStyle(2, 0x333333);
+      this.body = scene.add.rectangle(0, 0, def.width, def.height, def.color).setStrokeStyle(2, 0x333333);
     }
-    this.statusFx = scene.add.graphics();
-    this.hpBar = scene.add.graphics();
+    if (def.sprite) this.body.setScale(SPRITES.scale);
+    this.body.setOrigin(0.5, 1).setDepth(def.emerges ? DEPTH.kraken : DEPTH.enemy);
+
+    // An emerging enemy rises at layout.kraken (whose x / y are the top-left
+    // of its frame) with a splash, can't be hit until fully risen, then
+    // glides left to toX and attacks.
+    this.riseTime = 0;
+    this.splash = null;
+    if (def.emerges) {
+      const k = LAYOUT.kraken;
+      this.frameW = this.body.displayWidth;
+      this.frameH = this.body.displayHeight;
+      this.x = k.x + this.frameW / 2;
+      this.stopX = k.toX + this.frameW / 2;
+      this.riseTime = k.riseMs;
+      this.setFeetY(k.fromY + this.frameH);
+      const s = SPRITES.krakenSplash;
+      this.splash = scene.add.sprite(k.x, LAYOUT.waterY - s.aboveWater * SPRITES.scale, s.key)
+        .setOrigin(0).setScale(SPRITES.scale).setDepth(DEPTH.splash).play(SPLASH_ANIM);
+    } else {
+      this.x = x;
+      this.stopX = LAYOUT.shipContactX + def.width / 2;  // front edge at the ship
+      this.setFeetY(laneFeetY(this.x));
+    }
+
+    this.statusFx = scene.add.graphics().setDepth(DEPTH.enemyOverlay);
+    this.hpBar = scene.add.graphics().setDepth(DEPTH.enemyOverlay);
     this.nameTag = def.boss
       ? scene.add.text(this.x, 0, def.name, {
         fontFamily: 'sans-serif', fontSize: '13px', color: '#ff8a80',
         stroke: '#000000', strokeThickness: 3,
-      }).setOrigin(0.5, 1)
+      }).setOrigin(0.5, 1).setDepth(DEPTH.enemyOverlay)
       : null;
     this.drawHpBar();
   }
 
+  setFeetY(feetY) {
+    this.feetY = feetY;
+    this.y = feetY - this.def.height / 2;
+    this.body.setPosition(this.x, feetY);
+  }
+
+  get isRising() { return this.riseTime > 0; }
+  // Whether heroes can aim at or hit it.
+  get targetable() { return this.alive && !this.isRising; }
   get hpBarWidth() { return this.def.boss ? 80 : this.def.width + 8; }
   get hpBarY() { return this.y - this.def.height / 2 - 8; }
   get isStunned() { return this.stunTime > 0; }
@@ -111,12 +146,13 @@ export class Enemy {
     if (!this.alive) return;  // poison can finish it off
 
     let moving = false;
-    if (!this.isStunned) {
+    if (this.isRising) {
+      this.rise(dt);
+    } else if (!this.isStunned) {
       // Slow affects both walking and attack rate.
       const sdt = this.isSlowed ? dt * this.slowFactor : dt;
-      const frontX = this.x - this.def.width / 2;
-      if (frontX > ship.right) {
-        this.x = Math.max(ship.right + this.def.width / 2, this.x - this.speed * sdt / 1000);
+      if (this.x > this.stopX) {
+        this.x = Math.max(this.stopX, this.x - this.speed * sdt / 1000);
         moving = true;
       } else if (this.def.stealPercent) {
         this.steal();
@@ -134,10 +170,23 @@ export class Enemy {
     }
     this.animate(moving);
 
-    this.body.x = this.x;
+    this.setFeetY(this.def.emerges ? this.feetY : laneFeetY(this.x));
     this.nameTag?.setPosition(this.x, this.hpBarY - 2);
     this.drawHpBar();
     this.drawStatus();
+  }
+
+  rise(dt) {
+    const k = LAYOUT.kraken;
+    this.riseTime = Math.max(0, this.riseTime - dt);
+    const t = 1 - this.riseTime / k.riseMs;
+    this.feetY = Phaser.Math.Linear(k.fromY, k.toY, t) + this.frameH;
+    if (!this.isRising) this.removeSplash();
+  }
+
+  removeSplash() {
+    this.splash?.destroy();
+    this.splash = null;
   }
 
   // Walk only while moving; animations freeze while stunned and slow down
@@ -212,6 +261,7 @@ export class Enemy {
   }
 
   removeOverlays() {
+    this.removeSplash();
     this.hpBar.destroy();
     this.statusFx.destroy();
     this.nameTag?.destroy();

@@ -11,10 +11,12 @@ Passion project — no real money, no ads, no timers. Everything is earned throu
 - **Engine:** Phaser 3 + Vite (JavaScript)
 - **Hosting:** GitHub Pages
 - **Saving:** browser localStorage (auto-save), versioned so old saves can be migrated
+- **Resolution:** the base resolution is **480x270** art pixels, shown at the largest whole-number scale that fits the window (re-picked when the window or browser zoom changes), centered on a dark page. Text and UI use finer layout units (two per art pixel) so they stay readable.
 - **Art:** pixel-art sprites in `public/sprites/`, drawn with Phaser's `pixelArt` setting (nearest-neighbour, whole-pixel positions) and all scaled by the same whole number (**2x**) so pixels stay square. Every hero and enemy has a sprite, as does the ship (one per deck count). Anything added later without art falls back to a coloured rectangle.
-- **Look:** open ocean (sky, distant sea, darker near water where enemies wade) with the pirate ship sitting in it, its waterline on the line enemies wade along.
-- **Ship sprites:** `ship_stage1/2/3.png` (160x160) show the ship with 1, 2 or 3 decks built; the one matching the current deck count is shown. Draw order is ship sprite, then heroes, then the matching `ship_stageN_front.png` railing layer, so heroes stand behind the railings. Hero slot positions come from `ship_slots.json` (each deck's 2 slots as centre x and feet y in sprite pixels). Where two slots on a deck are close together, the second hero's name label sits higher so the labels don't overlap. Empty slots show a frame and a "+".
-- **Character sprites:** heroes, the Drowned Sailor and the Thief Monkey are 32x32 with the feet on the bottom row; they stand on their slot (heroes) or the waterline (enemies). The Kraken is 64x64 and sits with its flat bottom on the waterline. Rectangle placeholders stand the same way.
+- **Battle scene:** `bg.png` (sky, sea and a palm island on the right) behind everything and `fg_sheet.png` (near water and island foliage, 3 frames looping at 3 fps) in front, positioned and layered as `layout.json` describes. Draw order: background, ship, crew, enemies, The Kraken (and its splash), foreground, ship railing layer; slot markers, labels, HP bars, projectiles and UI go on top.
+- **Positions (layout.json):** the ship's top-left is at `shipPos`. Walking enemies enter at `enemySpawnX` off the island's beach and follow the lane: their feet y is interpolated between the lane points as they walk, from the sand down into the water. They stop when their front edge reaches `shipContactX`.
+- **Ship sprites:** `ship_stage1/2/3.png` (160x160) show the ship with 1, 2 or 3 decks built; the one matching the current deck count is shown. Heroes are drawn between it and the matching `ship_stageN_front.png` railing layer, so they stand behind the railings. Hero slot positions come from `ship_slots.json` (each deck's 2 slots as centre x and feet y in sprite pixels). Where two slots on a deck are close together, the second hero's name label sits higher so the labels don't overlap. Empty slots show a frame and a "+".
+- **Character sprites:** heroes, the Drowned Sailor and the Thief Monkey are 32x32 with the feet on the bottom row; they stand on their slot (heroes) or the lane (enemies). The Kraken is 64x64. Rectangle placeholders stand the same way.
 - **Animation:** in battle, characters are animated from `<name>_sheet.png`, with frame sizes, frame lists and fps from `animations.json`. Crewmates loop "idle" and play "attack" each time they fire, then return to idle; each one's idle starts on a frame staggered by slot so the crew doesn't bob in sync. The Drowned Sailor and Thief Monkey loop "walk" while moving and stand still otherwise. The Kraken loops "idle" and plays "attack" each time it hits the ship. Animations slow down with the enemy when slowed and freeze while stunned. Characters without an animation fall back to their single PNG (a little lunge or squash when they attack).
 - **Hero cards** (chest reveal, new-crewmate splash, Crew Roster) show the hero's sprite at the largest whole-number scale that fits the card (3x on the chest and splash cards, 2x in the roster), using the single `<name>.png` rather than the sheet. Heroes not collected yet show as a black silhouette of their sprite.
 
@@ -42,7 +44,7 @@ Waves are endless and scale in difficulty.
 |---|---|---|
 | **Drowned Sailor** | Basic | Walks to the ship and attacks it. Most of every wave. |
 | **Thief Monkey** | Fast thief | Fast, low HP. On reaching the ship, steals a % of gold instead of dealing damage, then disappears. |
-| **The Kraken** | Boss | Appears every 10 waves with a reduced escort. Very high HP, slow, hits the ship hard. **Status resist:** stun and slow last half as long on it, so it can't be stun-locked. |
+| **The Kraken** | Boss | Appears every 10 waves with a reduced escort. Rises out of the sea in front of the ship (layout.json's `kraken.rise`: over 2.5s, with a splash at the waterline) and can't be targeted or hit until it has fully risen. Then it glides left at its normal speed to `kraken.advance.toX` and attacks from there. Very high HP, slow, hits the ship hard. **Status resist:** stun and slow last half as long on it, so it can't be stun-locked. |
 
 ## Heroes
 
@@ -161,7 +163,8 @@ Each step should leave the game playable. (Built under the kampung theme; names 
 
 - **Upgrade panel:** hull HP, build deck, and a level-up row for each hero currently placed on the ship (The Captain's row shows his deck buff).
 - **Hero picker:** click a ship slot to see every owned hero (grouped by rarity) with level, stars and effect; the upgrade panel hides while it's open.
-- Bottom bar: Crew, Start Wave, Chests; Sound toggle and Reset progress in the corner. New Voyage button near the top.
+- HUD (wave, hull HP, gold, Pearls, slot hint) and the New Voyage button sit in the sky; the upgrade panel and hero picker are compact enough to stay above the enemy lane and right of the ship.
+- Bottom bar, in the near water below the lane and right of the ship: Crew, Start Wave, Chests; Sound toggle and Reset progress in the corner.
 
 ## Later (not in v0.1)
 

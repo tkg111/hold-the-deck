@@ -1,8 +1,10 @@
 import Phaser from 'phaser';
-import { DISPLAY, GAME_TITLE, HEROES } from '../config.js';
+import { DISPLAY, GAME_TITLE, HEROES, SPRITES } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
 import { applyRenderScale } from '../display.js';
-import { createAnimations, preloadSprites } from '../sprites.js';
+import {
+  BACKGROUND_KEY, createAnimations, FOREGROUND_ANIM, FOREGROUND_KEY, preloadSprites,
+} from '../sprites.js';
 import { DEPTH, Ship } from '../entities/Ship.js';
 import { Hero } from '../entities/Hero.js';
 import { clearSave, loadProgress, saveProgress } from '../systems/Save.js';
@@ -14,6 +16,10 @@ import { HeroPicker } from '../ui/HeroPicker.js';
 import { UpgradePanel } from '../ui/UpgradePanel.js';
 
 const STATE = { IDLE: 'idle', RUNNING: 'running' };
+
+// The HUD sits in the sky and the bottom buttons in the near water, clear of
+// the ship (left) and the enemies' lane (layout.json).
+const BUTTON_Y = 512;
 
 const TEXT_STYLE = {
   fontFamily: 'sans-serif', fontSize: '20px', color: '#ffffff',
@@ -71,23 +77,12 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  // Open ocean: sky (the camera background), distant sea from the horizon,
-  // and nearer, darker water from the waterline (groundY) where enemies wade.
+  // The battle scene: bg.png behind everything, and the animated foreground
+  // (near water and island) over the enemies so they wade into the sea.
   drawBackground() {
-    const g = this.add.graphics().setDepth(DEPTH.background);
-    const horizon = 300;
-    const waterY = DISPLAY.groundY;
-    g.fillStyle(0x3a86b8).fillRect(0, horizon, DISPLAY.width, waterY - horizon);
-    g.fillStyle(0x5aa0cc).fillRect(0, horizon, DISPLAY.width, 3);
-    g.fillStyle(0x1d5f8f).fillRect(0, waterY, DISPLAY.width, DISPLAY.height - waterY);
-    g.fillStyle(0x8ecae6, 0.8).fillRect(0, waterY, DISPLAY.width, 3);
-    // A few wave glints.
-    g.lineStyle(2, 0xbde3f5, 0.45);
-    for (let i = 0; i < 26; i++) {
-      const x = (i * 137) % DISPLAY.width;
-      const y = horizon + 18 + ((i * 53) % (DISPLAY.height - horizon - 30));
-      g.lineBetween(x, y, x + 14 + (i % 3) * 6, y);
-    }
+    this.add.image(0, 0, BACKGROUND_KEY).setOrigin(0).setScale(SPRITES.scale).setDepth(DEPTH.background);
+    this.add.sprite(0, 0, FOREGROUND_KEY).setOrigin(0).setScale(SPRITES.scale)
+      .setDepth(DEPTH.foreground).play(FOREGROUND_ANIM);
   }
 
   createUi() {
@@ -106,25 +101,25 @@ export class GameScene extends Phaser.Scene {
       ...TEXT_STYLE, fontSize: '32px', align: 'center', wordWrap: { width: 480 },
     }).setOrigin(0.5).setAlpha(0).setDepth(10);
 
-    this.upgradePanel = new UpgradePanel(this, 540, 70, this.progress, () => this.onUpgradePurchased());
+    this.upgradePanel = new UpgradePanel(this, 560, 62, this.progress, () => this.onUpgradePurchased());
 
-    this.heroPicker = new HeroPicker(this, 225, 52, (id) => this.onHeroPicked(id));
+    this.heroPicker = new HeroPicker(this, 330, 28, (id) => this.onHeroPicked(id));
     this.heroPicker.on('closed', () => {
       this.ship.selectSlot(-1);
       this.refreshUi();  // brings the upgrade panel back
     });
-    this.slotHint = this.add.text(16, DISPLAY.groundY + 28, 'Click a slot to assign a hero', {
+    this.slotHint = this.add.text(16, 82, 'Click a slot to assign a hero', {
       fontFamily: 'sans-serif', fontSize: '13px', color: '#ffffff', stroke: '#000000', strokeThickness: 3,
     });
 
     if (import.meta.env.DEV) import('../dev/devTools.js').then((m) => m.installDevTools(this));
 
-    this.startButton = new Button(this, DISPLAY.width / 2, DISPLAY.height - 40, {
-      width: 180, height: 44, label: 'Start Wave', fontSize: '22px',
+    this.startButton = new Button(this, 560, BUTTON_Y, {
+      width: 160, height: 40, label: 'Start Wave', fontSize: '22px',
       onClick: () => this.startWave(),
     });
-    this.packButton = new Button(this, DISPLAY.width / 2 + 190, DISPLAY.height - 40, {
-      width: 160, height: 44, label: 'Chests', color: 0x8d5a17, fontSize: '20px',
+    this.packButton = new Button(this, 735, BUTTON_Y, {
+      width: 150, height: 40, label: 'Chests', color: 0x8d5a17, fontSize: '18px',
       onClick: () => this.openPacks(),
     });
     // Gentle pulse while a pack is affordable.
@@ -135,16 +130,16 @@ export class GameScene extends Phaser.Scene {
     this.prestigePulse = this.tweens.add({
       targets: this.prestigeButton, scale: 1.05, duration: 600, yoyo: true, repeat: -1, paused: true,
     });
-    this.collectionButton = new Button(this, DISPLAY.width / 2 - 175, DISPLAY.height - 40, {
-      width: 150, height: 44, label: 'Crew', color: 0x37474f, fontSize: '18px',
+    this.collectionButton = new Button(this, 400, BUTTON_Y, {
+      width: 120, height: 40, label: 'Crew', color: 0x37474f, fontSize: '18px',
       onClick: () => this.openCollection(),
     });
-    this.muteButton = new Button(this, DISPLAY.width - 66, DISPLAY.height - 44, {
-      width: 116, height: 22, label: '', color: 0x455a64, fontSize: '12px',
+    this.muteButton = new Button(this, DISPLAY.width - 60, DISPLAY.height - 42, {
+      width: 100, height: 22, label: '', color: 0x455a64, fontSize: '12px',
       onClick: () => this.toggleMute(),
     });
-    this.resetButton = new Button(this, DISPLAY.width - 66, DISPLAY.height - 16, {
-      width: 116, height: 22, label: 'Reset progress', color: 0x455a64, fontSize: '12px',
+    this.resetButton = new Button(this, DISPLAY.width - 60, DISPLAY.height - 16, {
+      width: 100, height: 22, label: 'Reset progress', color: 0x455a64, fontSize: '12px',
       onClick: () => this.confirmReset(),
     });
     this.packPulse = this.tweens.add({

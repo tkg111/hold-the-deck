@@ -3,7 +3,7 @@ import { HEROES, RARITY } from '../config.js';
 import { cssColor, starLabel } from './format.js';
 
 const WIDTH = 440;
-const ROW_HEIGHT = 38;
+const ROW_HEIGHT = 32;  // the full roster fits above the enemy lane
 const HEADER = 36;
 
 const pct = (n) => `${Math.round(n * 100)}%`;
@@ -69,17 +69,17 @@ export class HeroPicker extends Phaser.GameObjects.Container {
       const rarity = RARITY[def.rarity];
       const where = progress.slotOf(id);
       const note = where === slot ? '  (here)' : where >= 0 ? `  (slot ${where + 1})` : '';
-      row.add(this.scene.add.rectangle(8, 5, 12, 22, def.color).setOrigin(0).setStrokeStyle(2, rarity.color));
+      row.add(this.scene.add.rectangle(8, 2, 12, 22, def.color).setOrigin(0).setStrokeStyle(2, rarity.color));
       const stars = starLabel(progress.heroStarCount(id));
-      row.add(this.scene.add.text(28, 2, `${def.name}  ·  Lv ${progress.heroLevel(id)}${stars ? `  ${stars}` : ''}${note}`, {
-        fontFamily: 'sans-serif', fontSize: '14px', color: '#ffffff',
+      row.add(this.scene.add.text(28, 0, `${def.name}  ·  Lv ${progress.heroLevel(id)}${stars ? `  ${stars}` : ''}${note}`, {
+        fontFamily: 'sans-serif', fontSize: '13px', color: '#ffffff',
       }));
-      row.add(this.scene.add.text(28, 18, `${rarity.label} · ${describeHero(def)}`, {
-        fontFamily: 'sans-serif', fontSize: '11px',
+      row.add(this.scene.add.text(28, 15, `${rarity.label} · ${describeHero(def)}`, {
+        fontFamily: 'sans-serif', fontSize: '10px',
         color: cssColor(rarity.color),
       }));
     } else {
-      row.add(this.scene.add.text(28, 9, 'Leave empty', {
+      row.add(this.scene.add.text(28, 6, 'Leave empty', {
         fontFamily: 'sans-serif', fontSize: '14px', color: '#b0bec5', fontStyle: 'italic',
       }));
     }

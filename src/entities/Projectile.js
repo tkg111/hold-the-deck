@@ -1,5 +1,5 @@
-// All projectiles take `findTarget(x, y)`, which returns the nearest living
-// enemy (or null). When a projectile's target dies before it lands, it switches
+// All projectiles take `findTarget(x, y)`, which returns the nearest living,
+// targetable enemy (or null). When a projectile's target dies before it lands, it switches
 // to that enemy instead of wasting the shot on an empty spot; it fizzles only
 // when no enemies are left.
 
@@ -7,7 +7,7 @@ export function nearestLiving(enemies, x, y) {
   let best = null;
   let bestDist = Infinity;
   for (const e of enemies) {
-    if (!e.alive) continue;
+    if (!e.targetable) continue;
     const d = Math.hypot(e.x - x, e.y - y);
     if (d < bestDist) {
       best = e;
@@ -186,7 +186,7 @@ export class PiercingProjectile {
     if (wp) this.sprite.rotation = Math.atan2(wp.y - this.sprite.y, wp.x - this.sprite.x);
 
     for (const e of this.enemies()) {
-      if (!e.alive || this.hits.has(e)) continue;
+      if (!e.targetable || this.hits.has(e)) continue;
       const reach = this.hitRadius + e.def.width / 2;
       if (Math.abs(e.x - this.sprite.x) <= reach && Math.abs(e.y - this.sprite.y) <= e.def.height / 2 + this.hitRadius) {
         this.hits.add(e);

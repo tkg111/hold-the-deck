@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { DISPLAY, HEROES, PACK_FX, RARITY } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
-import { applyRenderScale, RENDER_SCALE } from '../display.js';
+import { applyRenderScale } from '../display.js';
 import { Progress } from '../systems/Progress.js';
 import { saveProgress } from '../systems/Save.js';
 import { Button } from '../ui/Button.js';
@@ -94,12 +94,12 @@ export class PackScene extends Phaser.Scene {
     this.closeButton.setEnabled(!this.busy);
   }
 
-  // Small white bar used for confetti, drawn at render resolution so it stays sharp.
+  // Small white bar used for confetti.
   ensureConfettiTexture() {
     if (this.textures.exists('confetti')) return;
     const g = this.make.graphics({ x: 0, y: 0 }, false);
-    g.fillStyle(0xffffff).fillRect(0, 0, 8 * RENDER_SCALE, 4 * RENDER_SCALE);
-    g.generateTexture('confetti', 8 * RENDER_SCALE, 4 * RENDER_SCALE);
+    g.fillStyle(0xffffff).fillRect(0, 0, 8, 4);
+    g.generateTexture('confetti', 8, 4);
     g.destroy();
   }
 
@@ -279,7 +279,6 @@ export class PackScene extends Phaser.Scene {
       angle: { min: 200, max: 340 },  // upward fan
       gravityY: 650,
       lifespan: { min: 1400, max: 2400 },
-      scale: 1 / RENDER_SCALE,
       rotate: { start: 0, end: 720 },
       alpha: { start: 1, end: 0, ease: 'Quad.easeIn' },
       tint: [rarityColor, rarityColor, ...CONFETTI_COLORS],

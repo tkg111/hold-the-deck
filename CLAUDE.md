@@ -18,8 +18,11 @@ Game title: `GAME_TITLE` in `src/config.js` and `<title>` in `index.html`.
 
 ## Conventions
 
-- Layout uses 960x540 logical units (`DISPLAY` in config). The canvas renders
-  at `RENDER_SCALE`x and every scene must call `applyRenderScale(this)` first
+- The base resolution is 480x270 art pixels, shown at the largest whole-number
+  scale that fits the window. Layout uses 960x540 logical units (`DISPLAY` in
+  config, 2 per art pixel; sprites are drawn at `SPRITES.scale`). Battle scene
+  positions come from `public/sprites/layout.json` (see `src/layout.js`).
+  Every scene must call `applyRenderScale(this)` first
   in `create()` (see `src/display.js`).
 - Dev-only tools live in `src/dev/` and are loaded via a dynamic import behind
   `import.meta.env.DEV`, so they never ship in production builds.

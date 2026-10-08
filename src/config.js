@@ -3,19 +3,22 @@
 
 export const GAME_TITLE = 'Hold the Deck';
 
-// Logical game size: all positions and layout use these units. The canvas is
-// rendered at a multiple of it (see src/display.js) so it stays sharp.
+// The game's base resolution is 480x270 art pixels, shown at the largest
+// whole-number scale that fits the window (see src/display.js). Positions and
+// UI are laid out in finer units, two per art pixel, so text and UI can sit
+// between art pixels: all game code uses these 960x540 layout units.
 export const DISPLAY = {
   width: 960,
   height: 540,
-  groundY: 460,
-  maxRenderScale: 3,  // caps the backing canvas at 2880x1620
+  baseWidth: 480,
+  baseHeight: 270,
 };
 
 // Pixel art: every sprite is drawn at the same whole-number scale (with
-// Phaser's pixelArt setting) so pixels stay square and sharp.
+// Phaser's pixelArt setting) so pixels stay square and sharp. One art pixel is
+// this many layout units; scene positions come from public/sprites/layout.json.
 export const SPRITES = {
-  scale: 2,
+  scale: DISPLAY.width / DISPLAY.baseWidth,
   path: 'sprites/',   // under public/
   // Heroes without a sprite yet are drawn as a rectangle this size (layout
   // units), standing on the slot like a sprite would.
@@ -42,17 +45,18 @@ export const SPRITES = {
   // are staggered: the second one is raised by labelStagger.
   labelMinSpacing: 48,
   labelStagger: 22,
+  // The Kraken's splash while it rises (layout.json describes it in a note):
+  // 64x24 frames, drawn with its top this many art pixels above the waterline.
+  krakenSplash: { key: 'splash_sheet', frameWidth: 64, frameHeight: 24, frames: 3, fps: 8, aboveWater: 23 },
   // Clickable area over each ship slot (layout units, standing on the slot);
   // narrower where a deck's slots are closer together than maxWidth.
   slotZone: { maxWidth: 40, height: 60 },
 };
 
 export const SHIP = {
-  // The ship sprites are 160x160 sprite pixels (ship_stage1..3 plus a
-  // _front railing layer each), all at the same position.
-  x: 0,               // left edge of the sprite
-  waterlineRow: 140,  // sprite row that sits on the waterline (groundY)
-  hullRightCol: 150,  // sprite column where enemies stop at the hull
+  // The ship sprites are 160x160 art pixels (ship_stage1..3 plus a _front
+  // railing layer each), all at layout.json's shipPos; enemies stop at its
+  // shipContactX.
   baseHp: 100,
   startingDecks: 1,
   maxDecks: 3,
@@ -246,11 +250,11 @@ export const ENEMIES = {
     attackInterval: 1500,
     gold: 50,
     statusResist: 0.5,  // stun and slow durations multiplied by this
+    emerges: true,      // rises out of the sea at layout.json's kraken position
   },
 };
 
 export const WAVES = {
-  spawnX: DISPLAY.width + 30,
   // Enemy count: baseCount + (wave - 1) * countPerWave
   baseCount: 5,
   countPerWave: 2,
@@ -262,8 +266,6 @@ export const WAVES = {
   spawnInterval: 900,
   spawnIntervalPerWave: -30,
   minSpawnInterval: 350,
-  // Small random vertical offset so enemies don't stack perfectly.
-  laneJitter: 10,
 
   // Thief Monkey share of a wave: thiefMonkeyShare + (wave - thiefMonkeyFromWave) * thiefMonkeySharePerWave, capped.
   thiefMonkeyFromWave: 3,
