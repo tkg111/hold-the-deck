@@ -1,4 +1,4 @@
-import { ECONOMY, HEROES, HOUSE, PACKS, PRESTIGE, RARITY, SEMANGAT_SHOP, STARTING_HEROES, UPGRADES } from '../config.js';
+import { ECONOMY, HEROES, SHIP, PACKS, PRESTIGE, RARITY, RENOWN_SHOP, STARTING_HEROES, UPGRADES } from '../config.js';
 
 const scaledCost = ({ baseCost, costGrowth }, level) => Math.round(baseCost * costGrowth ** level);
 
@@ -8,23 +8,23 @@ export class Progress {
   constructor() {
     this.wave = 1;
     this.gold = ECONOMY.startingGold;
-    this.angPow = ECONOMY.startingAngPow;
-    this.lastBossRewardWave = 0;    // stops boss Ang Pow being farmed on retries
+    this.pearls = ECONOMY.startingPearls;
+    this.lastBossRewardWave = 0;    // stops boss Pearls being farmed on retries
     this.packsSinceLegendary = 0;   // pity counter
-    this.houseHpLevel = 0;
-    this.floors = HOUSE.startingFloors;
+    this.hullHpLevel = 0;
+    this.decks = SHIP.startingDecks;
     this.owned = [...STARTING_HEROES];
     this.heroLevels = {};           // missing entry = level 1
     this.heroStars = {};            // missing entry = 0 stars
-    // One entry per possible slot (all floors); only the first slotCount are usable.
-    this.slots = Array(HOUSE.maxFloors * HOUSE.slotsPerFloor).fill(null);
+    // One entry per possible slot (all decks); only the first slotCount are usable.
+    this.slots = Array(SHIP.maxDecks * SHIP.slotsPerDeck).fill(null);
     this.slots[0] = STARTING_HEROES[0];
 
     this.muted = false;             // sound effects off
 
-    // Prestige ("Pindah Kampung"): kept across runs.
-    this.semangat = 0;
-    this.semangatShop = {};         // bonus key -> level; missing = 0
+    // Prestige ("New Voyage"): kept across runs.
+    this.renown = 0;
+    this.renownShop = {};         // bonus key -> level; missing = 0
     this.prestigeCount = 0;
     this.bestWave = 1;              // highest wave ever reached, all runs
     this.goldFraction = 0;          // carry for fractional bonus gold; not saved
@@ -43,18 +43,18 @@ export class Progress {
     return {
       wave: this.wave,
       gold: this.gold,
-      angPow: this.angPow,
+      pearls: this.pearls,
       lastBossRewardWave: this.lastBossRewardWave,
-      houseHpLevel: this.houseHpLevel,
-      floors: this.floors,
+      hullHpLevel: this.hullHpLevel,
+      decks: this.decks,
       owned,
       heroLevels: ownedOnly(this.heroLevels),
       heroStars: ownedOnly(this.heroStars),
       slots: this.slots.map((id) => (id && owned.includes(id) ? id : null)),
       muted: this.muted,
       packsSinceLegendary: this.packsSinceLegendary,
-      semangat: this.semangat,
-      semangatShop: { ...this.semangatShop },
+      renown: this.renown,
+      renownShop: { ...this.renownShop },
       prestigeCount: this.prestigeCount,
       bestWave: this.bestWave,
     };
@@ -69,18 +69,18 @@ export class Progress {
 
     p.wave = int(data.wave, 1);
     p.gold = int(data.gold, 0);
-    p.angPow = int(data.angPow, 0, Infinity, p.angPow);
+    p.pearls = int(data.pearls, 0, Infinity, p.pearls);
     p.lastBossRewardWave = int(data.lastBossRewardWave, 0);
-    p.houseHpLevel = int(data.houseHpLevel, 0);
-    p.floors = int(data.floors, HOUSE.startingFloors, HOUSE.maxFloors);
+    p.hullHpLevel = int(data.hullHpLevel, 0);
+    p.decks = int(data.decks, SHIP.startingDecks, SHIP.maxDecks);
     p.muted = data.muted === true;
     p.packsSinceLegendary = int(data.packsSinceLegendary, 0, PACKS.legendaryPity - 1);
-    p.semangat = int(data.semangat, 0);
+    p.renown = int(data.renown, 0);
     p.prestigeCount = int(data.prestigeCount, 0);
     p.bestWave = Math.max(p.wave, int(data.bestWave, 1));
-    for (const [key, bonus] of Object.entries(SEMANGAT_SHOP)) {
-      const level = data.semangatShop?.[key];
-      if (level != null) p.semangatShop[key] = int(level, 0, bonus.maxLevel ?? Infinity);
+    for (const [key, bonus] of Object.entries(RENOWN_SHOP)) {
+      const level = data.renownShop?.[key];
+      if (level != null) p.renownShop[key] = int(level, 0, bonus.maxLevel ?? Infinity);
     }
 
     const owned = Array.isArray(data.owned) ? data.owned.filter((id) => id in HEROES) : [];
@@ -115,7 +115,7 @@ export class Progress {
   }
   heroLevel(id) { return this.heroLevels[id] ?? 1; }
   heroStarCount(id) { return this.heroStars[id] ?? 0; }
-  get slotCount() { return this.floors * HOUSE.slotsPerFloor; }
+  get slotCount() { return this.decks * SHIP.slotsPerDeck; }
 
   // [{ id, slot }] for heroes in usable slots.
   get activeHeroes() {
@@ -147,26 +147,26 @@ export class Progress {
 
   // --- Derived stats ---
 
-  get houseMaxHp() { return this.houseMaxHpAt(this.houseHpLevel); }
+  get hullMaxHp() { return this.hullMaxHpAt(this.hullHpLevel); }
 
-  houseMaxHpAt(hpLevel) {
-    const base = HOUSE.baseHp
-      + hpLevel * UPGRADES.houseHp.hpPerLevel
-      + (this.floors - 1) * UPGRADES.floor.hpPerFloor;
-    return Math.round(base * this.semangatMultiplier('houseHp'));
+  hullMaxHpAt(hpLevel) {
+    const base = SHIP.baseHp
+      + hpLevel * UPGRADES.hullHp.hpPerLevel
+      + (this.decks - 1) * UPGRADES.deck.hpPerDeck;
+    return Math.round(base * this.renownMultiplier('hullHp'));
   }
 
-  get canBuildFloor() { return this.floors < HOUSE.maxFloors; }
+  get canBuildDeck() { return this.decks < SHIP.maxDecks; }
 
   heroDamage(id, level = this.heroLevel(id)) {
     const starBonus = PACKS.starDamageBonus[this.heroStarCount(id)];
     return HEROES[id].damage
       * (1 + (level - 1) * UPGRADES.heroLevel.damagePerLevel)
       * (1 + starBonus)
-      * this.semangatMultiplier('heroDamage');
+      * this.renownMultiplier('heroDamage');
   }
 
-  // Damage bonus an aura hero (Tok Penghulu) gives his floor, e.g. 0.5 = +50%.
+  // Damage bonus an aura hero (The Captain) gives his deck, e.g. 0.5 = +50%.
   heroAuraBonus(id, level = this.heroLevel(id)) {
     const { aura } = HEROES[id];
     const starBonus = PACKS.starDamageBonus[this.heroStarCount(id)];
@@ -174,17 +174,17 @@ export class Progress {
   }
 
   // Buffs from aura heroes for each active hero: slot -> { damage, attackSpeed }
-  // multipliers. An aura hero buffs the others on its floor, not itself.
-  get floorBuffs() {
+  // multipliers. An aura hero buffs the others on its deck, not itself.
+  get deckBuffs() {
     const buffs = {};
-    const floorOf = (slot) => Math.floor(slot / HOUSE.slotsPerFloor);
+    const deckOf = (slot) => Math.floor(slot / SHIP.slotsPerDeck);
     const active = this.activeHeroes;
     for (const { slot } of active) buffs[slot] = { damage: 1, attackSpeed: 1, buffed: false };
     for (const src of active) {
       const { aura } = HEROES[src.id];
       if (!aura) continue;
       for (const { slot } of active) {
-        if (slot === src.slot || floorOf(slot) !== floorOf(src.slot)) continue;
+        if (slot === src.slot || deckOf(slot) !== deckOf(src.slot)) continue;
         buffs[slot].damage *= 1 + this.heroAuraBonus(src.id);
         buffs[slot].attackSpeed *= 1 + aura.attackSpeedBonus;
         buffs[slot].buffed = true;
@@ -193,16 +193,16 @@ export class Progress {
     return buffs;
   }
 
-  // Base wave-clear gold, before the Semangat bonus (see earnGold).
+  // Base wave-clear gold, before the Renown bonus (see earnGold).
   waveClearGold(wave = this.wave) {
     return ECONOMY.waveClearBase + (wave - 1) * ECONOMY.waveClearPerWave;
   }
 
-  // Add base gold with the Semangat gold bonus applied; returns the whole gold
+  // Add base gold with the Renown gold bonus applied; returns the whole gold
   // paid. Fractions carry over, so +10% on a 2-gold kill still adds up over
   // several kills instead of rounding away.
   earnGold(base) {
-    this.goldFraction += base * this.semangatMultiplier('gold');
+    this.goldFraction += base * this.renownMultiplier('gold');
     const paid = Math.floor(this.goldFraction + 1e-9);
     this.goldFraction -= paid;
     this.gold += paid;
@@ -215,23 +215,23 @@ export class Progress {
     this.bestWave = Math.max(this.bestWave, this.wave);
   }
 
-  waveClearAngPow(wave = this.wave) {
-    const milestone = wave % ECONOMY.angPowMilestoneEvery === 0 ? ECONOMY.angPowPerMilestone : 0;
-    return ECONOMY.angPowPerWave + milestone;
+  waveClearPearls(wave = this.wave) {
+    const milestone = wave % ECONOMY.pearlsMilestoneEvery === 0 ? ECONOMY.pearlsPerMilestone : 0;
+    return ECONOMY.pearlsPerWave + milestone;
   }
 
-  // Ang Pow for killing the boss of the current wave; 0 if already paid this wave.
-  claimBossAngPow() {
+  // Pearls for killing the boss of the current wave; 0 if already paid this wave.
+  claimBossPearls() {
     if (this.lastBossRewardWave >= this.wave) return 0;
     this.lastBossRewardWave = this.wave;
-    this.angPow += ECONOMY.angPowPerBoss;
-    return ECONOMY.angPowPerBoss;
+    this.pearls += ECONOMY.pearlsPerBoss;
+    return ECONOMY.pearlsPerBoss;
   }
 
   // --- Costs ---
 
-  houseHpCost() { return scaledCost(UPGRADES.houseHp, this.houseHpLevel); }
-  floorCost() { return this.canBuildFloor ? UPGRADES.floor.costs[this.floors - 1] : null; }
+  hullHpCost() { return scaledCost(UPGRADES.hullHp, this.hullHpLevel); }
+  deckCost() { return this.canBuildDeck ? UPGRADES.deck.costs[this.decks - 1] : null; }
   heroLevelCost(id) { return scaledCost(UPGRADES.heroLevel, this.heroLevel(id) - 1); }
 
   // --- Purchases (return true on success) ---
@@ -242,25 +242,25 @@ export class Progress {
     return true;
   }
 
-  buyHouseHp() {
-    if (!this.spend(this.houseHpCost())) return false;
-    this.houseHpLevel++;
+  buyHullHp() {
+    if (!this.spend(this.hullHpCost())) return false;
+    this.hullHpLevel++;
     return true;
   }
 
-  buildFloor() {
-    if (!this.spend(this.floorCost())) return false;
-    this.floors++;
+  buildDeck() {
+    if (!this.spend(this.deckCost())) return false;
+    this.decks++;
     return true;
   }
 
   // --- Packs ---
 
   get packCost() {
-    return Math.max(1, PACKS.cost - this.semangatLevel('packDiscount') * SEMANGAT_SHOP.packDiscount.perLevel);
+    return Math.max(1, PACKS.cost - this.renownLevel('packDiscount') * RENOWN_SHOP.packDiscount.perLevel);
   }
 
-  get canOpenPack() { return this.angPow >= this.packCost; }
+  get canOpenPack() { return this.pearls >= this.packCost; }
 
   // Rarity weights limited to rarities that have heroes, so rates stay valid
   // if a tier is empty (e.g. Legendary before its heroes exist).
@@ -289,10 +289,10 @@ export class Progress {
     return pool[Math.floor(random() * pool.length)];
   }
 
-  // Spend Ang Pow and pull one hero. Returns what happened, or null if unaffordable.
+  // Spend Pearls and pull one hero. Returns what happened, or null if unaffordable.
   openPack(random = Math.random) {
     if (!this.canOpenPack) return null;
-    this.angPow -= this.packCost;
+    this.pearls -= this.packCost;
     const pity = this.packsUntilPity <= 1;
     const id = Progress.rollHero(random, pity ? 'legendary' : null);
     if (HEROES[id].rarity === 'legendary') this.packsSinceLegendary = 0;
@@ -309,7 +309,7 @@ export class Progress {
       this.heroStars[id] = this.heroStarCount(id) + 1;
       return { id, pity, isNew: false, stars: this.heroStars[id], refund: 0 };
     }
-    this.angPow += PACKS.maxStarRefund;
+    this.pearls += PACKS.maxStarRefund;
     return { id, pity, isNew: false, stars: PACKS.maxStars, refund: PACKS.maxStarRefund };
   }
 
@@ -319,32 +319,32 @@ export class Progress {
     return true;
   }
 
-  // --- Semangat shop ---
+  // --- Renown shop ---
 
-  semangatLevel(key) { return this.semangatShop[key] ?? 0; }
+  renownLevel(key) { return this.renownShop[key] ?? 0; }
 
   // e.g. 1.2 for +20%. (Not used for packDiscount, which is a flat amount.)
-  semangatMultiplier(key) {
-    return 1 + this.semangatLevel(key) * SEMANGAT_SHOP[key].perLevel;
+  renownMultiplier(key) {
+    return 1 + this.renownLevel(key) * RENOWN_SHOP[key].perLevel;
   }
 
   // Cost of the next level, or null at max level.
-  semangatCost(key) {
-    const bonus = SEMANGAT_SHOP[key];
-    const level = this.semangatLevel(key);
+  renownCost(key) {
+    const bonus = RENOWN_SHOP[key];
+    const level = this.renownLevel(key);
     if (bonus.maxLevel != null && level >= bonus.maxLevel) return null;
     return scaledCost(bonus, level);
   }
 
-  buySemangat(key) {
-    const cost = this.semangatCost(key);
-    if (cost == null || this.semangat < cost) return false;
-    this.semangat -= cost;
-    this.semangatShop[key] = this.semangatLevel(key) + 1;
+  buyRenown(key) {
+    const cost = this.renownCost(key);
+    if (cost == null || this.renown < cost) return false;
+    this.renown -= cost;
+    this.renownShop[key] = this.renownLevel(key) + 1;
     return true;
   }
 
-  // --- Prestige: Pindah Kampung ---
+  // --- Prestige: New Voyage ---
 
   get canPrestige() { return this.wave >= PRESTIGE.unlockWave; }
 
@@ -352,25 +352,25 @@ export class Progress {
   get prestigeRewards() {
     const reached = this.wave;
     return {
-      semangat: Math.floor(PRESTIGE.semangatBase * (reached / PRESTIGE.unlockWave) ** PRESTIGE.semangatExponent),
-      angPow: Math.floor(reached * PRESTIGE.angPowPerWave),
+      renown: Math.floor(PRESTIGE.renownBase * (reached / PRESTIGE.unlockWave) ** PRESTIGE.renownExponent),
+      pearls: Math.floor(reached * PRESTIGE.pearlsPerWave),
     };
   }
 
   // Reset the run and pay out. Keeps owned heroes, stars, slot assignments,
-  // Ang Pow, pity, Semangat and shop levels, settings. Returns the rewards.
+  // Pearls, pity, Renown and shop levels, settings. Returns the rewards.
   prestige() {
     if (!this.canPrestige) return null;
     const rewards = this.prestigeRewards;
     const fresh = new Progress();
     this.wave = fresh.wave;
     this.gold = fresh.gold;
-    this.houseHpLevel = fresh.houseHpLevel;
-    this.floors = fresh.floors;
+    this.hullHpLevel = fresh.hullHpLevel;
+    this.decks = fresh.decks;
     this.heroLevels = {};
-    this.lastBossRewardWave = 0;   // boss Ang Pow can be earned again next run
-    this.semangat += rewards.semangat;
-    this.angPow += rewards.angPow;
+    this.lastBossRewardWave = 0;   // boss Pearls can be earned again next run
+    this.renown += rewards.renown;
+    this.pearls += rewards.pearls;
     this.prestigeCount++;
     return rewards;
   }

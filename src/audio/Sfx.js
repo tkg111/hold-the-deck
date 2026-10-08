@@ -78,7 +78,7 @@ class Sfx {
     src.start(start);
   }
 
-  // Build-up: paper rattles that speed up, over a rising hum.
+  // Build-up: chest rattles that speed up, over a rising hum.
   shake(durationMs, rarity = 'common') {
     const t = this.ready();
     if (t == null) return;
@@ -94,7 +94,7 @@ class Sfx {
     }
   }
 
-  // Card flip: a quick filtered whoosh.
+  // Chest opening: a quick filtered whoosh.
   flip() {
     const t = this.ready();
     if (t == null) return;

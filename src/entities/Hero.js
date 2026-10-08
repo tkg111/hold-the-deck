@@ -5,7 +5,7 @@ import { LobProjectile, nearestLiving, PiercingProjectile, Projectile } from './
 const BUFF_COLOR = 0xffd54f;
 
 export class Hero {
-  // damage and attackInterval come from Progress (level, stars, floor buffs).
+  // damage and attackInterval come from Progress (level, stars, deck buffs).
   constructor(scene, id, { x, y }, { damage, attackInterval, stars = 0, buffed = false }) {
     this.scene = scene;
     this.id = id;
@@ -16,7 +16,7 @@ export class Hero {
     this.y = y;
     this.cooldown = 0;
 
-    // Gold glow: steady around Tok Penghulu, pulsing behind the heroes he buffs.
+    // Gold glow: steady around The Captain, pulsing behind the heroes he buffs.
     this.glow = null;
     if (this.def.aura || buffed) {
       this.glow = scene.add.rectangle(x, y, 26, 36, BUFF_COLOR, this.def.aura ? 0.45 : 0.3)
@@ -74,16 +74,16 @@ export class Hero {
   }
 
   // Where an enemy will be after msLeft, for lobbed shots: walking left at its
-  // current (possibly slowed) speed, standing still if stunned, never past the house.
+  // current (possibly slowed) speed, standing still if stunned, never past the ship.
   leadPoint(enemy, msLeft) {
     const lead = enemy.isStunned ? 0
       : enemy.speed * (enemy.isSlowed ? enemy.slowFactor : 1) * msLeft / 1000;
-    const minX = this.scene.house.right + enemy.def.width / 2;
+    const minX = this.scene.ship.right + enemy.def.width / 2;
     return { x: Math.max(minX, enemy.x - lead), y: enemy.y };
   }
 
-  // Closest living enemy to the house that's within range. The Bomoh prefers
-  // enemies that aren't cursed yet, and the Pemburu Sumpit ones not yet
+  // Closest living enemy to the ship that's within range. The Voodoo Priestess prefers
+  // enemies that aren't cursed yet, and the Grog Brewer ones not yet
   // poisoned, so their effects spread across the wave.
   pickTarget(enemies) {
     const { curse, poison } = this.def;

@@ -12,7 +12,7 @@ const secs = (ms) => `${+(ms / 1000).toFixed(1)}s`;
 // One-line summary of a hero's effect, built from its config numbers.
 export function describeHero(def) {
   if (def.aura) {
-    return `No attack. Floor buff: +${pct(def.aura.damageBonus)} dmg, +${pct(def.aura.attackSpeedBonus)} speed`;
+    return `No attack. Deck buff: +${pct(def.aura.damageBonus)} dmg, +${pct(def.aura.attackSpeedBonus)} speed`;
   }
   const parts = [];
   if (def.stun) parts.push(`${pct(def.stun.chance)} chance to stun ${secs(def.stun.duration)}`);

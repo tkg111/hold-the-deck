@@ -10,15 +10,15 @@ export const DISPLAY = {
   maxRenderScale: 3,  // caps the backing canvas at 2880x1620
 };
 
-export const HOUSE = {
-  x: 60,              // left edge of the house
+export const SHIP = {
+  x: 60,              // left edge of the ship
   width: 140,
-  floorHeight: 90,
-  stiltHeight: 50,    // kampung houses sit on stilts
+  deckHeight: 90,
+  hullHeight: 50,     // hull below the lowest deck, down to the waterline
   baseHp: 100,
-  startingFloors: 1,
-  maxFloors: 3,
-  slotsPerFloor: 2,
+  startingDecks: 1,
+  maxDecks: 3,
+  slotsPerDeck: 2,
 };
 
 export const RARITY = {
@@ -28,7 +28,7 @@ export const RARITY = {
   legendary: { label: 'Legendary', color: 0xff9800 },
 };
 
-// catchphrase: one-line Manglish intro shown the first time the hero is pulled.
+// catchphrase: one-line pirate intro shown the first time the hero is pulled.
 // Optional effects per hero:
 //   stun:   { chance, duration }    — stunned enemies can't move or attack
 //   area:   { radius }              — hit lands on everything within radius of the target
@@ -40,25 +40,25 @@ export const RARITY = {
 //   lob:    { flightTime, arcHeight } — arcing shot aimed where the target will be
 //   crit:   { chance, multiplier }  — chance for a multiplied hit
 //   aura:   { damageBonus, damageBonusPerLevel, attackSpeedBonus } — doesn't attack;
-//           buffs the other heroes on the same floor. damageBonus grows per level
+//           buffs the other heroes on the same deck. damageBonus grows per level
 //           and with stars (same star bonus as damage).
 export const HEROES = {
-  budakLastik: {
-    name: 'Budak Lastik',
-    shortName: 'Lastik',
+  cabinBoy: {
+    name: 'Cabin Boy',
+    shortName: 'Cabin',
     rarity: 'common',
-    color: 0x4caf50,
+    color: 0x66bb6a,
     damage: 5,
     attackInterval: 450,
     range: 700,
     projectileSpeed: 650,
     projectileColor: 0xdddddd,
     projectileSize: 5,
-    catchphrase: 'Aiyo, sure kena one lah! Ready, aim, tembak!',
+    catchphrase: "Aye aye! Point me at 'em and I'll sling till they sink!",
   },
-  makCikSelipar: {
-    name: 'Mak Cik Selipar',
-    shortName: 'Selipar',
+  shipsCook: {
+    name: "Ship's Cook",
+    shortName: 'Cook',
     rarity: 'common',
     color: 0xff7043,
     damage: 9,
@@ -68,11 +68,11 @@ export const HEROES = {
     projectileColor: 0xffab91,
     projectileSize: 7,
     stun: { chance: 0.25, duration: 1000 },
-    catchphrase: 'You want to kena selipar ah? Come, come!',
+    catchphrase: 'Complain about me stew one more time, I dare ye!',
   },
-  nelayan: {
-    name: 'Nelayan',
-    shortName: 'Nelayan',
+  netThrower: {
+    name: 'Net Thrower',
+    shortName: 'Netter',
     rarity: 'rare',
     color: 0x29b6f6,
     damage: 6,
@@ -83,11 +83,11 @@ export const HEROES = {
     projectileSize: 9,
     area: { radius: 75 },
     slow: { factor: 0.5, duration: 2500 },
-    catchphrase: 'Relax lah boss, one net can catch all.',
+    catchphrase: 'Hold still, ye barnacle-brained bilge rats!',
   },
-  bomoh: {
-    name: 'Bomoh',
-    shortName: 'Bomoh',
+  voodooPriestess: {
+    name: 'Voodoo Priestess',
+    shortName: 'Voodoo',
     rarity: 'epic',
     color: 0x7e57c2,
     damage: 8,
@@ -97,105 +97,105 @@ export const HEROES = {
     projectileColor: 0xce93d8,
     projectileSize: 7,
     curse: { bonus: 0.3, duration: 4000 },
-    catchphrase: "Don't play-play ah, later I sumpah you!",
+    catchphrase: "The spirits whisper yer name... and they're hungry.",
   },
-  pemburuSumpit: {
-    name: 'Pemburu Sumpit',
-    shortName: 'Sumpit',
+  grogBrewer: {
+    name: 'Grog Brewer',
+    shortName: 'Grog',
     rarity: 'rare',
     color: 0x558b2f,
     damage: 4,
     attackInterval: 900,
     range: 720,
     projectileSpeed: 850,
-    projectileColor: 0xc5e1a5,
+    projectileColor: 0x9ccc65,
     projectileSize: 3,
     poison: { ratio: 0.75, duration: 4000 },
-    catchphrase: 'One tiup only. Slowly-slowly you feel it.',
+    catchphrase: "One sip o' me brew and ye'll feel it for days.",
   },
-  pakcikMamak: {
-    name: 'Pakcik Mamak',
-    shortName: 'Mamak',
+  harpooner: {
+    name: 'Harpooner',
+    shortName: 'Harpoon',
     rarity: 'rare',
-    color: 0xeceff1,
+    color: 0x5d7a8c,
     damage: 8,
     attackInterval: 1700,
     range: 650,
     projectileSpeed: 430,
-    projectileColor: 0xf3d9a4,
+    projectileColor: 0xcfd8dc,
     projectileSize: 9,
     pierce: { maxTargets: 6, length: 300, hitRadius: 22 },
-    catchphrase: 'Roti canai satu, terbang! Boss, tambah lagi?',
+    catchphrase: "Line 'em up, and I'll skewer the lot of 'em!",
   },
-  uncleDurian: {
-    name: 'Uncle Durian',
-    shortName: 'Durian',
+  cannoneer: {
+    name: 'Cannoneer',
+    shortName: 'Cannon',
     rarity: 'epic',
-    color: 0x9e9d24,
+    color: 0x8d6e63,
     damage: 24,
     attackInterval: 3200,
     range: 650,
-    projectileColor: 0x827717,
+    projectileColor: 0x263238,
     projectileSize: 11,
     area: { radius: 95 },
     lob: { flightTime: 1000, arcHeight: 150 },
-    catchphrase: 'Smell also can kill you, you know or not?',
+    catchphrase: 'FIRE IN THE HOLE! Mind yer heads, lads!',
   },
-  pendekarSilat: {
-    name: 'Pendekar Silat',
-    shortName: 'Silat',
+  duelist: {
+    name: 'The Duelist',
+    shortName: 'Duelist',
     rarity: 'legendary',
-    color: 0x263238,
+    color: 0xb71c1c,
     damage: 40,
     attackInterval: 1300,
     range: 680,
     projectileSpeed: 950,
-    projectileColor: 0xffca28,
+    projectileColor: 0xeceff1,
     projectileSize: 6,
     crit: { chance: 0.35, multiplier: 2.5 },
-    catchphrase: 'Steady, bang. One hit enough lah.',
+    catchphrase: "En garde. This won't take long.",
   },
-  tokPenghulu: {
-    name: 'Tok Penghulu',
-    shortName: 'Penghulu',
+  captain: {
+    name: 'The Captain',
+    shortName: 'Captain',
     rarity: 'legendary',
-    color: 0x1565c0,
+    color: 0x1a237e,
     damage: 0,
     aura: { damageBonus: 0.5, damageBonusPerLevel: 0.04, attackSpeedBonus: 0.3 },
-    catchphrase: 'Everybody listen to me, can? Gotong-royong time!',
+    catchphrase: 'All hands on deck! Make me proud, ye scurvy dogs!',
   },
 };
 
-export const STARTING_HEROES = ['budakLastik'];
+export const STARTING_HEROES = ['cabinBoy'];
 
 export const ENEMIES = {
-  jerangkung: {
-    name: 'Jerangkung',
-    color: 0xe8e2c8,
+  drownedSailor: {
+    name: 'Drowned Sailor',
+    color: 0x8fb8a8,
     width: 22,
     height: 44,
     hp: 20,
     speed: 45,
-    damage: 5,          // per hit on the house
+    damage: 5,          // per hit on the ship
     attackInterval: 1000,
     gold: 2,            // per kill, before wave scaling
   },
-  toyol: {
-    name: 'Toyol',
-    color: 0x7cb342,
+  thiefMonkey: {
+    name: 'Thief Monkey',
+    color: 0x8d5a3b,
     width: 16,
     height: 24,
     hp: 8,
     speed: 130,
-    damage: 0,          // doesn't attack the house...
+    damage: 0,          // doesn't attack the ship...
     attackInterval: 1000,
     gold: 3,
     stealPercent: 0.05, // ...steals this share of current gold, then vanishes
   },
-  hantuGalah: {
-    name: 'Hantu Galah',
+  kraken: {
+    name: 'The Kraken',
     boss: true,
-    color: 0x37474f,
+    color: 0x6a1b9a,
     width: 28,
     height: 140,
     hp: 400,
@@ -216,20 +216,20 @@ export const WAVES = {
   hpGrowth: 0.2,
   // Enemy damage multiplier: 1 + (wave - 1) * damageGrowth
   damageGrowth: 0.1,
-  // Spawn interval shrinks each wave down to a floor.
+  // Spawn interval shrinks each wave down to a minimum.
   spawnInterval: 900,
   spawnIntervalPerWave: -30,
   minSpawnInterval: 350,
   // Small random vertical offset so enemies don't stack perfectly.
   laneJitter: 10,
 
-  // Toyol share of a wave: toyolShare + (wave - toyolFromWave) * toyolSharePerWave, capped.
-  toyolFromWave: 3,
-  toyolShare: 0.15,
-  toyolSharePerWave: 0.01,
-  toyolShareMax: 0.4,
+  // Thief Monkey share of a wave: thiefMonkeyShare + (wave - thiefMonkeyFromWave) * thiefMonkeySharePerWave, capped.
+  thiefMonkeyFromWave: 3,
+  thiefMonkeyShare: 0.15,
+  thiefMonkeySharePerWave: 0.01,
+  thiefMonkeyShareMax: 0.4,
 
-  // Every bossEvery-th wave: Hantu Galah plus a reduced escort of regular enemies.
+  // Every bossEvery-th wave: The Kraken plus a reduced escort of regular enemies.
   bossEvery: 10,
   bossEscortFactor: 0.5,   // fraction of the normal enemy count
   bossSpawnAt: 0.3,        // boss enters this far through the spawn queue
@@ -243,12 +243,13 @@ export const ECONOMY = {
   waveClearBase: 10,
   waveClearPerWave: 4,
 
-  // Ang Pow: earned from wave clears, milestone waves and boss kills; spent on packs.
-  startingAngPow: 3,        // enough for one pack right away
-  angPowPerWave: 1,         // every wave clear
-  angPowMilestoneEvery: 5,  // clearing every Nth wave pays a bonus on top
-  angPowPerMilestone: 5,
-  angPowPerBoss: 5,         // first kill of each boss wave only
+  // Pearls: earned from wave clears, milestone waves and boss kills; spent on
+  // treasure chests (packs).
+  startingPearls: 3,        // enough for one chest right away
+  pearlsPerWave: 1,         // every wave clear
+  pearlsMilestoneEvery: 5,  // clearing every Nth wave pays a bonus on top
+  pearlsPerMilestone: 5,
+  pearlsPerBoss: 5,         // first kill of each boss wave only
 };
 
 export const PACKS = {
@@ -260,15 +261,15 @@ export const PACKS = {
   maxStars: 5,
   // Total damage bonus at each star count (index = stars). Each star adds more than the last.
   starDamageBonus: [0, 0.1, 0.25, 0.45, 0.7, 1.0],
-  // Duplicate of a max-star hero refunds this much Ang Pow instead.
+  // Duplicate of a max-star hero refunds this many Pearls instead.
   maxStarRefund: 1,
 };
 
-// Pack-opening presentation, per rarity of the hero being pulled.
+// Treasure-chest presentation, per rarity of the hero being pulled.
 export const PACK_FX = {
-  // How long the envelope shakes and glows before flipping (ms). Rarer = longer.
+  // How long the chest rattles and glows before opening (ms). Rarer = longer.
   buildUp: { common: 700, rare: 1300, epic: 2000, legendary: 2900 },
-  // The glow starts gold and shifts to the rarity colour over this last
+  // The glow starts white and shifts to the rarity colour over this last
   // fraction of the build-up, so the hint lands just before the reveal.
   hintFraction: 0.45,
   // Maximum shake angle (degrees) at the end of the build-up.
@@ -283,14 +284,14 @@ export const PACK_FX = {
 
 // Upgrade cost at level L: round(baseCost * costGrowth ^ L)
 export const UPGRADES = {
-  houseHp: {
+  hullHp: {
     hpPerLevel: 25,
     baseCost: 20,
     costGrowth: 1.25,
   },
-  floor: {
-    costs: [100, 300],  // cost of floor 2, floor 3
-    hpPerFloor: 50,     // bonus max HP for each floor built
+  deck: {
+    costs: [100, 300],  // cost of deck 2, deck 3
+    hpPerDeck: 50,     // bonus max HP for each deck built
   },
   heroLevel: {
     // Damage at level L: baseDamage * (1 + (L - 1) * damagePerLevel)
@@ -300,22 +301,22 @@ export const UPGRADES = {
   },
 };
 
-// Prestige: "Pindah Kampung". Resets the run (wave, gold, house, hero levels)
-// for Semangat, a permanent currency spent in the Semangat shop.
+// Prestige: "New Voyage". Resets the run (wave, gold, ship, hero levels)
+// for Renown, a permanent currency spent in the Renown shop.
 export const PRESTIGE = {
   unlockWave: 20,
-  // Semangat = floor(semangatBase * (waveReached / unlockWave) ^ semangatExponent)
-  semangatBase: 10,
-  semangatExponent: 1.5,
-  // Ang Pow lump = floor(waveReached * angPowPerWave)
-  angPowPerWave: 0.5,
+  // Renown = floor(renownBase * (waveReached / unlockWave) ^ renownExponent)
+  renownBase: 10,
+  renownExponent: 1.5,
+  // Pearls lump = floor(waveReached * pearlsPerWave)
+  pearlsPerWave: 0.5,
 };
 
-// Permanent bonuses bought with Semangat. Cost at level L:
+// Permanent bonuses bought with Renown. Cost at level L:
 // round(baseCost * costGrowth ^ L). maxLevel: null = unlimited.
-export const SEMANGAT_SHOP = {
+export const RENOWN_SHOP = {
   heroDamage: {
-    name: 'Semangat Pahlawan',
+    name: 'Fearsome Crew',
     description: 'All hero damage',
     perLevel: 0.1,          // +10% per level
     baseCost: 5,
@@ -323,27 +324,27 @@ export const SEMANGAT_SHOP = {
     maxLevel: null,
   },
   gold: {
-    name: 'Rezeki Melimpah',
+    name: 'Plunder',
     description: 'Gold from kills and wave clears',
     perLevel: 0.1,
     baseCost: 5,
     costGrowth: 1.5,
     maxLevel: null,
   },
-  houseHp: {
-    name: 'Rumah Kukuh',
-    description: 'House max HP',
+  hullHp: {
+    name: 'Reinforced Hull',
+    description: 'Hull max HP',
     perLevel: 0.1,
     baseCost: 4,
     costGrowth: 1.5,
     maxLevel: null,
   },
   packDiscount: {
-    name: 'Ang Pow Murah',
-    description: 'Pack cost',
-    perLevel: 1,            // -1 Ang Pow per level
+    name: 'Pearl Broker',
+    description: 'Treasure chest cost',
+    perLevel: 1,            // -1 Pearl per level
     baseCost: 20,
     costGrowth: 2.5,
-    maxLevel: 2,            // packs never cost less than 1
+    maxLevel: 2,            // chests never cost less than 1
   },
 };

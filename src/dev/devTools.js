@@ -15,10 +15,10 @@ export function installDevTools(scene) {
       scene.onRosterChanged();
     },
   });
-  scene.devAngPowButton = new Button(scene, 50, DISPLAY.height - 36, {
-    width: 84, height: 21, label: 'DEV: +10 AP', color: 0x546e7a, fontSize: '11px',
+  scene.devPearlsButton = new Button(scene, 50, DISPLAY.height - 36, {
+    width: 84, height: 21, label: 'DEV: +10 pearl', color: 0x546e7a, fontSize: '11px',
     onClick: () => {
-      progress.angPow += 10;
+      progress.pearls += 10;
       scene.refreshUi();
     },
   });

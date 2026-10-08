@@ -1,17 +1,18 @@
 import Phaser from 'phaser';
-import { DISPLAY, HEROES, HOUSE, PACKS, PRESTIGE, SEMANGAT_SHOP } from '../config.js';
+import { DISPLAY, HEROES, SHIP, PACKS, PRESTIGE, RENOWN_SHOP } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
 import { applyRenderScale } from '../display.js';
 import { Button } from '../ui/Button.js';
+import { pearlsLabel } from '../ui/format.js';
 
 const TEXT = { fontFamily: 'sans-serif', color: '#ffffff' };
 const TEAL = 0x26a69a;
 const GOLD = '#ffd54f';
-const S = '✦';  // Semangat symbol
+const S = '✦';  // Renown symbol
 
 const fmt = (n) => n.toLocaleString('en-US');
 
-// Pindah Kampung (prestige) and the Semangat shop. Launched over GameScene with
+// New Voyage (prestige) and the Renown shop. Launched over GameScene with
 // { progress, onChange, onClose, onPrestige }. onChange runs after each shop
 // purchase; onPrestige runs after the reset is applied.
 export class PrestigeScene extends Phaser.Scene {
@@ -32,10 +33,10 @@ export class PrestigeScene extends Phaser.Scene {
     const cx = DISPLAY.width / 2;
 
     this.add.rectangle(0, 0, DISPLAY.width, DISPLAY.height, 0x0b1a1a, 0.95).setOrigin(0).setInteractive();
-    this.add.text(cx, 32, 'Pindah Kampung', { ...TEXT, fontSize: '30px', fontStyle: 'bold', color: '#80cbc4' })
+    this.add.text(cx, 32, 'New Voyage', { ...TEXT, fontSize: '30px', fontStyle: 'bold', color: '#80cbc4' })
       .setOrigin(0.5);
     this.add.text(cx, 62,
-      `Move to a new kampung and start over, stronger.   Moves so far: ${p.prestigeCount}   ·   Best wave: ${p.bestWave}`,
+      `Set sail on a new voyage and start over, stronger.   Voyages so far: ${p.prestigeCount}   ·   Best wave: ${p.bestWave}`,
       { ...TEXT, fontSize: '13px', color: '#90a4ae' }).setOrigin(0.5);
 
     this.content = this.add.container(0, 0);
@@ -64,7 +65,7 @@ export class PrestigeScene extends Phaser.Scene {
   buildMovePanel(x, y, w, h) {
     const p = this.progress;
     const add = (o) => this.content.add(o);
-    this.panel(x, y, w, h, 'Move kampung');
+    this.panel(x, y, w, h, 'Set sail');
 
     if (!p.canPrestige) {
       const need = PRESTIGE.unlockWave;
@@ -75,24 +76,24 @@ export class PrestigeScene extends Phaser.Scene {
       add(this.add.rectangle(x + 16, y + 118, barW, 12, 0x000000, 0.5).setOrigin(0));
       add(this.add.rectangle(x + 16, y + 118, barW * pct, 12, TEAL).setOrigin(0));
       add(this.add.text(x + 16, y + 150,
-        'Moving resets your wave, gold, house and hero levels,\nbut you keep your heroes and stars, and earn Semangat\nfor permanent bonuses. The further you get, the more\nSemangat you earn.',
+        'A new voyage resets your wave, gold, ship and hero\nlevels, but you keep your crew and their stars, and\nearn Renown for permanent bonuses. The further you\nsail, the more Renown you earn.',
         { ...TEXT, fontSize: '13px', color: '#90a4ae', lineSpacing: 4 }));
       return;
     }
 
     const r = p.prestigeRewards;
-    add(this.add.text(x + 16, y + 52, `Moving now (from wave ${p.wave}) earns:`, { ...TEXT, fontSize: '15px', color: '#b0bec5' }));
-    add(this.add.text(x + 16, y + 80, `${S} ${r.semangat} Semangat`, { ...TEXT, fontSize: '26px', fontStyle: 'bold', color: '#80cbc4' }));
-    add(this.add.text(x + 16, y + 116, `+${r.angPow} Ang Pow`, { ...TEXT, fontSize: '20px', fontStyle: 'bold', color: '#ff8a80' }));
+    add(this.add.text(x + 16, y + 52, `Setting sail now (from wave ${p.wave}) earns:`, { ...TEXT, fontSize: '15px', color: '#b0bec5' }));
+    add(this.add.text(x + 16, y + 80, `${S} ${r.renown} Renown`, { ...TEXT, fontSize: '26px', fontStyle: 'bold', color: '#80cbc4' }));
+    add(this.add.text(x + 16, y + 116, `+${pearlsLabel(r.pearls)}`, { ...TEXT, fontSize: '20px', fontStyle: 'bold', color: '#e0f7fa' }));
 
     // Teaser: what pushing 10 more waves would earn.
     const later = p.wave + 10;
-    const laterSemangat = Math.floor(PRESTIGE.semangatBase * (later / PRESTIGE.unlockWave) ** PRESTIGE.semangatExponent);
-    add(this.add.text(x + 16, y + 156, `Push to wave ${later} first for ${S} ${laterSemangat} instead.`,
+    const laterRenown = Math.floor(PRESTIGE.renownBase * (later / PRESTIGE.unlockWave) ** PRESTIGE.renownExponent);
+    add(this.add.text(x + 16, y + 156, `Push to wave ${later} first for ${S} ${laterRenown} instead.`,
       { ...TEXT, fontSize: '13px', color: '#90a4ae' }));
 
     const button = new Button(this, x + w / 2, y + h - 44, {
-      width: 240, height: 46, label: 'Pindah Kampung…', color: 0x00897b, fontSize: '19px',
+      width: 240, height: 46, label: 'New Voyage…', color: 0x00897b, fontSize: '19px',
       onClick: () => this.showConfirm(),
     });
     add(button);
@@ -100,23 +101,23 @@ export class PrestigeScene extends Phaser.Scene {
 
   // Current and next effect text for a shop bonus.
   shopEffect(key, level) {
-    const bonus = SEMANGAT_SHOP[key];
-    if (key === 'packDiscount') return `${Math.max(1, PACKS.cost - level * bonus.perLevel)} Ang Pow`;
+    const bonus = RENOWN_SHOP[key];
+    if (key === 'packDiscount') return pearlsLabel(Math.max(1, PACKS.cost - level * bonus.perLevel));
     return `+${Math.round(level * bonus.perLevel * 100)}%`;
   }
 
   buildShopPanel(x, y, w, h) {
     const p = this.progress;
     const add = (o) => this.content.add(o);
-    this.panel(x, y, w, h, 'Semangat shop');
-    add(this.add.text(x + w - 16, y + 14, `${S} ${p.semangat}`, { ...TEXT, fontSize: '19px', fontStyle: 'bold', color: '#80cbc4' })
+    this.panel(x, y, w, h, 'Renown shop');
+    add(this.add.text(x + w - 16, y + 14, `${S} ${p.renown}`, { ...TEXT, fontSize: '19px', fontStyle: 'bold', color: '#80cbc4' })
       .setOrigin(1, 0));
 
     const rowH = 76;
-    Object.entries(SEMANGAT_SHOP).forEach(([key, bonus], i) => {
+    Object.entries(RENOWN_SHOP).forEach(([key, bonus], i) => {
       const ry = y + 50 + i * rowH;
-      const level = p.semangatLevel(key);
-      const cost = p.semangatCost(key);
+      const level = p.renownLevel(key);
+      const cost = p.renownCost(key);
       const effect = cost == null
         ? `${bonus.description}: ${this.shopEffect(key, level)} (max)`
         : `${bonus.description}: ${this.shopEffect(key, level)} → ${this.shopEffect(key, level + 1)}`;
@@ -126,18 +127,18 @@ export class PrestigeScene extends Phaser.Scene {
       const button = new Button(this, x + w - 78, ry + (rowH - 8) / 2, {
         width: 110, height: 34, label: cost == null ? 'MAX' : `${S} ${cost}`, color: 0x00897b, fontSize: '15px',
         onClick: () => {
-          if (!p.buySemangat(key)) return;
+          if (!p.buyRenown(key)) return;
           sfx.click();
           this.onChange?.();
           this.buildContent();
         },
       });
-      button.setEnabled(cost != null && p.semangat >= cost);
+      button.setEnabled(cost != null && p.renown >= cost);
       add(button);
     });
   }
 
-  // Full preview of exactly what moving does, then confirm.
+  // Full preview of exactly what a new voyage does, then confirm.
   showConfirm() {
     const p = this.progress;
     const r = p.prestigeRewards;
@@ -146,14 +147,14 @@ export class PrestigeScene extends Phaser.Scene {
     modal.add([
       this.add.rectangle(0, 0, DISPLAY.width, DISPLAY.height, 0x000000, 0.85).setOrigin(0).setInteractive(),
       this.add.rectangle(cx, 268, 920, 470, 0x10201f).setStrokeStyle(2, TEAL, 0.7),
-      this.add.text(cx, 56, 'Pindah Kampung?', { ...TEXT, fontSize: '26px', fontStyle: 'bold', color: '#80cbc4' }).setOrigin(0.5),
+      this.add.text(cx, 56, 'Set sail on a new voyage?', { ...TEXT, fontSize: '26px', fontStyle: 'bold', color: '#80cbc4' }).setOrigin(0.5),
     ]);
 
     const leveled = p.ownedHeroes.filter((id) => p.heroLevel(id) > 1);
     const heroLines = leveled.slice(0, 5).map((id) => `   ${HEROES[id].name}  Lv ${p.heroLevel(id)} → 1`);
     if (leveled.length > 5) heroLines.push(`   …and ${leveled.length - 5} more → Lv 1`);
     const totalStars = p.owned.reduce((sum, id) => sum + p.heroStarCount(id), 0);
-    const shopLevels = Object.keys(SEMANGAT_SHOP).reduce((sum, k) => sum + p.semangatLevel(k), 0);
+    const shopLevels = Object.keys(RENOWN_SHOP).reduce((sum, k) => sum + p.renownLevel(k), 0);
 
     const columns = [
       {
@@ -161,8 +162,8 @@ export class PrestigeScene extends Phaser.Scene {
         lines: [
           `Wave ${p.wave} → 1`,
           `Gold ${fmt(p.gold)} → 0`,
-          `House HP upgrades Lv ${p.houseHpLevel} → 0`,
-          `Floors ${p.floors} → ${HOUSE.startingFloors}`,
+          `Hull HP upgrades Lv ${p.hullHpLevel} → 0`,
+          `Decks ${p.decks} → ${SHIP.startingDecks}`,
           leveled.length ? 'Hero levels:' : 'Hero levels (all Lv 1 already)',
           ...heroLines,
         ],
@@ -173,19 +174,19 @@ export class PrestigeScene extends Phaser.Scene {
           `Heroes: ${p.owned.length}/${Object.keys(HEROES).length} owned`,
           `Stars: ★${totalStars} in total`,
           'Hero slot assignments',
-          `Ang Pow: ${p.angPow}`,
-          `Legendary pity: within ${p.packsUntilPity} packs`,
-          `Semangat bonuses (${shopLevels} levels bought)`,
-          `Unspent Semangat: ${S} ${p.semangat}`,
+          `Pearls: ${p.pearls}`,
+          `Legendary pity: within ${p.packsUntilPity} chests`,
+          `Renown bonuses (${shopLevels} levels bought)`,
+          `Unspent Renown: ${S} ${p.renown}`,
         ],
       },
       {
         title: 'You earn', color: GOLD,
         lines: [
-          `${S} +${r.semangat} Semangat`,
-          `   (total ${S} ${p.semangat + r.semangat})`,
-          `+${r.angPow} Ang Pow`,
-          `   (total ${p.angPow + r.angPow})`,
+          `${S} +${r.renown} Renown`,
+          `   (total ${S} ${p.renown + r.renown})`,
+          `+${r.pearls} Pearls`,
+          `   (total ${p.pearls + r.pearls})`,
         ],
       },
     ];
@@ -199,11 +200,11 @@ export class PrestigeScene extends Phaser.Scene {
     });
 
     modal.add(new Button(this, cx - 130, 462, {
-      width: 220, height: 46, label: 'Stay here', color: 0x546e7a, fontSize: '18px',
+      width: 220, height: 46, label: 'Stay aboard', color: 0x546e7a, fontSize: '18px',
       onClick: () => modal.destroy(true),
     }));
     modal.add(new Button(this, cx + 130, 462, {
-      width: 220, height: 46, label: 'Pindah Kampung!', color: 0x00897b, fontSize: '18px',
+      width: 220, height: 46, label: 'Set sail!', color: 0x00897b, fontSize: '18px',
       onClick: () => this.confirmPrestige(),
     }));
   }

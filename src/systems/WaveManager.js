@@ -10,18 +10,18 @@ export function composeWave(wave) {
   let count = WAVES.baseCount + n * WAVES.countPerWave;
   if (isBossWave(wave)) count = Math.round(count * WAVES.bossEscortFactor);
 
-  const toyolShare = wave < WAVES.toyolFromWave ? 0 : Math.min(
-    WAVES.toyolShareMax,
-    WAVES.toyolShare + (wave - WAVES.toyolFromWave) * WAVES.toyolSharePerWave,
+  const thiefMonkeyShare = wave < WAVES.thiefMonkeyFromWave ? 0 : Math.min(
+    WAVES.thiefMonkeyShareMax,
+    WAVES.thiefMonkeyShare + (wave - WAVES.thiefMonkeyFromWave) * WAVES.thiefMonkeySharePerWave,
   );
-  const toyols = Math.round(count * toyolShare);
+  const thiefMonkeys = Math.round(count * thiefMonkeyShare);
 
   const queue = Phaser.Utils.Array.Shuffle([
-    ...Array(count - toyols).fill(ENEMIES.jerangkung),
-    ...Array(toyols).fill(ENEMIES.toyol),
+    ...Array(count - thiefMonkeys).fill(ENEMIES.drownedSailor),
+    ...Array(thiefMonkeys).fill(ENEMIES.thiefMonkey),
   ]);
   if (isBossWave(wave)) {
-    queue.splice(Math.round(queue.length * WAVES.bossSpawnAt), 0, ENEMIES.hantuGalah);
+    queue.splice(Math.round(queue.length * WAVES.bossSpawnAt), 0, ENEMIES.kraken);
   }
   return queue;
 }

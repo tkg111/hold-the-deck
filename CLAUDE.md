@@ -1,7 +1,9 @@
 # Kampung Defense
 
-Grow Castle-style idle defense game. Phaser 3 + Vite, deployed to GitHub Pages
-by `.github/workflows/deploy.yml` on every push to `main`.
+Grow Castle-style idle defense game with a pirate theme (reskinned from the
+original kampung theme; the repo and save key keep the old name). Phaser 3 +
+Vite, deployed to GitHub Pages by `.github/workflows/deploy.yml` on every
+push to `main`.
 
 ## Rules
 
@@ -10,6 +12,7 @@ by `.github/workflows/deploy.yml` on every push to `main`.
   building (new mechanics, changed rules, new screens, reward sources).
 - All balance and presentation numbers live in `src/config.js`. Don't hardcode
   tunable values elsewhere. Numbers quoted in DESIGN.md should match config.
+- The localStorage key stays `kampung-defense/save` so existing saves keep loading.
 - Changing the saved shape (`Progress.toSave()`) means bumping `SAVE_VERSION`
   in `src/systems/Save.js` and adding a migration from the previous version.
 

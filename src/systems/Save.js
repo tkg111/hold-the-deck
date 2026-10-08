@@ -1,10 +1,44 @@
 import { Progress } from './Progress.js';
 
+// Storage keys keep the original project name so existing saves are found.
 export const SAVE_KEY = 'kampung-defense/save';
 const CORRUPT_BACKUP_KEY = 'kampung-defense/save-corrupt-backup';
 
 // Bump when the saved shape changes, and add a migration from the old version.
-export const SAVE_VERSION = 4;
+export const SAVE_VERSION = 5;
+
+// v5 pirate reskin: old hero IDs -> new hero IDs.
+const V5_HERO_IDS = {
+  budakLastik: 'cabinBoy',
+  makCikSelipar: 'shipsCook',
+  nelayan: 'netThrower',
+  pemburuSumpit: 'grogBrewer',
+  pakcikMamak: 'harpooner',
+  bomoh: 'voodooPriestess',
+  uncleDurian: 'cannoneer',
+  pendekarSilat: 'duelist',
+  tokPenghulu: 'captain',
+};
+
+// Rename a v4 save to v5 field names and IDs. Values are unchanged.
+function migrateToPirate(data) {
+  const { angPow, semangat, semangatShop, houseHpLevel, floors, owned, heroLevels, heroStars, slots, ...rest } = data;
+  const heroId = (id) => V5_HERO_IDS[id] ?? id;
+  const renameKeys = (obj) => Object.fromEntries(Object.entries(obj ?? {}).map(([id, v]) => [heroId(id), v]));
+  const { houseHp, ...shop } = semangatShop ?? {};
+  return {
+    ...rest,
+    pearls: angPow,
+    renown: semangat,
+    renownShop: houseHp != null ? { ...shop, hullHp: houseHp } : shop,
+    hullHpLevel: houseHpLevel,
+    decks: floors,
+    owned: (owned ?? []).map(heroId),
+    heroLevels: renameKeys(heroLevels),
+    heroStars: renameKeys(heroStars),
+    slots: (slots ?? []).map((id) => (id ? heroId(id) : id)),
+  };
+}
 
 // MIGRATIONS[n] upgrades a version-n save to version n + 1.
 const MIGRATIONS = {
@@ -16,6 +50,9 @@ const MIGRATIONS = {
   3: (data) => ({
     ...data, semangat: 0, semangatShop: {}, prestigeCount: 0, bestWave: data.wave ?? 1,
   }),
+  // v5: pirate reskin. Ang Pow -> pearls, Semangat -> renown, house -> hull,
+  // floors -> decks, and every hero ID renamed.
+  4: migrateToPirate,
 };
 
 function migrate(save) {

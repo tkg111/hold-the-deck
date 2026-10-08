@@ -14,7 +14,7 @@ const game = new Phaser.Game({
   // Backing canvas size; scenes zoom their cameras so layout stays in DISPLAY units.
   width: DISPLAY.width * RENDER_SCALE,
   height: DISPLAY.height * RENDER_SCALE,
-  backgroundColor: '#87b5d6',
+  backgroundColor: '#9fd3f2',
   scale: {
     // Fit the window while keeping 16:9, centered with letterboxing.
     mode: Phaser.Scale.FIT,

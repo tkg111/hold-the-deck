@@ -72,8 +72,8 @@ export class LobProjectile {
     this.startX = x;
     this.startY = y;
     ({ x: this.destX, y: this.destY } = aimAt(target, flightTime));
-    // Spiky look: a dark outline around the fruit.
-    this.sprite = scene.add.star(x, y, 7, size * 0.7, size, color).setStrokeStyle(2, 0x33691e).setDepth(5);
+    // Iron cannonball.
+    this.sprite = scene.add.circle(x, y, size, color).setStrokeStyle(2, 0x000000).setDepth(5);
   }
 
   // Position along the arc at progress t (0..1).
@@ -89,7 +89,7 @@ export class LobProjectile {
     if (!target) return false;
     this.target = target;
     const { x, y } = this.aimAt(target, this.flightTime - this.elapsed);
-    // Move the virtual start point so the arc passes through where the durian
+    // Move the virtual start point so the arc passes through where the ball
     // is right now: keeps the motion continuous with the new landing point.
     const here = this.pointAt(t);
     const baseY = here.y + this.arcHeight * 4 * t * (1 - t);
@@ -112,7 +112,6 @@ export class LobProjectile {
     const t = Math.min(1, this.elapsed / this.flightTime);
     const { x, y } = this.pointAt(t);
     this.sprite.setPosition(x, y);
-    this.sprite.angle += dt * 0.3;
     if (t >= 1) {
       this.onHit(null, this.destX, this.destY);
       this.destroy();
@@ -128,7 +127,7 @@ export class LobProjectile {
 // Flies down to the front of the enemy line, then skims along it (toward the
 // incoming enemies) for `length` px, hitting each enemy it passes once, up to
 // maxTargets. Calls onHit(enemy, x, y) per enemy. If the target dies before the
-// roti reaches the line, it re-aims at the nearest living enemy; once skimming
+// harpoon reaches the line, it re-aims at the nearest living enemy; once skimming
 // it hits whatever is on the line.
 export class PiercingProjectile {
   constructor(scene, { x, y, target, speed, color, size, length, maxTargets, hitRadius, enemies, onHit, findTarget }) {
@@ -141,8 +140,8 @@ export class PiercingProjectile {
     this.findTarget = findTarget;
     this.hits = new Set();
     this.done = false;
-    this.sprite = scene.add.ellipse(x, y, size * 2, size * 0.9, color).setStrokeStyle(2, 0xc8a165).setDepth(5);
-    this.spin = 0;
+    // Harpoon: a long shaft that points the way it flies.
+    this.sprite = scene.add.rectangle(x, y, size * 3.2, 4, color).setStrokeStyle(1, 0x37474f).setDepth(5);
     this.aimAt(target);
   }
 
@@ -182,9 +181,9 @@ export class PiercingProjectile {
       }
     }
 
-    // Frisbee wobble.
-    this.spin += dt;
-    this.sprite.scaleY = 0.6 + 0.4 * Math.abs(Math.sin(this.spin / 60));
+    // Point along the direction of travel.
+    const wp = this.waypoints[0];
+    if (wp) this.sprite.rotation = Math.atan2(wp.y - this.sprite.y, wp.x - this.sprite.x);
 
     for (const e of this.enemies()) {
       if (!e.alive || this.hits.has(e)) continue;

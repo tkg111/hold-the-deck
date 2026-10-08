@@ -2,12 +2,13 @@ import Phaser from 'phaser';
 import { DISPLAY, HEROES } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
 import { applyRenderScale } from '../display.js';
-import { House } from '../entities/House.js';
+import { Ship } from '../entities/Ship.js';
 import { Hero } from '../entities/Hero.js';
 import { clearSave, loadProgress, saveProgress } from '../systems/Save.js';
 import { isBossWave, WaveManager } from '../systems/WaveManager.js';
 import { Button } from '../ui/Button.js';
 import { ConfirmDialog } from '../ui/ConfirmDialog.js';
+import { pearlsLabel } from '../ui/format.js';
 import { HeroPicker } from '../ui/HeroPicker.js';
 import { UpgradePanel } from '../ui/UpgradePanel.js';
 
@@ -24,7 +25,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   // data.progress / data.prestigeRewards are passed when restarting after a
-  // Pindah Kampung, so the new run doesn't depend on re-reading storage.
+  // New Voyage, so the new run doesn't depend on re-reading storage.
   create(data = {}) {
     applyRenderScale(this);
     this.progress = data.progress ?? loadProgress();
@@ -35,7 +36,7 @@ export class GameScene extends Phaser.Scene {
     this.projectiles = [];
 
     this.drawBackground();
-    this.house = new House(this, this.progress);
+    this.ship = new Ship(this, this.progress);
     this.heroes = [];
     this.rebuildHeroes();
 
@@ -59,15 +60,28 @@ export class GameScene extends Phaser.Scene {
     this.createUi();
     this.refreshUi();
     if (data.prestigeRewards) {
-      const { semangat, angPow } = data.prestigeRewards;
-      this.showBanner(`Welcome to your new kampung!  +${semangat} Semangat  +${angPow} Ang Pow`, '#80cbc4');
+      const { renown, pearls } = data.prestigeRewards;
+      this.showBanner(`A new voyage begins!  +${renown} Renown  +${pearlsLabel(pearls)}`, '#80cbc4');
     }
   }
 
+  // Open ocean: sky (the camera background), distant sea from the horizon,
+  // and nearer, darker water from the waterline (groundY) where enemies wade.
   drawBackground() {
     const g = this.add.graphics();
-    g.fillStyle(0x6b8e3d).fillRect(0, DISPLAY.groundY, DISPLAY.width, DISPLAY.height - DISPLAY.groundY);
-    g.fillStyle(0x557a2e).fillRect(0, DISPLAY.groundY, DISPLAY.width, 4);
+    const horizon = 300;
+    const waterY = DISPLAY.groundY;
+    g.fillStyle(0x3a86b8).fillRect(0, horizon, DISPLAY.width, waterY - horizon);
+    g.fillStyle(0x5aa0cc).fillRect(0, horizon, DISPLAY.width, 3);
+    g.fillStyle(0x1d5f8f).fillRect(0, waterY, DISPLAY.width, DISPLAY.height - waterY);
+    g.fillStyle(0x8ecae6, 0.8).fillRect(0, waterY, DISPLAY.width, 3);
+    // A few wave glints.
+    g.lineStyle(2, 0xbde3f5, 0.45);
+    for (let i = 0; i < 26; i++) {
+      const x = (i * 137) % DISPLAY.width;
+      const y = horizon + 18 + ((i * 53) % (DISPLAY.height - horizon - 30));
+      g.lineBetween(x, y, x + 14 + (i % 3) * 6, y);
+    }
   }
 
   createUi() {
@@ -76,7 +90,7 @@ export class GameScene extends Phaser.Scene {
     this.hpBar = this.add.graphics();
     this.goldText = this.add.text(DISPLAY.width - 16, 12, '', { ...TEXT_STYLE, color: '#ffd54f' })
       .setOrigin(1, 0);
-    this.angPowText = this.add.text(DISPLAY.width - 16, 38, '', { ...TEXT_STYLE, fontSize: '16px', color: '#ff8a80' })
+    this.pearlsText = this.add.text(DISPLAY.width - 16, 38, '', { ...TEXT_STYLE, fontSize: '16px', color: '#e0f7fa' })
       .setOrigin(1, 0);
 
     this.banner = this.add.text(DISPLAY.width / 2, 40, '', {
@@ -87,7 +101,7 @@ export class GameScene extends Phaser.Scene {
 
     this.heroPicker = new HeroPicker(this, 225, 52, (id) => this.onHeroPicked(id));
     this.heroPicker.on('closed', () => {
-      this.house.selectSlot(-1);
+      this.ship.selectSlot(-1);
       this.refreshUi();  // brings the upgrade panel back
     });
     this.slotHint = this.add.text(16, DISPLAY.groundY + 14, 'Click a slot to assign a hero', {
@@ -101,7 +115,7 @@ export class GameScene extends Phaser.Scene {
       onClick: () => this.startWave(),
     });
     this.packButton = new Button(this, DISPLAY.width / 2 + 190, DISPLAY.height - 40, {
-      width: 160, height: 44, label: 'Packs', color: 0xb71c1c, fontSize: '20px',
+      width: 160, height: 44, label: 'Chests', color: 0x8d5a17, fontSize: '20px',
       onClick: () => this.openPacks(),
     });
     // Gentle pulse while a pack is affordable.
@@ -113,7 +127,7 @@ export class GameScene extends Phaser.Scene {
       targets: this.prestigeButton, scale: 1.05, duration: 600, yoyo: true, repeat: -1, paused: true,
     });
     this.collectionButton = new Button(this, DISPLAY.width / 2 - 175, DISPLAY.height - 40, {
-      width: 150, height: 44, label: 'Collection', color: 0x6d4c41, fontSize: '18px',
+      width: 150, height: 44, label: 'Crew', color: 0x37474f, fontSize: '18px',
       onClick: () => this.openCollection(),
     });
     this.muteButton = new Button(this, DISPLAY.width - 66, DISPLAY.height - 44, {
@@ -135,10 +149,10 @@ export class GameScene extends Phaser.Scene {
     this.waveText.setText(`Wave ${this.progress.wave}${boss ? '  ·  BOSS' : ''}`)
       .setColor(boss ? '#ff8a80' : '#ffffff');
     this.goldText.setText(`Gold ${this.progress.gold}`);
-    this.angPowText.setText(`Ang Pow ${this.progress.angPow}`);
-    this.hpText.setText(`House HP ${Math.ceil(this.house.hp)} / ${this.house.maxHp}`);
+    this.pearlsText.setText(`Pearls ${this.progress.pearls}`);
+    this.hpText.setText(`Hull HP ${Math.ceil(this.ship.hp)} / ${this.ship.maxHp}`);
 
-    const pct = this.house.hp / this.house.maxHp;
+    const pct = this.ship.hp / this.ship.maxHp;
     this.hpBar.clear();
     this.hpBar.fillStyle(0x000000, 0.5).fillRect(16, 64, 200, 10);
     this.hpBar.fillStyle(pct > 0.3 ? 0x43a047 : 0xe53935).fillRect(16, 64, 200 * pct, 10);
@@ -149,19 +163,19 @@ export class GameScene extends Phaser.Scene {
     this.prestigeButton.setVisible(idle);
     const p = this.progress;
     this.prestigeButton.setLabel(p.canPrestige
-      ? `Pindah Kampung!  ✦ +${p.prestigeRewards.semangat}`
-      : `Pindah Kampung  ✦ ${p.semangat}`);
+      ? `New Voyage!  ✦ +${p.prestigeRewards.renown}`
+      : `New Voyage  ✦ ${p.renown}`);
     if (idle && p.canPrestige) this.prestigePulse.resume();
     else { this.prestigePulse.pause(); this.prestigeButton.setScale(1); }
     this.muteButton.setLabel(`Sound: ${this.progress.muted ? 'Off' : 'On'}`);
     this.resetButton.setVisible(idle);
-    this.packButton.setLabel(`Packs  (${this.progress.angPow}/${this.progress.packCost})`);
+    this.packButton.setLabel(`Chests  (${this.progress.pearls}/${this.progress.packCost})`);
     if (idle && this.progress.canOpenPack) this.packPulse.resume();
     else { this.packPulse.pause(); this.packButton.setScale(1); }
     this.upgradePanel.setVisible(idle && !this.heroPicker.visible);
     this.slotHint.setVisible(idle);
     this.devButton?.setVisible(idle);
-    this.devAngPowButton?.setVisible(idle);
+    this.devPearlsButton?.setVisible(idle);
     this.devWaveButton?.setVisible(idle);
     if (idle) this.upgradePanel.refresh();
   }
@@ -185,8 +199,8 @@ export class GameScene extends Phaser.Scene {
     const top = enemy.y - enemy.def.height / 2;
     this.floatText(enemy.x, top - 12, `+${gold}`);
     if (enemy.def.boss) {
-      const angPow = this.progress.claimBossAngPow();
-      if (angPow) this.floatText(enemy.x, top - 32, `+${angPow} Ang Pow`, '#ff8a80');
+      const pearls = this.progress.claimBossPearls();
+      if (pearls) this.floatText(enemy.x, top - 32, `+${pearlsLabel(pearls)}`, '#e0f7fa');
     }
   }
 
@@ -205,7 +219,7 @@ export class GameScene extends Phaser.Scene {
     if (this.heroPicker.visible) this.heroPicker.close();
     new ConfirmDialog(this, {
       title: 'Reset all progress?',
-      message: "Your wave, gold, Ang Pow, upgrades and heroes will be wiped. This can't be undone.",
+      message: "Your wave, gold, Pearls, upgrades and heroes will be wiped. This can't be undone.",
       confirmLabel: 'Reset',
       onConfirm: () => {
         clearSave();
@@ -215,7 +229,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   onUpgradePurchased() {
-    this.house.sync(this.progress);
+    this.ship.sync(this.progress);
     this.rebuildHeroes();
     this.refreshUi();
     this.save();
@@ -225,10 +239,10 @@ export class GameScene extends Phaser.Scene {
   rebuildHeroes() {
     for (const h of this.heroes) h.destroy();
     const p = this.progress;
-    const buffs = p.floorBuffs;
+    const buffs = p.deckBuffs;
     this.heroes = p.activeHeroes.map(({ id, slot }) => {
       const buff = buffs[slot];
-      return new Hero(this, id, this.house.slotPosition(slot), {
+      return new Hero(this, id, this.ship.slotPosition(slot), {
         damage: p.heroDamage(id) * buff.damage,
         attackInterval: (HEROES[id].attackInterval ?? 0) / buff.attackSpeed,
         stars: p.heroStarCount(id),
@@ -239,17 +253,17 @@ export class GameScene extends Phaser.Scene {
 
   onSlotClicked(slot) {
     if (this.state !== STATE.IDLE) return;
-    this.house.selectSlot(slot);
+    this.ship.selectSlot(slot);
     this.heroPicker.open(slot, this.progress);
     this.upgradePanel.setVisible(false);  // the picker needs the room
   }
 
   onHeroPicked(id) {
-    this.progress.assignHero(this.house.selectedSlot, id);
+    this.progress.assignHero(this.ship.selectedSlot, id);
     this.heroPicker.close();
-    this.house.sync(this.progress);
+    this.ship.sync(this.progress);
     this.rebuildHeroes();
-    this.upgradePanel.rebuild();  // it lists the heroes on the house
+    this.upgradePanel.rebuild();  // it lists the heroes on the ship
     this.refreshUi();
     this.save();
   }
@@ -258,7 +272,7 @@ export class GameScene extends Phaser.Scene {
   onRosterChanged() {
     if (this.heroPicker.visible) this.heroPicker.close();
     this.upgradePanel.rebuild();
-    this.house.sync(this.progress);
+    this.ship.sync(this.progress);
     this.rebuildHeroes();
     this.refreshUi();
     this.save();
@@ -270,7 +284,7 @@ export class GameScene extends Phaser.Scene {
     sfx.click();
     this.scene.launch('PrestigeScene', {
       progress: this.progress,
-      // Shop bonuses change damage, gold and house HP right away.
+      // Shop bonuses change damage, gold and ship HP right away.
       onChange: () => this.onUpgradePurchased(),
       onClose: () => this.refreshUi(),
       onPrestige: (rewards) => {
@@ -309,10 +323,10 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     if (this.heroPicker.visible) this.heroPicker.close();
-    this.house.setSlotsEnabled(false);
-    this.house.restore();
+    this.ship.setSlotsEnabled(false);
+    this.ship.restore();
     this.waves.start(this.progress.wave);
-    if (isBossWave(this.progress.wave)) this.showBanner('Hantu Galah approaches!', '#ff8a80');
+    if (isBossWave(this.progress.wave)) this.showBanner('The Kraken rises!', '#ff8a80');
     this.state = STATE.RUNNING;
     this.refreshUi();
   }
@@ -327,19 +341,19 @@ export class GameScene extends Phaser.Scene {
 
     if (won) {
       const gold = this.progress.earnGold(this.progress.waveClearGold());
-      const angPow = this.progress.waveClearAngPow();
-      this.progress.angPow += angPow;
+      const pearls = this.progress.waveClearPearls();
+      this.progress.pearls += pearls;
       this.showBanner(
-        `Wave ${this.progress.wave} cleared!  +${gold} gold${angPow ? `  +${angPow} Ang Pow` : ''}`,
+        `Wave ${this.progress.wave} cleared!  +${gold} gold${pearls ? `  +${pearlsLabel(pearls)}` : ''}`,
         '#ffeb3b',
       );
       this.progress.advanceWave();
     } else {
       // Kill gold earned this wave is kept; the wave just doesn't advance.
-      this.showBanner('The house has fallen…', '#ff8a80');
+      this.showBanner('The ship has sunk…', '#ff8a80');
     }
-    this.house.restore();
-    this.house.setSlotsEnabled(true);
+    this.ship.restore();
+    this.ship.setSlotsEnabled(true);
     this.refreshUi();
     this.save();
   }
@@ -350,7 +364,7 @@ export class GameScene extends Phaser.Scene {
     const dt = Math.min(delta, 100);
 
     this.enemies.push(...this.waves.update(dt));
-    for (const e of this.enemies) e.update(dt, this.house);
+    for (const e of this.enemies) e.update(dt, this.ship);
 
     for (const h of this.heroes) {
       const shot = h.update(dt, this.enemies);
@@ -361,7 +375,7 @@ export class GameScene extends Phaser.Scene {
     this.enemies = this.enemies.filter((e) => e.alive);
     this.projectiles = this.projectiles.filter((p) => !p.done);
 
-    if (this.house.isDestroyed) {
+    if (this.ship.isDestroyed) {
       this.endWave(false);
       return;
     }

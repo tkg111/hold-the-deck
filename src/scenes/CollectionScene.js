@@ -35,7 +35,7 @@ export class CollectionScene extends Phaser.Scene {
     const cx = DISPLAY.width / 2;
 
     this.add.rectangle(0, 0, DISPLAY.width, DISPLAY.height, 0x0d1117, 0.94).setOrigin(0).setInteractive();
-    this.add.text(cx, 36, 'Hero Collection', { ...TEXT, fontSize: '30px', fontStyle: 'bold', color: '#ffd54f' })
+    this.add.text(cx, 36, 'Crew Roster', { ...TEXT, fontSize: '30px', fontStyle: 'bold', color: '#ffd54f' })
       .setOrigin(0.5);
     this.add.text(cx, 72, `${owned.length}/${ids.length} collected`, { ...TEXT, fontSize: '17px', color: '#b0bec5' })
       .setOrigin(0.5);

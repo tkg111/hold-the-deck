@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { HEROES, HOUSE, UPGRADES } from '../config.js';
+import { HEROES, SHIP, UPGRADES } from '../config.js';
 import { Button } from './Button.js';
 import { starLabel } from './format.js';
 
@@ -12,7 +12,7 @@ const pct = (n) => `+${Math.round(n * 100)}%`;
 
 // Between-wave upgrade screen. Each row reads its text and cost from Progress,
 // so refresh() is all that's needed after gold or levels change. Only heroes
-// placed on the house get a level-up row (the full roster wouldn't fit);
+// placed on the ship get a level-up row (the full roster wouldn't fit);
 // rebuild() whenever slots or the roster change.
 export class UpgradePanel extends Phaser.GameObjects.Container {
   constructor(scene, x, y, progress, onPurchase) {
@@ -30,18 +30,18 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
     const p = this.progress;
     const defs = [
       {
-        title: () => `House HP  ·  Lv ${p.houseHpLevel}`,
-        detail: () => `Max HP ${p.houseMaxHp} → ${p.houseMaxHpAt(p.houseHpLevel + 1)}`,
-        cost: () => p.houseHpCost(),
-        buy: () => p.buyHouseHp(),
+        title: () => `Hull HP  ·  Lv ${p.hullHpLevel}`,
+        detail: () => `Max HP ${p.hullMaxHp} → ${p.hullMaxHpAt(p.hullHpLevel + 1)}`,
+        cost: () => p.hullHpCost(),
+        buy: () => p.buyHullHp(),
       },
       {
-        title: () => `Build Floor  ·  ${p.floors}/${HOUSE.maxFloors}`,
-        detail: () => (p.canBuildFloor
-          ? `+${HOUSE.slotsPerFloor} hero slots, +${UPGRADES.floor.hpPerFloor} max HP`
+        title: () => `Build Deck  ·  ${p.decks}/${SHIP.maxDecks}`,
+        detail: () => (p.canBuildDeck
+          ? `+${SHIP.slotsPerDeck} hero slots, +${UPGRADES.deck.hpPerDeck} max HP`
           : 'Fully built'),
-        cost: () => p.floorCost(),
-        buy: () => p.buildFloor(),
+        cost: () => p.deckCost(),
+        buy: () => p.buildDeck(),
       },
       ...p.activeHeroes.map(({ id }) => ({
         title: () => {
@@ -49,7 +49,7 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
           return `${HEROES[id].name}  ·  Lv ${p.heroLevel(id)}${stars ? `  ${stars}` : ''}`;
         },
         detail: () => (HEROES[id].aura
-          ? `Floor buff ${pct(p.heroAuraBonus(id))} → ${pct(p.heroAuraBonus(id, p.heroLevel(id) + 1))} damage`
+          ? `Deck buff ${pct(p.heroAuraBonus(id))} → ${pct(p.heroAuraBonus(id, p.heroLevel(id) + 1))} damage`
           : `Damage ${fmt(p.heroDamage(id))} → ${fmt(p.heroDamage(id, p.heroLevel(id) + 1))}`),
         cost: () => p.heroLevelCost(id),
         buy: () => p.levelHero(id),
@@ -62,7 +62,7 @@ export class UpgradePanel extends Phaser.GameObjects.Container {
     this.add(scene.add.text(16, 10, 'Upgrades', {
       fontFamily: 'sans-serif', fontSize: '20px', color: '#ffffff', fontStyle: 'bold',
     }));
-    this.add(scene.add.text(WIDTH - 16, 16, 'heroes on the house', {
+    this.add(scene.add.text(WIDTH - 16, 16, 'heroes on the ship', {
       fontFamily: 'sans-serif', fontSize: '12px', color: '#78909c',
     }).setOrigin(1, 0));
 

@@ -86,7 +86,7 @@ export class Enemy {
 
   // --- Behaviour ---
 
-  update(dt, house) {
+  update(dt, ship) {
     if (!this.alive) return;
     this.tickStatus(dt);
     if (!this.alive) return;  // poison can finish it off
@@ -95,15 +95,15 @@ export class Enemy {
       // Slow affects both walking and attack rate.
       const sdt = this.isSlowed ? dt * this.slowFactor : dt;
       const frontX = this.x - this.def.width / 2;
-      if (frontX > house.right) {
-        this.x = Math.max(house.right + this.def.width / 2, this.x - this.speed * sdt / 1000);
+      if (frontX > ship.right) {
+        this.x = Math.max(ship.right + this.def.width / 2, this.x - this.speed * sdt / 1000);
       } else if (this.def.stealPercent) {
         this.steal();
         return;
       } else {
         this.attackCooldown -= sdt;
         if (this.attackCooldown <= 0) {
-          house.takeDamage(this.damage);
+          ship.takeDamage(this.damage);
           this.attackCooldown = this.def.attackInterval;
           // Little lunge so attacks read visually
           this.scene.tweens.add({ targets: this.body, angle: -15, duration: 80, yoyo: true });
@@ -117,7 +117,7 @@ export class Enemy {
     this.drawStatus();
   }
 
-  // Thief behaviour: grab gold and vanish without hurting the house.
+  // Thief behaviour: grab gold and vanish without hurting the ship.
   steal() {
     this.alive = false;
     this.scene.events.emit('enemy-stole', this);
