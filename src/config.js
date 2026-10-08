@@ -262,6 +262,10 @@ export const ENEMIES = {
   },
 };
 
+// Battle speeds the x-button cycles through during a wave (1 = normal).
+// Session only: it isn't saved, and between waves everything runs at 1x.
+export const GAME_SPEEDS = [1, 2];
+
 export const WAVES = {
   // Enemy count: baseCount + (wave - 1) * countPerWave
   baseCount: 5,

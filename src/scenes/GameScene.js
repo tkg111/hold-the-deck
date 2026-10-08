@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { HEROES, SPRITES } from '../config.js';
+import { GAME_SPEEDS, HEROES, SPRITES } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
 import { applyRenderScale } from '../display.js';
 import {
@@ -40,6 +40,7 @@ export class GameScene extends Phaser.Scene {
     sfx.init(this.game);
     sfx.setMuted(this.progress.muted);
     this.state = STATE.IDLE;
+    this.speed = this.speed ?? GAME_SPEEDS[0];  // kept across restarts in a session
     this.enemies = [];
     this.projectiles = [];
 
@@ -128,6 +129,10 @@ export class GameScene extends Phaser.Scene {
     this.collectionButton = new Button(this, px(370), px(248), {
       width: px(60), height: px(24), icon: 'book', label: 'Crew', onClick: () => this.openCollection(),
     });
+    // Battle speed (bottom-right, during waves): shows the current speed.
+    this.speedButton = new Button(this, px(452), px(250), {
+      width: px(40), height: px(22), label: '', onClick: () => this.cycleSpeed(),
+    });
     this.prestigeButton = new Button(this, px(439), px(248), {
       width: px(70), height: px(24), icon: 'renown', label: 'Voyage', onClick: () => this.openPrestige(),
     });
@@ -152,6 +157,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     for (const b of [this.startButton, this.packButton, this.collectionButton, this.prestigeButton]) b.setVisible(idle);
+    this.speedButton.setVisible(!idle).setLabel(`x${this.speed}`);
     // Red dots: a chest is affordable / a new voyage is available.
     this.packButton.setDot(p.canOpenPack);
     this.prestigeButton.setDot(p.canPrestige);
@@ -314,11 +320,13 @@ export class GameScene extends Phaser.Scene {
     this.waves.start(this.progress.wave);
     if (isBossWave(this.progress.wave)) this.showBanner('The Kraken rises!', UI.colors.warn);
     this.state = STATE.RUNNING;
+    this.applySpeed();
     this.refreshUi();
   }
 
   endWave(won) {
     this.state = STATE.IDLE;
+    this.applySpeed();
     this.waves.stop();
     for (const e of this.enemies) e.destroy();
     for (const p of this.projectiles) p.destroy();
@@ -343,10 +351,27 @@ export class GameScene extends Phaser.Scene {
     this.save();
   }
 
+  cycleSpeed() {
+    const i = GAME_SPEEDS.indexOf(this.speed);
+    this.speed = GAME_SPEEDS[(i + 1) % GAME_SPEEDS.length];
+    sfx.click();
+    this.applySpeed();
+    this.refreshUi();
+  }
+
+  // Run the battle at this.speed while a wave is on, 1x otherwise: game logic
+  // (via update's dt), sprite animations, tweens and timers all follow it.
+  applySpeed() {
+    const scale = this.state === STATE.RUNNING ? this.speed : 1;
+    this.anims.globalTimeScale = scale;
+    this.tweens.timeScale = scale;
+    this.time.timeScale = scale;
+  }
+
   update(_time, delta) {
     if (this.state !== STATE.RUNNING) return;
     // Clamp so a backgrounded tab doesn't teleport enemies on return.
-    const dt = Math.min(delta, 100);
+    const dt = Math.min(delta, 100) * this.speed;
 
     this.enemies.push(...this.waves.update(dt));
     for (const e of this.enemies) e.update(dt, this.ship);

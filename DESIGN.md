@@ -167,7 +167,7 @@ Each step should leave the game playable. (Built under the kampung theme; names 
 Layout follows `ui_mock_battle.png` and `ui_mock_between_waves.png`.
 
 - **Always:** a wood plaque with the wave (red "BOSS" on boss waves) and a hull bar top-left; a wood plaque with gold and Pearls top-right, with a settings button (gear: Reset progress, with a confirmation, between waves only) and a sound toggle under it. Short messages (wave cleared, ship sunk, the Kraken rises) appear on a wood plaque under the top bar. Crew have no name labels on the ship.
-- **During a wave:** an enemies-left bar at top-centre ("N ENEMIES LEFT", the fill shrinking as the wave is beaten). The between-wave panel and buttons are hidden.
+- **During a wave:** an enemies-left bar at top-centre ("N ENEMIES LEFT", the fill shrinking as the wave is beaten), and a speed button bottom-right showing the current speed (x1 / x2); clicking it toggles. At x2 everything in the battle runs twice as fast: movement, attacks, spawns, animations and effects. The speed is remembered for the rest of the session (not saved), and between waves the game always runs at normal speed. The between-wave panel and buttons are hidden.
 - **Shipwright** (between waves only): a parchment panel under a wood title plate with rows for Hull (level, HP per level), Build deck (decks built) and each hero on the ship (face, level, damage or The Captain's buff), each with a gold buy button showing the gold cost (grey when unaffordable, MAX when maxed). Five rows show at a time; with more, arrows by the title plate and the mouse wheel scroll it.
 - **Hero picker:** click a ship slot to see every owned hero in the same panel (face, rarity, level, stars and where they're placed), plus "Leave empty"; it replaces the Shipwright while open.
 - **Bottom bar** (between waves): **SET SAIL!** (starts the wave), **Chests** (with a red dot when a chest is affordable), **Crew** (the Crew Roster) and **Voyage** (New Voyage, with a red dot once a new voyage is available).
@@ -179,4 +179,3 @@ Layout follows `ui_mock_battle.png` and `ui_mock_between_waves.png`.
 - More enemies: Cursed Gulls (flying, only some heroes can hit), Floating Skulls (high damage, low HP)
 - Music (sound effects exist; no background music yet)
 - Save export/import
-- Game speed toggle (the battle mock-up shows an "x2" button)
