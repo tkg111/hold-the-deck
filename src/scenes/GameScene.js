@@ -33,15 +33,13 @@ export class GameScene extends Phaser.Scene {
     preloadSprites(this);
   }
 
-  // data.progress / data.prestigeRewards are passed when restarting after a
-  // New Voyage, so the new run doesn't depend on re-reading storage.
-  create(data = {}) {
+  create() {
     // The battle fills the window from the bottom-left: the ship stays there,
     // the island moves out to the right edge, extra height is sky.
     applyRenderScale(this, { x: 0, y: 1 });
     createAnimations(this);
     shiftIsland(this.view.width - DISPLAY.width);
-    this.progress = data.progress ?? loadProgress();
+    this.progress = loadProgress();
     sfx.init(this.game);
     sfx.setMuted(this.progress.muted);
     this.state = STATE.IDLE;
@@ -79,10 +77,6 @@ export class GameScene extends Phaser.Scene {
 
     this.createUi();
     this.refreshUi();
-    if (data.prestigeRewards) {
-      const { renown, pearls } = data.prestigeRewards;
-      this.showBanner('NEW VOYAGE!', { detail: `+${renown} RENOWN  +${pearlsLabel(pearls).toUpperCase()}` });
-    }
   }
 
   // The window changed size: move the island (and enemies on their way from
@@ -99,7 +93,7 @@ export class GameScene extends Phaser.Scene {
   // ui_mock_between_waves.png: wave and hull top-left, gold and Pearls
   // top-right with settings, sound and fullscreen under them, the
   // enemies-left bar top-centre during waves, and between waves the
-  // Shipwright on the right and SET SAIL! / Chests / Crew / Voyage along the
+  // Shipwright on the right and SET SAIL! / Chests / Crew along the
   // bottom. Positions are in the base 480x270 layout; each group is a
   // container that layoutUi() moves to its corner or edge of the view.
   createUi() {
@@ -145,24 +139,21 @@ export class GameScene extends Phaser.Scene {
 
     if (import.meta.env.DEV) import('../dev/devTools.js').then((m) => m.installDevTools(this));
 
-    this.startButton = new Button(this, 211, 246, {
+    this.startButton = new Button(this, 281, 246, {
       width: 120, height: 28, style: 'gold', font: 'big', label: 'SET SAIL!', onClick: () => this.startWave(),
     });
-    this.packButton = new Button(this, 304, 248, {
+    this.packButton = new Button(this, 377, 248, {
       width: 64, height: 24, icon: 'chest', label: 'Chests', onClick: () => this.openPacks(),
     });
-    this.collectionButton = new Button(this, 370, 248, {
+    this.collectionButton = new Button(this, 443, 248, {
       width: 60, height: 24, icon: 'book', label: 'Crew', onClick: () => this.openCollection(),
     });
     // Battle speed (bottom-right, during waves): shows the current speed.
     this.speedButton = new Button(this, 452, 250, {
       width: 40, height: 22, label: '', onClick: () => this.cycleSpeed(),
     });
-    this.prestigeButton = new Button(this, 439, 248, {
-      width: 70, height: 24, icon: 'renown', label: 'Voyage', onClick: () => this.openPrestige(),
-    });
     this.bottomBar = group(
-      this.startButton, this.packButton, this.collectionButton, this.speedButton, this.prestigeButton,
+      this.startButton, this.packButton, this.collectionButton, this.speedButton,
     );
 
     this.layoutUi(this.view);
@@ -202,11 +193,10 @@ export class GameScene extends Phaser.Scene {
       this.enemiesBar.setValue(left / Math.max(1, this.waves.total), `${left} ENEMIES LEFT`);
     }
 
-    for (const b of [this.startButton, this.packButton, this.collectionButton, this.prestigeButton]) b.setVisible(idle);
+    for (const b of [this.startButton, this.packButton, this.collectionButton]) b.setVisible(idle);
     this.speedButton.setVisible(!idle).setLabel(`x${this.speed}`);
-    // Red dots: a chest is affordable / a new voyage is available.
+    // Red dot: a chest is affordable.
     this.packButton.setDot(p.canOpenPack);
-    this.prestigeButton.setDot(p.canPrestige);
     if (this.settingsButton.enabled !== idle) this.settingsButton.setEnabled(idle);
     this.muteButton.setIcon(p.muted ? 'sound_off' : 'sound_on');
     this.fullscreenButton.setIcon(isFullscreen() ? 'windowed' : 'fullscreen');
@@ -324,22 +314,6 @@ export class GameScene extends Phaser.Scene {
     this.rebuildHeroes();
     this.refreshUi();
     this.save();
-  }
-
-  openPrestige() {
-    if (this.state !== STATE.IDLE) return;
-    if (this.heroPicker.visible) this.heroPicker.close();
-    sfx.click();
-    this.scene.launch('PrestigeScene', {
-      progress: this.progress,
-      // Shop bonuses change damage, gold and ship HP right away.
-      onChange: () => this.onUpgradePurchased(),
-      onClose: () => this.refreshUi(),
-      onPrestige: (rewards) => {
-        this.save();
-        this.scene.restart({ progress: this.progress, prestigeRewards: rewards });
-      },
-    });
   }
 
   openCollection() {

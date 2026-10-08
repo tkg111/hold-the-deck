@@ -24,6 +24,6 @@ Every push to `main` builds and deploys to GitHub Pages via
 ## Docs
 
 - [DESIGN.md](DESIGN.md): how the game works (loop, heroes, enemies, chests,
-  New Voyage prestige, saving).
+  saving).
 - [CLAUDE.md](CLAUDE.md): project rules and conventions.
 - All balance numbers live in [src/config.js](src/config.js).

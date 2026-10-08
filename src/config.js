@@ -316,6 +316,10 @@ export const ECONOMY = {
   pearlsMilestoneEvery: 5,  // clearing every Nth wave pays a bonus on top
   pearlsPerMilestone: 5,
   pearlsPerBoss: 5,         // first kill of each boss wave only
+
+  // Saves from before prestige was removed (save v6): all Renown, held plus
+  // what was spent in the Renown shop, is paid back as this many Pearls each.
+  pearlsPerOldRenown: 2,
 };
 
 export const PACKS = {
@@ -364,53 +368,5 @@ export const UPGRADES = {
     damagePerLevel: 0.2,
     baseCost: 15,
     costGrowth: 1.25,
-  },
-};
-
-// Prestige: "New Voyage". Resets the run (wave, gold, ship, hero levels)
-// for Renown, a permanent currency spent in the Renown shop.
-export const PRESTIGE = {
-  unlockWave: 20,
-  // Renown = floor(renownBase * (waveReached / unlockWave) ^ renownExponent)
-  renownBase: 10,
-  renownExponent: 1.5,
-  // Pearls lump = floor(waveReached * pearlsPerWave)
-  pearlsPerWave: 0.5,
-};
-
-// Permanent bonuses bought with Renown. Cost at level L:
-// round(baseCost * costGrowth ^ L). maxLevel: null = unlimited.
-export const RENOWN_SHOP = {
-  heroDamage: {
-    name: 'Fearsome Crew',
-    description: 'All hero damage',
-    perLevel: 0.1,          // +10% per level
-    baseCost: 5,
-    costGrowth: 1.5,
-    maxLevel: null,
-  },
-  gold: {
-    name: 'Plunder',
-    description: 'Gold from kills and wave clears',
-    perLevel: 0.1,
-    baseCost: 5,
-    costGrowth: 1.5,
-    maxLevel: null,
-  },
-  hullHp: {
-    name: 'Reinforced Hull',
-    description: 'Hull max HP',
-    perLevel: 0.1,
-    baseCost: 4,
-    costGrowth: 1.5,
-    maxLevel: null,
-  },
-  packDiscount: {
-    name: 'Pearl Broker',
-    description: 'Treasure chest cost',
-    perLevel: 1,            // -1 Pearl per level
-    baseCost: 20,
-    costGrowth: 2.5,
-    maxLevel: 2,            // chests never cost less than 1
   },
 };

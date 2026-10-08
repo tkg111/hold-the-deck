@@ -1,3 +1,4 @@
+import { ECONOMY } from '../config.js';
 import { Progress } from './Progress.js';
 
 // Storage keys keep the original project name so existing saves are found.
@@ -5,7 +6,7 @@ export const SAVE_KEY = 'kampung-defense/save';
 const CORRUPT_BACKUP_KEY = 'kampung-defense/save-corrupt-backup';
 
 // Bump when the saved shape changes, and add a migration from the old version.
-export const SAVE_VERSION = 5;
+export const SAVE_VERSION = 6;
 
 // v5 pirate reskin: old hero IDs -> new hero IDs.
 const V5_HERO_IDS = {
@@ -40,6 +41,29 @@ function migrateToPirate(data) {
   };
 }
 
+// The Renown shop as it was up to v5 (cost of level L: round(baseCost *
+// costGrowth ^ L)), to work out how much Renown a v5 save had spent.
+const V5_RENOWN_SHOP = {
+  heroDamage: { baseCost: 5, costGrowth: 1.5 },
+  gold: { baseCost: 5, costGrowth: 1.5 },
+  hullHp: { baseCost: 4, costGrowth: 1.5 },
+  packDiscount: { baseCost: 20, costGrowth: 2.5, maxLevel: 2 },
+};
+const V5_MAX_SHOP_LEVEL = 100;  // guards the loop against hand-edited saves
+
+// v6 prestige removal: drop Renown, the shop, the voyage count and best wave,
+// and pay all Renown (held plus spent on shop levels) back as Pearls.
+function dropPrestige(data) {
+  const { renown, renownShop, prestigeCount, bestWave, ...rest } = data;
+  const count = (v, max = Infinity) => (Number.isFinite(v) ? Math.min(max, Math.max(0, Math.floor(v))) : 0);
+  let total = count(renown);
+  for (const [key, cost] of Object.entries(V5_RENOWN_SHOP)) {
+    const level = count(renownShop?.[key], Math.min(cost.maxLevel ?? Infinity, V5_MAX_SHOP_LEVEL));
+    for (let l = 0; l < level; l++) total += Math.round(cost.baseCost * cost.costGrowth ** l);
+  }
+  return { ...rest, pearls: count(rest.pearls) + total * ECONOMY.pearlsPerOldRenown };
+}
+
 // MIGRATIONS[n] upgrades a version-n save to version n + 1.
 const MIGRATIONS = {
   // v2: sound mute setting saved with progress.
@@ -53,6 +77,8 @@ const MIGRATIONS = {
   // v5: pirate reskin. Ang Pow -> pearls, Semangat -> renown, house -> hull,
   // floors -> decks, and every hero ID renamed.
   4: migrateToPirate,
+  // v6: prestige removed; Renown converted to Pearls.
+  5: dropPrestige,
 };
 
 function migrate(save) {

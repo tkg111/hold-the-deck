@@ -108,30 +108,9 @@ Heroes have:
 
 - Should be affordable roughly every few waves. With the current numbers it is faster than that: 10 waves pay 25 Pearls (10 per-wave + 10 milestone + 5 boss), about 8 chests, so tune `PACKS.cost` or the rewards if pulls feel too frequent.
 
-## Prestige: New Voyage
+## No prestige
 
-- **Unlocks at wave 20.** The "New Voyage" button (top of the main screen, between waves) opens the prestige screen at any time; setting sail is locked until wave 20, the Renown shop is always open. The button pulses and shows the Renown on offer once a new voyage is unlocked.
-- **A new voyage resets:** wave (to 1), gold, hull HP upgrades, decks (to 1), hero levels (all to Lv 1). Boss Pearls can be earned again.
-- **A new voyage keeps:** owned heroes, stars, collection, hero slot assignments (heroes on higher decks return when those decks are rebuilt), Pearls, Legendary pity progress, Renown and shop levels, settings.
-- **A new voyage earns** (based on the wave reached this run):
-  - **Renown** = floor(10 × (wave / 20)^1.5): 10 at wave 20, 18 at wave 30, 28 at wave 40.
-  - **Pearls** lump = floor(wave / 2): 10 at wave 20.
-  - The screen shows what setting sail now earns, and what pushing 10 more waves would earn instead.
-- **Confirmation screen** previews exactly what's lost (each value with before → after, every levelled hero), kept and earned before anything happens.
-- Tracks voyages made and best wave ever reached.
-
-### Renown shop
-
-Permanent bonuses bought with Renown. Cost at level L = round(base × growth^L).
-
-| Bonus | Effect per level | Base cost | Growth | Max |
-|---|---|---|---|---|
-| Fearsome Crew | +10% all hero damage | 5 | 1.5× | — |
-| Plunder | +10% gold from kills and wave clears | 5 | 1.5× | — |
-| Reinforced Hull | +10% hull max HP | 4 | 1.5× | — |
-| Pearl Broker | Chests cost 1 less Pearl | 20 | 2.5× | 2 (chests never cost less than 1) |
-
-Bonus gold carries fractions between kills, so +10% on small kill rewards still adds up.
+There is no prestige or reset loop: progress is one endless voyage. (A "New Voyage" prestige with a Renown currency and a Renown shop existed up to save v5 and was removed. Loading an older save drops it and pays back all Renown, held plus everything spent on shop levels, at **2 Pearls per Renown**; a voyage at wave 20 paid 10 Renown, so that is worth about 20 Pearls, roughly 6 chests.)
 
 ## Crew Roster (collection book)
 
@@ -163,7 +142,7 @@ Each step should leave the game playable. (Built under the kampung theme; names 
 ## Saving
 
 - Auto-saves after every wave ends, every upgrade, every chest opened and every slot change, plus when the page is hidden or closed.
-- Saves carry a version number (currently 5: v2 added the mute setting, v3 the Legendary pity counter, v4 prestige, v5 the pirate reskin, which renamed every saved field and hero ID without changing any values). When the save format changes, bump the version and add a migration from the old one so existing players keep their progress.
+- Saves carry a version number (currently 6: v2 added the mute setting, v3 the Legendary pity counter, v4 prestige, v5 the pirate reskin, which renamed every saved field and hero ID without changing any values, v6 removed prestige and converted Renown to Pearls). When the save format changes, bump the version and add a migration from the old one so existing players keep their progress.
 - Loading is defensive: out-of-range or unknown values are clamped or dropped, and an unreadable save is kept aside as a backup instead of being lost.
 - **Reset progress** button (between waves) wipes the save after a confirmation.
 
@@ -171,13 +150,13 @@ Each step should leave the game playable. (Built under the kampung theme; names 
 
 Layout follows `ui_mock_battle.png` and `ui_mock_between_waves.png`.
 
-- **Anchoring:** the HUD is laid out in the 480x270 base and each group sticks to its part of a bigger view: the wave/hull plaque to the top-left corner, the gold/Pearls plaque and its buttons to the top-right, the enemies-left bar to the top centre, the Shipwright (and hero picker) to the right, and the bottom button bar (and speed button) to the bottom-right, under the Shipwright. Overlays (Chests, Crew Roster, New Voyage, confirmations) stay centred with their dark backdrop covering the whole view.
-- **Always:** a wood plaque with the wave (red "BOSS" on boss waves) and a hull bar top-left; a wood plaque with gold and Pearls top-right, with a settings button (gear: Reset progress, with a confirmation, between waves only), a sound toggle and a fullscreen toggle under it. Short messages (WAVE N CLEARED!, SHIP SUNK!, THE KRAKEN RISES!, NEW VOYAGE!) appear in the big font on a wood plaque over the sky, some with a small detail line (gold and Pearls earned). Crew have no name labels on the ship.
+- **Anchoring:** the HUD is laid out in the 480x270 base and each group sticks to its part of a bigger view: the wave/hull plaque to the top-left corner, the gold/Pearls plaque and its buttons to the top-right, the enemies-left bar to the top centre, the Shipwright (and hero picker) to the right, and the bottom button bar (and speed button) to the bottom-right, under the Shipwright. Overlays (Chests, Crew Roster, confirmations) stay centred with their dark backdrop covering the whole view.
+- **Always:** a wood plaque with the wave (red "BOSS" on boss waves) and a hull bar top-left; a wood plaque with gold and Pearls top-right, with a settings button (gear: Reset progress, with a confirmation, between waves only), a sound toggle and a fullscreen toggle under it. Short messages (WAVE N CLEARED!, SHIP SUNK!, THE KRAKEN RISES!) appear in the big font on a wood plaque over the sky, some with a small detail line (gold and Pearls earned). Crew have no name labels on the ship.
 - **During a wave:** an enemies-left bar at top-centre ("N ENEMIES LEFT", the fill shrinking as the wave is beaten), and a speed button bottom-right showing the current speed (x1 / x2); clicking it toggles. At x2 everything in the battle runs twice as fast: movement, attacks, spawns, animations and effects. The speed is remembered for the rest of the session (not saved), and between waves the game always runs at normal speed. The between-wave panel and buttons are hidden.
 - **Shipwright** (between waves only): a parchment panel under a wood title plate with rows for Hull (level, HP per level), Build deck (decks built) and each hero on the ship (face, level, damage or The Captain's buff), each with a gold buy button showing the gold cost (grey when unaffordable, MAX when maxed). Five rows show at a time; with more, arrows by the title plate and the mouse wheel scroll it.
 - **Hero picker:** click a ship slot to see every owned hero in the same panel (face, rarity, level, stars and where they're placed), plus "Leave empty"; it replaces the Shipwright while open.
-- **Bottom bar** (between waves): **SET SAIL!** (starts the wave), **Chests** (with a red dot when a chest is affordable), **Crew** (the Crew Roster) and **Voyage** (New Voyage, with a red dot once a new voyage is available).
-- The New Voyage screen and confirmation, and the reset confirmation, use the same parchment panels, wood plates and buttons.
+- **Bottom bar** (between waves): **SET SAIL!** (starts the wave), **Chests** (with a red dot when a chest is affordable) and **Crew** (the Crew Roster).
+- The reset confirmation uses the same parchment panels, wood plates and buttons.
 
 ## Later (not in v0.1)
 

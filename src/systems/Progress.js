@@ -1,4 +1,4 @@
-import { ECONOMY, HEROES, SHIP, PACKS, PRESTIGE, RARITY, RENOWN_SHOP, STARTING_HEROES, UPGRADES } from '../config.js';
+import { ECONOMY, HEROES, SHIP, PACKS, RARITY, STARTING_HEROES, UPGRADES } from '../config.js';
 
 const scaledCost = ({ baseCost, costGrowth }, level) => Math.round(baseCost * costGrowth ** level);
 
@@ -21,13 +21,6 @@ export class Progress {
     this.slots[0] = STARTING_HEROES[0];
 
     this.muted = false;             // sound effects off
-
-    // Prestige ("New Voyage"): kept across runs.
-    this.renown = 0;
-    this.renownShop = {};         // bonus key -> level; missing = 0
-    this.prestigeCount = 0;
-    this.bestWave = 1;              // highest wave ever reached, all runs
-    this.goldFraction = 0;          // carry for fractional bonus gold; not saved
 
     // Dev-only: treat every hero as owned. Not part of saved progress.
     this.devUnlockAll = false;
@@ -53,10 +46,6 @@ export class Progress {
       slots: this.slots.map((id) => (id && owned.includes(id) ? id : null)),
       muted: this.muted,
       packsSinceLegendary: this.packsSinceLegendary,
-      renown: this.renown,
-      renownShop: { ...this.renownShop },
-      prestigeCount: this.prestigeCount,
-      bestWave: this.bestWave,
     };
   }
 
@@ -75,13 +64,6 @@ export class Progress {
     p.decks = int(data.decks, SHIP.startingDecks, SHIP.maxDecks);
     p.muted = data.muted === true;
     p.packsSinceLegendary = int(data.packsSinceLegendary, 0, PACKS.legendaryPity - 1);
-    p.renown = int(data.renown, 0);
-    p.prestigeCount = int(data.prestigeCount, 0);
-    p.bestWave = Math.max(p.wave, int(data.bestWave, 1));
-    for (const [key, bonus] of Object.entries(RENOWN_SHOP)) {
-      const level = data.renownShop?.[key];
-      if (level != null) p.renownShop[key] = int(level, 0, bonus.maxLevel ?? Infinity);
-    }
 
     const owned = Array.isArray(data.owned) ? data.owned.filter((id) => id in HEROES) : [];
     p.owned = [...new Set([...STARTING_HEROES, ...owned])];
@@ -150,10 +132,9 @@ export class Progress {
   get hullMaxHp() { return this.hullMaxHpAt(this.hullHpLevel); }
 
   hullMaxHpAt(hpLevel) {
-    const base = SHIP.baseHp
+    return SHIP.baseHp
       + hpLevel * UPGRADES.hullHp.hpPerLevel
       + (this.decks - 1) * UPGRADES.deck.hpPerDeck;
-    return Math.round(base * this.renownMultiplier('hullHp'));
   }
 
   get canBuildDeck() { return this.decks < SHIP.maxDecks; }
@@ -162,8 +143,7 @@ export class Progress {
     const starBonus = PACKS.starDamageBonus[this.heroStarCount(id)];
     return HEROES[id].damage
       * (1 + (level - 1) * UPGRADES.heroLevel.damagePerLevel)
-      * (1 + starBonus)
-      * this.renownMultiplier('heroDamage');
+      * (1 + starBonus);
   }
 
   // Damage bonus an aura hero (The Captain) gives his deck, e.g. 0.5 = +50%.
@@ -193,26 +173,19 @@ export class Progress {
     return buffs;
   }
 
-  // Base wave-clear gold, before the Renown bonus (see earnGold).
   waveClearGold(wave = this.wave) {
     return ECONOMY.waveClearBase + (wave - 1) * ECONOMY.waveClearPerWave;
   }
 
-  // Add base gold with the Renown gold bonus applied; returns the whole gold
-  // paid. Fractions carry over, so +10% on a 2-gold kill still adds up over
-  // several kills instead of rounding away.
-  earnGold(base) {
-    this.goldFraction += base * this.renownMultiplier('gold');
-    const paid = Math.floor(this.goldFraction + 1e-9);
-    this.goldFraction -= paid;
-    this.gold += paid;
-    return paid;
+  // Add gold; returns the amount paid.
+  earnGold(amount) {
+    this.gold += amount;
+    return amount;
   }
 
   // Move on to the next wave after a clear.
   advanceWave() {
     this.wave++;
-    this.bestWave = Math.max(this.bestWave, this.wave);
   }
 
   waveClearPearls(wave = this.wave) {
@@ -256,9 +229,7 @@ export class Progress {
 
   // --- Packs ---
 
-  get packCost() {
-    return Math.max(1, PACKS.cost - this.renownLevel('packDiscount') * RENOWN_SHOP.packDiscount.perLevel);
-  }
+  get packCost() { return PACKS.cost; }
 
   get canOpenPack() { return this.pearls >= this.packCost; }
 
@@ -317,61 +288,5 @@ export class Progress {
     if (!this.isOwned(id) || !this.spend(this.heroLevelCost(id))) return false;
     this.heroLevels[id] = this.heroLevel(id) + 1;
     return true;
-  }
-
-  // --- Renown shop ---
-
-  renownLevel(key) { return this.renownShop[key] ?? 0; }
-
-  // e.g. 1.2 for +20%. (Not used for packDiscount, which is a flat amount.)
-  renownMultiplier(key) {
-    return 1 + this.renownLevel(key) * RENOWN_SHOP[key].perLevel;
-  }
-
-  // Cost of the next level, or null at max level.
-  renownCost(key) {
-    const bonus = RENOWN_SHOP[key];
-    const level = this.renownLevel(key);
-    if (bonus.maxLevel != null && level >= bonus.maxLevel) return null;
-    return scaledCost(bonus, level);
-  }
-
-  buyRenown(key) {
-    const cost = this.renownCost(key);
-    if (cost == null || this.renown < cost) return false;
-    this.renown -= cost;
-    this.renownShop[key] = this.renownLevel(key) + 1;
-    return true;
-  }
-
-  // --- Prestige: New Voyage ---
-
-  get canPrestige() { return this.wave >= PRESTIGE.unlockWave; }
-
-  // What prestiging right now would grant, based on the wave reached this run.
-  get prestigeRewards() {
-    const reached = this.wave;
-    return {
-      renown: Math.floor(PRESTIGE.renownBase * (reached / PRESTIGE.unlockWave) ** PRESTIGE.renownExponent),
-      pearls: Math.floor(reached * PRESTIGE.pearlsPerWave),
-    };
-  }
-
-  // Reset the run and pay out. Keeps owned heroes, stars, slot assignments,
-  // Pearls, pity, Renown and shop levels, settings. Returns the rewards.
-  prestige() {
-    if (!this.canPrestige) return null;
-    const rewards = this.prestigeRewards;
-    const fresh = new Progress();
-    this.wave = fresh.wave;
-    this.gold = fresh.gold;
-    this.hullHpLevel = fresh.hullHpLevel;
-    this.decks = fresh.decks;
-    this.heroLevels = {};
-    this.lastBossRewardWave = 0;   // boss Pearls can be earned again next run
-    this.renown += rewards.renown;
-    this.pearls += rewards.pearls;
-    this.prestigeCount++;
-    return rewards;
   }
 }
