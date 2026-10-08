@@ -89,6 +89,7 @@ export class Ship {
       const spacing = Math.min(...xs.slice(1).map((x, i) => Math.abs(x - xs[i])));
       deck.forEach((p, i) => {
         slots.push({
+          index: slots.length,
           x: xs[i],
           feetY: this.spriteTop + p.feetY * s,
           zoneWidth: Math.min(SLOT_ZONE.maxWidth, spacing - 2),

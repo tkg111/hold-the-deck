@@ -1,0 +1,234 @@
+{
+  "cabin_boy": {
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "idle": {
+      "frames": [
+        0,
+        1
+      ],
+      "fps": 2,
+      "repeat": -1
+    },
+    "attack": {
+      "frames": [
+        2,
+        3
+      ],
+      "fps": 10,
+      "repeat": 0
+    }
+  },
+  "ships_cook": {
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "idle": {
+      "frames": [
+        0,
+        1
+      ],
+      "fps": 2,
+      "repeat": -1
+    },
+    "attack": {
+      "frames": [
+        2,
+        3
+      ],
+      "fps": 10,
+      "repeat": 0
+    }
+  },
+  "net_thrower": {
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "idle": {
+      "frames": [
+        0,
+        1
+      ],
+      "fps": 2,
+      "repeat": -1
+    },
+    "attack": {
+      "frames": [
+        2,
+        3
+      ],
+      "fps": 10,
+      "repeat": 0
+    }
+  },
+  "grog_brewer": {
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "idle": {
+      "frames": [
+        0,
+        1
+      ],
+      "fps": 2,
+      "repeat": -1
+    },
+    "attack": {
+      "frames": [
+        2,
+        3
+      ],
+      "fps": 10,
+      "repeat": 0
+    }
+  },
+  "harpooner": {
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "idle": {
+      "frames": [
+        0,
+        1
+      ],
+      "fps": 2,
+      "repeat": -1
+    },
+    "attack": {
+      "frames": [
+        2,
+        3
+      ],
+      "fps": 10,
+      "repeat": 0
+    }
+  },
+  "voodoo_priestess": {
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "idle": {
+      "frames": [
+        0,
+        1
+      ],
+      "fps": 2,
+      "repeat": -1
+    },
+    "attack": {
+      "frames": [
+        2,
+        3
+      ],
+      "fps": 10,
+      "repeat": 0
+    }
+  },
+  "cannoneer": {
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "idle": {
+      "frames": [
+        0,
+        1
+      ],
+      "fps": 2,
+      "repeat": -1
+    },
+    "attack": {
+      "frames": [
+        2,
+        3
+      ],
+      "fps": 10,
+      "repeat": 0
+    }
+  },
+  "the_duelist": {
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "idle": {
+      "frames": [
+        0,
+        1
+      ],
+      "fps": 2,
+      "repeat": -1
+    },
+    "attack": {
+      "frames": [
+        2,
+        3
+      ],
+      "fps": 10,
+      "repeat": 0
+    }
+  },
+  "the_captain": {
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "idle": {
+      "frames": [
+        0,
+        1
+      ],
+      "fps": 2,
+      "repeat": -1
+    },
+    "attack": {
+      "frames": [
+        2,
+        3
+      ],
+      "fps": 10,
+      "repeat": 0
+    }
+  },
+  "drowned_sailor": {
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "walk": {
+      "frames": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "fps": 6,
+      "repeat": -1
+    }
+  },
+  "thief_monkey": {
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "walk": {
+      "frames": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "fps": 12,
+      "repeat": -1
+    }
+  },
+  "the_kraken": {
+    "frameWidth": 64,
+    "frameHeight": 64,
+    "idle": {
+      "frames": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "fps": 5,
+      "repeat": -1
+    },
+    "attack": {
+      "frames": [
+        6,
+        7
+      ],
+      "fps": 4,
+      "repeat": 0
+    }
+  }
+}

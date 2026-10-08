@@ -1,4 +1,5 @@
 import { HEROES, SPRITES } from '../config.js';
+import { findAnim, sheetKey } from '../sprites.js';
 import { DEPTH } from './Ship.js';
 import { starLabel } from '../ui/format.js';
 import { LobProjectile, nearestLiving, PiercingProjectile, Projectile } from './Projectile.js';
@@ -9,7 +10,7 @@ export class Hero {
   // damage and attackInterval come from Progress (level, stars, deck buffs).
   // The hero stands with its feet at (x, feetY); this.y is the middle of its
   // body, where shots start. labelLift raises the name label (see Ship.loadSlots).
-  constructor(scene, id, { x, feetY, labelLift = 0 }, { damage, attackInterval, stars = 0, buffed = false }) {
+  constructor(scene, id, { index, x, feetY, labelLift = 0 }, { damage, attackInterval, stars = 0, buffed = false }) {
     this.scene = scene;
     this.id = id;
     this.def = HEROES[id];
@@ -30,9 +31,19 @@ export class Hero {
         .setStrokeStyle(2, BUFF_COLOR, 0.9).setDepth(DEPTH.hero);
       if (buffed) scene.tweens.add({ targets: this.glow, alpha: 0.35, duration: 700, yoyo: true, repeat: -1 });
     }
-    this.body = sprite
-      ? scene.add.image(x, feetY, sprite.key).setOrigin(0.5, 1).setScale(SPRITES.scale)
-      : scene.add.rectangle(x, feetY, width, height, this.def.color).setOrigin(0.5, 1).setStrokeStyle(2, 0x1b1b1b);
+    this.idleAnim = sprite && findAnim(scene, sprite.key, 'idle');
+    this.attackAnim = sprite && findAnim(scene, sprite.key, 'attack');
+    if (this.idleAnim) {
+      this.body = scene.add.sprite(x, feetY, sheetKey(sprite.key)).setOrigin(0.5, 1).setScale(SPRITES.scale);
+      this.playIdle(index);
+      if (this.attackAnim) {
+        this.body.on(`animationcomplete-${this.attackAnim}`, () => this.playIdle());
+      }
+    } else if (sprite) {
+      this.body = scene.add.image(x, feetY, sprite.key).setOrigin(0.5, 1).setScale(SPRITES.scale);
+    } else {
+      this.body = scene.add.rectangle(x, feetY, width, height, this.def.color).setOrigin(0.5, 1).setStrokeStyle(2, 0x1b1b1b);
+    }
     this.body.setDepth(DEPTH.hero);
 
     // Name on top, stars on a second line, so neighbouring labels don't collide.
@@ -41,6 +52,13 @@ export class Hero {
       fontFamily: 'sans-serif', fontSize: '10px', color: '#ffffff', align: 'center',
       stroke: '#000000', strokeThickness: 3,
     }).setOrigin(0.5, 1).setLineSpacing(-2).setDepth(DEPTH.heroLabel);
+  }
+
+  // Loop the idle animation. When placed on the ship, the start frame is
+  // staggered by slot so the crew doesn't all bob in sync.
+  playIdle(slot = 0) {
+    const frames = this.scene.anims.get(this.idleAnim).getTotalFrames();
+    this.body.play({ key: this.idleAnim, startFrame: slot % frames });
   }
 
   // Returns a new projectile if the hero fired this frame.
@@ -53,7 +71,8 @@ export class Hero {
     if (!target) return null;
 
     this.cooldown = this.attackInterval;
-    this.scene.tweens.add({ targets: this.body, scaleX: this.body.scaleX * 1.2, duration: 60, yoyo: true });
+    if (this.attackAnim) this.body.play(this.attackAnim);
+    else this.scene.tweens.add({ targets: this.body, scaleX: this.body.scaleX * 1.2, duration: 60, yoyo: true });
     return this.fire(target);
   }
 

@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { DISPLAY, GAME_TITLE, HEROES } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
 import { applyRenderScale } from '../display.js';
-import { preloadSprites } from '../sprites.js';
+import { createAnimations, preloadSprites } from '../sprites.js';
 import { DEPTH, Ship } from '../entities/Ship.js';
 import { Hero } from '../entities/Hero.js';
 import { clearSave, loadProgress, saveProgress } from '../systems/Save.js';
@@ -33,6 +33,7 @@ export class GameScene extends Phaser.Scene {
   // New Voyage, so the new run doesn't depend on re-reading storage.
   create(data = {}) {
     applyRenderScale(this);
+    createAnimations(this);
     this.progress = data.progress ?? loadProgress();
     sfx.init(this.game);
     sfx.setMuted(this.progress.muted);

@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { DISPLAY, SPRITES } from '../config.js';
+import { findAnim, sheetKey } from '../sprites.js';
 
 const STUN_COLOR = 0xffeb3b;
 const SLOW_COLOR = 0x4fc3f7;
@@ -33,9 +34,23 @@ export class Enemy {
 
     // Sprites stand with their feet on the bottom row; enemies without one yet
     // are a rectangle of def.width x def.height.
-    this.body = def.sprite
-      ? scene.add.image(this.x, this.y + def.height / 2, def.sprite).setOrigin(0.5, 1).setScale(SPRITES.scale)
-      : scene.add.rectangle(this.x, this.y, def.width, def.height, def.color).setStrokeStyle(2, 0x333333);
+    // Animated ones loop "walk" while moving, or "idle" all the time and
+    // play "attack" on each hit.
+    this.walkAnim = def.sprite && findAnim(scene, def.sprite, 'walk');
+    this.idleAnim = def.sprite && findAnim(scene, def.sprite, 'idle');
+    this.attackAnim = def.sprite && findAnim(scene, def.sprite, 'attack');
+    const feetY = this.y + def.height / 2;
+    if (this.walkAnim || this.idleAnim) {
+      this.body = scene.add.sprite(this.x, feetY, sheetKey(def.sprite)).setOrigin(0.5, 1).setScale(SPRITES.scale);
+      if (this.idleAnim) {
+        this.body.play(this.idleAnim);
+        if (this.attackAnim) this.body.on(`animationcomplete-${this.attackAnim}`, () => this.body.play(this.idleAnim));
+      }
+    } else if (def.sprite) {
+      this.body = scene.add.image(this.x, feetY, def.sprite).setOrigin(0.5, 1).setScale(SPRITES.scale);
+    } else {
+      this.body = scene.add.rectangle(this.x, this.y, def.width, def.height, def.color).setStrokeStyle(2, 0x333333);
+    }
     this.statusFx = scene.add.graphics();
     this.hpBar = scene.add.graphics();
     this.nameTag = def.boss
@@ -95,12 +110,14 @@ export class Enemy {
     this.tickStatus(dt);
     if (!this.alive) return;  // poison can finish it off
 
+    let moving = false;
     if (!this.isStunned) {
       // Slow affects both walking and attack rate.
       const sdt = this.isSlowed ? dt * this.slowFactor : dt;
       const frontX = this.x - this.def.width / 2;
       if (frontX > ship.right) {
         this.x = Math.max(ship.right + this.def.width / 2, this.x - this.speed * sdt / 1000);
+        moving = true;
       } else if (this.def.stealPercent) {
         this.steal();
         return;
@@ -109,16 +126,34 @@ export class Enemy {
         if (this.attackCooldown <= 0) {
           ship.takeDamage(this.damage);
           this.attackCooldown = this.def.attackInterval;
-          // Little lunge so attacks read visually
-          this.scene.tweens.add({ targets: this.body, angle: -15, duration: 80, yoyo: true });
+          if (this.attackAnim) this.body.play(this.attackAnim);
+          // Otherwise a little lunge so attacks read visually
+          else this.scene.tweens.add({ targets: this.body, angle: -15, duration: 80, yoyo: true });
         }
       }
     }
+    this.animate(moving);
 
     this.body.x = this.x;
     this.nameTag?.setPosition(this.x, this.hpBarY - 2);
     this.drawHpBar();
     this.drawStatus();
+  }
+
+  // Walk only while moving; animations freeze while stunned and slow down
+  // with the enemy.
+  animate(moving) {
+    const anims = this.body.anims;
+    if (!anims) return;
+    anims.timeScale = this.isSlowed ? this.slowFactor : 1;
+    if (this.walkAnim) {
+      if (moving) this.body.play(this.walkAnim, true);
+      else anims.stop();
+    } else if (this.isStunned) {
+      anims.pause();
+    } else if (anims.isPaused) {
+      anims.resume();
+    }
   }
 
   // Thief behaviour: grab gold and vanish without hurting the ship.
