@@ -2,9 +2,10 @@ import Phaser from 'phaser';
 import { DISPLAY, PACKS } from '../config.js';
 import { House } from '../entities/House.js';
 import { Hero } from '../entities/Hero.js';
-import { Progress } from '../systems/Progress.js';
+import { clearSave, loadProgress, saveProgress } from '../systems/Save.js';
 import { isBossWave, WaveManager } from '../systems/WaveManager.js';
 import { Button } from '../ui/Button.js';
+import { ConfirmDialog } from '../ui/ConfirmDialog.js';
 import { HeroPicker } from '../ui/HeroPicker.js';
 import { UpgradePanel } from '../ui/UpgradePanel.js';
 
@@ -21,7 +22,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   create() {
-    this.progress = new Progress();
+    this.progress = loadProgress();
     this.state = STATE.IDLE;
     this.enemies = [];
     this.projectiles = [];
@@ -39,8 +40,13 @@ export class GameScene extends Phaser.Scene {
       'slot-clicked': this.onSlotClicked,
     };
     for (const [name, fn] of Object.entries(handlers)) this.events.on(name, fn, this);
+    // Also save when the tab is hidden or closed, so kill gold from an
+    // unfinished wave isn't lost (same as losing a wave: gold is kept).
+    const onPageHide = () => this.save();
+    window.addEventListener('pagehide', onPageHide);
     this.events.once('shutdown', () => {
       for (const [name, fn] of Object.entries(handlers)) this.events.off(name, fn, this);
+      window.removeEventListener('pagehide', onPageHide);
     });
 
     this.createUi();
@@ -84,6 +90,10 @@ export class GameScene extends Phaser.Scene {
       onClick: () => this.openPacks(),
     });
     // Gentle pulse while a pack is affordable.
+    this.resetButton = new Button(this, DISPLAY.width - 66, DISPLAY.height - 16, {
+      width: 116, height: 22, label: 'Reset progress', color: 0x455a64, fontSize: '12px',
+      onClick: () => this.confirmReset(),
+    });
     this.packPulse = this.tweens.add({
       targets: this.packButton, scale: 1.06, duration: 500, yoyo: true, repeat: -1, paused: true,
     });
@@ -105,6 +115,7 @@ export class GameScene extends Phaser.Scene {
 
     this.startButton.setVisible(idle);
     this.packButton.setVisible(idle);
+    this.resetButton.setVisible(idle);
     this.packButton.setLabel(`Packs  (${this.progress.angPow}/${PACKS.cost})`);
     if (idle && this.progress.canOpenPack) this.packPulse.resume();
     else { this.packPulse.pause(); this.packButton.setScale(1); }
@@ -143,10 +154,29 @@ export class GameScene extends Phaser.Scene {
     this.floatText(enemy.x, enemy.y - 24, amount > 0 ? `-${amount} gold` : 'nothing to steal!', '#ff8a80');
   }
 
+  save() {
+    saveProgress(this.progress);
+  }
+
+  confirmReset() {
+    if (this.state !== STATE.IDLE) return;
+    if (this.heroPicker.visible) this.heroPicker.close();
+    new ConfirmDialog(this, {
+      title: 'Reset all progress?',
+      message: "Your wave, gold, Ang Pow, upgrades and heroes will be wiped. This can't be undone.",
+      confirmLabel: 'Reset',
+      onConfirm: () => {
+        clearSave();
+        this.scene.restart();
+      },
+    });
+  }
+
   onUpgradePurchased() {
     this.house.sync(this.progress);
     this.rebuildHeroes();
     this.refreshUi();
+    this.save();
   }
 
   // Recreate hero objects from the slot assignments in progress.
@@ -167,6 +197,7 @@ export class GameScene extends Phaser.Scene {
     this.heroPicker.close();
     this.house.sync(this.progress);
     this.rebuildHeroes();
+    this.save();
   }
 
   // Owned heroes or stars changed (packs, dev toggle).
@@ -176,6 +207,7 @@ export class GameScene extends Phaser.Scene {
     this.house.sync(this.progress);
     this.rebuildHeroes();
     this.refreshUi();
+    this.save();
   }
 
   openPacks() {
@@ -224,6 +256,7 @@ export class GameScene extends Phaser.Scene {
     this.house.restore();
     this.house.setSlotsEnabled(true);
     this.refreshUi();
+    this.save();
   }
 
   update(_time, delta) {

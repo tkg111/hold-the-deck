@@ -2,8 +2,8 @@ import { ECONOMY, HEROES, HOUSE, PACKS, STARTING_HEROES, UPGRADES } from '../con
 
 const scaledCost = ({ baseCost, costGrowth }, level) => Math.round(baseCost * costGrowth ** level);
 
-// Everything the player has earned. Plain data plus the formulas that read it,
-// so saving (step 6) only needs to serialize the fields set in the constructor.
+// Everything the player has earned. Plain data plus the formulas that read it.
+// toSave() / fromSave() convert to and from the stored form (see Save.js).
 export class Progress {
   constructor() {
     this.wave = 1;
@@ -21,6 +21,61 @@ export class Progress {
 
     // Dev-only: treat every hero as owned. Not part of saved progress.
     this.devUnlockAll = false;
+  }
+
+  // --- Saving ---
+
+  // Plain object of real progress. Dev-unlocked heroes (and their levels/stars)
+  // are left out so the dev toggle never leaks into a save.
+  toSave() {
+    const owned = [...this.owned];
+    const ownedOnly = (obj) => Object.fromEntries(Object.entries(obj).filter(([id]) => owned.includes(id)));
+    return {
+      wave: this.wave,
+      gold: this.gold,
+      angPow: this.angPow,
+      lastBossRewardWave: this.lastBossRewardWave,
+      houseHpLevel: this.houseHpLevel,
+      floors: this.floors,
+      owned,
+      heroLevels: ownedOnly(this.heroLevels),
+      heroStars: ownedOnly(this.heroStars),
+      slots: this.slots.map((id) => (id && owned.includes(id) ? id : null)),
+    };
+  }
+
+  // Build from saved data, clamping anything out of range or unknown so a
+  // hand-edited or partially broken save can't crash the game.
+  static fromSave(data) {
+    const p = new Progress();
+    const int = (v, min, max = Infinity, fallback = min) =>
+      (Number.isFinite(v) ? Math.min(max, Math.max(min, Math.floor(v))) : fallback);
+
+    p.wave = int(data.wave, 1);
+    p.gold = int(data.gold, 0);
+    p.angPow = int(data.angPow, 0, Infinity, p.angPow);
+    p.lastBossRewardWave = int(data.lastBossRewardWave, 0);
+    p.houseHpLevel = int(data.houseHpLevel, 0);
+    p.floors = int(data.floors, HOUSE.startingFloors, HOUSE.maxFloors);
+
+    const owned = Array.isArray(data.owned) ? data.owned.filter((id) => id in HEROES) : [];
+    p.owned = [...new Set([...STARTING_HEROES, ...owned])];
+
+    for (const id of p.owned) {
+      if (data.heroLevels?.[id] != null) p.heroLevels[id] = int(data.heroLevels[id], 1);
+      if (data.heroStars?.[id] != null) p.heroStars[id] = int(data.heroStars[id], 0, PACKS.maxStars);
+    }
+
+    if (Array.isArray(data.slots)) {
+      const seen = new Set();
+      p.slots = p.slots.map((_, i) => {
+        const id = data.slots[i];
+        if (!id || !p.owned.includes(id) || seen.has(id)) return null;
+        seen.add(id);
+        return id;
+      });
+    }
+    return p;
   }
 
   // --- Heroes & slots ---
@@ -81,7 +136,8 @@ export class Progress {
   }
 
   waveClearAngPow(wave = this.wave) {
-    return wave % ECONOMY.angPowMilestoneEvery === 0 ? ECONOMY.angPowPerMilestone : 0;
+    const milestone = wave % ECONOMY.angPowMilestoneEvery === 0 ? ECONOMY.angPowPerMilestone : 0;
+    return ECONOMY.angPowPerWave + milestone;
   }
 
   // Ang Pow for killing the boss of the current wave; 0 if already paid this wave.

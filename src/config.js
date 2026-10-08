@@ -161,9 +161,10 @@ export const ECONOMY = {
   waveClearBase: 10,
   waveClearPerWave: 4,
 
-  // Ang Pow: earned on milestone waves and boss kills, spent on packs.
+  // Ang Pow: earned from wave clears, milestone waves and boss kills; spent on packs.
   startingAngPow: 3,        // enough for one pack right away
-  angPowMilestoneEvery: 5,  // clearing every Nth wave pays out
+  angPowPerWave: 1,         // every wave clear
+  angPowMilestoneEvery: 5,  // clearing every Nth wave pays a bonus on top
   angPowPerMilestone: 5,
   angPowPerBoss: 5,         // first kill of each boss wave only
 };

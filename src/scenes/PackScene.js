@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { DISPLAY, HEROES, PACKS, RARITY } from '../config.js';
 import { Progress } from '../systems/Progress.js';
+import { saveProgress } from '../systems/Save.js';
 import { Button } from '../ui/Button.js';
 import { describeHero } from '../ui/HeroPicker.js';
 import { cssColor } from '../ui/format.js';
@@ -104,6 +105,7 @@ export class PackScene extends Phaser.Scene {
     if (this.busy) return;
     const result = this.progress.openPack();
     if (!result) return;
+    saveProgress(this.progress);
     this.busy = true;
     this.resultText.setText('');
     this.glow.setVisible(false);
