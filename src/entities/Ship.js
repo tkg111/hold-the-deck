@@ -133,6 +133,22 @@ export class Ship {
     this.hp = this.maxHp;
   }
 
+  // Patch Up: mend up to amount; returns how much was mended.
+  heal(amount) {
+    const healed = Math.min(amount, this.maxHp - this.hp);
+    this.hp += healed;
+    return healed;
+  }
+
+  // A random spot on the hull (SHIP.hull).
+  hullTarget() {
+    const { left, right, minAbove, maxAbove } = SHIP.hull;
+    return {
+      x: LAYOUT.shipX + left + Math.random() * (LAYOUT.shipContactX - right - LAYOUT.shipX - left),
+      y: LAYOUT.waterY - minAbove - Math.random() * (maxAbove - minAbove),
+    };
+  }
+
   // Swap in the sprite for the current deck count, and mark empty slots
   // with a frame and a "+".
   draw() {

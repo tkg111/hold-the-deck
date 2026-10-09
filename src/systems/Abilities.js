@@ -2,11 +2,11 @@ import Phaser from 'phaser';
 import { ABILITIES, ABILITY_BAR } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
 import { LAYOUT, laneFeetY } from '../layout.js';
-import { LobProjectile, nearestLiving } from '../entities/Projectile.js';
+import { LobProjectile, nearestLiving, Projectile } from '../entities/Projectile.js';
 import { DEPTH } from '../entities/Ship.js';
 import { FX_DEPTH, fxDuration, fxSize, fxSprite, playFx } from '../fx.js';
 import { fxKey } from '../sprites.js';
-import { cssColor } from '../ui/format.js';
+import { cssColor, fmtNumber } from '../ui/format.js';
 
 // Active abilities for the crew on the ship: one per crewmate (ABILITIES in
 // config), each on its own cooldown. Used from the ability bar or keys 1-6,
@@ -46,17 +46,25 @@ export class AbilitySystem {
 
   // Only worth using with an enemy on screen it can reach (in range of the
   // crewmate, for the attack speed boosts; flyers in the air only count for
-  // abilities with air).
-  hasTarget({ hero, def }) {
+  // abilities with air), or what `needs` asks for: a flyer (Flock), a walker
+  // (Haunt, Tidal Wave) or hull to mend (Patch Up; with Auto, only once at
+  // least a full repair's worth is missing, so none of it is wasted).
+  hasTarget({ hero, def }, auto = false) {
+    if (def.needs === 'repairs') {
+      const { ship } = this.scene;
+      const missing = ship.maxHp - ship.hp;
+      return auto ? missing >= ship.maxHp * def.heal : missing > 0;
+    }
     const range = def.needsRange ? ABILITY_BAR.supportRange : Infinity;
-    return this.targets({ air: def.air }).some((e) => Math.hypot(e.x - hero.x, e.y - hero.y) <= range);
+    return this.targets({ air: def.air, needs: def.needs })
+      .some((e) => Math.hypot(e.x - hero.x, e.y - hero.y) <= range);
   }
 
   // Fire ability i if it's ready and has a target. Returns whether it fired.
   trigger(i, { auto = false } = {}) {
     const s = this.slots[i];
     if (!s || s.cooldown > 0) return false;
-    if (!this.hasTarget(s)) {
+    if (!this.hasTarget(s, auto)) {
       if (!auto) sfx.denied();
       return false;
     }
@@ -85,8 +93,13 @@ export class AbilitySystem {
   }
 
   // Enemies an ability can affect: those on the lane, plus flyers in the
-  // air with air.
-  targets({ air = false } = {}) { return this.scene.enemies.filter((e) => e.canBeHit(air)); }
+  // air with air; only flyers with needs 'flyers', only walkers (that can
+  // be scared or pushed) with 'movable'.
+  targets({ air = false, needs = null } = {}) {
+    return this.scene.enemies.filter((e) => e.canBeHit(air)
+      && (needs !== 'flyers' || e.def.flies)
+      && (needs !== 'movable' || e.canBeMoved));
+  }
 
   // An arcing throw of the ability's sprite from the hero at an enemy (bends
   // to another if it dies).
@@ -185,7 +198,174 @@ const ACTIONS = {
   captain(sys, { def, scale }) {
     for (const h of sys.scene.heroes) h.addBoost(def.attackSpeed, def.duration * scale, def.fx);
   },
+
+  // Flock: a parrot homes on every flyer on screen, and more fly across the sky.
+  parrotKeeper(sys, { hero, def }) {
+    const damage = hero.damage * def.damage;
+    for (const e of sys.targets({ air: true, needs: 'flyers' })) {
+      sys.scene.projectiles.push(new Projectile(sys.scene, {
+        x: hero.x, y: hero.y, target: e, speed: def.speed, sprite: def.sprite,
+        onHit: (hit, x, y) => {
+          hit.takeDamage(damage);
+          playFx(sys.scene, def.impact, x, y);
+        },
+        findTarget: () => null,   // a parrot whose flyer is gone flies off
+      }));
+    }
+    sys.effects.push(new FlockFlight(sys.scene, hero, def));
+  },
+
+  // Patch Up: mends part of the hull, with crosses rising over it.
+  shipsDoctor(sys, { def }) {
+    const { ship } = sys.scene;
+    const healed = ship.heal(ship.maxHp * def.heal);
+    sys.effects.push(new HealRise(sys.scene, def));
+    const at = ship.hullTarget();
+    sys.scene.floatText(at.x, at.y - def.rise, `+${fmtNumber(Math.round(healed))} HP`, cssColor(def.color));
+  },
+
+  // Deadeye: marks the toughest enemy, then one huge shot at it.
+  sharpshooter(sys, { hero, def }) {
+    sys.effects.push(new Deadeye(sys, hero, def));
+  },
+
+  // Haunt: every walker on screen flees back toward the island.
+  ghostPirate(sys, { def, scale }) {
+    for (const e of sys.targets({ needs: 'movable' })) e.applyFear(def.duration * scale);
+  },
+
+  // Tidal Wave: a wave rolls along the lane, pushing walkers back.
+  stormCaller(sys, { hero, def }) {
+    sys.effects.push(new TidalWave(sys, def, hero.damage * def.damage));
+  },
 };
+
+// Flock's show: def.extra parrots fly from the ship across the sky (spread
+// over def.spread px of height), off the right edge of the view.
+class FlockFlight {
+  constructor(scene, hero, def) {
+    this.scene = scene;
+    this.def = def;
+    this.parrots = Array.from({ length: def.extra }, (_, i) => fxSprite(scene, def.sprite,
+      hero.x - i * 14, hero.y - 10 - (def.spread * i) / Math.max(1, def.extra - 1)).setDepth(FX_DEPTH));
+    this.parrots.forEach((p, i) => { p.climb = (i % 2 ? -1 : 1) * 6; });
+  }
+
+  update(dt) {
+    const step = this.def.extraSpeed * dt / 1000;
+    for (const p of this.parrots) {
+      p.x += step;
+      p.y -= p.climb * dt / 1000;
+    }
+    return this.parrots.some((p) => p.x - p.width < this.scene.view.right);
+  }
+
+  destroy() { for (const p of this.parrots) p.destroy(); }
+}
+
+// Patch Up: def.count heal_plus crosses over random spots on the hull, each
+// starting def.interval ms after the last and rising def.rise px as it fades.
+class HealRise {
+  constructor(scene, def) {
+    this.def = def;
+    this.time = 0;
+    this.crosses = Array.from({ length: def.count }, (_, i) => {
+      const { x, y } = scene.ship.hullTarget();
+      const sprite = fxSprite(scene, def.sprite, Math.round(x), Math.round(y)).setOrigin(0.5, 1)
+        .setDepth(DEPTH.slotMarkers).setVisible(false);
+      return { sprite, y, start: i * def.interval };
+    });
+  }
+
+  update(dt) {
+    this.time += dt;
+    const { def } = this;
+    let running = false;
+    for (const c of this.crosses) {
+      const t = (this.time - c.start) / def.riseMs;
+      if (t < 0) {
+        running = true;
+        continue;
+      }
+      c.sprite.setVisible(t < 1);
+      if (t >= 1) continue;
+      running = true;
+      c.sprite.setY(Math.round(c.y - def.rise * t)).setAlpha(Math.min(1, 2 * (1 - t)));
+    }
+    return running;
+  }
+
+  destroy() { for (const c of this.crosses) c.sprite.destroy(); }
+}
+
+// Deadeye: deadeye_mark on the toughest enemy the Sharpshooter can hit
+// while he aims (def.aimMs, re-picking if it dies), then one musket shot from
+// his musket at it for def.damage x his damage, ignoring armour and shields.
+class Deadeye {
+  constructor(sys, hero, def) {
+    this.sys = sys;
+    this.hero = hero;
+    this.def = def;
+    this.time = 0;
+    this.target = hero.toughest(sys.scene.enemies);
+    this.mark = fxSprite(sys.scene, def.mark, 0, 0).setOrigin(0.5).setDepth(DEPTH.enemyOverlay);
+  }
+
+  update(dt) {
+    this.time += dt;
+    const { hero, def } = this;
+    if (!this.target?.targetable) this.target = hero.toughest(this.sys.scene.enemies);
+    const e = this.target;
+    if (!e) return false;
+    this.mark.setPosition(Math.round(e.x), Math.round(e.y));
+    if (this.time < def.aimMs) return true;
+    const { scene } = this.sys;
+    const { projectile } = hero.def;
+    scene.projectiles.push(new Projectile(scene, {
+      ...hero.muzzlePoint(), target: e, speed: def.speed, sprite: projectile.sprite, rotate: true,
+      onHit: (hit, x, y) => {
+        hit.takeDamage(hero.damage * def.damage, { ignoreArmor: true, throughShield: true });
+        playFx(scene, projectile.impact, x, y);
+        shake(scene, def.shake);
+      },
+      findTarget: (x, y) => nearestLiving(scene.enemies, x, y, (o) => hero.canHit(o)),
+    }));
+    sfx.boom();
+    return false;
+  }
+
+  destroy() { this.mark.destroy(); }
+}
+
+// Tidal Wave: tidal_wave rolls right along the lane from the ship (its
+// bottom def.sink px under the walkers' feet) to the far edge; each walker
+// it reaches takes the damage and is pushed def.push px back.
+class TidalWave {
+  constructor(sys, def, damage) {
+    this.sys = sys;
+    this.def = def;
+    this.damage = damage;
+    this.sprite = fxSprite(sys.scene, def.sprite, 0, 0).setOrigin(1, 1).setDepth(DEPTH.foreground + 0.5);
+    this.x = LAYOUT.shipContactX;   // the wave's front
+    this.hit = new Set();
+    this.update(0);
+  }
+
+  update(dt) {
+    const { def } = this;
+    this.x += def.speed * dt / 1000;
+    for (const e of this.sys.targets({ needs: 'movable' })) {
+      if (this.hit.has(e) || e.x - e.def.width / 2 > this.x) continue;
+      this.hit.add(e);
+      e.takeDamage(this.damage);
+      e.pushBack(def.push, def.speed);
+    }
+    this.sprite.setPosition(Math.round(this.x), Math.round(laneFeetY(this.x) + def.sink));
+    return this.x - this.sprite.width < this.sys.scene.view.right;
+  }
+
+  destroy() { this.sprite.destroy(); }
+}
 
 // A light camera shake: { duration (ms), intensity }.
 function shake(scene, { duration, intensity }) {

@@ -1,11 +1,11 @@
 import Phaser from 'phaser';
-import { ELITE, FX, SPRITES, WAVES } from '../config.js';
+import { ELITE, ENEMIES, FX, SPRITES, WAVES } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
 import { fxSprite, playFx } from '../fx.js';
 import { LAYOUT, laneFeetY } from '../layout.js';
-import { findAnim, sheetKey, SPLASH_ANIM } from '../sprites.js';
+import { findAnim, sheetKey, sheetSpec, SPLASH_ANIM } from '../sprites.js';
 import { light, text, UI } from '../ui/kit.js';
-import { Projectile } from './Projectile.js';
+import { LobProjectile, Projectile } from './Projectile.js';
 import { DEPTH } from './Ship.js';
 
 // HP bar colours while cursed / poisoned.
@@ -15,6 +15,7 @@ const POISON_COLOR = 0x76ff03;
 // Status sprites (fx sheets) and when each shows.
 const STATUS = {
   stun: { sprite: 'stun_stars', active: (e) => e.isStunned },
+  fear: { sprite: 'fear_mark', active: (e) => e.isAfraid },
   curse: { sprite: 'curse_mark', active: (e) => e.isCursed && e.curseMarkDelay <= 0 },
   poison: { sprite: 'poison_bubbles', active: (e) => e.isPoisoned },
   slow: { sprite: 'net_draped', active: (e) => e.isSlowed },
@@ -24,7 +25,9 @@ export class Enemy {
   // Walkers enter at layout.json's enemySpawnX and follow the lane (x is only
   // an override for testing); an emerging enemy (The Kraken) rises out of the
   // sea at layout.kraken instead, a flyer (Storm Harpy) cruises in at
-  // layout.harpyFlightY and the Siren appears on her rock at layout.siren.
+  // layout.harpyFlightY, the Siren appears on her rock at layout.siren and the
+  // Ghost Galleon emerges at layout.ghostGalleon. A boarding boat rows in from
+  // x (the Galleon launches it) on the waterline.
   //   elite:  3x HP (ELITE), gold tint; gold is already multiplied by the caller
   //   leader: in an escorted formation, the enemy this one keeps behind
   //   key:    its ENEMIES key (for the Wanted Board)
@@ -49,6 +52,8 @@ export class Enemy {
     this.shieldHp = this.shieldMax;
     this.blastDamage = def.blast ? def.blast.enemyDamage * hpMultiplier : 0;
     this.leader = leader;
+    this.hpMultiplier = hpMultiplier;
+    this.damageMultiplier = damageMultiplier;
 
     // Remaining ms for each status effect.
     this.stunTime = 0;
@@ -61,6 +66,11 @@ export class Enemy {
     this.poisonDps = 0;
     this.hasteTime = 0;       // sped up by the Siren's song
     this.hasteMult = 1;
+    this.fearTime = 0;        // Haunt: flees back toward the island
+    this.pushLeft = 0;        // Tidal Wave: px still to be pushed back
+    this.pushSpeed = 0;
+    // A boss that enrages (the finale) attacks this much faster.
+    this.rage = 1;
 
     // Sprites and rectangles alike stand with their feet at (x, feetY);
     // this.y is the middle of the body (def.width x def.height).
@@ -111,6 +121,28 @@ export class Enemy {
       this.singAnim = findAnim(scene, def.sprite, 'sing');
       this.body.setAlpha(0);
       scene.tweens.add({ targets: this.body, alpha: 1, duration: def.fadeInMs });
+    } else if (def.galleon) {
+      // The Ghost Galleon: its frame's top-left at layout.ghostGalleon. It
+      // plays "emerge" in place (can't be hit meanwhile), then idles and fires.
+      const g = def.galleon;
+      const { x: gx, y: gy } = LAYOUT.ghostGalleon;
+      this.frameW = this.body.displayWidth;
+      this.frameH = this.body.displayHeight;
+      this.frameLeft = gx;
+      this.frameTop = gy;
+      this.x = gx + this.frameW / 2;
+      this.stopX = this.x;
+      this.setFeetY(gy + this.frameH);
+      this.riseTime = g.emergeMs;
+      this.fireTimer = g.firstFireAt;
+      this.boatTimer = g.firstBoatAt;
+      this.emergeAnim = findAnim(scene, def.sprite, 'emerge');
+      this.fireAnim = findAnim(scene, def.sprite, 'fire');
+      this.sinkAnim = findAnim(scene, def.sprite, 'sink');
+      if (this.emergeAnim) this.body.play(this.emergeAnim);
+      for (const anim of [this.emergeAnim, this.fireAnim]) {
+        if (anim) this.body.on(`animationcomplete-${anim}`, () => this.alive && this.body.play(this.idleAnim));
+      }
     } else if (def.flies) {
       // Cruises in at a random height, then dives at the top deck.
       const { min, max } = LAYOUT.flightY;
@@ -127,7 +159,7 @@ export class Enemy {
     } else {
       this.x = x;
       this.stopX = LAYOUT.shipContactX + def.width / 2;  // front edge at the ship
-      this.setFeetY(laneFeetY(this.x));
+      this.setFeetY(def.floats ? LAYOUT.boatWaterY : laneFeetY(this.x));
     }
 
     this.statusSprites = {};  // STATUS key -> sprite, while that status lasts
@@ -157,13 +189,22 @@ export class Enemy {
     const k = (newSpawnX - this.stopX) / (oldSpawnX - this.stopX);
     this.x = Math.max(this.stopX, this.stopX + (this.x - this.stopX) * k);
     if (this.splash) this.splash.setX(Math.round(this.x - this.frameW / 2));
-    if (this.def.flies) this.setFeetY(this.feetY);
-    else this.setFeetY(this.def.emerges ? this.feetY : laneFeetY(this.x));
+    this.followGround();
     this.nameTag?.setPosition(this.x, this.hpBarY - 2);
     this.drawHpBar();
   }
 
   get isRising() { return this.riseTime > 0; }
+  // Drawn centred on its body rather than standing in a 32x32 box (status
+  // and target marks): The Kraken and the Ghost Galleon.
+  get large() { return !!(this.def.emerges || this.def.galleon); }
+  // Walkers that Haunt can scare and Tidal Wave can push: not flyers, the
+  // Siren or the Ghost Galleon.
+  get canBeMoved() { return !this.def.flies && !this.def.stationary && !this.def.galleon; }
+  // How far back toward the island it can be scared or pushed: where it
+  // walked in from (The Kraken: where it rose).
+  get retreatX() { return this.def.emerges ? LAYOUT.kraken.x + this.frameW / 2 : LAYOUT.enemySpawnX; }
+  get isAfraid() { return this.fearTime > 0; }
   // Whether heroes can aim at or hit it (anti-air aside, see airborne).
   get targetable() { return this.alive && !this.isRising; }
   // A flyer in the air: only anti-air crew can hit it.
@@ -200,6 +241,19 @@ export class Enemy {
     if (this.def.flies) this.groundTime = this.slowTime;
   }
 
+  // Haunt: flees back toward the island for duration.
+  applyFear(duration) {
+    if (!this.canBeMoved) return;
+    this.fearTime = Math.max(this.fearTime, duration * (this.def.statusResist ?? 1));
+  }
+
+  // Tidal Wave: carried distance px back toward the island at speed.
+  pushBack(distance, speed) {
+    if (!this.canBeMoved) return;
+    this.pushLeft = Math.max(this.pushLeft, distance * (this.def.statusResist ?? 1));
+    this.pushSpeed = speed;
+  }
+
   applyCurse(bonus, duration) {
     this.curseBonus = this.isCursed ? Math.max(this.curseBonus, bonus) : bonus;
     this.curseTime = Math.max(this.curseTime, duration);
@@ -234,6 +288,7 @@ export class Enemy {
     this.curseTime = Math.max(0, this.curseTime - dt);
     this.curseMarkDelay = Math.max(0, this.curseMarkDelay - dt);
     this.hasteTime = Math.max(0, this.hasteTime - dt);
+    this.fearTime = Math.max(0, this.fearTime - dt);
   }
 
   // --- Behaviour ---
@@ -246,13 +301,19 @@ export class Enemy {
     let moving = false;
     if (this.isRising) {
       this.rise(dt);
+    } else if (this.pushLeft > 0) {
+      this.pushed(dt);
     } else if (!this.isStunned) {
       // Slow and haste affect both moving and attack rate.
       const sdt = dt * this.pace;
       if (this.def.flies) {
         moving = this.fly(sdt, dt, ship);
+      } else if (this.def.galleon) {
+        this.sail(sdt, ship);
       } else if (this.def.stationary) {
         this.sing(sdt);
+      } else if (this.isAfraid) {
+        moving = this.flee(sdt);
       } else if (this.x > this.stopX) {
         moving = this.walk(sdt);
       } else if (this.def.stealPercent) {
@@ -261,17 +322,43 @@ export class Enemy {
       } else if (this.def.blast) {
         this.blowUpAtShip(ship);
         return;
+      } else if (this.def.boards) {
+        this.board(ship);
+        return;
       } else {
         this.attack(sdt, ship);
       }
     }
     this.animate(moving);
 
-    if (!this.def.emerges && !this.def.flies && !this.def.stationary) this.setFeetY(laneFeetY(this.x));
-    else this.setFeetY(this.feetY);
+    this.followGround();
     this.nameTag?.setPosition(this.x, this.hpBarY - 2);
     this.drawHpBar();
     this.drawStatus();
+  }
+
+  // Walkers stand on the lane, boats on the waterline; the rest keep their
+  // own height.
+  followGround() {
+    const { def } = this;
+    if (def.emerges || def.flies || def.stationary || def.galleon) this.setFeetY(this.feetY);
+    else this.setFeetY(def.floats ? LAYOUT.boatWaterY : laneFeetY(this.x));
+  }
+
+  // Tidal Wave: carried back toward the island (even while stunned).
+  pushed(dt) {
+    const step = Math.min(this.pushLeft, this.pushSpeed * dt / 1000);
+    this.pushLeft -= step;
+    this.x = Math.min(this.retreatX, this.x + step);
+    if (this.x >= this.retreatX) this.pushLeft = 0;
+  }
+
+  // Haunt: runs back toward the island at its own pace. Returns whether it moved.
+  flee(sdt) {
+    const x = Math.min(this.retreatX, this.x + this.speed * sdt / 1000);
+    const moved = x > this.x;
+    this.x = x;
+    return moved;
   }
 
   // Left along the lane; in an escorted formation, never closer than
@@ -292,7 +379,7 @@ export class Enemy {
     this.attackCooldown -= sdt;
     if (this.attackCooldown > 0) return;
     ship.takeDamage(this.damage);
-    this.attackCooldown = this.def.attackInterval;
+    this.attackCooldown = this.def.attackInterval / this.rage;
     if (this.attackAnim) this.body.play(this.attackAnim);
     // Otherwise a little lunge so attacks read visually
     else this.scene.tweens.add({ targets: this.body, angle: -15, duration: 80, yoyo: true });
@@ -377,7 +464,65 @@ export class Enemy {
     }
   }
 
+  // The Ghost Galleon, once risen: a volley from every gun port each
+  // fireEvery, and a boarding boat each boatEvery (faster when enraged).
+  sail(sdt, ship) {
+    const g = this.def.galleon;
+    const t = sdt * this.rage;
+    this.fireTimer -= t;
+    this.boatTimer -= t;
+    if (this.fireTimer <= 0) {
+      this.fireTimer += g.fireEvery;
+      this.volley(ship);
+    }
+    if (this.boatTimer <= 0) {
+      this.boatTimer += g.boatEvery;
+      this.launchBoat();
+    }
+  }
+
+  // "fire", and a ghost cannonball lobbed from each gun port at a random
+  // spot on the hull.
+  volley(ship) {
+    const { scene } = this;
+    const g = this.def.galleon;
+    if (this.fireAnim) this.body.play(this.fireAnim);
+    sfx.boom();
+    const ports = sheetSpec(scene, this.def.sprite)?.gunPorts ?? [[this.frameW / 2, this.frameH * 0.75]];
+    for (const [px, py] of ports) {
+      const target = { alive: true, ...ship.hullTarget() };
+      scene.projectiles.push(new LobProjectile(scene, {
+        x: this.frameLeft + px, y: this.frameTop + py, target,
+        flightTime: g.flightTime, arcHeight: g.arcHeight, sprite: g.shot,
+        aimAt: (t) => ({ x: t.x, y: t.y }),
+        findTarget: () => null,
+        onHit: (_t, x, y) => {
+          ship.takeDamage(this.damage);
+          playFx(scene, g.impact, x, y);
+        },
+      }));
+    }
+  }
+
+  // A boarding boat sets off from the bow, scaled like the wave.
+  launchBoat() {
+    const { scene } = this;
+    const def = ENEMIES.boardingBoat;
+    const boat = new Enemy(scene, def, {
+      x: this.frameLeft + this.def.galleon.boatX + def.width / 2,
+      hpMultiplier: this.hpMultiplier,
+      damageMultiplier: this.damageMultiplier,
+      gold: Math.round(def.gold * (scene.waves?.scaling.gold ?? 1)),
+    });
+    scene.enemies.push(boat);
+    if (scene.waves) scene.waves.total++;
+  }
+
   rise(dt) {
+    if (this.def.galleon) {
+      this.riseTime = Math.max(0, this.riseTime - dt);
+      return;
+    }
     const k = LAYOUT.kraken;
     this.riseTime = Math.max(0, this.riseTime - dt);
     const t = 1 - this.riseTime / k.riseMs;
@@ -395,7 +540,8 @@ export class Enemy {
   animate(moving) {
     const anims = this.body.anims;
     if (!anims) return;
-    anims.timeScale = this.pace;
+    anims.timeScale = this.pace * this.rage;
+    this.body.setFlipX?.(this.isAfraid);   // fleeing: facing the island
     if (this.walkAnim) {
       if (moving) this.body.play(this.walkAnim, true);
       else anims.stop();
@@ -429,6 +575,15 @@ export class Enemy {
     this.body.destroy();
   }
 
+  // A boarding boat at the ship: its crew board (its damage, once) and it's
+  // gone, with no gold.
+  board(ship) {
+    this.alive = false;
+    ship.takeDamage(this.damage);
+    this.removeOverlays();
+    this.scene.tweens.add({ targets: this.body, alpha: 0, duration: 250, onComplete: () => this.body.destroy() });
+  }
+
   // The keg's explosion (2x size) and camera shake; hits nothing by itself.
   explode() {
     const { blast } = this.def;
@@ -441,15 +596,19 @@ export class Enemy {
   //   flash: false for damage over time, so poison ticks don't strobe the body
   //   dot:   damage over time (poison): armour and shields don't stop it
   //   lobbed: an arcing hit, which goes over a Barnacle Knight's shield
-  takeDamage(amount, { flash = true, dot = false, lobbed = false } = {}) {
+  //   throughShield: passes through the shield (the Ghost Pirate's cutlass)
+  //   ignoreArmor: armour doesn't reduce it (the Sharpshooter)
+  takeDamage(amount, {
+    flash = true, dot = false, lobbed = false, throughShield = false, ignoreArmor = false,
+  } = {}) {
     if (!this.alive) return;
     let damage = this.isCursed ? amount * (1 + this.curseBonus) : amount;
-    if (this.armor && !dot) damage = Math.max(this.def.minDamage, damage - this.armor);
+    if (this.armor && !dot && !ignoreArmor) damage = Math.max(this.def.minDamage, damage - this.armor);
     if (flash) {
       this.setFlash(true);
       this.scene.time.delayedCall(FX.hitFlashMs, () => this.alive && this.setFlash(false));
     }
-    if (this.hasShield && !dot && !lobbed) {
+    if (this.hasShield && !dot && !lobbed && !throughShield) {
       this.shieldHp -= damage;
       if (!this.hasShield) this.breakShield();
       this.drawHpBar();
@@ -474,21 +633,35 @@ export class Enemy {
     }
   }
 
-  // White while hit; otherwise an Elite's gold tint (or none).
+  // White while hit; otherwise its tint: an Elite's gold, an enraged boss's
+  // red (or none).
   setFlash(on) {
+    const tint = this.tint ?? (this.elite ? ELITE.tint : null);
     if (this.body.setTintFill) {
       if (on) this.body.setTintFill(FX.hitFlashColor);
-      else if (this.elite) this.body.setTint(ELITE.tint);
+      else if (tint != null) this.body.setTint(tint);
       else this.body.clearTint();
     } else {
-      this.body.setFillStyle(on ? FX.hitFlashColor : this.elite ? ELITE.tint : this.def.color);
+      this.body.setFillStyle(on ? FX.hitFlashColor : tint ?? this.def.color);
     }
+  }
+
+  // The finale: when one boss falls the other enrages, tinted and attacking
+  // mult x as fast.
+  enrage(mult, tint) {
+    this.rage = mult;
+    this.tint = tint;
+    if (this.alive) this.setFlash(false);
   }
 
   die() {
     this.alive = false;
     this.scene.events.emit('enemy-killed', this);
     this.removeOverlays();
+    if (this.def.galleon) {
+      this.sink();
+      return;
+    }
     this.scene.tweens.add({
       targets: this.body,
       alpha: 0,
@@ -497,6 +670,20 @@ export class Enemy {
       onComplete: () => this.body.destroy(),
     });
     if (this.def.blast) this.blastEnemies();
+  }
+
+  // The Ghost Galleon goes down: "sink", then it fades out.
+  sink() {
+    this.body.clearTint?.();
+    const fade = () => this.scene.tweens.add({
+      targets: this.body, alpha: 0, duration: this.def.galleon.sinkFadeMs, onComplete: () => this.body.destroy(),
+    });
+    if (!this.sinkAnim) {
+      fade();
+      return;
+    }
+    this.body.play(this.sinkAnim);
+    this.body.once(`animationcomplete-${this.sinkAnim}`, fade);
   }
 
   // A Keg Runner killed before reaching the ship: its keg goes off where it
@@ -558,15 +745,15 @@ export class Enemy {
         delete this.statusSprites[key];
       }
     }
-    const { slow, poison, stun, curse } = this.statusSprites;
+    const { slow, poison, stun, fear, curse } = this.statusSprites;
     const x = Math.round(this.x);
     if (slow) {
-      if (this.def.emerges) slow.setOrigin(0.5).setPosition(x, Math.round(this.y));
+      if (this.large) slow.setOrigin(0.5).setPosition(x, Math.round(this.y));
       else slow.setOrigin(0.5, 1).setPosition(x, Math.round(this.feetY));
     }
     poison?.setPosition(x, Math.round(this.y - this.def.height / 4));
     let above = this.hpBarY - (this.nameTag ? 10 : 0) - (this.hasShield ? 2 : 0) - FX.statusGap;
-    for (const mark of [stun, curse]) {
+    for (const mark of [stun, fear, curse]) {
       if (!mark) continue;
       mark.setOrigin(0.5, 1).setPosition(x, above);
       above -= mark.height + FX.statusGap;

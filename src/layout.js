@@ -34,6 +34,11 @@ export function initLayout(json) {
     siren: { x: json.siren.x, y: json.siren.y },
     // Storm Harpies cruise with their body centre between these heights.
     flightY: { min: json.harpyFlightY.min, max: json.harpyFlightY.max },
+    // Top-left of the Ghost Galleon's 96x80 frame. Ship-side like the
+    // Siren's rock (it never moves, so it has to stay in the crew's range).
+    ghostGalleon: { x: json.ghostGalleon.x, y: json.ghostGalleon.y },
+    // Boarding boats keep their frame's bottom on this line.
+    boatWaterY: json.boardingBoat.waterlineY,
   };
   shiftIsland(LAYOUT.islandShift ?? 0);
 }

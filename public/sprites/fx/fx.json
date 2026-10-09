@@ -298,5 +298,125 @@
     "repeat": -1,
     "kind": "projectile",
     "use": "Siren's song: floats from her to the crewmate she stuns"
+  },
+  "parrot_fly": {
+    "file": "parrot_fly.png",
+    "frameWidth": 14,
+    "frameHeight": 10,
+    "frames": 2,
+    "fps": 12,
+    "repeat": -1,
+    "kind": "projectile",
+    "use": "Parrot Keeper attack; Flock = many of these across the sky"
+  },
+  "scalpel": {
+    "file": "scalpel.png",
+    "frameWidth": 12,
+    "frameHeight": 5,
+    "frames": 1,
+    "fps": 0,
+    "repeat": 0,
+    "kind": "projectile",
+    "use": "Ship's Doctor attack (rotate to flight angle)"
+  },
+  "musket_shot": {
+    "file": "musket_shot.png",
+    "frameWidth": 16,
+    "frameHeight": 3,
+    "frames": 1,
+    "fps": 0,
+    "repeat": 0,
+    "kind": "projectile",
+    "use": "Sharpshooter attack + Deadeye (fast, straight; rotate)"
+  },
+  "muzzle_flash": {
+    "file": "muzzle_flash.png",
+    "frameWidth": 10,
+    "frameHeight": 10,
+    "frames": 2,
+    "fps": 16,
+    "repeat": 0,
+    "kind": "impact",
+    "use": "at the tip of the Sharpshooter's musket on each shot"
+  },
+  "ghost_cutlass": {
+    "file": "ghost_cutlass.png",
+    "frameWidth": 14,
+    "frameHeight": 14,
+    "frames": 4,
+    "fps": 16,
+    "repeat": -1,
+    "kind": "projectile",
+    "use": "Ghost Pirate attack (spins, passes through shields)"
+  },
+  "fear_mark": {
+    "file": "fear_mark.png",
+    "frameWidth": 12,
+    "frameHeight": 12,
+    "frames": 2,
+    "fps": 4,
+    "repeat": -1,
+    "kind": "status",
+    "use": "above an enemy fleeing from Haunt"
+  },
+  "lightning_seg": {
+    "file": "lightning_seg.png",
+    "frameWidth": 16,
+    "frameHeight": 9,
+    "frames": 3,
+    "fps": 20,
+    "repeat": -1,
+    "kind": "projectile",
+    "use": "Storm Caller chain: tile along each link, rotated; show ~0.2s"
+  },
+  "lightning_hit": {
+    "file": "lightning_hit.png",
+    "frameWidth": 16,
+    "frameHeight": 16,
+    "frames": 3,
+    "fps": 16,
+    "repeat": 0,
+    "kind": "impact",
+    "use": "on each enemy the chain hits"
+  },
+  "heal_plus": {
+    "file": "heal_plus.png",
+    "frameWidth": 16,
+    "frameHeight": 24,
+    "frames": 3,
+    "fps": 8,
+    "repeat": 0,
+    "kind": "ability",
+    "use": "Patch Up: a few of these rise over the hull"
+  },
+  "deadeye_mark": {
+    "file": "deadeye_mark.png",
+    "frameWidth": 24,
+    "frameHeight": 24,
+    "frames": 2,
+    "fps": 8,
+    "repeat": -1,
+    "kind": "ability",
+    "use": "Deadeye: on the target while the shot lines up"
+  },
+  "tidal_wave": {
+    "file": "tidal_wave.png",
+    "frameWidth": 72,
+    "frameHeight": 48,
+    "frames": 4,
+    "fps": 10,
+    "repeat": -1,
+    "kind": "ability",
+    "use": "Tidal Wave: rolls right along the lane from the ship"
+  },
+  "ghost_cannonball": {
+    "file": "ghost_cannonball.png",
+    "frameWidth": 10,
+    "frameHeight": 10,
+    "frames": 2,
+    "fps": 8,
+    "repeat": -1,
+    "kind": "projectile",
+    "use": "Ghost Galleon volley: lobbed from each gun port at the ship's hull"
   }
 }

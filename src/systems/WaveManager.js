@@ -2,13 +2,15 @@ import { ECONOMY, ELITE, ENEMIES, FORMATIONS, WAVES } from '../config.js';
 import { Enemy } from '../entities/Enemy.js';
 
 export const isBossWave = (wave) => wave % WAVES.bossEvery === 0;
+// The boss of a boss wave (ENEMIES key): WAVES.bosses take turns.
+export const bossOf = (wave) => WAVES.bosses[(wave / WAVES.bossEvery - 1) % WAVES.bosses.length];
 export const isSirenWave = (wave) => !isBossWave(wave) && wave >= WAVES.sirenFromWave
   && (wave - WAVES.sirenFromWave) % WAVES.sirenEvery === 0;
 
 // The first wave an enemy type (ENEMIES key) can appear in: its earliest
-// formation, the first Siren wave, or the first boss wave.
+// formation, the first Siren wave, or its first boss wave.
 export function enemyFirstWave(key) {
-  if (ENEMIES[key].boss) return WAVES.bossEvery;
+  if (ENEMIES[key].boss) return WAVES.bossEvery * (WAVES.bosses.indexOf(key) + 1);
   if (ENEMIES[key].stationary) return WAVES.sirenFromWave;
   const froms = FORMATIONS.filter((f) => f.members.includes(key)).map((f) => f.from);
   return froms.length ? Math.min(...froms) : Infinity;
@@ -47,7 +49,7 @@ function seededRandom(seed) {
 // delay: ms after the previous spawn; follow: index (in the plan) of the
 // leader this one keeps behind, or null. Built from FORMATIONS (each
 // formation's first wave always includes it), with a Siren on Siren waves and
-// The Kraken on boss waves.
+// the boss on boss waves.
 export function composeWave(wave) {
   const random = seededRandom(wave * 7919 + 17);
   const n = wave - 1;
@@ -71,7 +73,7 @@ export function composeWave(wave) {
   }
   const solo = (key) => ({ members: [key] });
   if (isSirenWave(wave)) groups.splice(Math.round(groups.length * WAVES.sirenSpawnAt), 0, solo('siren'));
-  if (isBossWave(wave)) groups.splice(Math.round(groups.length * WAVES.bossSpawnAt), 0, solo('kraken'));
+  if (isBossWave(wave)) groups.splice(Math.round(groups.length * WAVES.bossSpawnAt), 0, solo(bossOf(wave)));
 
   const elites = eliteChance(wave);
   const interval = Math.max(WAVES.minSpawnInterval, WAVES.spawnInterval + n * WAVES.spawnIntervalPerWave);

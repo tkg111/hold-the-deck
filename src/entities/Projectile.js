@@ -1,4 +1,5 @@
 import { FX_DEPTH, fxSprite } from '../fx.js';
+import { fxKey } from '../sprites.js';
 
 // Every projectile is an fx sheet (`sprite`, see fx.json), drawn flying
 // right; with `rotate` it turns to its flight angle, otherwise it keeps its
@@ -132,6 +133,45 @@ export class LobProjectile {
   destroy() {
     this.done = true;
     this.sprite.destroy();
+  }
+}
+
+// A lightning bolt along points (the Storm Caller's chain): the `sprite`
+// sheet laid end to end along each link, turned to it and flickering through
+// its frames, for showMs (the last piece of a link cropped to fit). Its hits
+// are dealt by the caller; this is only the bolt.
+export class ChainLightning {
+  constructor(scene, { points, sprite, showMs }) {
+    this.time = 0;
+    this.showMs = showMs;
+    this.done = false;
+    this.pieces = [];
+    if (!scene.textures.exists(fxKey(sprite))) return;
+    const { width, height } = scene.textures.getFrame(fxKey(sprite), 0);
+    for (let i = 1; i < points.length; i++) {
+      const a = points[i - 1];
+      const b = points[i];
+      const length = Math.hypot(b.x - a.x, b.y - a.y);
+      const angle = Math.atan2(b.y - a.y, b.x - a.x);
+      for (let d = 0; d < length; d += width) {
+        const piece = fxSprite(scene, sprite, Math.round(a.x + Math.cos(angle) * d), Math.round(a.y + Math.sin(angle) * d))
+          .setOrigin(0, 0.5).setRotation(angle).setDepth(FX_DEPTH);
+        if (length - d < width) piece.setCrop(0, 0, Math.ceil(length - d), height);
+        this.pieces.push(piece);
+      }
+    }
+  }
+
+  update(dt) {
+    if (this.done) return;
+    this.time += dt;
+    if (this.time >= this.showMs) this.destroy();
+  }
+
+  destroy() {
+    this.done = true;
+    for (const piece of this.pieces) piece.destroy();
+    this.pieces = [];
   }
 }
 

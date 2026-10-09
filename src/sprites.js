@@ -4,7 +4,9 @@ import { preloadUi } from './ui/kit.js';
 import { versioned } from './version.js';
 
 export const SHIP_SLOTS_KEY = 'ship_slots';
-const ANIMATIONS_KEY = 'animations';
+// Character sheets and their animations: crew in animations.json, enemies
+// in animations_new_enemies.json (which also has the Ghost Galleon's gunPorts).
+const ANIMATION_FILES = ['animations', 'animations_new_enemies'];
 const FX_JSON_KEY = 'fx_list';
 const LAYOUT_KEY = 'layout';
 export const BACKGROUND_KEY = 'bg';
@@ -60,12 +62,14 @@ export function preloadSprites(scene) {
       load.spritesheet(fxKey(name), `${FX.path}${file}`, { frameWidth, frameHeight });
     }
   });
-  load.json(ANIMATIONS_KEY, `${ANIMATIONS_KEY}.json`);
-  load.once(`filecomplete-json-${ANIMATIONS_KEY}`, (key, type, data) => {
-    for (const [name, { frameWidth, frameHeight }] of Object.entries(data)) {
-      load.spritesheet(sheetKey(name), `${sheetKey(name)}.png`, { frameWidth, frameHeight });
-    }
-  });
+  for (const file of ANIMATION_FILES) {
+    load.json(file, `${file}.json`);
+    load.once(`filecomplete-json-${file}`, (key, type, data) => {
+      for (const [name, { frameWidth, frameHeight }] of Object.entries(data)) {
+        load.spritesheet(sheetKey(name), `${sheetKey(name)}.png`, { frameWidth, frameHeight });
+      }
+    });
+  }
 }
 
 // Read layout.json and register every animation: animations.json's as
@@ -101,11 +105,13 @@ export function createAnimations(scene) {
       repeat,
     });
   }
-  const data = scene.cache.json.get(ANIMATIONS_KEY);
-  for (const [name, { frameWidth, frameHeight, ...anims }] of Object.entries(data)) {
-    for (const [anim, { frames, fps, repeat }] of Object.entries(anims)) {
+  const sheets = ANIMATION_FILES.flatMap((file) => Object.entries(scene.cache.json.get(file) ?? {}));
+  for (const [name, { frameWidth, frameHeight, ...anims }] of sheets) {
+    for (const [anim, spec] of Object.entries(anims)) {
       const key = animKey(name, anim);
-      if (scene.anims.exists(key)) continue;
+      // Skip extra data (gunPorts) and animations already made.
+      if (!spec?.frames || scene.anims.exists(key)) continue;
+      const { frames, fps, repeat } = spec;
       scene.anims.create({
         key,
         frames: scene.anims.generateFrameNumbers(sheetKey(name), { frames }),
@@ -116,7 +122,17 @@ export function createAnimations(scene) {
   }
 }
 
-// The animation "<name>_<anim>" if animations.json defines it, else null.
+// A character sheet's entry in the animation files (frame size, animations
+// and any extra data such as the Ghost Galleon's gunPorts), or null.
+export function sheetSpec(scene, name) {
+  for (const file of ANIMATION_FILES) {
+    const spec = scene.cache.json.get(file)?.[name];
+    if (spec && !Array.isArray(spec)) return spec;
+  }
+  return null;
+}
+
+// The animation "<name>_<anim>" if the animation files define it, else null.
 export function findAnim(scene, name, anim) {
   const key = animKey(name, anim);
   return scene.anims.exists(key) ? key : null;

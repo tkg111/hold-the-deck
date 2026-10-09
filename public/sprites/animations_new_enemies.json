@@ -1,0 +1,173 @@
+{
+  "iron_crab": {
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "walk": {
+      "frames": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "fps": 5,
+      "repeat": -1
+    }
+  },
+  "storm_harpy": {
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "fly": {
+      "frames": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "fps": 10,
+      "repeat": -1
+    },
+    "dive": {
+      "frames": [
+        4
+      ],
+      "fps": 1,
+      "repeat": 0
+    }
+  },
+  "keg_runner": {
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "walk": {
+      "frames": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "fps": 12,
+      "repeat": -1
+    }
+  },
+  "barnacle_knight": {
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "walk_shield": {
+      "frames": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "fps": 5,
+      "repeat": -1
+    },
+    "walk_noshield": {
+      "frames": [
+        4,
+        5,
+        6,
+        7
+      ],
+      "fps": 6,
+      "repeat": -1
+    }
+  },
+  "siren": {
+    "frameWidth": 48,
+    "frameHeight": 48,
+    "idle": {
+      "frames": [
+        0,
+        1
+      ],
+      "fps": 2,
+      "repeat": -1
+    },
+    "sing": {
+      "frames": [
+        2,
+        3
+      ],
+      "fps": 4,
+      "repeat": -1
+    }
+  },
+  "ghost_galleon": {
+    "frameWidth": 96,
+    "frameHeight": 80,
+    "idle": {
+      "frames": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "fps": 3,
+      "repeat": -1
+    },
+    "fire": {
+      "frames": [
+        4,
+        5
+      ],
+      "fps": 8,
+      "repeat": 0
+    },
+    "sink": {
+      "frames": [
+        6,
+        7,
+        8,
+        9
+      ],
+      "fps": 3,
+      "repeat": 0
+    },
+    "emerge": {
+      "frames": [
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19
+      ],
+      "fps": 4,
+      "repeat": 0
+    },
+    "gunPorts": [
+      [
+        20,
+        62
+      ],
+      [
+        34,
+        62
+      ],
+      [
+        48,
+        62
+      ],
+      [
+        62,
+        62
+      ]
+    ]
+  },
+  "boarding_boat": {
+    "frameWidth": 32,
+    "frameHeight": 20,
+    "row": {
+      "frames": [
+        0,
+        1
+      ],
+      "fps": 3,
+      "repeat": -1
+    }
+  }
+}

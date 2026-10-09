@@ -20,7 +20,11 @@ export function describeHero(def) {
   if (def.crit) parts.push(`${pct(def.crit.chance)} crit chance for ${def.crit.multiplier}x damage`);
   if (def.slow) parts.push(`slows ${pct(1 - def.slow.factor)} for ${secs(def.slow.duration)}`);
   if (def.curse) parts.push(`curse: +${pct(def.curse.bonus)} damage taken from all`);
-  if (def.antiAir) parts.push('hits flyers');
+  if (def.targets === 'furthest') parts.push('aims at the furthest foe');
+  if (def.ignoresArmor) parts.push('ignores armour');
+  if (def.passesShields) parts.push('passes through shields');
+  if (def.chain) parts.push(`chain lightning hits up to ${def.chain.targets}`);
+  if (def.antiAir) parts.push(def.flyerBonus ? `hits flyers for ${def.flyerBonus}x` : 'hits flyers');
   if (def.netsFlyers) parts.push('nets ground flyers');
   const text = parts.join(', ') || 'Fast shots, no effect';
   return text[0].toUpperCase() + text.slice(1);
@@ -38,6 +42,7 @@ export function describeAbility(id, scale = 1) {
     bonus: a.bonus != null && pct(a.bonus),
     attackSpeed: a.attackSpeed != null && pct(a.attackSpeed - 1),
     damage: a.damage != null && `${a.damage}x`,
+    heal: a.heal != null && pct(a.heal),
     balls: a.balls,
     hits: a.hits,
   };

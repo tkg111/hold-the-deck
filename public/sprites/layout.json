@@ -69,5 +69,14 @@
     "min": 140,
     "max": 175,
     "note": "flyers cruise at this height, then dive at the top deck"
+  },
+  "ghostGalleon": {
+    "x": 258,
+    "y": 168,
+    "note": "top-left of its 96x80 frame. Plays \"emerge\" in place (rises from the water, bow first, ~2.5s, can not be hurt), then loops idle and fires. Sits closer to the island than the Kraken."
+  },
+  "boardingBoat": {
+    "waterlineY": 240,
+    "note": "bottom of the 32x20 frame sits at this y; rows left to shipContactX"
   }
 }

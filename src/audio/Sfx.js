@@ -168,6 +168,27 @@ class Sfx {
       captain: () => [392, 523.25, 659.25, 783.99].forEach((f, i) => {
         this.tone({ freq: f, type: 'square', start: t + i * 0.1, duration: i === 3 ? 0.4 : 0.12, volume: 0.1 });
       }),
+      // A flurry of squawks and flapping.
+      parrotKeeper: () => {
+        this.noise({ start: t, duration: 0.4, volume: 0.25, filterFrom: 1800, filterTo: 900, q: 0.8 });
+        for (let i = 0; i < 4; i++) {
+          this.tone({ freq: 1500 + i * 180, endFreq: 1000, type: 'sawtooth', start: t + i * 0.08, duration: 0.07, volume: 0.06 });
+        }
+      },
+      // Two warm rising chimes.
+      shipsDoctor: () => [523.25, 783.99].forEach((f, i) => {
+        this.tone({ freq: f, type: 'sine', start: t + i * 0.12, duration: 0.35, volume: 0.15, attack: 0.02 });
+      }),
+      // A tense rising whine as he takes aim.
+      sharpshooter: () => this.tone({ freq: 400, endFreq: 1600, type: 'triangle', start: t, duration: 0.8, volume: 0.08, attack: 0.1 }),
+      // A ghostly wail, wavering down.
+      ghostPirate: () => {
+        for (const f of [440, 466]) {
+          this.tone({ freq: f, endFreq: f * 0.6, type: 'sine', start: t, duration: 1, volume: 0.1, attack: 0.15 });
+        }
+      },
+      // A rolling rush of water.
+      stormCaller: () => this.noise({ start: t, duration: 1, volume: 0.45, filterFrom: 300, filterTo: 1600, q: 0.6 }),
     }[id];
     play?.();
   }

@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { DISPLAY, GAME_SPEEDS, HEROES, UI_KIT } from '../config.js';
+import { DISPLAY, ENEMIES, GAME_SPEEDS, HEROES, UI_KIT } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
 import {
   applyRenderScale, fullscreenSupported, isFullscreen, toggleFullscreen,
@@ -10,7 +10,7 @@ import { createAnimations, preloadSprites } from '../sprites.js';
 import { Ship } from '../entities/Ship.js';
 import { Hero } from '../entities/Hero.js';
 import { clearSave, loadProgress, saveProgress } from '../systems/Save.js';
-import { composeWave, isBossWave, isSirenWave, WaveManager } from '../systems/WaveManager.js';
+import { bossOf, composeWave, isBossWave, isSirenWave, WaveManager } from '../systems/WaveManager.js';
 import { AbilitySystem } from '../systems/Abilities.js';
 import { AbilityBar } from '../ui/AbilityBar.js';
 import { Button } from '../ui/Button.js';
@@ -425,7 +425,7 @@ export class GameScene extends Phaser.Scene {
     this.ship.restore();
     this.waves.start(this.progress.wave);
     this.abilities.resetCooldowns();
-    if (isBossWave(this.progress.wave)) this.showBanner('THE KRAKEN RISES!', { color: UI.colors.warn });
+    if (isBossWave(this.progress.wave)) this.showBanner(ENEMIES[bossOf(this.progress.wave)].banner, { color: UI.colors.warn });
     else if (isSirenWave(this.progress.wave)) this.showBanner('A SIREN SINGS!', { color: UI.colors.warn });
     this.state = STATE.RUNNING;
     this.applySpeed();

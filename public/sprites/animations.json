@@ -231,82 +231,9 @@
       "repeat": 0
     }
   },
-  "iron_crab": {
+  "parrot_keeper": {
     "frameWidth": 32,
     "frameHeight": 32,
-    "walk": {
-      "frames": [
-        0,
-        1,
-        2,
-        3
-      ],
-      "fps": 5,
-      "repeat": -1
-    }
-  },
-  "storm_harpy": {
-    "frameWidth": 32,
-    "frameHeight": 32,
-    "fly": {
-      "frames": [
-        0,
-        1,
-        2,
-        3
-      ],
-      "fps": 10,
-      "repeat": -1
-    },
-    "dive": {
-      "frames": [
-        4
-      ],
-      "fps": 1,
-      "repeat": 0
-    }
-  },
-  "keg_runner": {
-    "frameWidth": 32,
-    "frameHeight": 32,
-    "walk": {
-      "frames": [
-        0,
-        1,
-        2,
-        3
-      ],
-      "fps": 12,
-      "repeat": -1
-    }
-  },
-  "barnacle_knight": {
-    "frameWidth": 32,
-    "frameHeight": 32,
-    "walk_shield": {
-      "frames": [
-        0,
-        1,
-        2,
-        3
-      ],
-      "fps": 5,
-      "repeat": -1
-    },
-    "walk_noshield": {
-      "frames": [
-        4,
-        5,
-        6,
-        7
-      ],
-      "fps": 6,
-      "repeat": -1
-    }
-  },
-  "siren": {
-    "frameWidth": 48,
-    "frameHeight": 48,
     "idle": {
       "frames": [
         0,
@@ -315,13 +242,93 @@
       "fps": 2,
       "repeat": -1
     },
-    "sing": {
+    "attack": {
       "frames": [
         2,
         3
       ],
-      "fps": 4,
+      "fps": 10,
+      "repeat": 0
+    }
+  },
+  "ships_doctor": {
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "idle": {
+      "frames": [
+        0,
+        1
+      ],
+      "fps": 2,
       "repeat": -1
+    },
+    "attack": {
+      "frames": [
+        2,
+        3
+      ],
+      "fps": 10,
+      "repeat": 0
+    }
+  },
+  "sharpshooter": {
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "idle": {
+      "frames": [
+        0,
+        1
+      ],
+      "fps": 2,
+      "repeat": -1
+    },
+    "attack": {
+      "frames": [
+        2,
+        3
+      ],
+      "fps": 10,
+      "repeat": 0
+    }
+  },
+  "ghost_pirate": {
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "idle": {
+      "frames": [
+        0,
+        1
+      ],
+      "fps": 2,
+      "repeat": -1
+    },
+    "attack": {
+      "frames": [
+        2,
+        3
+      ],
+      "fps": 10,
+      "repeat": 0
+    }
+  },
+  "storm_caller": {
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "idle": {
+      "frames": [
+        0,
+        1
+      ],
+      "fps": 2,
+      "repeat": -1
+    },
+    "attack": {
+      "frames": [
+        2,
+        3
+      ],
+      "fps": 10,
+      "repeat": 0
     }
   }
 }

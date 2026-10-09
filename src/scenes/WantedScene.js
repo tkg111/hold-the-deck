@@ -29,7 +29,8 @@ export class WantedScene extends Phaser.Scene {
   create() {
     applyRenderScale(this);
     const p = this.progress;
-    this.ids = Object.keys(ENEMIES).sort((a, b) => enemyFirstWave(a) - enemyFirstWave(b));
+    this.ids = Object.keys(ENEMIES).filter((id) => !ENEMIES[id].minion)
+      .sort((a, b) => enemyFirstWave(a) - enemyFirstWave(b));
     const cx = DISPLAY.width / 2;
 
     fillView(this, 0x0d1117, 0.9);

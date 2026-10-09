@@ -3,7 +3,9 @@ import { laneFeetY } from '../layout.js';
 import { FX_DEPTH, fxSprite, playFx } from '../fx.js';
 import { findAnim, fxKey, sheetKey } from '../sprites.js';
 import { DEPTH } from './Ship.js';
-import { LobProjectile, nearestLiving, PiercingProjectile, Projectile } from './Projectile.js';
+import {
+  ChainLightning, LobProjectile, nearestLiving, PiercingProjectile, Projectile,
+} from './Projectile.js';
 
 export class Hero {
   // damage and attackInterval come from Progress (level, stars, deck buffs).
@@ -191,12 +193,24 @@ export class Hero {
     return this.fire(target, lunge);
   }
 
+  // Where shots leave from: the musket's tip for the Sharpshooter (with its
+  // flash), the middle of the body for everyone else.
+  muzzlePoint() {
+    const { muzzle } = this.def;
+    if (!muzzle) return { x: this.x, y: this.y };
+    const x = Math.round(this.x + muzzle.x);
+    const y = Math.round(this.feetY + muzzle.y);
+    if (muzzle.fx) playFx(this.scene, muzzle.fx, x, y).setOrigin(0, 0.5);
+    return { x, y };
+  }
+
   // lunge: set for a Lunge shot, which always crits (for heroes that can
   // crit) and plays its impact on the target.
   fire(target, lunge = null) {
     const { def } = this;
+    if (def.chain) return this.chainLightning(target);
     const common = {
-      x: this.x, y: this.y, target,
+      ...this.muzzlePoint(), target,
       sprite: def.projectile.sprite, rotate: def.projectile.rotate,
       onHit: (hit, x, y) => this.onHit(hit, x, y, lunge),
       // Used when the target dies mid-flight.
@@ -220,31 +234,61 @@ export class Hero {
     return new Projectile(this.scene, { ...common, speed: def.projectileSpeed });
   }
 
+  // The Storm Caller: lightning from his staff to the target, then on to
+  // the nearest enemy not yet hit within chain.jump, up to chain.targets;
+  // each jump hits for chain.falloff x the last. Hits land at once; the bolt
+  // shows for a moment.
+  chainLightning(first) {
+    const { chain } = this.def;
+    const targets = [first];
+    while (targets.length < chain.targets) {
+      const last = targets[targets.length - 1];
+      const next = nearestLiving(this.scene.enemies, last.x, last.y,
+        (e) => this.canHit(e) && !targets.includes(e) && Math.hypot(e.x - last.x, e.y - last.y) <= chain.jump);
+      if (!next) break;
+      targets.push(next);
+    }
+    const from = { x: Math.round(this.x + chain.from.x), y: Math.round(this.feetY + chain.from.y) };
+    const points = [from, ...targets.map((e) => ({ x: e.x, y: e.y }))];
+    let damage = this.damage;
+    for (const e of targets) {
+      playFx(this.scene, chain.impact, e.x, e.y);
+      e.takeDamage(damage * (e.def.flies ? this.def.flyerBonus ?? 1 : 1));
+      damage *= chain.falloff;
+    }
+    return new ChainLightning(this.scene, { points, sprite: chain.segment, showMs: chain.segmentMs });
+  }
+
   // Where an enemy will be after msLeft, for lobbed shots: walking left at its
-  // current (possibly slowed) speed, standing still if stunned, never past where
-  // it stops. Walkers follow the lane up or down. Flyers and the Siren are
-  // aimed at where they are.
+  // current (possibly slowed) speed, standing still if stunned, scared or
+  // pushed, never past where it stops. Walkers follow the lane up or down,
+  // boats the waterline. Flyers, the Siren and the Ghost Galleon are aimed at
+  // where they are.
   leadPoint(enemy, msLeft) {
-    if (enemy.def.flies || enemy.def.stationary) return { x: enemy.x, y: enemy.y };
-    const lead = enemy.isStunned ? 0 : enemy.speed * enemy.pace * msLeft / 1000;
+    const { def } = enemy;
+    if (def.flies || def.stationary || def.galleon) return { x: enemy.x, y: enemy.y };
+    const still = enemy.isStunned || enemy.isAfraid || enemy.pushLeft > 0;
+    const lead = still ? 0 : enemy.speed * enemy.pace * msLeft / 1000;
     const x = Math.max(enemy.stopX, enemy.x - lead);
-    const y = enemy.def.emerges ? enemy.y : laneFeetY(x) - enemy.def.height / 2;
+    const y = def.emerges || def.floats ? enemy.y : laneFeetY(x) - def.height / 2;
     return { x, y };
   }
 
   // Closest living enemy to the ship that's within range (and that it can
-  // hit: flyers in the air need anti-air). The Voodoo Priestess prefers
+  // hit: flyers in the air need anti-air); the furthest instead for the
+  // Sharpshooter (targets: 'furthest'). The Voodoo Priestess prefers
   // enemies that aren't cursed yet, the Grog Brewer ones not yet poisoned,
   // so their effects spread across the wave, and the Net Thrower flyers still
   // in the air, to ground them.
   pickTarget(enemies) {
     const { curse, poison, netsFlyers } = this.def;
+    const furthest = this.def.targets === 'furthest';
     let best = null;
     let bestFresh = null;
     for (const e of enemies) {
       if (!this.canHit(e)) continue;
       if (Math.hypot(e.x - this.x, e.y - this.y) > this.def.range) continue;
-      if (!best || e.x < best.x) best = e;
+      if (!best || (furthest ? e.x > best.x : e.x < best.x)) best = e;
       const fresh = (curse && !e.isCursed) || (poison && !e.isPoisoned) || (netsFlyers && e.airborne);
       if (fresh && (!bestFresh || e.x < bestFresh.x)) bestFresh = e;
     }
@@ -253,9 +297,13 @@ export class Hero {
 
   // The shot landed at (x, y): its impact plays there, then damage and
   // effects go to the target (or everything in the area it can hit). Lobbed
-  // shots go over a Barnacle Knight's shield.
+  // shots go over a Barnacle Knight's shield and the Ghost Pirate's cutlass
+  // passes through it; the Sharpshooter's ignore armour; the Parrot Keeper's
+  // hit flyers harder.
   onHit(target, x, y, lunge = null) {
-    const { area, stun, slow, curse, poison, crit, lob } = this.def;
+    const {
+      area, stun, slow, curse, poison, crit, lob, flyerBonus, passesShields, ignoresArmor,
+    } = this.def;
     playFx(this.scene, this.def.projectile.impact, x, y);
     const victims = area
       ? this.scene.enemies.filter((e) => this.canHit(e) && Math.hypot(e.x - x, e.y - y) <= area.radius)
@@ -268,7 +316,8 @@ export class Hero {
         this.scene.floatText(e.x, e.y - e.def.height / 2 - 13, 'CRIT!', '#ffca28');
       }
       if (lunge) playFx(this.scene, lunge.impact, e.x, e.y, FX_DEPTH + 1);
-      e.takeDamage(damage, { lobbed: !!lob });
+      if (flyerBonus && e.def.flies) damage *= flyerBonus;
+      e.takeDamage(damage, { lobbed: !!lob, throughShield: !!passesShields, ignoreArmor: !!ignoresArmor });
       if (!e.alive) continue;
       if (stun && Math.random() < stun.chance) e.applyStun(stun.duration);
       if (slow) e.applySlow(slow.factor, slow.duration);

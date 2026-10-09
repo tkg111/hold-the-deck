@@ -8,12 +8,14 @@ import { cooldownLabel, describeAbility } from '../ui/HeroPicker.js';
 import { dark, light, panel, subText, text } from '../ui/kit.js';
 
 const MAX_PER_ROW = 5;
+const PER_PAGE = 10;   // two rows; more turn the page
 const GAP = 6;
 const GRID_TOP = 28;
 
 // Overlay listing every hero (the "collection book"): owned ones as parchment
-// cards with level and stars, the rest as black silhouettes on wood. Clicking
-// an owned card shows it large next to its ability.
+// cards with level and stars, the rest as black silhouettes on wood, ten to
+// a page (arrows either side of the title plate turn it). Clicking an owned card shows it
+// large next to its ability.
 // Launched with { progress, onClose }.
 export class CollectionScene extends Phaser.Scene {
   constructor() {
@@ -23,6 +25,7 @@ export class CollectionScene extends Phaser.Scene {
   init({ progress, onClose }) {
     this.progress = progress;
     this.onClose = onClose;
+    this.page = 0;
   }
 
   create() {
@@ -38,13 +41,48 @@ export class CollectionScene extends Phaser.Scene {
     fillView(this, 0x0d1117, 0.9);
     panel(this, cx - 70, 4, 140, 20, 'wood');
     text(this, cx, 14, 'CREW ROSTER', light()).setOrigin(0.5);
-    text(this, cx + 76, 14, `${owned.length}/${ids.length} FOUND`, { font: 'small', ...light() })
+    text(this, cx + (ids.length > PER_PAGE ? 96 : 76), 14, `${owned.length}/${ids.length} FOUND`, { font: 'small', ...light() })
       .setOrigin(0, 0.5);
     if (owned.length) {
-      text(this, 8, 14, 'CLICK A CARD FOR ABILITY', { font: 'small', ...light() }).setOrigin(0, 0.5);
+      text(this, 8, 14, 'CLICK A CARD', { font: 'small', ...light() }).setOrigin(0, 0.5);
     }
 
+    this.ids = ids;
+    this.pages = Math.ceil(ids.length / PER_PAGE);
+    this.grid = this.add.container(0, 0);
+    if (this.pages > 1) {
+      const arrow = (x, step, angle) => {
+        const b = new Button(this, x, 14, {
+          width: 18, height: 18, icon: 'arrow_up', onClick: () => this.turnPage(step),
+        });
+        b.icon.setAngle(angle);
+        return b;
+      };
+      this.prevButton = arrow(cx - 82, -1, -90);
+      this.nextButton = arrow(cx + 82, 1, 90);
+    }
+    this.drawPage();
+
+    new Button(this, DISPLAY.width - 30, 14, {
+      width: 48, height: 20, label: 'Back', onClick: () => this.close(),
+    });
+  }
+
+  turnPage(step) {
+    const page = Phaser.Math.Clamp(this.page + step, 0, this.pages - 1);
+    if (page === this.page) return;
+    sfx.click();
+    this.page = page;
+    this.drawPage();
+  }
+
+  // This page's cards, in rows of up to five.
+  drawPage() {
+    const p = this.progress;
+    const cx = DISPLAY.width / 2;
     const { width: w, height: h } = HERO_CARD_SIZE.small;
+    const ids = this.ids.slice(this.page * PER_PAGE, (this.page + 1) * PER_PAGE);
+    this.grid.removeAll(true);
     ids.forEach((id, i) => {
       const row = Math.floor(i / MAX_PER_ROW);
       const inRow = Math.min(MAX_PER_ROW, ids.length - row * MAX_PER_ROW);
@@ -52,18 +90,16 @@ export class CollectionScene extends Phaser.Scene {
       const rowWidth = inRow * w + (inRow - 1) * GAP;
       const x = cx - rowWidth / 2 + w / 2 + col * (w + GAP);
       const y = GRID_TOP + h / 2 + row * (h + GAP);
-      createHeroCard(this, x, y, id, p.isOwned(id)
+      this.grid.add(createHeroCard(this, x, y, id, p.isOwned(id)
         ? { size: 'small', stars: p.heroStarCount(id), level: p.heroLevel(id) }
-        : { size: 'small', silhouette: true });
+        : { size: 'small', silhouette: true }));
       if (p.isOwned(id)) {
-        this.add.zone(x, y, w, h).setInteractive({ useHandCursor: true })
-          .on('pointerdown', () => this.showDetail(id));
+        this.grid.add(this.add.zone(x, y, w, h).setInteractive({ useHandCursor: true })
+          .on('pointerdown', () => this.showDetail(id)));
       }
     });
-
-    new Button(this, DISPLAY.width - 30, 14, {
-      width: 48, height: 20, label: 'Back', onClick: () => this.close(),
-    });
+    this.prevButton?.setEnabled(this.page > 0);
+    this.nextButton?.setEnabled(this.page < this.pages - 1);
   }
 
   // The hero's large card and a parchment panel with its ability; a click

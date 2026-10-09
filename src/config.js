@@ -47,6 +47,11 @@ export const SPRITES = {
     cannoneer: { key: 'cannoneer', height: 27, faceTop: 5 },
     duelist: { key: 'the_duelist', height: 32, faceTop: 0 },
     captain: { key: 'the_captain', height: 31, faceTop: 1 },
+    parrotKeeper: { key: 'parrot_keeper', height: 27, faceTop: 5 },
+    shipsDoctor: { key: 'ships_doctor', height: 25, faceTop: 7 },
+    sharpshooter: { key: 'sharpshooter', height: 28, faceTop: 4 },
+    ghostPirate: { key: 'ghost_pirate', height: 28, faceTop: 4 },
+    stormCaller: { key: 'storm_caller', height: 32, faceTop: 1 },
   },
   // Crew faces in the UI: this box of each hero's 32x32 sprite (x, width and
   // height in art pixels; y comes from faceTop).
@@ -101,6 +106,10 @@ export const SHIP = {
   startingDecks: 1,
   maxDecks: 3,
   slotsPerDeck: 2,
+  // The hull, where the Ghost Galleon's cannonballs land and Patch Up's
+  // crosses rise: from `left` px right of the ship's left edge to `right` px
+  // short of shipContactX, between minAbove and maxAbove px over layout.waterY.
+  hull: { left: 24, right: 12, minAbove: 10, maxAbove: 34 },
 };
 
 export const RARITY = {
@@ -131,6 +140,17 @@ export const RARITY = {
 //   antiAir: true                   — can hit flying enemies (Storm Harpies)
 //   netsFlyers: true                — can't hurt flyers in the air, but can aim
 //                                     at them: the net grounds them (see slow)
+//   flyerBonus: n                   — n x damage against flyers
+//   targets: 'furthest'             — aims at the enemy furthest from the ship
+//   ignoresArmor: true              — armour doesn't reduce its hits
+//   passesShields: true             — straight shots that pass through shields
+//   muzzle: { x, y, fx }            — shots start here (from the hero's centre x
+//                                     and feet), with fx playing there
+//   chain: { targets, jump, falloff, from: { x, y }, segment, segmentMs, impact }
+//          — instant lightning from `from` (off centre x / feet) to the target,
+//            then jumping to the nearest enemy not yet hit within `jump` px,
+//            up to `targets`; each jump does falloff x the last hit. segment is
+//            tiled along each link for segmentMs, impact plays on each enemy.
 export const HEROES = {
   cabinBoy: {
     name: 'Cabin Boy',
@@ -250,6 +270,77 @@ export const HEROES = {
     aura: { damageBonus: 0.5, damageBonusPerLevel: 0.04, attackSpeedBonus: 0.3 },
     catchphrase: 'All hands on deck! Make me proud, ye scurvy dogs!',
   },
+  parrotKeeper: {
+    name: 'Parrot Keeper',
+    shortName: 'Parrots',
+    rarity: 'common',
+    color: 0x43a047,
+    damage: 5,
+    attackInterval: 750,
+    range: 340,
+    projectileSpeed: 210,
+    projectile: { sprite: 'parrot_fly', impact: 'hit_spark' },
+    antiAir: true,
+    flyerBonus: 2.5,
+    catchphrase: "Polly wants a harpy! Sic 'em, me beauties!",
+  },
+  shipsDoctor: {
+    name: "Ship's Doctor",
+    shortName: 'Doctor',
+    rarity: 'rare',
+    color: 0xeceff1,
+    damage: 4,
+    attackInterval: 1000,
+    range: 320,
+    projectileSpeed: 260,
+    projectile: { sprite: 'scalpel', impact: 'hit_spark', rotate: true },
+    catchphrase: "Hold still. This'll only hurt a great deal.",
+  },
+  sharpshooter: {
+    name: 'Sharpshooter',
+    shortName: 'Sharp',
+    rarity: 'epic',
+    color: 0x6d4c41,
+    damage: 26,
+    attackInterval: 2100,
+    range: 430,
+    projectileSpeed: 620,
+    projectile: { sprite: 'musket_shot', impact: 'hit_spark', rotate: true },
+    // The musket's tip in sharpshooter.png (column 31, row 15).
+    muzzle: { x: 16, y: -16, fx: 'muzzle_flash' },
+    targets: 'furthest',
+    ignoresArmor: true,
+    catchphrase: 'One shot. One sailor. No refunds.',
+  },
+  ghostPirate: {
+    name: 'Ghost Pirate',
+    shortName: 'Ghost',
+    rarity: 'epic',
+    color: 0x80cbc4,
+    damage: 13,
+    attackInterval: 1100,
+    range: 330,
+    projectileSpeed: 240,
+    projectile: { sprite: 'ghost_cutlass', impact: 'hit_spark' },
+    passesShields: true,
+    catchphrase: "Ye can't sink what's already drowned, matey. Ooooh.",
+  },
+  stormCaller: {
+    name: 'Storm Caller',
+    shortName: 'Storm',
+    rarity: 'legendary',
+    color: 0x5c6bc0,
+    damage: 20,
+    attackInterval: 1500,
+    range: 340,
+    antiAir: true,
+    // The staff's tip in storm_caller.png (about column 26, row 1).
+    chain: {
+      targets: 3, jump: 80, falloff: 0.8, from: { x: 10, y: -30 },
+      segment: 'lightning_seg', segmentMs: 200, impact: 'lightning_hit',
+    },
+    catchphrase: 'The sea answers to me, and today she be angry.',
+  },
 };
 
 export const STARTING_HEROES = ['cabinBoy'];
@@ -267,7 +358,9 @@ export const STARTING_HEROES = ['cabinBoy'];
 // Abilities need a targetable enemy on screen to fire; needsRange ones (the
 // attack speed boosts) need one within range of the crew (ABILITY_BAR.supportRange).
 // Only abilities with air: true count (and reach) flying Storm Harpies; the
-// rest work on the lane.
+// rest work on the lane. `needs` narrows what lets one fire: 'flyers' (a
+// flyer on screen), 'movable' (a ground enemy that walks, so not the Siren or
+// the Ghost Galleon) or 'repairs' (the hull below full, no enemy needed).
 export const ABILITIES = {
   cabinBoy: {
     name: 'Rapid Fire', cooldown: 15000, color: 0xfff176,
@@ -332,6 +425,43 @@ export const ABILITIES = {
     fx: { sprite: 'all_hands' },
     effect: 'Whole crew +{attackSpeed} attack speed {duration}',
   },
+  parrotKeeper: {
+    name: 'Flock', cooldown: 16000, color: 0x9ccc65,
+    damage: 4, air: true, needs: 'flyers',   // only fires with a flyer on screen
+    // A parrot (speed) homes on every flyer on screen; `extra` more fly
+    // across the sky from the ship for show, spread over `spread` px of height.
+    sprite: 'parrot_fly', impact: 'hit_spark', speed: 300, extra: 6, extraSpeed: 170, spread: 70,
+    effect: 'Parrots hit every flyer for {damage} dmg',
+  },
+  shipsDoctor: {
+    name: 'Patch Up', cooldown: 24000, color: 0x81c784,
+    heal: 0.15, needs: 'repairs',   // only fires with the hull below full
+    // heal_plus sprites rise over the hull: count of them, staggered by
+    // interval ms, each rising `rise` px while it fades.
+    sprite: 'heal_plus', count: 5, interval: 90, rise: 22, riseMs: 700,
+    effect: 'Repairs {heal} of max hull HP',
+  },
+  sharpshooter: {
+    name: 'Deadeye', cooldown: 22000, color: 0xffe082,
+    damage: 10, aimMs: 1000, speed: 900,
+    shake: { duration: 80, intensity: 0.002 },   // as the shot lands
+    mark: 'deadeye_mark',   // on the target (the toughest) while he aims
+    effect: 'Marks the toughest foe: one {damage} dmg shot',
+  },
+  ghostPirate: {
+    name: 'Haunt', cooldown: 24000, color: 0x80cbc4,
+    duration: 3000, needs: 'movable',   // ground enemies that walk (not the Siren or the Galleon)
+    mark: 'fear_mark',
+    effect: 'Ground foes flee backwards for {duration}',
+  },
+  stormCaller: {
+    name: 'Tidal Wave', cooldown: 28000, color: 0x4fc3f7,
+    damage: 2, push: 110, speed: 240, needs: 'movable',
+    // tidal_wave (72px wide) rolls right along the lane from the ship;
+    // every walker it reaches is pushed `push` px back toward the island.
+    sprite: 'tidal_wave', sink: 6,   // its bottom sits this far below the lane
+    effect: 'Pushes ground foes back, {damage} dmg',
+  },
 };
 
 // How abilities grow: each duration (and the Hot Stew stun) is multiplied by
@@ -374,6 +504,10 @@ export const ABILITY_BAR = {
 //              first, its keg hits enemies within radius for enemyDamage
 //   shield:    blocks straight shots until its hp is gone; lobbed ones hit
 //   stationary + song: the Siren (see below)
+//   galleon:   the Ghost Galleon's emerge, volleys and boats (see below)
+//   boards:    deals its damage once on reaching the ship, then is gone
+//   floats:    keeps its bottom on layout.boardingBoat.waterlineY
+//   minion:    spawned by a boss; no Wanted poster or defeat count
 // Wanted Board: description is the one-line text on its poster's page,
 // weakTo the crew (HEROES keys) shown as good against it, and face (for
 // sprites bigger than 32x32) where the 32x32 portrait is cropped from.
@@ -381,7 +515,7 @@ export const ENEMIES = {
   drownedSailor: {
     name: 'Drowned Sailor',
     description: 'Shambles up from the deep and claws at the hull.',
-    weakTo: ['harpooner', 'cannoneer'],
+    weakTo: ['stormCaller', 'harpooner', 'cannoneer'],
     color: 0x8fb8a8,
     sprite: 'drowned_sailor',  // 32x32, feet on the bottom row
     width: 13,          // torso width; its arms reach further out front
@@ -410,7 +544,7 @@ export const ENEMIES = {
   ironCrab: {
     name: 'Iron Crab',
     description: 'Plated shell shrugs off weak hits. Hit it hard.',
-    weakTo: ['duelist', 'cannoneer', 'grogBrewer'],
+    weakTo: ['sharpshooter', 'duelist', 'cannoneer'],
     color: 0x5a6470,
     sprite: 'iron_crab',
     sheetOnly: true,
@@ -427,7 +561,7 @@ export const ENEMIES = {
   stormHarpy: {
     name: 'Storm Harpy',
     description: 'Dives at the top deck. Shoot it down or net it.',
-    weakTo: ['cabinBoy', 'netThrower', 'harpooner'],
+    weakTo: ['parrotKeeper', 'stormCaller', 'netThrower'],
     color: 0x6b6fb5,
     sprite: 'storm_harpy',
     sheetOnly: true,
@@ -454,7 +588,7 @@ export const ENEMIES = {
   kegRunner: {
     name: 'Keg Runner',
     description: 'Blows up on the hull. Pop it early to blast its friends.',
-    weakTo: ['netThrower', 'cabinBoy', 'cannoneer'],
+    weakTo: ['netThrower', 'stormCaller', 'cannoneer'],
     color: 0x9c6b3a,
     sprite: 'keg_runner',
     sheetOnly: true,
@@ -474,7 +608,7 @@ export const ENEMIES = {
   barnacleKnight: {
     name: 'Barnacle Knight',
     description: 'Shield stops straight shots. Lob over it.',
-    weakTo: ['shipsCook', 'cannoneer', 'grogBrewer'],
+    weakTo: ['ghostPirate', 'shipsCook', 'cannoneer'],
     color: 0x4f7a6a,
     sprite: 'barnacle_knight',
     sheetOnly: true,
@@ -524,7 +658,7 @@ export const ENEMIES = {
   },
   kraken: {
     name: 'The Kraken',
-    description: 'Rises every tenth wave. Bring your best blades.',
+    description: 'Rises on waves 10, 30, 50. Bring your best blades.',
     weakTo: ['duelist', 'voodooPriestess', 'grogBrewer'],
     boss: true,
     color: 0x6a1b9a,
@@ -539,6 +673,57 @@ export const ENEMIES = {
     gold: 50,
     statusResist: 0.5,  // stun and slow durations multiplied by this
     emerges: true,      // rises out of the sea at layout.json's kraken position
+    banner: 'THE KRAKEN RISES!',   // when its wave sets sail
+  },
+  ghostGalleon: {
+    name: 'The Ghost Galleon',
+    description: 'A drowned warship that will not stay sunk. Placeholder.',
+    weakTo: ['sharpshooter', 'duelist', 'shipsDoctor'],
+    boss: true,
+    color: 0x4a6b5c,
+    sprite: 'ghost_galleon',  // 96x80; layout.ghostGalleon is the frame's top-left
+    face: { x: 0, y: 30 },    // Wanted Board: 32x32 crop of frame 0 (its skull bow)
+    width: 90,
+    height: 60,
+    hp: 150,
+    speed: 0,
+    damage: 4,          // per ghost cannonball that hits the hull
+    attackInterval: 1000,
+    gold: 50,
+    statusResist: 0.5,
+    banner: 'THE GHOST GALLEON!',
+    // Plays "emerge" once at layout.ghostGalleon (can't be hit for emergeMs),
+    // then loops "idle". Every fireEvery ms (the first after firstFireAt) it
+    // plays "fire" and lobs a ghost_cannonball from each gun port (gunPorts in
+    // animations_new_enemies.json) at a random spot on the hull, landing
+    // flightTime ms later. Every boatEvery ms (the first after firstBoatAt) a
+    // boarding boat sets off from boatX px in from its frame's left edge.
+    // On death it plays "sink" and fades out over sinkFadeMs.
+    galleon: {
+      emergeMs: 2500,
+      firstFireAt: 1500, fireEvery: 5000,
+      shot: 'ghost_cannonball', impact: 'explosion', flightTime: 1300, arcHeight: 60,
+      firstBoatAt: 4000, boatEvery: 9000, boatX: 4,
+      sinkFadeMs: 600,
+    },
+  },
+  // Rows from the Ghost Galleon to the ship (it has no poster of its own).
+  boardingBoat: {
+    name: 'Boarding Boat',
+    color: 0x5d7a6a,
+    sprite: 'boarding_boat',  // 32x20; its bottom on layout.boardingBoat.waterlineY
+    sheetOnly: true,
+    walkAnim: 'row',
+    minion: true,       // no Wanted poster, no defeats counted
+    floats: true,       // stays on the waterline instead of following the lane
+    width: 30,
+    height: 15,
+    hp: 30,
+    speed: 18,
+    damage: 15,         // boarding damage, once, when it reaches the ship
+    attackInterval: 1000,
+    gold: 3,
+    boards: true,       // deals its damage on arrival, then is gone
   },
 };
 
@@ -611,8 +796,11 @@ export const WAVES = {
   sirenEvery: 3,
   sirenSpawnAt: 0.25,
 
-  // Every bossEvery-th wave: The Kraken plus a reduced escort of regular enemies.
+  // Every bossEvery-th wave: a boss plus a reduced escort of regular enemies.
+  // The bosses take turns: The Kraken on waves 10, 30, 50..., The Ghost
+  // Galleon on 20, 40...
   bossEvery: 10,
+  bosses: ['kraken', 'ghostGalleon'],
   bossEscortFactor: 0.5,   // fraction of the normal enemy count
   bossSpawnAt: 0.3,        // boss enters this far through the spawn queue
 };
