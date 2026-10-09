@@ -86,8 +86,10 @@ export const FX = {
   // stars above it, and between stacked status marks.
   statusGap: 1,
   // Ring under the feet of a boosted crewmate (ability boosts and The
-  // Captain's deck buff): this row of the sheet sits on their feet.
-  buffRing: { sprite: 'buff_ring', footRow: 5 },
+  // Captain's deck buff): this row of the sheet sits on their feet. The
+  // Captain, as the buff's source, always stands on a still (frame 0),
+  // dimmed one at sourceAlpha, unless he's boosted himself.
+  buffRing: { sprite: 'buff_ring', footRow: 5, sourceAlpha: 0.6 },
 };
 
 export const SHIP = {

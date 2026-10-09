@@ -32,9 +32,11 @@ export class Hero {
     this.y = feetY - height / 2;
 
     // Buff ring under the feet while boosted: always for a hero The Captain
-    // buffs (deck buff), and while an ability boost lasts.
+    // buffs (deck buff), and while an ability boost lasts. The Captain
+    // himself stands on a still, dimmed one otherwise (the buff's source).
     this.buffed = buffed;
     this.buffRing = null;
+    this.buffRingMode = null;   // "boosted", "source" or null
     this.syncBuffRing();
     this.idleAnim = sprite && findAnim(scene, sprite.key, 'idle');
     this.attackAnim = sprite && findAnim(scene, sprite.key, 'attack');
@@ -72,14 +74,25 @@ export class Hero {
   }
 
   syncBuffRing() {
-    const on = this.buffed || this.boosts.length > 0;
-    if (on && !this.buffRing) {
-      const { sprite, footRow } = FX.buffRing;
+    const boosted = this.buffed || this.boosts.length > 0;
+    const mode = boosted ? 'boosted' : this.def.aura ? 'source' : null;
+    if (mode === this.buffRingMode) return;
+    this.buffRingMode = mode;
+    if (!mode) {
+      this.buffRing?.destroy();
+      this.buffRing = null;
+      return;
+    }
+    const { sprite, footRow, sourceAlpha } = FX.buffRing;
+    if (!this.buffRing) {
       this.buffRing = fxSprite(this.scene, sprite, this.x, this.feetY);
       this.buffRing.setOrigin(0.5, (footRow + 0.5) / this.buffRing.height).setDepth(DEPTH.hero - 0.6);
-    } else if (!on && this.buffRing) {
-      this.buffRing.destroy();
-      this.buffRing = null;
+    }
+    if (mode === 'boosted') {
+      this.buffRing.setAlpha(1).play(this.buffRing.texture.key);
+    } else {
+      this.buffRing.setAlpha(sourceAlpha).stop();
+      this.buffRing.setFrame(0);
     }
   }
 
