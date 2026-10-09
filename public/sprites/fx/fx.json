@@ -238,5 +238,45 @@
     "repeat": -1,
     "kind": "ability",
     "use": "Rapid Fire: behind the Cabin Boy while active"
+  },
+  "hex_cast": {
+    "file": "hex_cast.png",
+    "frameWidth": 48,
+    "frameHeight": 48,
+    "frames": 6,
+    "fps": 10,
+    "repeat": 0,
+    "kind": "ability",
+    "use": "Hex: on the Voodoo Priestess when cast (centre on her, ring at her feet)"
+  },
+  "hex_hit": {
+    "file": "hex_hit.png",
+    "frameWidth": 24,
+    "frameHeight": 24,
+    "frames": 4,
+    "fps": 12,
+    "repeat": 0,
+    "kind": "ability",
+    "use": "Hex: burst on each enemy as the curse lands, then show curse_mark"
+  },
+  "buff_ring": {
+    "file": "buff_ring.png",
+    "frameWidth": 32,
+    "frameHeight": 10,
+    "frames": 2,
+    "fps": 3,
+    "repeat": -1,
+    "kind": "status",
+    "use": "under a boosted crewmate's feet (All Hands!, Rapid Fire, Captain's buff)"
+  },
+  "lunge_target": {
+    "file": "lunge_target.png",
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "frames": 2,
+    "fps": 6,
+    "repeat": -1,
+    "kind": "ability",
+    "use": "Lunge: on the Duelist's target while crits remain (32x32 enemy box)"
   }
 }

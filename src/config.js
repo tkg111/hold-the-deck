@@ -85,6 +85,9 @@ export const FX = {
   // Status sprites over enemies: gap in px between the HP bar and the stun
   // stars above it, and between stacked status marks.
   statusGap: 1,
+  // Ring under the feet of a boosted crewmate (ability boosts and The
+  // Captain's deck buff): this row of the sheet sits on their feet.
+  buffRing: { sprite: 'buff_ring', footRow: 5 },
 };
 
 export const SHIP = {
@@ -284,16 +287,22 @@ export const ABILITIES = {
     name: 'Whale Harpoon', cooldown: 20000, color: 0xcfd8dc,
     damage: 5, speed: 520,
     sprite: 'whale_harpoon', impact: 'hit_spark',
+    shake: { duration: 300, intensity: 0.0015 },  // light camera shake as it's thrown
     effect: 'Pierces the whole lane for {damage} dmg',
   },
   voodooPriestess: {
     name: 'Hex', cooldown: 25000, color: 0xce93d8,
     bonus: 0.5, duration: 6000,
+    // hex_cast plays on her, its ring (this row of the 48px frame) at her
+    // feet; curseAt ms in, the curse lands on every enemy with a hex_hit
+    // burst, and their curse mark shows once the burst is over.
+    cast: 'hex_cast', castRingRow: 34, curseAt: 300, impact: 'hex_hit',
     effect: 'Curse all: +{bonus} dmg taken for {duration}',
   },
   cannoneer: {
     name: 'Broadside', cooldown: 25000, color: 0xffb74d,
     balls: 6, damage: 2, radius: 40, interval: 160, fallTime: 550,
+    shake: { duration: 60, intensity: 0.002 },   // light camera shake per impact
     sprite: 'cannonball', impact: 'explosion',
     effect: '{balls} cannonballs on the lane, {damage} dmg',
   },
@@ -301,6 +310,7 @@ export const ABILITIES = {
     name: 'Lunge', cooldown: 22000, color: 0xff5252,
     hits: 5,
     impact: 'lunge_cross',   // on the target with each crit
+    mark: 'lunge_target',    // loops on the target while crits remain
     effect: 'Next {hits} hits on toughest foe crit',
   },
   captain: {

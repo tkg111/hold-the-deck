@@ -13,7 +13,7 @@ const POISON_COLOR = 0x76ff03;
 // Status sprites (fx sheets) and when each shows.
 const STATUS = {
   stun: { sprite: 'stun_stars', active: (e) => e.isStunned },
-  curse: { sprite: 'curse_mark', active: (e) => e.isCursed },
+  curse: { sprite: 'curse_mark', active: (e) => e.isCursed && e.curseMarkDelay <= 0 },
   poison: { sprite: 'poison_bubbles', active: (e) => e.isPoisoned },
   slow: { sprite: 'net_draped', active: (e) => e.isSlowed },
 };
@@ -39,6 +39,7 @@ export class Enemy {
     this.slowFactor = 1;
     this.curseTime = 0;
     this.curseBonus = 0;
+    this.curseMarkDelay = 0;  // ms before the curse mark shows (after Hex's burst)
     this.poisonTime = 0;
     this.poisonDps = 0;
 
@@ -137,6 +138,11 @@ export class Enemy {
     this.curseTime = Math.max(this.curseTime, duration);
   }
 
+  // Hold back the curse mark for ms (while something else plays on the enemy).
+  delayCurseMark(ms) {
+    this.curseMarkDelay = ms;
+  }
+
   // Re-poisoning refreshes the timer and keeps the stronger tick.
   applyPoison(damagePerSecond, duration) {
     this.poisonDps = this.isPoisoned ? Math.max(this.poisonDps, damagePerSecond) : damagePerSecond;
@@ -153,6 +159,7 @@ export class Enemy {
     this.stunTime = Math.max(0, this.stunTime - dt);
     this.slowTime = Math.max(0, this.slowTime - dt);
     this.curseTime = Math.max(0, this.curseTime - dt);
+    this.curseMarkDelay = Math.max(0, this.curseMarkDelay - dt);
   }
 
   // --- Behaviour ---

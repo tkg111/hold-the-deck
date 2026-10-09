@@ -1,11 +1,9 @@
-import { HEROES, SPRITES } from '../config.js';
+import { FX, HEROES, SPRITES } from '../config.js';
 import { laneFeetY } from '../layout.js';
 import { FX_DEPTH, fxSprite, playFx } from '../fx.js';
 import { findAnim, sheetKey } from '../sprites.js';
 import { DEPTH } from './Ship.js';
 import { LobProjectile, nearestLiving, PiercingProjectile, Projectile } from './Projectile.js';
-
-const BUFF_COLOR = 0xffd54f;
 
 export class Hero {
   // damage and attackInterval come from Progress (level, stars, deck buffs).
@@ -33,13 +31,11 @@ export class Hero {
     this.feetY = feetY;
     this.y = feetY - height / 2;
 
-    // Gold glow: steady around The Captain, pulsing behind the heroes he buffs.
-    this.glow = null;
-    if (this.def.aura || buffed) {
-      this.glow = scene.add.rectangle(x, this.y, width + 4, height + 4, BUFF_COLOR, this.def.aura ? 0.45 : 0.3)
-        .setStrokeStyle(1, BUFF_COLOR, 0.9).setDepth(DEPTH.hero);
-      if (buffed) scene.tweens.add({ targets: this.glow, alpha: 0.35, duration: 700, yoyo: true, repeat: -1 });
-    }
+    // Buff ring under the feet while boosted: always for a hero The Captain
+    // buffs (deck buff), and while an ability boost lasts.
+    this.buffed = buffed;
+    this.buffRing = null;
+    this.syncBuffRing();
     this.idleAnim = sprite && findAnim(scene, sprite.key, 'idle');
     this.attackAnim = sprite && findAnim(scene, sprite.key, 'attack');
     if (this.idleAnim) {
@@ -67,11 +63,24 @@ export class Hero {
       this.boostSprites[name] = fxSprite(this.scene, name, this.x, this.feetY).setOrigin(0.5, 1)
         .setDepth(fx.behind ? DEPTH.hero - 0.5 : DEPTH.slotMarkers);
     }
+    this.syncBuffRing();
   }
 
   startLunge(hits, target, impact) {
     this.lunge = { hits, target, impact };
     this.cooldown = 0;  // first lunge straight away
+  }
+
+  syncBuffRing() {
+    const on = this.buffed || this.boosts.length > 0;
+    if (on && !this.buffRing) {
+      const { sprite, footRow } = FX.buffRing;
+      this.buffRing = fxSprite(this.scene, sprite, this.x, this.feetY);
+      this.buffRing.setOrigin(0.5, (footRow + 0.5) / this.buffRing.height).setDepth(DEPTH.hero - 0.6);
+    } else if (!on && this.buffRing) {
+      this.buffRing.destroy();
+      this.buffRing = null;
+    }
   }
 
   // End of a wave: boosts and Lunge end with it.
@@ -93,6 +102,7 @@ export class Hero {
       sprite.destroy();
       delete this.boostSprites[name];
     }
+    this.syncBuffRing();
   }
 
   // The enemy with the most HP left (Lunge's target).
@@ -214,10 +224,7 @@ export class Hero {
   }
 
   destroy() {
-    if (this.glow) {
-      this.scene.tweens.killTweensOf(this.glow);
-      this.glow.destroy();
-    }
+    this.buffRing?.destroy();
     for (const sprite of Object.values(this.boostSprites)) sprite.destroy();
     this.body.destroy();
   }

@@ -4,7 +4,7 @@ import { sfx } from '../audio/Sfx.js';
 import { LAYOUT, laneFeetY } from '../layout.js';
 import { LobProjectile, nearestLiving } from '../entities/Projectile.js';
 import { DEPTH } from '../entities/Ship.js';
-import { FX_DEPTH, fxSize, fxSprite, playFx } from '../fx.js';
+import { FX_DEPTH, fxDuration, fxSize, fxSprite, playFx } from '../fx.js';
 import { fxKey } from '../sprites.js';
 import { cssColor } from '../ui/format.js';
 
@@ -159,11 +159,12 @@ const ACTIONS = {
   // Whale Harpoon: sweeps the whole lane, hitting every enemy once.
   harpooner(sys, { hero, def }) {
     sys.effects.push(new WhaleHarpoon(sys, def, hero.damage * def.damage));
+    shake(sys.scene, def.shake);
   },
 
-  // Hex: curses every enemy on screen (each shows the curse mark).
-  voodooPriestess(sys, { def, scale }) {
-    for (const e of sys.targets()) e.applyCurse(def.bonus, def.duration * scale);
+  // Hex: the Priestess casts, then curses every enemy on screen.
+  voodooPriestess(sys, { hero, def, scale }) {
+    sys.effects.push(new HexCast(sys, hero, def, scale));
   },
 
   // Broadside: cannonballs rain down spread along the lane.
@@ -174,6 +175,7 @@ const ACTIONS = {
   // Lunge: the Duelist's next hits go to the toughest enemy, all crits.
   duelist(sys, { hero, def }) {
     hero.startLunge(def.hits, hero.toughest(sys.scene.enemies), def.impact);
+    sys.effects.push(new LungeMark(sys.scene, hero, def.mark));
   },
 
   // All Hands!: the whole crew attacks faster.
@@ -182,7 +184,66 @@ const ACTIONS = {
   },
 };
 
+// A light camera shake: { duration (ms), intensity }.
+function shake(scene, { duration, intensity }) {
+  scene.cameras.main.shake(duration, intensity);
+}
+
 // --- Ongoing effects (update(dt) returns false when done; destroy() cleans up) ---
+
+// Hex: hex_cast on the Priestess (its ring at her feet); curseAt ms in, every
+// enemy on screen is cursed with a hex_hit burst, and its curse mark shows
+// once the burst has played.
+class HexCast {
+  constructor(sys, hero, def, scale) {
+    this.sys = sys;
+    this.def = def;
+    this.scale = scale;
+    this.time = 0;
+    this.cursed = false;
+    const cast = playFx(sys.scene, def.cast, hero.x, hero.feetY);
+    cast.setOrigin(0.5, (def.castRingRow + 0.5) / cast.height);
+  }
+
+  update(dt) {
+    this.time += dt;
+    if (this.time < this.def.curseAt) return true;
+    const { def } = this;
+    const burst = fxDuration(this.sys.scene, def.impact);
+    for (const e of this.sys.targets()) {
+      e.applyCurse(def.bonus, def.duration * this.scale);
+      e.delayCurseMark(burst);
+      playFx(this.sys.scene, def.impact, e.x, e.y);
+    }
+    return false;
+  }
+
+  destroy() {}
+}
+
+// lunge_target looping on the Duelist's target while Lunge crits remain:
+// the enemy his next shot will go to (the toughest), over its 32x32 box.
+class LungeMark {
+  constructor(scene, hero, sprite) {
+    this.hero = hero;
+    this.sprite = fxSprite(scene, sprite, 0, 0).setDepth(DEPTH.enemyOverlay);
+    this.update();
+  }
+
+  update() {
+    const { lunge } = this.hero;
+    if (!lunge) return false;
+    const e = lunge.target?.targetable ? lunge.target : this.hero.toughest(this.hero.scene.enemies);
+    this.sprite.setVisible(!!e);
+    if (e) {
+      if (e.def.emerges) this.sprite.setOrigin(0.5).setPosition(Math.round(e.x), Math.round(e.y));
+      else this.sprite.setOrigin(0.5, 1).setPosition(Math.round(e.x), Math.round(e.feetY));
+    }
+    return true;
+  }
+
+  destroy() { this.sprite.destroy(); }
+}
 
 // A huge net (its sheet tiled along the lane) dropping from above the view
 // onto the lane, then lying there until the slow ends, fading out at the end.
@@ -317,7 +378,7 @@ class Broadside {
       if (Math.abs(e.x - x) <= def.radius + e.def.width / 2) e.takeDamage(this.damage);
     }
     playFx(this.sys.scene, def.impact, x, y - 12);
-    this.sys.scene.cameras.main.shake(60, 0.002);
+    shake(this.sys.scene, def.shake);
     sfx.boom();
   }
 

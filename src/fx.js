@@ -27,3 +27,8 @@ export function fxSize(scene, name) {
   const frame = scene.textures.getFrame(fxKey(name), 0);
   return { width: frame.width, height: frame.height };
 }
+
+// How long a one-shot effect's animation plays, in ms (0 for a still frame).
+export function fxDuration(scene, name) {
+  return scene.anims.get(fxKey(name))?.duration ?? 0;
+}
