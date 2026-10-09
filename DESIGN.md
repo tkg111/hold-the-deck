@@ -20,7 +20,7 @@ Passion project — no real money, no ads, no timers. Everything is earned throu
 - **Character sprites:** heroes and every enemy but four are 32x32 with the feet on the bottom row, all facing left; they stand on their slot (heroes) or the lane (enemies). The Kraken is 64x64, the Siren 48x48 (on her rock), the Ghost Galleon 96x80 and a boarding boat 32x20 (its bottom on `layout.boardingBoat.waterlineY`, not the lane). Each enemy's hit box is its visible body (`width` / `height` in config), measured from its art. The newer enemies (Iron Crab, Storm Harpy, Keg Runner, Barnacle Knight, Siren, boarding boat) only have sheets, no single PNG. Rectangle placeholders stand the same way.
 - **Effect sprites:** every projectile, impact, status mark and ability effect is a sheet in `public/sprites/fx/`, drawn at 1x; `fx.json` gives each one's frame size, frame count, fps, whether it loops or plays once (one-shot effects hold their last frame) and what it's for. Shots are drawn flying right: the harpoon, whale harpoon and Duelist's blade arc turn to their flight angle, and the spinning ones (frying pan, grog bottle, stew pot, grog barrel) just loop their animation. Lobbed shots (cannonball, grog bottle, frying pan, stew pot, grog barrel) fly in an arc to where the target will be; the rest fly straight. Where a shot hits, its impact plays: an explosion for cannonballs, a grog splash for bottles (and the Grog Barrel), a hit spark for everything else. Every hit (except poison ticks) flashes the enemy white for 60ms. Enemy effects: a Keg Runner's blast is the explosion at 2x size, a Barnacle Knight's shield breaking plays `shield_break` where the shield was, the Siren's `siren_note` floats from her to the crewmate it stuns, and the Ghost Galleon's `ghost_cannonball`s arc from its gun ports to the hull and explode there. Crew effects: the parrot, scalpel (turned to its flight) and spinning ghost cutlass fly like the others; the Sharpshooter's `musket_shot` leaves the musket's tip (`muzzle` in config) with a `muzzle_flash` there; the Storm Caller's chain is instant: `lightning_seg` laid end to end along each link (turned to it, flickering, shown 0.2s) and `lightning_hit` on each enemy.
 - **Animation:** in battle, characters are animated from `<name>_sheet.png`, with frame sizes, frame lists and fps from `animations.json` (crew) and `animations_new_enemies.json` (enemies, plus the Ghost Galleon's `gunPorts`). Crewmates loop "idle" and play "attack" each time they fire, then return to idle; each one's idle starts on a frame staggered by slot so the crew doesn't bob in sync. The Drowned Sailor, Thief Monkey, Iron Crab and Keg Runner loop "walk" while moving and stand still otherwise; the Barnacle Knight walks with "walk_shield" until its shield breaks, then "walk_noshield". The Storm Harpy loops "fly" the whole time, showing "dive" while it dives. The Siren loops "idle" and plays "sing" while she sings. The Kraken loops "idle" and plays "attack" each time it hits the ship. The Ghost Galleon plays "emerge" once, loops "idle", plays "fire" with each volley and "sink" when beaten; boarding boats loop "row". A crewmate scared by Haunt turns to face the island while fleeing. Animations slow down with the enemy when slowed (and speed up while the Siren hastes it) and freeze while stunned. Characters without an animation fall back to their single PNG (a little lunge or squash when they attack).
-- **UI kit:** `public/sprites/ui/` holds 9-slice wood and parchment panels, gold and wood buttons (normal / hover / pressed / disabled images, used for those states), a bar frame and a 12px icon sheet; `ui.json` gives the slice sizes, icon order and colours. Mock-ups: `ui_mock_battle.png` and `ui_mock_between_waves.png` in the project root.
+- **UI kit:** `public/sprites/ui/` holds 9-slice wood and parchment panels, gold and wood buttons (normal / hover / pressed / disabled images, used for those states), a bar frame and a 12px icon sheet; `ui.json` gives the slice sizes, icon order and colours. Mock-ups: `ui_mock_battle.png` and `ui_mock_between_waves.png` in the project root, and in `mockups/` the Wanted Board, new-enemy alert, finale (`ui_mock_finale.png`) and world map (`ui_mock_world_map.png`).
 - **Fonts:** all text is bitmap text from `public/sprites/ui/fonts/`, never scaled and positioned on whole pixels (centred text included), so it is as crisp as the art. Pre-coloured fonts by background:
   - **main_light** (16px, cream with a dark outline): on wood panels and wood buttons, and over the scene. Coloured text (red warnings, rarity names, gold amounts) tints it; the outline stays dark.
   - **main_dark**: on parchment and gold buttons.
@@ -38,7 +38,7 @@ Passion project — no real money, no ads, no timers. Everything is earned throu
 5. **Hull HP hits 0:** wave fails, wave number does NOT advance. Gold earned from kills during the attempt is kept. Player can upgrade and retry. No other penalty.
 6. Between waves: upgrade screen, hero slot assignment, treasure chests.
 
-Waves are endless and scale in difficulty (see Waves).
+Waves scale in difficulty (see Waves). The voyage is split into islands of 50 waves, each ending in a finale (see Islands); a cleared island's waves go on endlessly.
 
 ## The Ship
 
@@ -85,15 +85,15 @@ From wave 20 any enemy but the boss can spawn as an **Elite**: tinted gold, 3x H
   | 18 | escorted: a Barnacle Knight, an Iron Crab, two Storm Harpies |
 
 - **Same line-up on a retry:** the formations, their order and which enemies are Elite come from a generator seeded by the wave number, so retrying a wave meets the same line-up (and the flyer warning below knows what's coming).
-- **Boss waves** (every 10th): half the usual enemies, with the boss entering 30% of the way through. The bosses take turns (`WAVES.bosses`): The Kraken on waves 10, 30, 50…, The Ghost Galleon on 20, 40…. The wave's banner names it ("THE KRAKEN RISES!" / "THE GHOST GALLEON!").
+- **Boss waves** (every 10th): half the usual enemies, with the boss entering 30% of the way through (an island's finale wave is built differently; see Islands). The bosses take turns (`WAVES.bosses`): The Kraken on waves 10, 30, 50…, The Ghost Galleon on 20, 40…. The wave's banner names it ("THE KRAKEN RISES!" / "THE GHOST GALLEON!").
 - **Scaling** (n = wave - 1): enemy HP x (1 + 0.5n + 0.012n²), about 6.5x at wave 10, 15x at wave 20, 39x at wave 40 and 72x at wave 60 (it used to be 1 + 0.2n); enemy damage x 1.08ⁿ; kill gold x 1.07ⁿ.
 - **Flyer warning:** pressing SET SAIL! for a wave with Storm Harpies when nobody on the ship can hit flyers (no anti-air crew and no Net Thrower) asks first: "Flyers ahead!", with Cancel / Set sail.
 
 ### Balance simulation
 
-`npm run sim [-- runs maxWave]` plays the game headless from a fresh save (the real battle code, with Phaser stubbed out; see `scripts/sim/`). A bot opens every affordable chest, puts its best crew on the ship (The Captain beside the strongest, someone anti-air from wave 8) and either spends all its gold after every wave (**greedy**) or only after losing one (**lazy**: its waves between losses show how often upgrades are needed). `SIM_CONFIG` takes JSON merged into config, for trying numbers. With the current numbers (6 runs each, up to wave 60, with all 14 crewmates and both bosses):
-- **Greedy** clears about 99% of waves 1–40 on the first try and 95% of 41–50; most runs reach wave 60 in about an hour of battle, but some stall at wave 51 (the first wave after the Kraken's wave 50, where the HP curve outpaces the crew).
-- **Lazy** has to upgrade every 3–8 waves through waves 1–40 (losing about 1 wave in 6 on the first try), then every 1–3 waves after 40.
+`npm run sim [-- runs maxWave]` plays the game headless from a fresh save (the real battle code, with Phaser stubbed out; see `scripts/sim/`). A bot opens every affordable chest, puts its best crew on the ship (The Captain beside the strongest, someone anti-air from wave 8) and either spends all its gold after every wave (**greedy**) or only after losing one (**lazy**: its waves between losses show how often upgrades are needed). `SIM_CONFIG` takes JSON merged into config, for trying numbers. The bot plays Skull Cove from wave 1; winning wave 50 clears it (reward included) and it carries on in Endless mode. With the current numbers (6 runs each, up to wave 60, with all 14 crewmates and both bosses):
+- **Greedy** clears about 99% of waves 1–40 on the first try and 95% of 41–50; every run beats the finale on its first try (it is easier than wave 49: two bosses at 70% HP and a light trickle hold far less total HP than a full wave). Wave 51, the first Endless wave, is a wall: its seeded line-up (34 Keg Runners, 10 Elite Barnacle Knights) holds about 30% more HP than wave 49, and half the runs stall there; the rest reach wave 60 in 50–55 minutes of battle.
+- **Lazy** has to upgrade every 3–8 waves through waves 1–40 (losing about 1 wave in 6 on the first try), then every 1–3 waves after 40, and also stalls at wave 51 in a third of runs.
 - Early losses are mostly boss waves and the first Iron Crab and Storm Harpy waves; later ones Siren and Elite-heavy waves. Chest luck moves a run a lot (a run without The Captain stalls sooner).
 
 ## Heroes
@@ -164,6 +164,7 @@ Heroes have:
   - **Milestone waves** (every 5th): +5 on top.
   - **Boss kills:** +5, once per boss wave (killing the boss and then losing the wave doesn't pay it again on the retry).
   - **Bounties** (Wanted Board): 10 / 25 / 50 for defeating 10 / 100 / 500 of one enemy type.
+  - **Island finales:** 60 on top of the wave's own, plus a free Legendary chest (Skull Cove).
 
 ## Treasure Chests
 
@@ -172,6 +173,7 @@ Heroes have:
 - One chest type, bought with Pearls.
 - Each chest gives 1 hero.
 - Drop rates: Common 45%, Rare 30%, Epic 18%, Legendary 7%. Within a rarity, each hero is equally likely.
+- **Free Legendary chests:** an island's finale reward. While one is waiting the open button says "Open FREE" (no Pearls) and the pity line says how many are waiting; it opens before any paid chest, always gives a Legendary (resetting the pity counter like any Legendary), and the Chests button's red dot shows.
 - **Pity:** a Legendary is guaranteed within 30 chests. The counter resets on any Legendary (natural or guaranteed) and is shown in the chest screen ("Legendary guaranteed within N chests"). It only updates after the reveal so it never spoils a natural Legendary.
 - Costs 3 Pearls. Rates are renormalized over rarities that actually have heroes, so an empty tier never breaks the odds.
 - **New hero:** unlocked, added to the roster, and automatically placed in the first free slot if there is one.
@@ -186,9 +188,37 @@ Heroes have:
 
 - Should be affordable roughly every few waves. With the current numbers it is faster than that: 10 waves pay 25 Pearls (10 per-wave + 10 milestone + 5 boss), about 8 chests, so tune `PACKS.cost` or the rewards if pulls feel too frequent.
 
+## Islands
+
+The voyage is split into **islands** of 50 waves each (`ISLANDS` in config, in `map/map.json`'s order). The game so far is Island 1, **Skull Cove**. The ship (decks, hull), crew, upgrades, gold and Pearls carry over between islands; each island keeps its own wave counter, best wave (the highest it has cleared) and boss-Pearl record.
+
+- **Later islands start harder:** enemy HP, damage, kill gold, wave-clear gold and the Elite chance on an island are those of wave + its `waveOffset` (Skull Cove 0, Ember Isle 30, Frostbite Reef 60, Fogbound Isle 90), while new enemies, formations, Sirens and bosses arrive on the usual waves. The wave line-up is seeded by the wave and the offset.
+- **Unlocking:** Island 1 is always open; each later island opens when the one before it is cleared, if it's `available`. Islands 2–4 (Ember Isle, Frostbite Reef, Fogbound Isle) are placeholders for now: they show on the map but stay locked.
+- **Endless mode:** once an island's finale is beaten, its waves go on past 50 as an endless voyage (bosses every 10th wave as usual). Cleared islands can be sailed back to from the map at any time; their counter carries on where it was.
+
+### The finale: Wrath of Skull Cove (wave 50)
+
+Matches `mockups/ui_mock_finale.png`.
+
+- **Storm:** setting sail on wave 50 brings in the storm from `storm/storm.json`, fading in over 1.2s: a dark blue tint over the battle, `storm_clouds.png` along the top of the view (tiled across wider views), `rain_sheet.png` tiled over the whole view (4 frames at 12 fps), and a lightning bolt at a random x in the sky every 4–8s (the first sooner) with a 0.1s white flash and a thunder crack. It sits over the battle but under projectiles and the HUD, runs on real time, and fades out when the wave ends.
+- **Banner:** "WRATH OF SKULL COVE" with "WAVE 50 - FINAL BATTLE" under it, held for 3s.
+- **The bosses:** the Ghost Galleon emerges 1.5s in; 20s later The Kraken surfaces in front of it (at its spot in the 480-wide layout, so still in front of the Galleon in a wider window). Each has 70% of its usual HP for the wave. A light trickle of regular formations comes in alongside: 30% of the wave's usual count, a group every 3.2s from 5s in.
+- **Enrage:** when one boss dies the other **enrages** ("THE KRAKEN ENRAGES!" / "THE GHOST GALLEON ENRAGES!"): tinted red and attacking 1.6x as fast (The Kraken's hits; the Galleon's volleys and boats), its animations sped up to match. If the Galleon falls before The Kraken has surfaced, The Kraken arrives enraged.
+- **Beating it:** the storm clears and a "SKULL COVE CLEARED!" banner (held 4.5s) shows the reward: the wave's usual Pearls plus **60 Pearls** and **a free Legendary chest** (waiting in the chest screen), and the **world map unlocks**. Losing it just clears the storm; the next try brings it back.
+- The boss Pearls (+5) are paid once, for whichever boss dies first.
+
+### World map
+
+Opened from the **Map** button in the bottom bar (left of SET SAIL!), which appears once an island is cleared, with a red dot until the map is first opened. Matches `mockups/ui_mock_world_map.png`: `map_bg.png` under a "THE CURSED SEAS" wood plate and an X button (top-left) to close.
+
+- **Islands** at their `map.json` spots with their name under them (`labelOffsetY`). Cleared islands fly `flag_cleared.png` (at `flagOffset`) and say "CLEARED" in green. Locked ones are drawn greyscale at 45% with a "?" on them and "???" for a name, and can't be selected.
+- **Route** (`map.json`'s points, one leg per pair of neighbouring islands): legs to an unlocked island are solid red dots, the rest dotted ink.
+- **Ship token** (`ship_token_sheet.png`, 2 frames at 2 fps) beside the current island, bobbing 1px.
+- **Island card:** clicking an unlocked island rings it with gold dots and shows its parchment card: name, "ISLAND n - WAVES 1-50" (or "ENDLESS" once cleared), hazard, boss, best wave ("-" if none) and the wave it's at, with **SET SAIL!**, which sails there (with a "SAILING TO …" banner) and closes the map. The current island is selected when the map opens.
+
 ## No prestige
 
-There is no prestige or reset loop: progress is one endless voyage. (A "New Voyage" prestige with a Renown currency and a Renown shop existed up to save v5 and was removed. Loading an older save drops it and pays back all Renown, held plus everything spent on shop levels, at **2 Pearls per Renown**; a voyage at wave 20 paid 10 Renown, so that is worth about 20 Pearls, roughly 6 chests.)
+There is no prestige or reset loop: progress is one long voyage across the islands. (A "New Voyage" prestige with a Renown currency and a Renown shop existed up to save v5 and was removed. Loading an older save drops it and pays back all Renown, held plus everything spent on shop levels, at **2 Pearls per Renown**; a voyage at wave 20 paid 10 Renown, so that is worth about 20 Pearls, roughly 6 chests.)
 
 ## Crew Roster (collection book)
 
@@ -209,6 +239,7 @@ There is no prestige or reset loop: progress is one endless voyage. (A "New Voya
 
 - All sound effects are synthesized with the Web Audio API; there are no audio files.
 - Current effects: chest rattle, chest opening, reveal chime (scales with rarity), new-hero sparkle, UI clicks, one per ability (squawks for Flock, chimes for Patch Up, a rising whine for Deadeye, a ghostly wail for Haunt, rushing water for Tidal Wave) plus pot, barrel and cannonball impacts, Keg Runner blasts and Ghost Galleon volleys (the cannonball boom), a Barnacle Knight's shield breaking (a crack and a clang) and the Siren's song (a soft three-note phrase).
+- The finale's lightning adds a thunder crack and rumble, and clearing an island plays the Legendary reveal chime.
 - **Sound: On/Off** toggle on the main screen (usable mid-wave), saved with progress.
 
 ## Starting Numbers
@@ -229,7 +260,7 @@ Each step should leave the game playable. (Built under the kampung theme; names 
 ## Saving
 
 - Auto-saves after every wave ends, every upgrade, every chest opened, every slot change and on closing the Wanted Board, plus when the page is hidden or closed.
-- Saves carry a version number (currently 8: v2 added the mute setting, v3 the Legendary pity counter, v4 prestige, v5 the pirate reskin, which renamed every saved field and hero ID without changing any values, v6 removed prestige and converted Renown to Pearls, v7 the ability bar's Auto toggle, v8 the Wanted Board: enemy types met, posters opened, defeats and bounties paid per type). Loading a v7 save marks every enemy type whose first wave the player has already passed as met, with its poster already seen (so an old save doesn't light up with "new" posters); defeats start counting from zero. When the save format changes, bump the version and add a migration from the old one so existing players keep their progress.
+- Saves carry a version number (currently 9: v2 added the mute setting, v3 the Legendary pity counter, v4 prestige, v5 the pirate reskin, which renamed every saved field and hero ID without changing any values, v6 removed prestige and converted Renown to Pearls, v7 the ability bar's Auto toggle, v8 the Wanted Board: enemy types met, posters opened, defeats and bounties paid per type, v9 islands: the current island and each visited island's wave, best wave, cleared flag and boss-Pearl record, plus whether the map has been opened and free Legendary chests waiting). Loading a v7 save marks every enemy type whose first wave the player has already passed as met, with its poster already seen (so an old save doesn't light up with "new" posters); defeats start counting from zero. Loading a v8 save makes its progress Skull Cove's: a save at wave 50 or below keeps its wave; one past wave 50 goes back to wave 50 so the player still fights the finale (and gets its reward), with the wave it had reached kept as its best wave, and after beating the finale it carries on from there. When the save format changes, bump the version and add a migration from the old one so existing players keep their progress.
 - Loading is defensive: out-of-range or unknown values are clamped or dropped, and an unreadable save is kept aside as a backup instead of being lost.
 - **Reset progress** button (between waves) wipes the save after a confirmation.
 
@@ -242,7 +273,7 @@ Layout follows `ui_mock_battle.png` and `ui_mock_between_waves.png`.
 - **During a wave:** an enemies-left bar at top-centre ("N ENEMIES LEFT", the fill shrinking as the wave is beaten); the **ability bar** at the bottom centre: a 26px wood button per crewmate on the ship, in slot order, with their face (cropped from their sprite), their key number (1–6) in the corner, a dark clockwise cooldown sweep over the face with the seconds left, and a pulsing 2px gold glow when ready, then the **AUTO** toggle (gold text and glow when on); and a speed button bottom-right showing the current speed (x1 / x2); clicking it toggles. At x2 everything in the battle runs twice as fast: movement, attacks, spawns, animations and effects. The speed is remembered for the rest of the session (not saved), and between waves the game always runs at normal speed. The between-wave panel and buttons are hidden.
 - **Shipwright** (between waves only): a parchment panel under a wood title plate with rows for Hull (level, HP per level), Build deck (decks built) and each hero on the ship (face, level, damage or The Captain's buff), each with a gold buy button showing the gold cost (grey when unaffordable, MAX when maxed). Five rows show at a time; with more, arrows by the title plate and the mouse wheel scroll it.
 - **Hero picker:** click a ship slot to see every owned hero (face, rarity, level, stars and where they're placed, then their ability's name, cooldown and effect, with durations at their current level and stars), plus "Leave empty"; it replaces the Shipwright while open. It is wider than the Shipwright (260px, reaching left over the sea) with taller rows, four at a time.
-- **Bottom bar** (between waves): **SET SAIL!** (starts the wave), **Chests** (with a red dot when a chest is affordable), **Crew** (the Crew Roster) and **Wanted** (the Wanted Board, with a red dot when a poster hasn't been opened).
+- **Bottom bar** (between waves): **Map** (once an island is cleared; red dot until the map is first opened), **SET SAIL!** (starts the wave), **Chests** (with a red dot when a chest is affordable), **Crew** (the Crew Roster) and **Wanted** (the Wanted Board, with a red dot when a poster hasn't been opened).
 - The reset confirmation uses the same parchment panels, wood plates and buttons.
 
 ## Later (not in v0.1)

@@ -1,6 +1,11 @@
 import {
-  ABILITY_SCALING, ECONOMY, ENEMIES, HEROES, SHIP, PACKS, RARITY, STARTING_HEROES, UPGRADES, WANTED,
+  ABILITY_SCALING, ECONOMY, ENEMIES, HEROES, ISLANDS, SHIP, PACKS, RARITY, STARTING_HEROES, UPGRADES, WANTED,
 } from '../config.js';
+
+const islandDef = (id) => ISLANDS.find((i) => i.id === id);
+// A fresh island's record: its wave counter, best wave cleared, whether its
+// finale is beaten, and the last boss wave whose Pearls were paid.
+const newIsland = () => ({ wave: 1, best: 0, cleared: false, bossPaid: 0 });
 
 const scaledCost = ({ baseCost, costGrowth }, level) => Math.round(baseCost * costGrowth ** level);
 
@@ -8,11 +13,15 @@ const scaledCost = ({ baseCost, costGrowth }, level) => Math.round(baseCost * co
 // toSave() / fromSave() convert to and from the stored form (see Save.js).
 export class Progress {
   constructor() {
-    this.wave = 1;
+    // Islands (ISLANDS ids): the one the ship is at, and each visited one's
+    // record (see newIsland). wave / lastBossRewardWave read the current one's.
+    this.islandId = ISLANDS[0].id;
+    this.islands = { [this.islandId]: newIsland() };
+    this.mapSeen = false;           // the world map opened since it unlocked
     this.gold = ECONOMY.startingGold;
     this.pearls = ECONOMY.startingPearls;
-    this.lastBossRewardWave = 0;    // stops boss Pearls being farmed on retries
     this.packsSinceLegendary = 0;   // pity counter
+    this.freeLegendaryChests = 0;   // finale rewards waiting in the chest screen
     this.hullHpLevel = 0;
     this.decks = SHIP.startingDecks;
     this.owned = [...STARTING_HEROES];
@@ -44,10 +53,12 @@ export class Progress {
     const owned = [...this.owned];
     const ownedOnly = (obj) => Object.fromEntries(Object.entries(obj).filter(([id]) => owned.includes(id)));
     return {
-      wave: this.wave,
+      island: this.islandId,
+      islands: Object.fromEntries(Object.entries(this.islands).map(([id, r]) => [id, { ...r }])),
+      mapSeen: this.mapSeen,
+      freeLegendaryChests: this.freeLegendaryChests,
       gold: this.gold,
       pearls: this.pearls,
-      lastBossRewardWave: this.lastBossRewardWave,
       hullHpLevel: this.hullHpLevel,
       decks: this.decks,
       owned,
@@ -71,10 +82,24 @@ export class Progress {
     const int = (v, min, max = Infinity, fallback = min) =>
       (Number.isFinite(v) ? Math.min(max, Math.max(min, Math.floor(v))) : fallback);
 
-    p.wave = int(data.wave, 1);
+    p.islands = {};
+    for (const def of ISLANDS) {
+      const r = data.islands?.[def.id];
+      if (!r || typeof r !== 'object') continue;
+      p.islands[def.id] = {
+        wave: int(r.wave, 1),
+        best: int(r.best, 0),
+        cleared: r.cleared === true,
+        bossPaid: int(r.bossPaid, 0),
+      };
+    }
+    p.islands[ISLANDS[0].id] ??= newIsland();
+    p.islandId = islandDef(data.island) && p.isIslandUnlocked(data.island) ? data.island : ISLANDS[0].id;
+    p.islands[p.islandId] ??= newIsland();
+    p.mapSeen = data.mapSeen === true;
+    p.freeLegendaryChests = int(data.freeLegendaryChests, 0);
     p.gold = int(data.gold, 0);
     p.pearls = int(data.pearls, 0, Infinity, p.pearls);
-    p.lastBossRewardWave = int(data.lastBossRewardWave, 0);
     p.hullHpLevel = int(data.hullHpLevel, 0);
     p.decks = int(data.decks, SHIP.startingDecks, SHIP.maxDecks);
     p.muted = data.muted === true;
@@ -107,6 +132,55 @@ export class Progress {
       });
     }
     return p;
+  }
+
+  // --- Islands ---
+
+  // The current island's record and its ISLANDS entry.
+  get record() { return this.islands[this.islandId]; }
+  get island() { return islandDef(this.islandId); }
+  islandRecord(id) { return this.islands[id] ?? null; }
+
+  get wave() { return this.record.wave; }
+  set wave(n) { this.record.wave = n; }
+  // Stops boss Pearls being farmed on retries (per island).
+  get lastBossRewardWave() { return this.record.bossPaid; }
+  set lastBossRewardWave(n) { this.record.bossPaid = n; }
+
+  // The wave whose scaling (HP, damage, gold, Elites) this one uses: later
+  // islands start harder.
+  get scalingWave() { return this.wave + this.island.waveOffset; }
+
+  // Whether the next wave is the current island's finale (not yet beaten).
+  get isFinaleWave() {
+    const { finale } = this.island;
+    return !!finale && !this.record.cleared && this.wave === finale.wave;
+  }
+
+  // What WaveManager needs to build the current wave.
+  get waveOptions() {
+    return { offset: this.island.waveOffset, finale: this.isFinaleWave ? this.island.finale : null };
+  }
+
+  isIslandCleared(id) { return !!this.islands[id]?.cleared; }
+
+  // The first island is always open; each later one once the one before is
+  // cleared, if it's available yet.
+  isIslandUnlocked(id) {
+    const i = ISLANDS.findIndex((d) => d.id === id);
+    if (i <= 0) return i === 0;
+    return ISLANDS[i].available && this.isIslandCleared(ISLANDS[i - 1].id);
+  }
+
+  // The world map opens once any island is cleared.
+  get mapUnlocked() { return ISLANDS.some((d) => this.isIslandCleared(d.id)); }
+
+  // Sail to an unlocked island; its wave counter carries on where it was.
+  sailTo(id) {
+    if (!this.isIslandUnlocked(id)) return false;
+    this.islandId = id;
+    this.islands[id] ??= newIsland();
+    return true;
   }
 
   // --- Heroes & slots ---
@@ -203,7 +277,7 @@ export class Progress {
     return buffs;
   }
 
-  waveClearGold(wave = this.wave) {
+  waveClearGold(wave = this.scalingWave) {
     return ECONOMY.waveClearBase + (wave - 1) * ECONOMY.waveClearPerWave;
   }
 
@@ -215,7 +289,29 @@ export class Progress {
 
   // Move on to the next wave after a clear.
   advanceWave() {
+    this.record.best = Math.max(this.record.best, this.wave);
     this.wave++;
+  }
+
+  // The current wave was won: pays its gold and Pearls (and, for a finale,
+  // the island's reward: Pearls and free Legendary chests, and the island is
+  // cleared), then moves on. Returns { gold, pearls, finale } (finale: the
+  // beaten finale's config, or null).
+  winWave() {
+    const finale = this.isFinaleWave ? this.island.finale : null;
+    const gold = this.earnGold(this.waveClearGold());
+    let pearls = this.waveClearPearls();
+    if (finale) {
+      pearls += finale.pearls;
+      this.freeLegendaryChests += finale.legendaryChests;
+      this.record.cleared = true;
+    }
+    this.pearls += pearls;
+    this.advanceWave();
+    // A save from before islands that had sailed past the finale wave
+    // (see Save.js) picks up where it was.
+    if (finale) this.wave = Math.max(this.wave, this.record.best + 1);
+    return { gold, pearls, finale };
   }
 
   waveClearPearls(wave = this.wave) {
@@ -299,7 +395,7 @@ export class Progress {
 
   get packCost() { return PACKS.cost; }
 
-  get canOpenPack() { return this.pearls >= this.packCost; }
+  get canOpenPack() { return this.freeLegendaryChests > 0 || this.pearls >= this.packCost; }
 
   // Rarity weights limited to rarities that have heroes, so rates stay valid
   // if a tier is empty (e.g. Legendary before its heroes exist).
@@ -328,12 +424,15 @@ export class Progress {
     return pool[Math.floor(random() * pool.length)];
   }
 
-  // Spend Pearls and pull one hero. Returns what happened, or null if unaffordable.
+  // Pull one hero: a free Legendary chest first if one is waiting, else
+  // spend Pearls. Returns what happened, or null if unaffordable.
   openPack(random = Math.random) {
     if (!this.canOpenPack) return null;
-    this.pearls -= this.packCost;
-    const pity = this.packsUntilPity <= 1;
-    const id = Progress.rollHero(random, pity ? 'legendary' : null);
+    const freeChest = this.freeLegendaryChests > 0;
+    if (freeChest) this.freeLegendaryChests--;
+    else this.pearls -= this.packCost;
+    const pity = !freeChest && this.packsUntilPity <= 1;
+    const id = Progress.rollHero(random, freeChest || pity ? 'legendary' : null);
     if (HEROES[id].rarity === 'legendary') this.packsSinceLegendary = 0;
     else this.packsSinceLegendary++;
 

@@ -81,17 +81,20 @@ export class PackScene extends Phaser.Scene {
   }
 
   refresh() {
-    const { pearls } = this.progress;
+    const { pearls, freeLegendaryChests: free } = this.progress;
     const cost = this.progress.packCost;
     this.walletText.setText(`YOU HAVE ${pearlsLabel(pearls).toUpperCase()}  -  A CHEST COSTS ${cost}`);
-    this.openButton.setLabel(`Open ${cost}`);
+    // A free Legendary chest (an island's reward) opens first, at no cost.
+    this.openButton.setIcon(free ? null : 'pearl').setLabel(free ? 'Open FREE' : `Open ${cost}`);
     // Hold the pity line while a chest is opening: the counter resets the
     // moment a Legendary is rolled, which would spoil the reveal.
     if (!this.busy) {
       const n = this.progress.packsUntilPity;
-      this.pityText.setText(n <= 1
-        ? 'NEXT CHEST IS A GUARANTEED LEGENDARY!'
-        : `LEGENDARY GUARANTEED WITHIN ${n} CHESTS`);
+      this.pityText.setText(free
+        ? `${free} FREE LEGENDARY CHEST${free > 1 ? 'S' : ''} TO OPEN!`
+        : n <= 1
+          ? 'NEXT CHEST IS A GUARANTEED LEGENDARY!'
+          : `LEGENDARY GUARANTEED WITHIN ${n} CHESTS`);
     }
     this.openButton.setEnabled(!this.busy && this.progress.canOpenPack);
     this.closeButton.setEnabled(!this.busy);

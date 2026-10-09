@@ -1,4 +1,4 @@
-import { ECONOMY, ENEMIES } from '../config.js';
+import { ECONOMY, ENEMIES, ISLANDS } from '../config.js';
 import { Progress } from './Progress.js';
 import { enemyFirstWave } from './WaveManager.js';
 
@@ -7,7 +7,7 @@ export const SAVE_KEY = 'kampung-defense/save';
 const CORRUPT_BACKUP_KEY = 'kampung-defense/save-corrupt-backup';
 
 // Bump when the saved shape changes, and add a migration from the old version.
-export const SAVE_VERSION = 8;
+export const SAVE_VERSION = 9;
 
 // v5 pirate reskin: old hero IDs -> new hero IDs.
 const V5_HERO_IDS = {
@@ -74,6 +74,27 @@ function addWantedBoard(data) {
   return { ...data, discovered: met, seenPosters: [...met], defeats: {}, bounties: {} };
 }
 
+// v9 islands: the voyage so far is Skull Cove (ISLANDS[0]). A save past
+// its finale wave goes back to it, so the player still fights the finale
+// (and its reward); the wave reached counts as the best wave.
+function addIslands(data) {
+  const { wave, lastBossRewardWave, ...rest } = data;
+  const first = ISLANDS[0];
+  const reached = Number.isFinite(wave) ? Math.max(1, Math.floor(wave)) : 1;
+  const finaleWave = first.finale?.wave ?? Infinity;
+  const now = Math.min(reached, finaleWave);
+  const paid = Number.isFinite(lastBossRewardWave) ? Math.floor(lastBossRewardWave) : 0;
+  return {
+    ...rest,
+    island: first.id,
+    islands: {
+      [first.id]: { wave: now, best: reached - 1, cleared: false, bossPaid: Math.min(paid, now - 1) },
+    },
+    mapSeen: false,
+    freeLegendaryChests: 0,
+  };
+}
+
 // MIGRATIONS[n] upgrades a version-n save to version n + 1.
 const MIGRATIONS = {
   // v2: sound mute setting saved with progress.
@@ -93,6 +114,9 @@ const MIGRATIONS = {
   6: (data) => ({ ...data, autoAbilities: false }),
   // v8: Wanted Board (enemy types met, posters seen, defeats, bounties).
   7: addWantedBoard,
+  // v9: islands (wave and boss Pearls per island), the world map, free
+  // Legendary chests.
+  8: addIslands,
 };
 
 function migrate(save) {

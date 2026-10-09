@@ -230,6 +230,14 @@ class Sfx {
     });
   }
 
+  // The finale's lightning: a sharp crack, then a low rumble.
+  thunder() {
+    const t = this.ready();
+    if (t == null) return;
+    this.noise({ start: t, duration: 0.15, volume: 0.45, filterFrom: 3000, filterTo: 1200, q: 0.8 });
+    this.noise({ start: t + 0.1, duration: 1.4, volume: 0.4, filterFrom: 400, filterTo: 80, q: 0.7 });
+  }
+
   // A Barnacle Knight's shield shattering: a crack and a clang.
   shieldBreak() {
     const t = this.ready();

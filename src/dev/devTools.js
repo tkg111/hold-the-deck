@@ -26,7 +26,8 @@ export function installDevTools(scene) {
     ...small, width: 60, label: '+10 WAVE',
     onClick: () => {
       if (scene.state !== 'idle') return;
-      for (let i = 0; i < 10; i++) progress.advanceWave();
+      // Stops at an island's finale, so it isn't skipped.
+      for (let i = 0; i < 10 && !progress.isFinaleWave; i++) progress.advanceWave();
       scene.refreshUi();
     },
   });

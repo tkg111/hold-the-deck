@@ -119,7 +119,7 @@ function playWave(scene, progress) {
   rebuildHeroes(scene, progress);
   scene.enemies = [];
   scene.projectiles = [];
-  waves.start(progress.wave);
+  waves.start(progress.wave, progress.waveOptions);
   abilities.resetCooldowns();
   let time = 0;
   let won = false;
@@ -144,11 +144,7 @@ function playWave(scene, progress) {
   waves.stop();
   abilities.clear();
   for (const h of scene.heroes) h.clearAbilities();
-  if (won) {
-    progress.earnGold(progress.waveClearGold());
-    progress.pearls += progress.waveClearPearls();
-    progress.advanceWave();
-  }
+  if (won) progress.winWave();
   return { won, time, hullLeft: ship.hp / ship.maxHp };
 }
 
@@ -221,7 +217,10 @@ function run(seed, policy) {
   scene.events.on('enemy-killed', (e) => {
     progress.recordDefeat(e.key);   // bounties pay Pearls
     progress.earnGold(e.gold);
-    if (e.def.boss) progress.claimBossPearls();
+    if (e.def.boss) {
+      progress.claimBossPearls();
+      scene.waves.bossDown();   // the finale's other boss enrages
+    }
   });
   scene.events.on('enemy-stole', (e) => {
     progress.gold -= Math.min(progress.gold, Math.ceil(progress.gold * e.def.stealPercent));

@@ -805,6 +805,74 @@ export const WAVES = {
   bossSpawnAt: 0.3,        // boss enters this far through the spawn queue
 };
 
+// The voyage is split into islands of `waves` waves each, in map.json's
+// order (public/sprites/map/). Ship, crew, upgrades and Pearls carry over;
+// each island keeps its own wave counter and best wave. Later islands are
+// harder: enemy HP, damage, kill gold and Elite chance are those of wave
+// (wave + waveOffset), while new enemies still arrive on the usual waves.
+// Only `available` islands can be unlocked (by clearing the one before); the
+// rest are placeholders on the map. hazard / boss: the map card's lines.
+// Clearing an island's finale wave opens Endless mode there: its waves go on
+// past `waves` as before.
+export const ISLANDS = [
+  {
+    id: 'skull_cove', name: 'Skull Cove', waves: 50, waveOffset: 0, available: true,
+    hazard: 'Harpies, Sirens', boss: 'Kraken & Galleon',
+    // Wave 50: "Wrath of Skull Cove". A storm rolls in (STORM), then the
+    // Ghost Galleon emerges (galleonAt ms in) and The Kraken surfaces
+    // krakenAfter ms after it, each with hpFactor x its usual HP, while a
+    // trickle of regular enemies comes in (trickle x the usual count, a group
+    // every trickleInterval ms from trickleFrom). When one boss dies the
+    // other enrages: tinted, attacking (and firing, launching boats) rage x
+    // as fast. Winning pays `pearls` and a free Legendary chest, clears the
+    // storm and unlocks the world map.
+    finale: {
+      wave: 50,
+      title: 'WRATH OF SKULL COVE',
+      detail: 'WAVE 50 - FINAL BATTLE',
+      galleonAt: 1500, krakenAfter: 20000, hpFactor: 0.7,
+      trickle: 0.3, trickleFrom: 5000, trickleInterval: 3200,
+      rage: 1.6, rageTint: 0xff5a5a,
+      pearls: 60, legendaryChests: 1,
+      clearedTitle: 'SKULL COVE CLEARED!',
+    },
+  },
+  { id: 'ember_isle', name: 'Ember Isle', waves: 50, waveOffset: 30, available: false, hazard: 'Lava bombs', boss: '???' },
+  { id: 'frostbite_reef', name: 'Frostbite Reef', waves: 50, waveOffset: 60, available: false, hazard: '???', boss: '???' },
+  { id: 'fogbound_isle', name: 'Fogbound Isle', waves: 50, waveOffset: 90, available: false, hazard: '???', boss: '???' },
+];
+
+// The finale's storm (public/sprites/storm/, storm.json gives the tint,
+// clouds, rain sheet and lightning sheet). Layers sit over the battle but
+// under the HUD. A lightning bolt strikes at a random x in the sky every
+// lightningMin-lightningMax ms with a flashMs white flash; the storm fades in
+// and out over fadeMs.
+export const STORM = {
+  path: 'storm/',       // under SPRITES.path
+  lightningMin: 4000,
+  lightningMax: 8000,
+  flashMs: 100,
+  flashAlpha: 0.7,
+  fadeMs: 1200,
+};
+
+// The world map (public/sprites/map/, map.json gives the islands, the route
+// and the ship token), drawn at 1x over map_bg.png.
+export const MAP = {
+  path: 'map/',         // under SPRITES.path
+  title: 'THE CURSED SEAS',
+  lockedAlpha: 0.45,    // locked islands: greyscale at this alpha, with a "?"
+  routeColor: 0xb03a2e, // travelled legs: solid red dots
+  inkColor: 0x7a5a3a,   // the rest: dotted ink
+  inkAlpha: 0.7,
+  ringColor: 0xd9962b,  // dotted ring round the selected island
+  ringRadius: 40,
+  shipTokenOffset: { x: -30, y: -22 },   // from the current island's centre
+  bob: { px: 1, ms: 700 },               // the ship token bobs this much
+  clearedColor: '#3a8a3a',
+  card: { x: 306, y: 132, width: 166, height: 126, valueX: 64 },
+};
+
 // Groups a wave is built from, picked at random by weight from those
 // unlocked (from: first wave); a formation's first wave always has one.
 // members: ENEMIES keys, front first. escort: the rest keep behind the first

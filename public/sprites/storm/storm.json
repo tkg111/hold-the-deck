@@ -1,0 +1,29 @@
+{
+  "tint": [
+    20,
+    28,
+    48,
+    110
+  ],
+  "clouds": {
+    "file": "storm_clouds.png",
+    "x": 0,
+    "y": 0
+  },
+  "rain": {
+    "file": "rain_sheet.png",
+    "frameWidth": 64,
+    "frameHeight": 64,
+    "frames": 4,
+    "fps": 12,
+    "note": "tile across the whole screen, drawn above everything except the HUD"
+  },
+  "lightning": {
+    "file": "lightning_bolt.png",
+    "frameWidth": 40,
+    "frameHeight": 110,
+    "frames": 2,
+    "fps": 10,
+    "note": "random x in the sky every 4-8s; flash the screen white ~0.1s on frame 0"
+  }
+}

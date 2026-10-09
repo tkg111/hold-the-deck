@@ -19,6 +19,7 @@ export const DEPTH = {
   flyer: -12.5,
   slotMarkers: -12,
   enemyOverlay: -10,
+  storm: -9,           // the finale's storm: over the battle, under projectiles and the HUD
 };
 
 const SLOT_ZONE = SPRITES.slotZone;

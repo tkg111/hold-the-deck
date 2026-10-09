@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { canvasSize, installIntegerScaling } from './display.js';
 import { CollectionScene } from './scenes/CollectionScene.js';
 import { GameScene } from './scenes/GameScene.js';
+import { MapScene } from './scenes/MapScene.js';
 import { PackScene } from './scenes/PackScene.js';
 import { WantedScene } from './scenes/WantedScene.js';
 import { loadUiSpec } from './ui/kit.js';
@@ -22,7 +23,7 @@ loadUiSpec().then(() => {
     // No automatic fitting: the canvas is a whole-number multiple of the base
     // resolution (see display.js), centered by the page's flex layout.
     scale: { mode: Phaser.Scale.NONE },
-    scene: [GameScene, PackScene, CollectionScene, WantedScene],
+    scene: [GameScene, PackScene, CollectionScene, WantedScene, MapScene],
   });
 
   // Handy for poking at state from the browser console during development.

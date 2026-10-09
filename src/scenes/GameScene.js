@@ -6,7 +6,8 @@ import {
 } from '../display.js';
 import { LAYOUT, shiftIsland } from '../layout.js';
 import { Scenery } from '../scenery.js';
-import { createAnimations, preloadSprites } from '../sprites.js';
+import { createAnimations, mapKey, preloadSprites } from '../sprites.js';
+import { Storm } from '../storm.js';
 import { Ship } from '../entities/Ship.js';
 import { Hero } from '../entities/Hero.js';
 import { clearSave, loadProgress, saveProgress } from '../systems/Save.js';
@@ -52,6 +53,7 @@ export class GameScene extends Phaser.Scene {
 
     this.scenery = new Scenery(this);
     this.scenery.layout(this.view);
+    this.storm = new Storm(this);
     this.ship = new Ship(this, this.progress);
     this.heroes = [];
     this.abilities = new AbilitySystem(this);
@@ -96,6 +98,7 @@ export class GameScene extends Phaser.Scene {
     const oldSpawnX = LAYOUT.enemySpawnX;
     shiftIsland(view.width - DISPLAY.width);
     this.scenery.layout(view);
+    this.storm.layout(view);
     for (const e of this.enemies) e.rescaleLane(oldSpawnX, LAYOUT.enemySpawnX);
     this.layoutUi(view);
   }
@@ -164,6 +167,11 @@ export class GameScene extends Phaser.Scene {
     this.wantedButton = new Button(this, 439, 248, {
       width: 70, height: 24, icon: wantedKey('icon_wanted'), label: 'Wanted', onClick: () => this.openWanted(),
     });
+    // The world map, left of SET SAIL! once an island is cleared (red dot:
+    // not opened since).
+    this.mapButton = new Button(this, 125, 248, {
+      width: 46, height: 24, icon: mapKey('ship_token'), label: 'Map', onClick: () => this.openMap(),
+    });
     // Battle speed (bottom-right, during waves): shows the current speed.
     this.speedButton = new Button(this, 452, 250, {
       width: 40, height: 22, label: '', onClick: () => this.cycleSpeed(),
@@ -175,7 +183,7 @@ export class GameScene extends Phaser.Scene {
     });
     this.abilityBar.setCrew(this.heroes.map((h) => h.id));
     this.bottomBar = group(
-      this.startButton, this.packButton, this.collectionButton, this.wantedButton, this.speedButton,
+      this.mapButton, this.startButton, this.packButton, this.collectionButton, this.wantedButton, this.speedButton,
     );
     // NEW ENEMY! alert and bounty toasts.
     this.notices = new Notices(this, this.progress);
@@ -220,6 +228,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     for (const b of [this.startButton, this.packButton, this.collectionButton, this.wantedButton]) b.setVisible(idle);
+    this.mapButton.setVisible(idle && p.mapUnlocked).setDot(!p.mapSeen);
     this.speedButton.setVisible(!idle).setLabel(`x${this.speed}`);
     this.abilityBar.setVisible(!idle);
     // Red dot: a chest is affordable.
@@ -236,8 +245,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   // A wood plaque with a short headline in the big font (and an optional
-  // small detail line under it), fading out.
-  showBanner(title, { detail = null, color = UI.colors.text } = {}) {
+  // small detail line under it), fading out after hold ms.
+  showBanner(title, { detail = null, color = UI.colors.text, hold = 1700 } = {}) {
     this.banner.removeAll(true);
     const label = text(this, 0, 0, title, light({ font: 'big', color })).setOrigin(0.5, 0);
     const small = detail ? text(this, 0, label.inkHeight + 5, detail, light({ font: 'small' })).setOrigin(0.5, 0) : null;
@@ -246,7 +255,7 @@ export class GameScene extends Phaser.Scene {
     this.banner.add([panel(this, -w / 2, -6, w, h, 'wood'), label, small].filter(Boolean));
     this.tweens.killTweensOf(this.banner);
     this.banner.setAlpha(1);
-    this.tweens.add({ targets: this.banner, alpha: 0, delay: 1700, duration: 400 });
+    this.tweens.add({ targets: this.banner, alpha: 0, delay: hold, duration: 400 });
   }
 
   floatText(x, y, message, color = UI.colors.text) {
@@ -269,6 +278,10 @@ export class GameScene extends Phaser.Scene {
     if (enemy.def.boss) {
       const pearls = this.progress.claimBossPearls();
       if (pearls) this.floatText(enemy.x, top - 16, `+${pearlsLabel(pearls)}`);
+      // The finale: the other boss enrages.
+      for (const e of this.waves.bossDown()) {
+        this.showBanner(`${e.def.name.toUpperCase()} ENRAGES!`, { color: UI.colors.warn });
+      }
     }
   }
 
@@ -396,6 +409,21 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  // The world map; sailing to another island picks up its wave counter.
+  openMap() {
+    if (this.state !== STATE.IDLE || !this.progress.mapUnlocked) return;
+    if (this.heroPicker.visible) this.heroPicker.close();
+    sfx.click();
+    this.scene.launch('MapScene', {
+      progress: this.progress,
+      onClose: (sailed) => {
+        if (sailed) this.showBanner(`SAILING TO ${this.progress.island.name.toUpperCase()}`);
+        this.refreshUi();
+        this.save();
+      },
+    });
+  }
+
   openPacks() {
     if (this.state !== STATE.IDLE) return;
     if (this.heroPicker.visible) this.heroPicker.close();
@@ -411,7 +439,7 @@ export class GameScene extends Phaser.Scene {
     }
     if (this.heroPicker.visible) this.heroPicker.close();
     // Storm Harpies ahead and nobody on the ship can hit (or net) flyers.
-    const flyers = composeWave(this.progress.wave).some((s) => s.def.flies);
+    const flyers = composeWave(this.progress.wave, this.progress.waveOptions).some((s) => s.def.flies);
     if (flyers && !confirmed && !this.heroes.some((h) => h.antiAir)) {
       new ConfirmDialog(this, {
         title: 'Flyers ahead!',
@@ -423,9 +451,14 @@ export class GameScene extends Phaser.Scene {
     }
     this.ship.setSlotsEnabled(false);
     this.ship.restore();
-    this.waves.start(this.progress.wave);
+    this.waves.start(this.progress.wave, this.progress.waveOptions);
     this.abilities.resetCooldowns();
-    if (isBossWave(this.progress.wave)) this.showBanner(ENEMIES[bossOf(this.progress.wave)].banner, { color: UI.colors.warn });
+    const { finale } = this.progress.waveOptions;
+    if (finale) {
+      // The island's finale: the storm rolls in under its banner.
+      this.storm.start();
+      this.showBanner(finale.title, { detail: finale.detail, hold: 3000 });
+    } else if (isBossWave(this.progress.wave)) this.showBanner(ENEMIES[bossOf(this.progress.wave)].banner, { color: UI.colors.warn });
     else if (isSirenWave(this.progress.wave)) this.showBanner('A SIREN SINGS!', { color: UI.colors.warn });
     this.state = STATE.RUNNING;
     this.applySpeed();
@@ -443,14 +476,22 @@ export class GameScene extends Phaser.Scene {
     this.enemies = [];
     this.projectiles = [];
 
+    this.storm.stop();
     if (won) {
-      const gold = this.progress.earnGold(this.progress.waveClearGold());
-      const pearls = this.progress.waveClearPearls();
-      this.progress.pearls += pearls;
-      this.showBanner(`WAVE ${this.progress.wave} CLEARED!`, {
-        detail: `+${fmtNumber(gold)} GOLD${pearls ? `  +${pearlsLabel(pearls).toUpperCase()}` : ''}`,
-      });
-      this.progress.advanceWave();
+      const wave = this.progress.wave;
+      const { gold, pearls, finale } = this.progress.winWave();
+      if (finale) {
+        // The island is cleared: its reward, and the world map opens.
+        sfx.reveal('legendary', true);
+        this.showBanner(finale.clearedTitle, {
+          detail: `+${pearlsLabel(pearls).toUpperCase()}  +${finale.legendaryChests} LEGENDARY CHEST  -  WORLD MAP UNLOCKED`,
+          hold: 4500,
+        });
+      } else {
+        this.showBanner(`WAVE ${wave} CLEARED!`, {
+          detail: `+${fmtNumber(gold)} GOLD${pearls ? `  +${pearlsLabel(pearls).toUpperCase()}` : ''}`,
+        });
+      }
     } else {
       // Kill gold earned this wave is kept; the wave just doesn't advance.
       this.showBanner('SHIP SUNK!', { detail: 'UPGRADE AND TRY AGAIN', color: UI.colors.warn });
@@ -481,6 +522,7 @@ export class GameScene extends Phaser.Scene {
   update(_time, delta) {
     this.scenery.syncForeground();
     this.notices.update(Math.min(delta, 100));
+    this.storm.update(Math.min(delta, 100));
     if (this.state !== STATE.RUNNING) return;
     // Clamp so a backgrounded tab doesn't teleport enemies on return.
     const dt = Math.min(delta, 100) * this.speed;
@@ -489,6 +531,8 @@ export class GameScene extends Phaser.Scene {
     this.enemies.push(...spawned);
     // First sighting of a type: unlock its poster and announce it.
     for (const e of spawned) if (this.progress.discover(e.key)) this.notices.newEnemy(e.key);
+    // The finale: a boss arriving after the other fell comes in enraged.
+    for (const e of spawned) if (e.def.boss && e.rage > 1) this.showBanner(`${e.def.name.toUpperCase()} ENRAGES!`, { color: UI.colors.warn });
     for (const e of this.enemies) e.update(dt, this.ship);
     this.abilities.update(dt, this.progress.autoAbilities);
 

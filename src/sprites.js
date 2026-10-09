@@ -1,4 +1,4 @@
-import { ENEMIES, FX, SHIP, SPRITES } from './config.js';
+import { ENEMIES, FX, MAP, SHIP, SPRITES, STORM } from './config.js';
 import { initLayout, LAYOUT } from './layout.js';
 import { preloadUi } from './ui/kit.js';
 import { versioned } from './version.js';
@@ -23,6 +23,37 @@ export const sheetKey = (name) => `${name}_sheet`;
 export const animKey = (name, anim) => `${name}_${anim}`;
 // Effect sheets from fx/fx.json: texture and animation key per name.
 export const fxKey = (name) => `fx_${name}`;
+
+// The finale's storm (storm/storm.json and the images it names; see
+// src/storm.js) and the world map (map/map.json and its images; see
+// MapScene): texture keys and JSON cache keys.
+export const STORM_JSON_KEY = 'storm';
+export const stormKey = (name) => `storm_${name}`;
+export const MAP_JSON_KEY = 'map';
+export const mapKey = (name) => `map_${name}`;
+
+function preloadStorm(load) {
+  load.json(STORM_JSON_KEY, `${STORM.path}storm.json`);
+  load.once(`filecomplete-json-${STORM_JSON_KEY}`, (key, type, spec) => {
+    load.image(stormKey('clouds'), `${STORM.path}${spec.clouds.file}`);
+    for (const name of ['rain', 'lightning']) {
+      const { file, frameWidth, frameHeight } = spec[name];
+      load.spritesheet(stormKey(name), `${STORM.path}${file}`, { frameWidth, frameHeight });
+    }
+  });
+}
+
+function preloadMap(load) {
+  load.image(mapKey('bg'), `${MAP.path}map_bg.png`);
+  load.image(mapKey('flag'), `${MAP.path}flag_cleared.png`);
+  load.json(MAP_JSON_KEY, `${MAP.path}map.json`);
+  load.once(`filecomplete-json-${MAP_JSON_KEY}`, (key, type, data) => {
+    for (const island of data.islands) load.image(mapKey(island.id), `${MAP.path}${island.image}`);
+    const { frameWidth, frameHeight } = data.shipToken;
+    load.spritesheet(mapKey('ship_token'), `${MAP.path}ship_token_sheet.png`,
+      { frameWidth, frameHeight: frameHeight ?? frameWidth });
+  });
+}
 
 // Load every sprite the game uses. Textures are global, so loading once in the
 // first scene makes them available everywhere. animations.json gives each
@@ -62,6 +93,8 @@ export function preloadSprites(scene) {
       load.spritesheet(fxKey(name), `${FX.path}${file}`, { frameWidth, frameHeight });
     }
   });
+  preloadStorm(load);
+  preloadMap(load);
   for (const file of ANIMATION_FILES) {
     load.json(file, `${file}.json`);
     load.once(`filecomplete-json-${file}`, (key, type, data) => {

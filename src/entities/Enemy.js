@@ -31,8 +31,11 @@ export class Enemy {
   //   elite:  3x HP (ELITE), gold tint; gold is already multiplied by the caller
   //   leader: in an escorted formation, the enemy this one keeps behind
   //   key:    its ENEMIES key (for the Wanted Board)
+  //   inFront: The Kraken in a finale rises at its spot in the 480-wide
+  //           layout, in front of the Ghost Galleon, however wide the view
   constructor(scene, def, {
     x = LAYOUT.enemySpawnX, hpMultiplier, damageMultiplier, gold, elite = false, leader = null, key = null,
+    inFront = false,
   }) {
     this.scene = scene;
     this.def = def;
@@ -90,7 +93,8 @@ export class Enemy {
     } else {
       this.body = scene.add.rectangle(0, 0, def.width, def.height, def.color).setStrokeStyle(1, 0x333333);
     }
-    const depth = def.emerges ? DEPTH.kraken : def.flies ? DEPTH.flyer : DEPTH.enemy;
+    // The Ghost Galleon sits just behind The Kraken (which can surface in front of it).
+    const depth = def.emerges ? DEPTH.kraken : def.galleon ? DEPTH.kraken - 0.1 : def.flies ? DEPTH.flyer : DEPTH.enemy;
     this.body.setOrigin(0.5, 1).setDepth(depth);
     if (elite) this.setFlash(false);  // gold tint
 
@@ -103,12 +107,13 @@ export class Enemy {
       const k = LAYOUT.kraken;
       this.frameW = this.body.displayWidth;
       this.frameH = this.body.displayHeight;
-      this.x = k.x + this.frameW / 2;
+      this.riseLeft = inFront ? k.x - LAYOUT.islandShift : k.x;
+      this.x = this.riseLeft + this.frameW / 2;
       this.stopX = k.toX + this.frameW / 2;
       this.riseTime = k.riseMs;
       this.setFeetY(k.fromY + this.frameH);
       const s = SPRITES.krakenSplash;
-      this.splash = scene.add.sprite(k.x, LAYOUT.waterY - s.aboveWater, s.key)
+      this.splash = scene.add.sprite(this.riseLeft, LAYOUT.waterY - s.aboveWater, s.key)
         .setOrigin(0).setDepth(DEPTH.splash).play(SPLASH_ANIM);
     } else if (def.stationary) {
       // The Siren: her frame's top-left at layout.siren; she fades in.
@@ -203,7 +208,7 @@ export class Enemy {
   get canBeMoved() { return !this.def.flies && !this.def.stationary && !this.def.galleon; }
   // How far back toward the island it can be scared or pushed: where it
   // walked in from (The Kraken: where it rose).
-  get retreatX() { return this.def.emerges ? LAYOUT.kraken.x + this.frameW / 2 : LAYOUT.enemySpawnX; }
+  get retreatX() { return this.def.emerges ? this.riseLeft + this.frameW / 2 : LAYOUT.enemySpawnX; }
   get isAfraid() { return this.fearTime > 0; }
   // Whether heroes can aim at or hit it (anti-air aside, see airborne).
   get targetable() { return this.alive && !this.isRising; }
