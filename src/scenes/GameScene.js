@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { DISPLAY, GAME_SPEEDS, HEROES } from '../config.js';
+import { DISPLAY, GAME_SPEEDS, HEROES, UI_KIT } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
 import {
   applyRenderScale, fullscreenSupported, isFullscreen, toggleFullscreen,
@@ -11,6 +11,8 @@ import { Ship } from '../entities/Ship.js';
 import { Hero } from '../entities/Hero.js';
 import { clearSave, loadProgress, saveProgress } from '../systems/Save.js';
 import { isBossWave, WaveManager } from '../systems/WaveManager.js';
+import { AbilitySystem } from '../systems/Abilities.js';
+import { AbilityBar } from '../ui/AbilityBar.js';
 import { Button } from '../ui/Button.js';
 import { ConfirmDialog } from '../ui/ConfirmDialog.js';
 import { fmtNumber, pearlsLabel } from '../ui/format.js';
@@ -51,6 +53,7 @@ export class GameScene extends Phaser.Scene {
     this.scenery.layout(this.view);
     this.ship = new Ship(this, this.progress);
     this.heroes = [];
+    this.abilities = new AbilitySystem(this);
     this.rebuildHeroes();
 
     this.waves = new WaveManager(this);
@@ -69,10 +72,17 @@ export class GameScene extends Phaser.Scene {
     // Fullscreen can also be left with Esc, so follow the browser's state.
     const onFullscreenChange = () => this.refreshUi();
     document.addEventListener('fullscreenchange', onFullscreenChange);
+    // Keys 1-6 use the abilities of the crew in slot order.
+    const onKey = (event) => {
+      const n = Number(event.key);
+      if (Number.isInteger(n) && n >= 1 && n <= 6) this.useAbility(n - 1, { fromKey: true });
+    };
+    this.input.keyboard?.on('keydown', onKey);
     this.events.once('shutdown', () => {
       for (const [name, fn] of Object.entries(handlers)) this.events.off(name, fn, this);
       window.removeEventListener('pagehide', onPageHide);
       document.removeEventListener('fullscreenchange', onFullscreenChange);
+      this.input.keyboard?.off('keydown', onKey);
     });
 
     this.createUi();
@@ -131,7 +141,7 @@ export class GameScene extends Phaser.Scene {
     this.banner = this.add.container(0, 0).setDepth(10).setAlpha(0);
 
     this.shipwright = new Shipwright(this, 0, 0, 200, this.progress, () => this.onUpgradePurchased());
-    this.heroPicker = new HeroPicker(this, 0, 0, 200, (id) => this.onHeroPicked(id));
+    this.heroPicker = new HeroPicker(this, 0, 0, UI_KIT.pickerWidth, (id) => this.onHeroPicked(id));
     this.heroPicker.on('closed', () => {
       this.ship.selectSlot(-1);
       this.refreshUi();  // brings the Shipwright back
@@ -152,6 +162,12 @@ export class GameScene extends Phaser.Scene {
     this.speedButton = new Button(this, 452, 250, {
       width: 40, height: 22, label: '', onClick: () => this.cycleSpeed(),
     });
+    // Abilities (bottom centre, during waves).
+    this.abilityBar = new AbilityBar(this, {
+      onTrigger: (i) => this.useAbility(i),
+      onToggleAuto: () => this.toggleAutoAbilities(),
+    });
+    this.abilityBar.setCrew(this.heroes.map((h) => h.id));
     this.bottomBar = group(
       this.startButton, this.packButton, this.collectionButton, this.speedButton,
     );
@@ -171,8 +187,9 @@ export class GameScene extends Phaser.Scene {
     this.topRight.setPosition(right, view.top);
     this.banner.setPosition(188 + Math.round((view.width - DISPLAY.width) / 2), view.top + 80);
     this.shipwright.setPosition(right + 273, view.top + 64);
-    this.heroPicker.setPosition(right + 273, view.top + 64);
+    this.heroPicker.setPosition(right + 473 - UI_KIT.pickerWidth, view.top + 64);
     this.bottomBar.setPosition(right, view.bottom - DISPLAY.height);
+    this.abilityBar.layout(view);
   }
 
   refreshUi() {
@@ -195,6 +212,7 @@ export class GameScene extends Phaser.Scene {
 
     for (const b of [this.startButton, this.packButton, this.collectionButton]) b.setVisible(idle);
     this.speedButton.setVisible(!idle).setLabel(`x${this.speed}`);
+    this.abilityBar.setVisible(!idle);
     // Red dot: a chest is affordable.
     this.packButton.setDot(p.canOpenPack);
     if (this.settingsButton.enabled !== idle) this.settingsButton.setEnabled(idle);
@@ -287,6 +305,23 @@ export class GameScene extends Phaser.Scene {
         buffed: buff.buffed,
       });
     });
+    this.abilities.setCrew(this.heroes, p);
+    this.abilityBar?.setCrew(this.heroes.map((h) => h.id));
+  }
+
+  // Ability button or key: fires the ability of the i-th crewmate on the ship.
+  useAbility(i, { fromKey = false } = {}) {
+    if (this.state !== STATE.RUNNING || i >= this.heroes.length) return;
+    if (fromKey) this.abilityBar.press(i);
+    this.abilities.trigger(i);
+  }
+
+  // Works mid-wave; saved with progress.
+  toggleAutoAbilities() {
+    this.progress.autoAbilities = !this.progress.autoAbilities;
+    sfx.click();
+    this.abilityBar.refresh(this.abilities, this.progress.autoAbilities);
+    this.save();
   }
 
   onSlotClicked(slot) {
@@ -353,6 +388,7 @@ export class GameScene extends Phaser.Scene {
     this.ship.setSlotsEnabled(false);
     this.ship.restore();
     this.waves.start(this.progress.wave);
+    this.abilities.resetCooldowns();
     if (isBossWave(this.progress.wave)) this.showBanner('THE KRAKEN RISES!', { color: UI.colors.warn });
     this.state = STATE.RUNNING;
     this.applySpeed();
@@ -363,6 +399,8 @@ export class GameScene extends Phaser.Scene {
     this.state = STATE.IDLE;
     this.applySpeed();
     this.waves.stop();
+    this.abilities.clear();
+    for (const h of this.heroes) h.clearAbilities();
     for (const e of this.enemies) e.destroy();
     for (const p of this.projectiles) p.destroy();
     this.enemies = [];
@@ -411,6 +449,7 @@ export class GameScene extends Phaser.Scene {
 
     this.enemies.push(...this.waves.update(dt));
     for (const e of this.enemies) e.update(dt, this.ship);
+    this.abilities.update(dt, this.progress.autoAbilities);
 
     for (const h of this.heroes) {
       const shot = h.update(dt, this.enemies);
@@ -430,5 +469,6 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     this.refreshUi();
+    this.abilityBar.refresh(this.abilities, this.progress.autoAbilities);
   }
 }

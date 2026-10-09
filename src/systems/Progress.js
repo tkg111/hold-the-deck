@@ -1,4 +1,4 @@
-import { ECONOMY, HEROES, SHIP, PACKS, RARITY, STARTING_HEROES, UPGRADES } from '../config.js';
+import { ABILITY_SCALING, ECONOMY, HEROES, SHIP, PACKS, RARITY, STARTING_HEROES, UPGRADES } from '../config.js';
 
 const scaledCost = ({ baseCost, costGrowth }, level) => Math.round(baseCost * costGrowth ** level);
 
@@ -21,6 +21,7 @@ export class Progress {
     this.slots[0] = STARTING_HEROES[0];
 
     this.muted = false;             // sound effects off
+    this.autoAbilities = false;     // ability bar's Auto toggle
 
     // Dev-only: treat every hero as owned. Not part of saved progress.
     this.devUnlockAll = false;
@@ -45,6 +46,7 @@ export class Progress {
       heroStars: ownedOnly(this.heroStars),
       slots: this.slots.map((id) => (id && owned.includes(id) ? id : null)),
       muted: this.muted,
+      autoAbilities: this.autoAbilities,
       packsSinceLegendary: this.packsSinceLegendary,
     };
   }
@@ -63,6 +65,7 @@ export class Progress {
     p.hullHpLevel = int(data.hullHpLevel, 0);
     p.decks = int(data.decks, SHIP.startingDecks, SHIP.maxDecks);
     p.muted = data.muted === true;
+    p.autoAbilities = data.autoAbilities === true;
     p.packsSinceLegendary = int(data.packsSinceLegendary, 0, PACKS.legendaryPity - 1);
 
     const owned = Array.isArray(data.owned) ? data.owned.filter((id) => id in HEROES) : [];
@@ -151,6 +154,12 @@ export class Progress {
     const { aura } = HEROES[id];
     const starBonus = PACKS.starDamageBonus[this.heroStarCount(id)];
     return (aura.damageBonus + (level - 1) * aura.damageBonusPerLevel) * (1 + starBonus);
+  }
+
+  // Multiplier for a hero's ability durations (and stun), from level and stars.
+  abilityScale(id) {
+    const { perLevel, perStar, maxScale } = ABILITY_SCALING;
+    return Math.min(maxScale, 1 + (this.heroLevel(id) - 1) * perLevel + this.heroStarCount(id) * perStar);
   }
 
   // Buffs from aura heroes for each active hero: slot -> { damage, attackSpeed }

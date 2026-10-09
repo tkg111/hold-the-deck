@@ -16,11 +16,13 @@ const ROW_INSET = 9;       // rows' left / right margin inside the parchment
 // scrolls a whole row per mouse-wheel notch or arrow click. (x, y) is the top
 // left of the parchment and width is its width, in layout units.
 export class ScrollPanel extends Phaser.GameObjects.Container {
-  constructor(scene, x, y, width, { title, visibleRows = UI_KIT.shipwrightRows, onClose = null }) {
+  constructor(scene, x, y, width, {
+    title, visibleRows = UI_KIT.shipwrightRows, rowHeight = UI_KIT.rowHeight, onClose = null,
+  }) {
     super(scene, x, y);
     this.panelWidth = width;  // not this.w: Phaser's setPosition(x, y, z, w) overwrites it
     this.visibleRows = visibleRows;
-    this.rowHeight = UI_KIT.rowHeight;
+    this.rowHeight = rowHeight;
     this.offset = 0;
     this.rows = [];
 

@@ -26,7 +26,7 @@ Passion project — no real money, no ads, no timers. Everything is earned throu
   - **small_light** (8px): small text over the scene and on bars. **small_dark**: small text on parchment.
   - **big_light** (32px): SET SAIL!, wave banners, the chest reveal's result line and the new-crewmate title.
 - **Hero cards** (chest reveal, new-crewmate splash, Crew Roster): parchment under a wood plate naming the rarity, the hero's single `<name>.png` at 2x (the only scaled art), name, pixel stars, level and (on the large card) effect. Heroes not collected yet are a wood card with a black silhouette of their sprite and "???".
-- **Crew faces:** the Shipwright and hero picker show each hero's face, cropped from their single sprite.
+- **Crew faces:** the Shipwright, hero picker and ability bar show each hero's face, cropped from their single sprite.
 
 ## Core Loop
 
@@ -72,6 +72,27 @@ All heroes are ranged and attack from the ship, except The Captain, who supports
 
 Status effects are shown on the enemy: yellow circling stars (stunned), blue net (slowed), pulsing purple aura (cursed), green tint with rising bubbles and a green HP bar (poisoned).
 
+### Abilities
+
+Every crewmate has one active ability, used during waves from the ability bar (or keys 1–6) and then on cooldown.
+
+| Crewmate | Ability | Effect | Cooldown |
+|---|---|---|---|
+| Cabin Boy | **Rapid Fire** | Triple attack speed for 4s | 15s |
+| Ship's Cook | **Hot Stew** | Lobs a pot at the thickest crowd; everything within 45px is stunned for 2s | 18s |
+| Net Thrower | **Big Net** | A huge net drops over the lane: every enemy on screen is slowed 50% for 5s | 20s |
+| Grog Brewer | **Grog Barrel** | Throws a barrel just ahead of the leading enemy, leaving a 90px poison puddle on the lane for 6s. Enemies in it are poisoned for 2.5x the Brewer's damage per second (lingering 0.5s after they leave) | 18s |
+| Harpooner | **Whale Harpoon** | A giant harpoon skims the whole lane from the ship to the far edge, hitting every enemy once for 5x the Harpooner's damage | 20s |
+| Voodoo Priestess | **Hex** | Curses every enemy on screen: +50% damage taken from everything for 6s | 25s |
+| Cannoneer | **Broadside** | 6 cannonballs fall one after another (0.16s apart) at spots spread evenly along the lane; each hits everything within 40px for 2x the Cannoneer's damage | 25s |
+| The Duelist | **Lunge** | His next 5 shots go at the toughest enemy (most HP left) and are all crits; his attack is ready at once | 22s |
+| The Captain | **All Hands!** | Whole crew +50% attack speed for 6s | 30s |
+
+- **Scaling:** damage from abilities is a multiple of the crewmate's own damage, so it grows with level and stars like their attacks do. Durations (and the Hot Stew stun) are multiplied by 1 + 2% per level above 1 + 10% per star, up to 2x. Speed boosts stack multiplicatively (Rapid Fire during All Hands! is 4.5x).
+- **Using them:** every ability is ready at the start of each wave. An ability only fires with an enemy to use it on: any targetable enemy on screen, or for the attack speed boosts (Rapid Fire, All Hands!) one within 350px of the crewmate. Pressing one that can't fire plays a dull blip and keeps it ready. Stun and slow from abilities are halved on The Kraken like any other.
+- **Auto:** a toggle at the end of the ability bar fires every ability as soon as it is ready and has a target. Saved with progress (save v7).
+- **Feedback:** the ability name floats up from the crewmate in its colour, with a synthesized sound per ability (blips, a whoosh and clang, a net swish, a barrel crash and glugs, a ringing harpoon, an eerie hex, cannon booms on each impact, a sword "shing", a bugle call). Placeholder effects: a ring burst on boosted heroes and a pulsing outline while boosted, a lobbed pot with a steam puff, a falling net grid, a lobbed barrel and a bubbling green puddle on the lane, a long harpoon sliding along the lane, a purple flash with rings on every enemy, cannonballs dropping onto growing shadows, and red brackets on the Lunge target.
+
 Rarities: Common, Rare, Epic, **Legendary**. Each hero has a placeholder pirate catchphrase in config.
 
 Heroes have:
@@ -116,12 +137,12 @@ There is no prestige or reset loop: progress is one endless voyage. (A "New Voya
 
 - Opened from the **Crew** button between waves.
 - Shows every hero in the game as small cards, five to a row, grouped by rarity, with an "N/M FOUND" count beside the title plate.
-- Owned heroes appear as their card with level and stars. Unowned heroes are black silhouettes with "???" for the name, so the player can see how many are left to find without spoiling who they are.
+- Owned heroes appear as their card with level and stars. Clicking one shows it as a large card beside an Ability panel (name, cooldown, effect at its current level and stars); click anywhere to close. Unowned heroes are black silhouettes with "???" for the name, so the player can see how many are left to find without spoiling who they are.
 
 ## Sound
 
 - All sound effects are synthesized with the Web Audio API; there are no audio files.
-- Current effects: chest rattle, chest opening, reveal chime (scales with rarity), new-hero sparkle, UI clicks.
+- Current effects: chest rattle, chest opening, reveal chime (scales with rarity), new-hero sparkle, UI clicks, one per ability plus pot, barrel and cannonball impacts.
 - **Sound: On/Off** toggle on the main screen (usable mid-wave), saved with progress.
 
 ## Starting Numbers
@@ -142,7 +163,7 @@ Each step should leave the game playable. (Built under the kampung theme; names 
 ## Saving
 
 - Auto-saves after every wave ends, every upgrade, every chest opened and every slot change, plus when the page is hidden or closed.
-- Saves carry a version number (currently 6: v2 added the mute setting, v3 the Legendary pity counter, v4 prestige, v5 the pirate reskin, which renamed every saved field and hero ID without changing any values, v6 removed prestige and converted Renown to Pearls). When the save format changes, bump the version and add a migration from the old one so existing players keep their progress.
+- Saves carry a version number (currently 7: v2 added the mute setting, v3 the Legendary pity counter, v4 prestige, v5 the pirate reskin, which renamed every saved field and hero ID without changing any values, v6 removed prestige and converted Renown to Pearls, v7 the ability bar's Auto toggle). When the save format changes, bump the version and add a migration from the old one so existing players keep their progress.
 - Loading is defensive: out-of-range or unknown values are clamped or dropped, and an unreadable save is kept aside as a backup instead of being lost.
 - **Reset progress** button (between waves) wipes the save after a confirmation.
 
@@ -152,15 +173,14 @@ Layout follows `ui_mock_battle.png` and `ui_mock_between_waves.png`.
 
 - **Anchoring:** the HUD is laid out in the 480x270 base and each group sticks to its part of a bigger view: the wave/hull plaque to the top-left corner, the gold/Pearls plaque and its buttons to the top-right, the enemies-left bar to the top centre, the Shipwright (and hero picker) to the right, and the bottom button bar (and speed button) to the bottom-right, under the Shipwright. Overlays (Chests, Crew Roster, confirmations) stay centred with their dark backdrop covering the whole view.
 - **Always:** a wood plaque with the wave (red "BOSS" on boss waves) and a hull bar top-left; a wood plaque with gold and Pearls top-right, with a settings button (gear: Reset progress, with a confirmation, between waves only), a sound toggle and a fullscreen toggle under it. Short messages (WAVE N CLEARED!, SHIP SUNK!, THE KRAKEN RISES!) appear in the big font on a wood plaque over the sky, some with a small detail line (gold and Pearls earned). Crew have no name labels on the ship.
-- **During a wave:** an enemies-left bar at top-centre ("N ENEMIES LEFT", the fill shrinking as the wave is beaten), and a speed button bottom-right showing the current speed (x1 / x2); clicking it toggles. At x2 everything in the battle runs twice as fast: movement, attacks, spawns, animations and effects. The speed is remembered for the rest of the session (not saved), and between waves the game always runs at normal speed. The between-wave panel and buttons are hidden.
+- **During a wave:** an enemies-left bar at top-centre ("N ENEMIES LEFT", the fill shrinking as the wave is beaten); the **ability bar** at the bottom centre: a 26px wood button per crewmate on the ship, in slot order, with their face (cropped from their sprite), their key number (1–6) in the corner, a dark clockwise cooldown sweep over the face with the seconds left, and a pulsing 2px gold glow when ready, then the **AUTO** toggle (gold text and glow when on); and a speed button bottom-right showing the current speed (x1 / x2); clicking it toggles. At x2 everything in the battle runs twice as fast: movement, attacks, spawns, animations and effects. The speed is remembered for the rest of the session (not saved), and between waves the game always runs at normal speed. The between-wave panel and buttons are hidden.
 - **Shipwright** (between waves only): a parchment panel under a wood title plate with rows for Hull (level, HP per level), Build deck (decks built) and each hero on the ship (face, level, damage or The Captain's buff), each with a gold buy button showing the gold cost (grey when unaffordable, MAX when maxed). Five rows show at a time; with more, arrows by the title plate and the mouse wheel scroll it.
-- **Hero picker:** click a ship slot to see every owned hero in the same panel (face, rarity, level, stars and where they're placed), plus "Leave empty"; it replaces the Shipwright while open.
+- **Hero picker:** click a ship slot to see every owned hero (face, rarity, level, stars and where they're placed, then their ability's name, cooldown and effect, with durations at their current level and stars), plus "Leave empty"; it replaces the Shipwright while open. It is wider than the Shipwright (260px, reaching left over the sea) with taller rows, four at a time.
 - **Bottom bar** (between waves): **SET SAIL!** (starts the wave), **Chests** (with a red dot when a chest is affordable) and **Crew** (the Crew Roster).
 - The reset confirmation uses the same parchment panels, wood plates and buttons.
 
 ## Later (not in v0.1)
 
-- Active hero skills
 - More enemies: Cursed Gulls (flying, only some heroes can hit), Floating Skulls (high damage, low HP)
 - Music (sound effects exist; no background music yet)
 - Save export/import

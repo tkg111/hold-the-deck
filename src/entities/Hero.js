@@ -17,6 +17,11 @@ export class Hero {
     this.damage = damage;
     this.attackInterval = attackInterval;
     this.cooldown = 0;
+    // Abilities: attack speed boosts ({ mult, time } with time in ms left)
+    // and The Duelist's Lunge ({ hits } left, each a guaranteed crit on the
+    // toughest enemy; target is the one it last aimed at).
+    this.boosts = [];
+    this.lunge = null;
 
     const sprite = SPRITES.heroes[id];
     const { width } = SPRITES.placeholderHero;
@@ -46,6 +51,48 @@ export class Hero {
     }
     this.body.setDepth(DEPTH.hero);
 
+    // Pulsing outline while an ability is boosting this hero.
+    this.fxGlow = scene.add.rectangle(x, this.y, width + 6, height + 6)
+      .setStrokeStyle(1, BUFF_COLOR, 1).setDepth(DEPTH.slotMarkers).setVisible(false);
+  }
+
+  // --- Abilities ---
+
+  addBoost(mult, duration, color) {
+    this.boosts.push({ mult, time: duration, color });
+  }
+
+  startLunge(hits, target, color) {
+    this.lunge = { hits, target, color };
+    this.cooldown = 0;  // first lunge straight away
+  }
+
+  // End of a wave: boosts and Lunge end with it.
+  clearAbilities() {
+    this.boosts = [];
+    this.lunge = null;
+    this.fxGlow.setVisible(false);
+  }
+
+  get speedMult() {
+    return this.boosts.reduce((m, b) => m * b.mult, 1);
+  }
+
+  tickAbilities(dt) {
+    for (const b of this.boosts) b.time -= dt;
+    this.boosts = this.boosts.filter((b) => b.time > 0);
+    const color = this.lunge?.color ?? this.boosts[this.boosts.length - 1]?.color;
+    this.fxGlow.setVisible(color != null);
+    if (color != null) {
+      this.fxGlow.setStrokeStyle(1, color, 0.55 + 0.45 * Math.sin(this.scene.time.now / 90));
+    }
+  }
+
+  // The enemy with the most HP left (Lunge's target).
+  toughest(enemies) {
+    let best = null;
+    for (const e of enemies) if (e.targetable && (!best || e.hp > best.hp)) best = e;
+    return best;
   }
 
   // Loop the idle animation. When placed on the ship, the start frame is
@@ -57,25 +104,32 @@ export class Hero {
 
   // Returns a new projectile if the hero fired this frame.
   update(dt, enemies) {
+    this.tickAbilities(dt);
     if (this.def.aura) return null;  // support hero: never attacks
-    this.cooldown -= dt;
+    this.cooldown -= dt * this.speedMult;
     if (this.cooldown > 0) return null;
 
-    const target = this.pickTarget(enemies);
+    const lunging = this.lunge != null;
+    const target = lunging ? this.toughest(enemies) : this.pickTarget(enemies);
     if (!target) return null;
 
     this.cooldown = this.attackInterval;
     if (this.attackAnim) this.body.play(this.attackAnim);
     else this.scene.tweens.add({ targets: this.body, scaleX: this.body.scaleX * 1.2, duration: 60, yoyo: true });
-    return this.fire(target);
+    if (lunging) {
+      this.lunge.target = target;
+      if (--this.lunge.hits <= 0) this.lunge = null;
+    }
+    return this.fire(target, lunging);
   }
 
-  fire(target) {
+  // forceCrit: a Lunge shot, always a crit (for heroes that can crit).
+  fire(target, forceCrit = false) {
     const { def } = this;
     const common = {
       x: this.x, y: this.y, target,
       color: def.projectileColor, size: def.projectileSize,
-      onHit: (hit, x, y) => this.onHit(hit, x, y),
+      onHit: (hit, x, y) => this.onHit(hit, x, y, forceCrit),
       // Used when the target dies mid-flight.
       findTarget: (x, y) => nearestLiving(this.scene.enemies, x, y),
     };
@@ -124,7 +178,7 @@ export class Hero {
     return bestFresh || best;
   }
 
-  onHit(target, x, y) {
+  onHit(target, x, y, forceCrit = false) {
     const { area, stun, slow, curse, poison, crit } = this.def;
     let victims;
     if (area) {
@@ -136,7 +190,7 @@ export class Hero {
 
     for (const e of victims) {
       let damage = this.damage;
-      if (crit && Math.random() < crit.chance) {
+      if (crit && (forceCrit || Math.random() < crit.chance)) {
         damage *= crit.multiplier;
         this.scene.floatText(e.x, e.y - e.def.height / 2 - 13, 'CRIT!', '#ffca28');
       }
@@ -163,6 +217,7 @@ export class Hero {
       this.scene.tweens.killTweensOf(this.glow);
       this.glow.destroy();
     }
+    this.fxGlow.destroy();
     this.body.destroy();
   }
 }

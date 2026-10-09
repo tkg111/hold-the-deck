@@ -69,6 +69,11 @@ export const UI_KIT = {
   dotRadius: 3,           // red "something to do" dot on buttons
   shipwrightRows: 5,      // rows visible at once; more scroll
   rowHeight: 28,
+  // The hero picker: wider than the Shipwright (it extends left over the
+  // sea) with taller rows that also show each crewmate's ability.
+  pickerWidth: 260,
+  pickerRows: 4,
+  pickerRowHeight: 36,
 };
 
 export const SHIP = {
@@ -228,6 +233,90 @@ export const HEROES = {
 };
 
 export const STARTING_HEROES = ['cabinBoy'];
+
+// Active abilities, one per crewmate (keyed like HEROES), used from the
+// ability bar during waves. cooldown and every duration are in ms; damage
+// values are multiples of the hero's own damage (so they grow with level and
+// stars like it does), and every `duration` / `stun` grows with
+// ABILITY_SCALING. `effect` is the line shown in the crew picker and Crew
+// Roster; {placeholders} are filled from the ability's numbers (see
+// describeAbility in src/ui/HeroPicker.js). `color` tints its effects.
+// Abilities need a targetable enemy on screen to fire; needsRange ones (the
+// attack speed boosts) need one within range of the crew (ABILITY_BAR.supportRange).
+export const ABILITIES = {
+  cabinBoy: {
+    name: 'Rapid Fire', cooldown: 15000, color: 0xfff176,
+    attackSpeed: 3, duration: 4000, needsRange: true,
+    effect: 'Triple attack speed for {duration}',
+  },
+  shipsCook: {
+    name: 'Hot Stew', cooldown: 18000, color: 0xff8a50,
+    stun: 2000, radius: 45, flightTime: 700, arcHeight: 70, potSize: 4,
+    effect: 'Pot stuns all in an area for {stun}',
+  },
+  netThrower: {
+    name: 'Big Net', cooldown: 20000, color: 0x81d4fa,
+    slow: 0.5, duration: 5000, dropTime: 350,
+    effect: 'Slows every enemy {slow} for {duration}',
+  },
+  grogBrewer: {
+    name: 'Grog Barrel', cooldown: 18000, color: 0x9ccc65,
+    duration: 6000, width: 90, damagePerSecond: 2.5, lingerTime: 500,
+    flightTime: 600, arcHeight: 60, barrelSize: 5,
+    effect: 'Poison puddle on the lane for {duration}',
+  },
+  harpooner: {
+    name: 'Whale Harpoon', cooldown: 20000, color: 0xcfd8dc,
+    damage: 5, speed: 520, length: 36,
+    effect: 'Pierces the whole lane for {damage} dmg',
+  },
+  voodooPriestess: {
+    name: 'Hex', cooldown: 25000, color: 0xce93d8,
+    bonus: 0.5, duration: 6000,
+    effect: 'Curse all: +{bonus} dmg taken for {duration}',
+  },
+  cannoneer: {
+    name: 'Broadside', cooldown: 25000, color: 0xffb74d,
+    balls: 6, damage: 2, radius: 40, interval: 160, fallTime: 550, ballSize: 5,
+    effect: '{balls} cannonballs on the lane, {damage} dmg',
+  },
+  duelist: {
+    name: 'Lunge', cooldown: 22000, color: 0xff5252,
+    hits: 5,
+    effect: 'Next {hits} hits on toughest foe crit',
+  },
+  captain: {
+    name: 'All Hands!', cooldown: 30000, color: 0xffd54f,
+    attackSpeed: 1.5, duration: 6000, needsRange: true,
+    effect: 'Whole crew +{attackSpeed} attack speed {duration}',
+  },
+};
+
+// How abilities grow: each duration (and the Hot Stew stun) is multiplied by
+// min(maxScale, 1 + (level - 1) * perLevel + stars * perStar).
+export const ABILITY_SCALING = {
+  perLevel: 0.02,
+  perStar: 0.1,
+  maxScale: 2,
+};
+
+// The ability bar shown at the bottom centre during waves: a wood portrait
+// button per crewmate on the ship (keys 1-6, in slot order) and an Auto toggle.
+export const ABILITY_BAR = {
+  buttonSize: 26,
+  gap: 5,              // room for the glow between buttons
+  autoGap: 8,          // between the last portrait and the Auto toggle
+  autoWidth: 40,
+  bottomMargin: 3,
+  sweepColor: 0x000000,
+  sweepAlpha: 0.6,
+  glowColor: 0xffd54f,
+  glowWidth: 2,        // px
+  glowPulseMs: 450,    // ready glow pulse period
+  autoOnColor: '#ffd86a',
+  // needsRange abilities only fire with an enemy this close to the crewmate.
+  supportRange: 350,
+};
 
 export const ENEMIES = {
   drownedSailor: {

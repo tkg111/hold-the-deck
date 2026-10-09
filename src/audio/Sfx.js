@@ -124,6 +124,87 @@ class Sfx {
     }
   }
 
+  // --- Abilities ---
+
+  // Activation sound for a crewmate's ability (hero id).
+  ability(id) {
+    const t = this.ready();
+    if (t == null) return;
+    const play = {
+      // Three quick rising blips.
+      cabinBoy: () => [660, 880, 1175].forEach((f, i) => {
+        this.tone({ freq: f, type: 'square', start: t + i * 0.06, duration: 0.08, volume: 0.12 });
+      }),
+      // Whoosh of the thrown pot.
+      shipsCook: () => this.noise({ start: t, duration: 0.35, volume: 0.35, filterFrom: 300, filterTo: 1400, q: 1 }),
+      // A big net swishing down, then a soft thump.
+      netThrower: () => {
+        this.noise({ start: t, duration: 0.4, volume: 0.4, filterFrom: 3000, filterTo: 500, q: 0.7 });
+        this.tone({ freq: 140, endFreq: 70, type: 'sine', start: t + 0.3, duration: 0.2, volume: 0.35 });
+      },
+      // Barrel thrown: low whoosh.
+      grogBrewer: () => this.noise({ start: t, duration: 0.3, volume: 0.3, filterFrom: 250, filterTo: 900, q: 1 }),
+      // Deep rising whoosh with a metallic ring.
+      harpooner: () => {
+        this.noise({ start: t, duration: 0.5, volume: 0.45, filterFrom: 200, filterTo: 2500, q: 1.2 });
+        this.tone({ freq: 1400, endFreq: 1900, type: 'triangle', start: t + 0.05, duration: 0.5, volume: 0.12 });
+      },
+      // Eerie descending, slightly detuned pair.
+      voodooPriestess: () => {
+        for (const f of [330, 349]) {
+          this.tone({ freq: f, endFreq: f / 2, type: 'sawtooth', start: t, duration: 0.9, volume: 0.08, attack: 0.1 });
+        }
+      },
+      // A drum roll of muffled shots as the guns fire.
+      cannoneer: () => {
+        for (let i = 0; i < 3; i++) this.noise({ start: t + i * 0.07, duration: 0.12, volume: 0.35, filterFrom: 500, q: 1 });
+      },
+      // Sword swish and a bright "shing".
+      duelist: () => {
+        this.noise({ start: t, duration: 0.15, volume: 0.4, filterFrom: 4000, filterTo: 1500, q: 1.5 });
+        this.tone({ freq: 1800, endFreq: 2600, type: 'triangle', start: t + 0.08, duration: 0.4, volume: 0.15 });
+      },
+      // Bugle call: G C E G.
+      captain: () => [392, 523.25, 659.25, 783.99].forEach((f, i) => {
+        this.tone({ freq: f, type: 'square', start: t + i * 0.1, duration: i === 3 ? 0.4 : 0.12, volume: 0.1 });
+      }),
+    }[id];
+    play?.();
+  }
+
+  // Hot Stew pot landing: a clang and a hiss of steam.
+  splat() {
+    const t = this.ready();
+    if (t == null) return;
+    this.tone({ freq: 520, endFreq: 380, type: 'triangle', start: t, duration: 0.2, volume: 0.25 });
+    this.noise({ start: t + 0.02, duration: 0.5, volume: 0.3, filterFrom: 5000, filterTo: 2500, q: 0.6 });
+  }
+
+  // Grog Barrel smashing: a wooden crack and glugs.
+  crash() {
+    const t = this.ready();
+    if (t == null) return;
+    this.noise({ start: t, duration: 0.18, volume: 0.5, filterFrom: 1200, filterTo: 400, q: 1.5 });
+    for (let i = 0; i < 3; i++) {
+      this.tone({ freq: 300 - i * 40, endFreq: 180 - i * 30, type: 'sine', start: t + 0.12 + i * 0.1, duration: 0.09, volume: 0.25 });
+    }
+  }
+
+  // One Broadside cannonball landing.
+  boom() {
+    const t = this.ready();
+    if (t == null) return;
+    this.tone({ freq: 120, endFreq: 40, type: 'sine', start: t, duration: 0.35, volume: 0.45 });
+    this.noise({ start: t, duration: 0.3, volume: 0.35, filterFrom: 700, filterTo: 150, q: 0.8 });
+  }
+
+  // An ability that can't be used right now.
+  denied() {
+    const t = this.ready();
+    if (t == null) return;
+    this.tone({ freq: 200, endFreq: 150, type: 'square', start: t, duration: 0.1, volume: 0.08 });
+  }
+
   // Soft click for UI toggles.
   click() {
     const t = this.ready();

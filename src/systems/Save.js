@@ -6,7 +6,7 @@ export const SAVE_KEY = 'kampung-defense/save';
 const CORRUPT_BACKUP_KEY = 'kampung-defense/save-corrupt-backup';
 
 // Bump when the saved shape changes, and add a migration from the old version.
-export const SAVE_VERSION = 6;
+export const SAVE_VERSION = 7;
 
 // v5 pirate reskin: old hero IDs -> new hero IDs.
 const V5_HERO_IDS = {
@@ -79,6 +79,8 @@ const MIGRATIONS = {
   4: migrateToPirate,
   // v6: prestige removed; Renown converted to Pearls.
   5: dropPrestige,
+  // v7: the ability bar's Auto toggle.
+  6: (data) => ({ ...data, autoAbilities: false }),
 };
 
 function migrate(save) {

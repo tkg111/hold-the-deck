@@ -1,4 +1,4 @@
-import { HEROES, RARITY, UI_KIT } from '../config.js';
+import { ABILITIES, HEROES, RARITY, UI_KIT } from '../config.js';
 import { rarityTextColor, starLabel } from './format.js';
 import { face, hexColor, dark, subText, text, UI } from './kit.js';
 import { ScrollPanel } from './ScrollPanel.js';
@@ -24,11 +24,36 @@ export function describeHero(def) {
   return text[0].toUpperCase() + text.slice(1);
 }
 
+// A crewmate's ability effect line, from ABILITIES[id].effect with its
+// {placeholders} filled in. scale: the hero's ability scale (level and stars),
+// which lengthens durations.
+export function describeAbility(id, scale = 1) {
+  const a = ABILITIES[id];
+  const values = {
+    duration: a.duration != null && secs(a.duration * scale),
+    stun: a.stun != null && secs(a.stun * scale),
+    slow: a.slow != null && pct(1 - a.slow),
+    bonus: a.bonus != null && pct(a.bonus),
+    attackSpeed: a.attackSpeed != null && pct(a.attackSpeed - 1),
+    damage: a.damage != null && `${a.damage}x`,
+    balls: a.balls,
+    hits: a.hits,
+  };
+  return a.effect.replace(/\{(\w+)\}/g, (_, key) => values[key]);
+}
+
+// "15S COOLDOWN", and "RAPID FIRE  15S COOLDOWN".
+export const cooldownLabel = (id) => `${secs(ABILITIES[id].cooldown).toUpperCase()} COOLDOWN`;
+export const abilityTitle = (id) => `${ABILITIES[id].name.toUpperCase()}  ${cooldownLabel(id)}`;
+
 // Popup listing owned heroes for one slot, on the same scrolling parchment as
 // the Shipwright (which it replaces while open). Picking calls onPick(heroId | null).
 export class HeroPicker extends ScrollPanel {
   constructor(scene, x, y, width, onPick) {
-    super(scene, x, y, width, { title: 'SLOT', onClose: () => this.close() });
+    super(scene, x, y, width, {
+      title: 'SLOT', onClose: () => this.close(),
+      visibleRows: UI_KIT.pickerRows, rowHeight: UI_KIT.pickerRowHeight,
+    });
     this.onPick = onPick;
     this.setDepth(20).setVisible(false);
   }
@@ -45,7 +70,7 @@ export class HeroPicker extends ScrollPanel {
     const { scene } = this;
     const row = scene.add.container(0, 0);
     const current = progress.slots[slot] === id;
-    const h = (UI_KIT.rowHeight - 3);
+    const h = this.rowHeight - 3;
     const bg = scene.add.rectangle(0, -1, this.innerWidth, h, hexColor(UI.colors.subText), current ? 0.25 : 0)
       .setOrigin(0).setInteractive({ useHandCursor: true });
     row.add(bg);
@@ -57,13 +82,15 @@ export class HeroPicker extends ScrollPanel {
       const note = where === slot ? '  HERE' : where >= 0 ? `  SLOT ${where + 1}` : '';
       const stars = starLabel(progress.heroStarCount(id));
       row.add([
-        face(scene, 6, 11, id),
+        face(scene, 6, 14, id),
         text(scene, 16, -1, def.name, dark()),
-        text(scene, 16, 15, `${rarity.label}  LV ${progress.heroLevel(id)}${stars ? `  ${stars}` : ''}${note}`,
+        text(scene, 16, 11, `${rarity.label}  LV ${progress.heroLevel(id)}${stars ? `  ${stars}` : ''}${note}`,
           subText({ color: rarityTextColor(def.rarity) })),
+        text(scene, 16, 19, abilityTitle(id), subText()),
+        text(scene, 16, 26, describeAbility(id, progress.abilityScale(id)), subText()),
       ]);
     } else {
-      row.add(text(scene, 16, 6, 'Leave empty', subText()));
+      row.add(text(scene, 16, 12, 'Leave empty', subText()));
     }
 
     bg.on('pointerover', () => bg.setFillAlpha(current ? 0.35 : 0.15));
