@@ -1,0 +1,242 @@
+{
+  "pebble": {
+    "file": "pebble.png",
+    "frameWidth": 6,
+    "frameHeight": 6,
+    "frames": 1,
+    "fps": 0,
+    "repeat": 0,
+    "kind": "projectile",
+    "use": "Cabin Boy attack"
+  },
+  "frying_pan": {
+    "file": "frying_pan.png",
+    "frameWidth": 12,
+    "frameHeight": 12,
+    "frames": 4,
+    "fps": 16,
+    "repeat": -1,
+    "kind": "projectile",
+    "use": "Ship's Cook attack (spins)"
+  },
+  "net_throw": {
+    "file": "net_throw.png",
+    "frameWidth": 16,
+    "frameHeight": 16,
+    "frames": 3,
+    "fps": 10,
+    "repeat": 0,
+    "kind": "projectile",
+    "use": "Net Thrower attack (opens in flight, hold last frame)"
+  },
+  "grog_bottle": {
+    "file": "grog_bottle.png",
+    "frameWidth": 10,
+    "frameHeight": 10,
+    "frames": 4,
+    "fps": 16,
+    "repeat": -1,
+    "kind": "projectile",
+    "use": "Grog Brewer attack (spins)"
+  },
+  "harpoon": {
+    "file": "harpoon.png",
+    "frameWidth": 22,
+    "frameHeight": 7,
+    "frames": 1,
+    "fps": 0,
+    "repeat": 0,
+    "kind": "projectile",
+    "use": "Harpooner attack (rotate to flight angle)"
+  },
+  "spirit_orb": {
+    "file": "spirit_orb.png",
+    "frameWidth": 14,
+    "frameHeight": 12,
+    "frames": 2,
+    "fps": 8,
+    "repeat": -1,
+    "kind": "projectile",
+    "use": "Voodoo Priestess attack"
+  },
+  "cannonball": {
+    "file": "cannonball.png",
+    "frameWidth": 8,
+    "frameHeight": 8,
+    "frames": 1,
+    "fps": 0,
+    "repeat": 0,
+    "kind": "projectile",
+    "use": "Cannoneer attack + Broadside"
+  },
+  "blade_arc": {
+    "file": "blade_arc.png",
+    "frameWidth": 16,
+    "frameHeight": 16,
+    "frames": 3,
+    "fps": 12,
+    "repeat": 0,
+    "kind": "projectile",
+    "use": "The Duelist attack (hold last frame)"
+  },
+  "hit_spark": {
+    "file": "hit_spark.png",
+    "frameWidth": 12,
+    "frameHeight": 12,
+    "frames": 3,
+    "fps": 20,
+    "repeat": 0,
+    "kind": "impact",
+    "use": "any single-target hit"
+  },
+  "explosion": {
+    "file": "explosion.png",
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "frames": 5,
+    "fps": 14,
+    "repeat": 0,
+    "kind": "impact",
+    "use": "cannonball / Broadside / area hits"
+  },
+  "grog_splash": {
+    "file": "grog_splash.png",
+    "frameWidth": 20,
+    "frameHeight": 12,
+    "frames": 3,
+    "fps": 12,
+    "repeat": 0,
+    "kind": "impact",
+    "use": "Grog bottle landing"
+  },
+  "stun_stars": {
+    "file": "stun_stars.png",
+    "frameWidth": 18,
+    "frameHeight": 8,
+    "frames": 4,
+    "fps": 10,
+    "repeat": -1,
+    "kind": "status",
+    "use": "over a stunned enemy, above its head"
+  },
+  "poison_bubbles": {
+    "file": "poison_bubbles.png",
+    "frameWidth": 12,
+    "frameHeight": 12,
+    "frames": 3,
+    "fps": 6,
+    "repeat": -1,
+    "kind": "status",
+    "use": "over a poisoned enemy"
+  },
+  "curse_mark": {
+    "file": "curse_mark.png",
+    "frameWidth": 12,
+    "frameHeight": 12,
+    "frames": 2,
+    "fps": 4,
+    "repeat": -1,
+    "kind": "status",
+    "use": "above a cursed enemy"
+  },
+  "net_draped": {
+    "file": "net_draped.png",
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "frames": 1,
+    "fps": 0,
+    "repeat": 0,
+    "kind": "status",
+    "use": "over a slowed enemy (same 32x32 box)"
+  },
+  "stew_pot": {
+    "file": "stew_pot.png",
+    "frameWidth": 14,
+    "frameHeight": 14,
+    "frames": 4,
+    "fps": 16,
+    "repeat": -1,
+    "kind": "ability",
+    "use": "Hot Stew projectile"
+  },
+  "stew_splash": {
+    "file": "stew_splash.png",
+    "frameWidth": 40,
+    "frameHeight": 22,
+    "frames": 4,
+    "fps": 12,
+    "repeat": 0,
+    "kind": "ability",
+    "use": "Hot Stew landing"
+  },
+  "big_net": {
+    "file": "big_net.png",
+    "frameWidth": 200,
+    "frameHeight": 44,
+    "frames": 1,
+    "fps": 0,
+    "repeat": 0,
+    "kind": "ability",
+    "use": "Big Net: drop from the top over the lane, fade out"
+  },
+  "grog_barrel": {
+    "file": "grog_barrel.png",
+    "frameWidth": 16,
+    "frameHeight": 16,
+    "frames": 4,
+    "fps": 12,
+    "repeat": -1,
+    "kind": "ability",
+    "use": "Grog Barrel projectile"
+  },
+  "poison_puddle": {
+    "file": "poison_puddle.png",
+    "frameWidth": 64,
+    "frameHeight": 12,
+    "frames": 3,
+    "fps": 6,
+    "repeat": -1,
+    "kind": "ability",
+    "use": "Grog Barrel: lies on the lane while active"
+  },
+  "whale_harpoon": {
+    "file": "whale_harpoon.png",
+    "frameWidth": 68,
+    "frameHeight": 16,
+    "frames": 1,
+    "fps": 0,
+    "repeat": 0,
+    "kind": "ability",
+    "use": "Whale Harpoon: flies across the whole lane"
+  },
+  "lunge_cross": {
+    "file": "lunge_cross.png",
+    "frameWidth": 24,
+    "frameHeight": 24,
+    "frames": 3,
+    "fps": 14,
+    "repeat": 0,
+    "kind": "ability",
+    "use": "Lunge: on each guaranteed crit"
+  },
+  "all_hands": {
+    "file": "all_hands.png",
+    "frameWidth": 32,
+    "frameHeight": 40,
+    "frames": 3,
+    "fps": 6,
+    "repeat": -1,
+    "kind": "ability",
+    "use": "All Hands!: over each buffed crewmate"
+  },
+  "rapid_fire": {
+    "file": "rapid_fire.png",
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "frames": 2,
+    "fps": 12,
+    "repeat": -1,
+    "kind": "ability",
+    "use": "Rapid Fire: behind the Cabin Boy while active"
+  }
+}

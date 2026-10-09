@@ -1,9 +1,10 @@
-import { ENEMIES, SHIP, SPRITES } from './config.js';
+import { ENEMIES, FX, SHIP, SPRITES } from './config.js';
 import { initLayout, LAYOUT } from './layout.js';
 import { preloadUi } from './ui/kit.js';
 
 export const SHIP_SLOTS_KEY = 'ship_slots';
 const ANIMATIONS_KEY = 'animations';
+const FX_JSON_KEY = 'fx_list';
 const LAYOUT_KEY = 'layout';
 export const BACKGROUND_KEY = 'bg';
 export const FOREGROUND_KEY = 'fg_sheet';
@@ -17,6 +18,8 @@ export const shipFrontKey = (decks) => `ship_stage${decks}_front`;
 // <name>.png is still used for hero cards.
 export const sheetKey = (name) => `${name}_sheet`;
 export const animKey = (name, anim) => `${name}_${anim}`;
+// Effect sheets from fx/fx.json: texture and animation key per name.
+export const fxKey = (name) => `fx_${name}`;
 
 // Load every sprite the game uses. Textures are global, so loading once in the
 // first scene makes them available everywhere. animations.json gives each
@@ -40,6 +43,14 @@ export function preloadSprites(scene) {
     load.spritesheet(FOREGROUND_KEY, `${FOREGROUND_KEY}.png`, { frameWidth: data.size[0], frameHeight: data.size[1] });
   });
   preloadUi(scene);
+  // Projectile, impact, status and ability effects: fx/fx.json gives each
+  // sheet's file and frame size.
+  load.json(FX_JSON_KEY, `${FX.path}fx.json`);
+  load.once(`filecomplete-json-${FX_JSON_KEY}`, (key, type, data) => {
+    for (const [name, { file, frameWidth, frameHeight }] of Object.entries(data)) {
+      load.spritesheet(fxKey(name), `${FX.path}${file}`, { frameWidth, frameHeight });
+    }
+  });
   load.json(ANIMATIONS_KEY, `${ANIMATIONS_KEY}.json`);
   load.once(`filecomplete-json-${ANIMATIONS_KEY}`, (key, type, data) => {
     for (const [name, { frameWidth, frameHeight }] of Object.entries(data)) {
@@ -67,6 +78,18 @@ export function createAnimations(scene) {
       frames: scene.anims.generateFrameNumbers(splash.key, { start: 0, end: splash.frames - 1 }),
       frameRate: splash.fps,
       repeat: -1,
+    });
+  }
+  // Effects with more than one frame animate as fx_<name>; repeat 0 ones
+  // play once and hold their last frame.
+  for (const [name, { frames, fps, repeat }] of Object.entries(scene.cache.json.get(FX_JSON_KEY))) {
+    const key = fxKey(name);
+    if (frames < 2 || scene.anims.exists(key)) continue;
+    scene.anims.create({
+      key,
+      frames: scene.anims.generateFrameNumbers(key, { start: 0, end: frames - 1 }),
+      frameRate: fps,
+      repeat,
     });
   }
   const data = scene.cache.json.get(ANIMATIONS_KEY);

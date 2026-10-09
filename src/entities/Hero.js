@@ -1,5 +1,6 @@
 import { HEROES, SPRITES } from '../config.js';
 import { laneFeetY } from '../layout.js';
+import { FX_DEPTH, fxSprite, playFx } from '../fx.js';
 import { findAnim, sheetKey } from '../sprites.js';
 import { DEPTH } from './Ship.js';
 import { LobProjectile, nearestLiving, PiercingProjectile, Projectile } from './Projectile.js';
@@ -17,16 +18,19 @@ export class Hero {
     this.damage = damage;
     this.attackInterval = attackInterval;
     this.cooldown = 0;
-    // Abilities: attack speed boosts ({ mult, time } with time in ms left)
-    // and The Duelist's Lunge ({ hits } left, each a guaranteed crit on the
-    // toughest enemy; target is the one it last aimed at).
+    // Abilities: attack speed boosts ({ mult, time, fx } with time in ms left
+    // and fx the sprite shown while it lasts) and The Duelist's Lunge
+    // ({ hits } left, each a guaranteed crit on the toughest enemy, and the
+    // impact played on each).
     this.boosts = [];
     this.lunge = null;
+    this.boostSprites = {};   // fx sprite name -> sprite
 
     const sprite = SPRITES.heroes[id];
     const { width } = SPRITES.placeholderHero;
     const height = sprite ? sprite.height : SPRITES.placeholderHero.height;
     this.x = x;
+    this.feetY = feetY;
     this.y = feetY - height / 2;
 
     // Gold glow: steady around The Captain, pulsing behind the heroes he buffs.
@@ -50,20 +54,23 @@ export class Hero {
       this.body = scene.add.rectangle(x, feetY, width, height, this.def.color).setOrigin(0.5, 1).setStrokeStyle(1, 0x1b1b1b);
     }
     this.body.setDepth(DEPTH.hero);
-
-    // Pulsing outline while an ability is boosting this hero.
-    this.fxGlow = scene.add.rectangle(x, this.y, width + 6, height + 6)
-      .setStrokeStyle(1, BUFF_COLOR, 1).setDepth(DEPTH.slotMarkers).setVisible(false);
   }
 
   // --- Abilities ---
 
-  addBoost(mult, duration, color) {
-    this.boosts.push({ mult, time: duration, color });
+  // fx: { sprite, behind } — an fx sheet standing on the hero's slot while the
+  // boost lasts, behind the hero or (default) over them.
+  addBoost(mult, duration, fx) {
+    this.boosts.push({ mult, time: duration, fx });
+    const name = fx.sprite;
+    if (!this.boostSprites[name]) {
+      this.boostSprites[name] = fxSprite(this.scene, name, this.x, this.feetY).setOrigin(0.5, 1)
+        .setDepth(fx.behind ? DEPTH.hero - 0.5 : DEPTH.slotMarkers);
+    }
   }
 
-  startLunge(hits, target, color) {
-    this.lunge = { hits, target, color };
+  startLunge(hits, target, impact) {
+    this.lunge = { hits, target, impact };
     this.cooldown = 0;  // first lunge straight away
   }
 
@@ -71,7 +78,7 @@ export class Hero {
   clearAbilities() {
     this.boosts = [];
     this.lunge = null;
-    this.fxGlow.setVisible(false);
+    this.tickAbilities(0);
   }
 
   get speedMult() {
@@ -81,10 +88,10 @@ export class Hero {
   tickAbilities(dt) {
     for (const b of this.boosts) b.time -= dt;
     this.boosts = this.boosts.filter((b) => b.time > 0);
-    const color = this.lunge?.color ?? this.boosts[this.boosts.length - 1]?.color;
-    this.fxGlow.setVisible(color != null);
-    if (color != null) {
-      this.fxGlow.setStrokeStyle(1, color, 0.55 + 0.45 * Math.sin(this.scene.time.now / 90));
+    for (const [name, sprite] of Object.entries(this.boostSprites)) {
+      if (this.boosts.some((b) => b.fx.sprite === name)) continue;
+      sprite.destroy();
+      delete this.boostSprites[name];
     }
   }
 
@@ -116,20 +123,23 @@ export class Hero {
     this.cooldown = this.attackInterval;
     if (this.attackAnim) this.body.play(this.attackAnim);
     else this.scene.tweens.add({ targets: this.body, scaleX: this.body.scaleX * 1.2, duration: 60, yoyo: true });
+    let lunge = null;
     if (lunging) {
-      this.lunge.target = target;
-      if (--this.lunge.hits <= 0) this.lunge = null;
+      lunge = this.lunge;
+      lunge.target = target;
+      if (--lunge.hits <= 0) this.lunge = null;
     }
-    return this.fire(target, lunging);
+    return this.fire(target, lunge);
   }
 
-  // forceCrit: a Lunge shot, always a crit (for heroes that can crit).
-  fire(target, forceCrit = false) {
+  // lunge: set for a Lunge shot, which always crits (for heroes that can
+  // crit) and plays its impact on the target.
+  fire(target, lunge = null) {
     const { def } = this;
     const common = {
       x: this.x, y: this.y, target,
-      color: def.projectileColor, size: def.projectileSize,
-      onHit: (hit, x, y) => this.onHit(hit, x, y, forceCrit),
+      sprite: def.projectile.sprite, rotate: def.projectile.rotate,
+      onHit: (hit, x, y) => this.onHit(hit, x, y, lunge),
       // Used when the target dies mid-flight.
       findTarget: (x, y) => nearestLiving(this.scene.enemies, x, y),
     };
@@ -178,22 +188,22 @@ export class Hero {
     return bestFresh || best;
   }
 
-  onHit(target, x, y, forceCrit = false) {
+  // The shot landed at (x, y): its impact plays there, then damage and
+  // effects go to the target (or everything in the area).
+  onHit(target, x, y, lunge = null) {
     const { area, stun, slow, curse, poison, crit } = this.def;
-    let victims;
-    if (area) {
-      victims = this.scene.enemies.filter((e) => e.targetable && Math.hypot(e.x - x, e.y - y) <= area.radius);
-      this.showAreaHit(x, y, area.radius);
-    } else {
-      victims = target && target.targetable ? [target] : [];
-    }
+    playFx(this.scene, this.def.projectile.impact, x, y);
+    const victims = area
+      ? this.scene.enemies.filter((e) => e.targetable && Math.hypot(e.x - x, e.y - y) <= area.radius)
+      : (target && target.targetable ? [target] : []);
 
     for (const e of victims) {
       let damage = this.damage;
-      if (crit && (forceCrit || Math.random() < crit.chance)) {
+      if (crit && (lunge || Math.random() < crit.chance)) {
         damage *= crit.multiplier;
         this.scene.floatText(e.x, e.y - e.def.height / 2 - 13, 'CRIT!', '#ffca28');
       }
+      if (lunge) playFx(this.scene, lunge.impact, e.x, e.y, FX_DEPTH + 1);
       e.takeDamage(damage);
       if (!e.alive) continue;
       if (stun && Math.random() < stun.chance) e.applyStun(stun.duration);
@@ -203,21 +213,12 @@ export class Hero {
     }
   }
 
-  // Expanding ring where an area shot lands.
-  showAreaHit(x, y, radius) {
-    const ring = this.scene.add.circle(x, y, radius, this.def.projectileColor, 0.15)
-      .setStrokeStyle(1, this.def.projectileColor, 0.9).setScale(0.2).setDepth(5);
-    this.scene.tweens.add({
-      targets: ring, scale: 1, alpha: 0, duration: 350, onComplete: () => ring.destroy(),
-    });
-  }
-
   destroy() {
     if (this.glow) {
       this.scene.tweens.killTweensOf(this.glow);
       this.glow.destroy();
     }
-    this.fxGlow.destroy();
+    for (const sprite of Object.values(this.boostSprites)) sprite.destroy();
     this.body.destroy();
   }
 }

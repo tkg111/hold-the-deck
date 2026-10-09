@@ -76,6 +76,17 @@ export const UI_KIT = {
   pickerRowHeight: 36,
 };
 
+// Effect sprite sheets in public/sprites/fx/ (fx.json gives each one's frame
+// size, frame count, fps and whether it loops), drawn at 1x.
+export const FX = {
+  path: 'fx/',          // under SPRITES.path
+  hitFlashColor: 0xffffff,  // enemies flash this colour when hit
+  hitFlashMs: 60,
+  // Status sprites over enemies: gap in px between the HP bar and the stun
+  // stars above it, and between stacked status marks.
+  statusGap: 1,
+};
+
 export const SHIP = {
   // The ship sprites are 160x160 art pixels (ship_stage1..3 plus a _front
   // railing layer each), all at layout.json's shipPos; enemies stop at its
@@ -94,6 +105,9 @@ export const RARITY = {
 };
 
 // catchphrase: one-line pirate intro shown the first time the hero is pulled.
+// projectile: { sprite, impact, rotate } — fx sheets (see FX) for the shot and
+// what plays where it hits; rotate turns the shot (drawn flying right) to its
+// flight angle. Lobbed heroes (lob) throw in an arc, the rest fly straight.
 // Heroes with art are listed in SPRITES.heroes; the rest use `color` rectangles.
 // Optional effects per hero:
 //   stun:   { chance, duration }    — stunned enemies can't move or attack
@@ -118,8 +132,7 @@ export const HEROES = {
     attackInterval: 450,
     range: 350,
     projectileSpeed: 325,
-    projectileColor: 0xdddddd,
-    projectileSize: 2.5,
+    projectile: { sprite: 'pebble', impact: 'hit_spark' },
     catchphrase: "Aye aye! Point me at 'em and I'll sling till they sink!",
   },
   shipsCook: {
@@ -130,9 +143,8 @@ export const HEROES = {
     damage: 9,
     attackInterval: 900,
     range: 325,
-    projectileSpeed: 250,
-    projectileColor: 0xffab91,
-    projectileSize: 3.5,
+    projectile: { sprite: 'frying_pan', impact: 'hit_spark' },
+    lob: { flightTime: 800, arcHeight: 45 },
     stun: { chance: 0.25, duration: 1000 },
     catchphrase: 'Complain about me stew one more time, I dare ye!',
   },
@@ -145,8 +157,7 @@ export const HEROES = {
     attackInterval: 2200,
     range: 300,
     projectileSpeed: 190,
-    projectileColor: 0x81d4fa,
-    projectileSize: 4.5,
+    projectile: { sprite: 'net_throw', impact: 'hit_spark' },
     area: { radius: 37.5 },
     slow: { factor: 0.5, duration: 2500 },
     catchphrase: 'Hold still, ye barnacle-brained bilge rats!',
@@ -160,8 +171,7 @@ export const HEROES = {
     attackInterval: 1100,
     range: 325,
     projectileSpeed: 225,
-    projectileColor: 0xce93d8,
-    projectileSize: 3.5,
+    projectile: { sprite: 'spirit_orb', impact: 'hit_spark' },
     curse: { bonus: 0.3, duration: 4000 },
     catchphrase: "The spirits whisper yer name... and they're hungry.",
   },
@@ -173,9 +183,8 @@ export const HEROES = {
     damage: 4,
     attackInterval: 900,
     range: 360,
-    projectileSpeed: 425,
-    projectileColor: 0x9ccc65,
-    projectileSize: 1.5,
+    projectile: { sprite: 'grog_bottle', impact: 'grog_splash' },
+    lob: { flightTime: 650, arcHeight: 40 },
     poison: { ratio: 0.75, duration: 4000 },
     catchphrase: "One sip o' me brew and ye'll feel it for days.",
   },
@@ -188,8 +197,7 @@ export const HEROES = {
     attackInterval: 1700,
     range: 325,
     projectileSpeed: 215,
-    projectileColor: 0xcfd8dc,
-    projectileSize: 4.5,
+    projectile: { sprite: 'harpoon', impact: 'hit_spark', rotate: true },
     pierce: { maxTargets: 6, length: 150, hitRadius: 11 },
     catchphrase: "Line 'em up, and I'll skewer the lot of 'em!",
   },
@@ -201,8 +209,7 @@ export const HEROES = {
     damage: 24,
     attackInterval: 3200,
     range: 325,
-    projectileColor: 0x263238,
-    projectileSize: 5.5,
+    projectile: { sprite: 'cannonball', impact: 'explosion' },
     area: { radius: 47.5 },
     lob: { flightTime: 1000, arcHeight: 75 },
     catchphrase: 'FIRE IN THE HOLE! Mind yer heads, lads!',
@@ -216,8 +223,7 @@ export const HEROES = {
     attackInterval: 1300,
     range: 340,
     projectileSpeed: 475,
-    projectileColor: 0xeceff1,
-    projectileSize: 3,
+    projectile: { sprite: 'blade_arc', impact: 'hit_spark', rotate: true },
     crit: { chance: 0.35, multiplier: 2.5 },
     catchphrase: "En garde. This won't take long.",
   },
@@ -240,34 +246,44 @@ export const STARTING_HEROES = ['cabinBoy'];
 // stars like it does), and every `duration` / `stun` grows with
 // ABILITY_SCALING. `effect` is the line shown in the crew picker and Crew
 // Roster; {placeholders} are filled from the ability's numbers (see
-// describeAbility in src/ui/HeroPicker.js). `color` tints its effects.
+// describeAbility in src/ui/HeroPicker.js). `color` tints its name as it
+// floats up. Sprite fields name fx sheets (see FX): `fx` stands on each
+// boosted crewmate's slot while the boost lasts (behind them with behind),
+// `sprite` is what's thrown or dropped and `impact` plays where it hits.
 // Abilities need a targetable enemy on screen to fire; needsRange ones (the
 // attack speed boosts) need one within range of the crew (ABILITY_BAR.supportRange).
 export const ABILITIES = {
   cabinBoy: {
     name: 'Rapid Fire', cooldown: 15000, color: 0xfff176,
     attackSpeed: 3, duration: 4000, needsRange: true,
+    fx: { sprite: 'rapid_fire', behind: true },
     effect: 'Triple attack speed for {duration}',
   },
   shipsCook: {
     name: 'Hot Stew', cooldown: 18000, color: 0xff8a50,
-    stun: 2000, radius: 45, flightTime: 700, arcHeight: 70, potSize: 4,
+    stun: 2000, radius: 45, flightTime: 700, arcHeight: 70,
+    sprite: 'stew_pot', impact: 'stew_splash',
     effect: 'Pot stuns all in an area for {stun}',
   },
   netThrower: {
     name: 'Big Net', cooldown: 20000, color: 0x81d4fa,
-    slow: 0.5, duration: 5000, dropTime: 350,
+    slow: 0.5, duration: 5000,
+    sprite: 'big_net',   // tiled along the lane
+    dropTime: 350, fadeTime: 400,   // the net drops in, and fades as the slow ends
     effect: 'Slows every enemy {slow} for {duration}',
   },
   grogBrewer: {
     name: 'Grog Barrel', cooldown: 18000, color: 0x9ccc65,
-    duration: 6000, width: 90, damagePerSecond: 2.5, lingerTime: 500,
-    flightTime: 600, arcHeight: 60, barrelSize: 5,
+    duration: 6000, damagePerSecond: 2.5, lingerTime: 500,
+    flightTime: 600, arcHeight: 60,
+    sprite: 'grog_barrel', impact: 'grog_splash', puddle: 'poison_puddle',
+    fadeTime: 400,     // the puddle (as wide as poison_puddle.png) fades at the end
     effect: 'Poison puddle on the lane for {duration}',
   },
   harpooner: {
     name: 'Whale Harpoon', cooldown: 20000, color: 0xcfd8dc,
-    damage: 5, speed: 520, length: 36,
+    damage: 5, speed: 520,
+    sprite: 'whale_harpoon', impact: 'hit_spark',
     effect: 'Pierces the whole lane for {damage} dmg',
   },
   voodooPriestess: {
@@ -277,17 +293,20 @@ export const ABILITIES = {
   },
   cannoneer: {
     name: 'Broadside', cooldown: 25000, color: 0xffb74d,
-    balls: 6, damage: 2, radius: 40, interval: 160, fallTime: 550, ballSize: 5,
+    balls: 6, damage: 2, radius: 40, interval: 160, fallTime: 550,
+    sprite: 'cannonball', impact: 'explosion',
     effect: '{balls} cannonballs on the lane, {damage} dmg',
   },
   duelist: {
     name: 'Lunge', cooldown: 22000, color: 0xff5252,
     hits: 5,
+    impact: 'lunge_cross',   // on the target with each crit
     effect: 'Next {hits} hits on toughest foe crit',
   },
   captain: {
     name: 'All Hands!', cooldown: 30000, color: 0xffd54f,
     attackSpeed: 1.5, duration: 6000, needsRange: true,
+    fx: { sprite: 'all_hands' },
     effect: 'Whole crew +{attackSpeed} attack speed {duration}',
   },
 };

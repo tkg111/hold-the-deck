@@ -1,3 +1,9 @@
+import { FX_DEPTH, fxSprite } from '../fx.js';
+
+// Every projectile is an fx sheet (`sprite`, see fx.json), drawn flying
+// right; with `rotate` it turns to its flight angle, otherwise it keeps its
+// own animation (the spinning ones).
+//
 // All projectiles take `findTarget(x, y)`, which returns the nearest living,
 // targetable enemy (or null). When a projectile's target dies before it lands, it switches
 // to that enemy instead of wasting the shot on an empty spot; it fizzles only
@@ -17,15 +23,17 @@ export function nearestLiving(enemies, x, y) {
   return best;
 }
 
-// Homing shot: flies toward its target and calls onHit(target, x, y) on arrival.
+// Homing shot: flies straight toward its target and calls onHit(target, x, y)
+// on arrival.
 export class Projectile {
-  constructor(scene, { x, y, target, speed, color, size, onHit, findTarget }) {
+  constructor(scene, { x, y, target, speed, sprite, rotate = false, onHit, findTarget }) {
     this.target = target;
     this.speed = speed;
+    this.rotate = rotate;
     this.onHit = onHit;
     this.findTarget = findTarget;
     this.done = false;
-    this.sprite = scene.add.circle(x, y, size, color).setDepth(5);
+    this.sprite = fxSprite(scene, sprite, x, y).setDepth(FX_DEPTH);
   }
 
   update(dt) {
@@ -47,6 +55,7 @@ export class Projectile {
     }
     this.sprite.x += dx / dist * step;
     this.sprite.y += dy / dist * step;
+    if (this.rotate) this.sprite.rotation = Math.atan2(dy, dx);
   }
 
   destroy() {
@@ -56,11 +65,12 @@ export class Projectile {
 }
 
 // Arcing shot aimed at where its target will be when it lands (aimAt(target,
-// msLeft) -> {x, y}), then calls onHit(null, x, y). Used with an area effect.
+// msLeft) -> {x, y}), then calls onHit(target, x, y) with whichever enemy it
+// was last aimed at (area shots hit around the point instead).
 // If the target dies mid-flight, the landing point moves to the nearest living
 // enemy; the arc bends smoothly rather than jumping.
 export class LobProjectile {
-  constructor(scene, { x, y, target, flightTime, arcHeight, color, size, onHit, findTarget, aimAt }) {
+  constructor(scene, { x, y, target, flightTime, arcHeight, sprite, onHit, findTarget, aimAt }) {
     this.target = target;
     this.flightTime = flightTime;
     this.arcHeight = arcHeight;
@@ -72,8 +82,7 @@ export class LobProjectile {
     this.startX = x;
     this.startY = y;
     ({ x: this.destX, y: this.destY } = aimAt(target, flightTime));
-    // Iron cannonball.
-    this.sprite = scene.add.circle(x, y, size, color).setStrokeStyle(1, 0x000000).setDepth(5);
+    this.sprite = fxSprite(scene, sprite, x, y).setDepth(FX_DEPTH);
   }
 
   // Position along the arc at progress t (0..1).
@@ -113,7 +122,7 @@ export class LobProjectile {
     const { x, y } = this.pointAt(t);
     this.sprite.setPosition(x, y);
     if (t >= 1) {
-      this.onHit(null, this.destX, this.destY);
+      this.onHit(this.target, this.destX, this.destY);
       this.destroy();
     }
   }
@@ -130,7 +139,7 @@ export class LobProjectile {
 // harpoon reaches the line, it re-aims at the nearest living enemy; once skimming
 // it hits whatever is on the line.
 export class PiercingProjectile {
-  constructor(scene, { x, y, target, speed, color, size, length, maxTargets, hitRadius, enemies, onHit, findTarget }) {
+  constructor(scene, { x, y, target, speed, sprite, length, maxTargets, hitRadius, enemies, onHit, findTarget }) {
     this.speed = speed;
     this.length = length;
     this.hitRadius = hitRadius;
@@ -140,8 +149,8 @@ export class PiercingProjectile {
     this.findTarget = findTarget;
     this.hits = new Set();
     this.done = false;
-    // Harpoon: a long shaft that points the way it flies.
-    this.sprite = scene.add.rectangle(x, y, size * 3.2, 2, color).setStrokeStyle(1, 0x37474f).setDepth(5);
+    // Points the way it flies.
+    this.sprite = fxSprite(scene, sprite, x, y).setDepth(FX_DEPTH);
     this.aimAt(target);
   }
 

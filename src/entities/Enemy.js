@@ -1,15 +1,22 @@
 import Phaser from 'phaser';
-import { SPRITES } from '../config.js';
+import { FX, SPRITES } from '../config.js';
+import { fxSprite } from '../fx.js';
 import { LAYOUT, laneFeetY } from '../layout.js';
 import { findAnim, sheetKey, SPLASH_ANIM } from '../sprites.js';
 import { light, text, UI } from '../ui/kit.js';
 import { DEPTH } from './Ship.js';
 
-const STUN_COLOR = 0xffeb3b;
-const SLOW_COLOR = 0x4fc3f7;
+// HP bar colours while cursed / poisoned.
 const CURSE_COLOR = 0xb620e0;
 const POISON_COLOR = 0x76ff03;
-const HIT_COLOR = 0xff5555;
+
+// Status sprites (fx sheets) and when each shows.
+const STATUS = {
+  stun: { sprite: 'stun_stars', active: (e) => e.isStunned },
+  curse: { sprite: 'curse_mark', active: (e) => e.isCursed },
+  poison: { sprite: 'poison_bubbles', active: (e) => e.isPoisoned },
+  slow: { sprite: 'net_draped', active: (e) => e.isSlowed },
+};
 
 export class Enemy {
   // Walkers enter at layout.json's enemySpawnX and follow the lane (x is only
@@ -77,7 +84,7 @@ export class Enemy {
       this.setFeetY(laneFeetY(this.x));
     }
 
-    this.statusFx = scene.add.graphics().setDepth(DEPTH.enemyOverlay);
+    this.statusSprites = {};  // STATUS key -> sprite, while that status lasts
     this.hpBar = scene.add.graphics().setDepth(DEPTH.enemyOverlay);
     this.nameTag = def.boss
       ? text(scene, this.x, 0, def.name.toUpperCase(), { font: 'small', ...light({ color: UI.colors.warn }) })
@@ -235,7 +242,7 @@ export class Enemy {
     this.hp -= this.isCursed ? amount * (1 + this.curseBonus) : amount;
     if (flash) {
       this.setFlash(true);
-      this.scene.time.delayedCall(60, () => this.alive && this.setFlash(false));
+      this.scene.time.delayedCall(FX.hitFlashMs, () => this.alive && this.setFlash(false));
     }
     if (this.hp <= 0) this.die();
     else this.drawHpBar();
@@ -243,10 +250,10 @@ export class Enemy {
 
   setFlash(on) {
     if (this.def.sprite) {
-      if (on) this.body.setTintFill(HIT_COLOR);
+      if (on) this.body.setTintFill(FX.hitFlashColor);
       else this.body.clearTint();
     } else {
-      this.body.setFillStyle(on ? HIT_COLOR : this.def.color);
+      this.body.setFillStyle(on ? FX.hitFlashColor : this.def.color);
     }
   }
 
@@ -273,7 +280,8 @@ export class Enemy {
   removeOverlays() {
     this.removeSplash();
     this.hpBar.destroy();
-    this.statusFx.destroy();
+    for (const sprite of Object.values(this.statusSprites)) sprite.destroy();
+    this.statusSprites = {};
     this.nameTag?.destroy();
   }
 
@@ -290,48 +298,31 @@ export class Enemy {
     this.hpBar.fillStyle(barColor).fillRect(x, y, Math.round(w * pct), 2);
   }
 
+  // Status sprites: a net draped over a slowed enemy (the same 32x32 box as
+  // its sprite, feet on the bottom row), poison bubbles over its body, and
+  // stun stars then the curse mark stacked above its HP bar.
   drawStatus() {
-    const g = this.statusFx;
-    g.clear();
-    const { width: w, height: h } = this.def;
-    const left = Math.round(this.x - w / 2);
-    const top = Math.round(this.y - h / 2);
-    const t = this.scene.time.now;
-
-    // Curse: pulsing purple aura around the body.
-    if (this.isCursed) {
-      const pulse = 0.5 + 0.5 * Math.sin(t / 120);
-      g.fillStyle(CURSE_COLOR, 0.25).fillRect(left, top, w, h);
-      g.lineStyle(1, CURSE_COLOR, 0.5 + 0.5 * pulse).strokeRect(left - 2, top - 2, w + 4, h + 4);
-    }
-
-    // Poison: sickly green tint with bubbles rising off the body.
-    if (this.isPoisoned) {
-      g.fillStyle(POISON_COLOR, 0.28).fillRect(left, top, w, h);
-      for (let i = 0; i < 3; i++) {
-        const phase = (t / 700 + i / 3) % 1;
-        const bx = this.x + Math.sin(i * 2.4 + t / 300) * w * 0.35;
-        const by = top + h * 0.4 - phase * (h * 0.4 + 7);
-        g.fillStyle(POISON_COLOR, 1 - phase).fillRect(Math.round(bx), Math.round(by), phase < 0.5 ? 2 : 1, phase < 0.5 ? 2 : 1);
+    for (const [key, { sprite, active }] of Object.entries(STATUS)) {
+      const on = active(this);
+      if (on && !this.statusSprites[key]) {
+        this.statusSprites[key] = fxSprite(this.scene, sprite, 0, 0).setDepth(DEPTH.enemyOverlay);
+      } else if (!on && this.statusSprites[key]) {
+        this.statusSprites[key].destroy();
+        delete this.statusSprites[key];
       }
     }
-
-    // Slow: blue net drawn over the body.
-    if (this.isSlowed) {
-      g.lineStyle(1, SLOW_COLOR, 0.95);
-      for (let x = left; x <= left + w; x += 3) g.lineBetween(x, top, x, top + h);
-      for (let y = top; y <= top + h; y += 3) g.lineBetween(left, y, left + w, y);
-      g.strokeRect(left, top, w, h);
+    const { slow, poison, stun, curse } = this.statusSprites;
+    const x = Math.round(this.x);
+    if (slow) {
+      if (this.def.emerges) slow.setOrigin(0.5).setPosition(x, Math.round(this.y));
+      else slow.setOrigin(0.5, 1).setPosition(x, Math.round(this.feetY));
     }
-
-    // Stun: yellow stars circling above the head.
-    if (this.isStunned) {
-      const cy = this.hpBarY - (this.def.boss ? 11 : 4);
-      g.fillStyle(STUN_COLOR, 1);
-      for (let i = 0; i < 3; i++) {
-        const a = t / 130 + i * (Math.PI * 2 / 3);
-        g.fillRect(Math.round(this.x + Math.cos(a) * 6) - 1, Math.round(cy + Math.sin(a) * 2) - 1, 2, 2);
-      }
+    poison?.setPosition(x, Math.round(this.y - this.def.height / 4));
+    let above = this.hpBarY - (this.nameTag ? 10 : 0) - FX.statusGap;
+    for (const mark of [stun, curse]) {
+      if (!mark) continue;
+      mark.setOrigin(0.5, 1).setPosition(x, above);
+      above -= mark.height + FX.statusGap;
     }
   }
 }
