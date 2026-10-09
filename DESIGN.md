@@ -151,6 +151,7 @@ Heroes have:
   - **Every wave clear:** +1.
   - **Milestone waves** (every 5th): +5 on top.
   - **Boss kills:** +5, once per boss wave (killing the boss and then losing the wave doesn't pay it again on the retry).
+  - **Bounties** (Wanted Board): 10 / 25 / 50 for defeating 10 / 100 / 500 of one enemy type.
 
 ## Treasure Chests
 
@@ -183,6 +184,15 @@ There is no prestige or reset loop: progress is one endless voyage. (A "New Voya
 - Shows every hero in the game as small cards, five to a row, grouped by rarity, with an "N/M FOUND" count beside the title plate.
 - Owned heroes appear as their card with level and stars. Clicking one shows it as a large card beside an Ability panel (name, cooldown, effect at its current level and stars); click anywhere to close. Unowned heroes are black silhouettes with "???" for the name, so the player can see how many are left to find without spoiling who they are.
 
+## Wanted Board (enemy book)
+
+- Opened from the **Wanted** button between waves (in the bottom bar where Voyage used to be; its icon is `icon_wanted.png`). A red dot on the button means a poster that hasn't been opened yet.
+- Art in `public/sprites/ui/wanted/`; poster positions (enemy box, stamp spot, selection frame offset) come from its `wanted.json`.
+- **Posters:** one per enemy type, four to a row in the order they first appear, with an "N/M FOUND" count beside the title plate. A met type's poster is `poster.png` with frame 0 of its sheet in the enemy box (the bottom 30 rows of a 32x32 portrait, so feet show); The Kraken and the Siren use a 32x32 crop of their face (`face` in config). The highest bounty earned shows as a bronze / silver / gold stamp, and a red dot marks a poster not opened yet. Types not met yet are `poster_unknown.png` and can't be opened.
+- **Details page** (parchment, right): clicking a poster frames it (`poster_select.png`), marks it seen and shows its page: name on a wood plate, its portrait at 2x, trait chips (icon + label: Boss, Flying, Armoured, Shielded, Explodes, Support, by what the enemy does), HP / speed / damage at the current wave (from the wave's multipliers; "-" for none) and its first wave, a one-line description (`description` in config), "Weak to" with the faces and short names of the crew good against it (`weakTo` in config), and the bounty: the three stamps (dim until paid), defeats so far, and a bar to the next tier. A legend under the posters lists the bounty tiers.
+- **Meeting a new type:** the first time an enemy type spawns, its poster unlocks and a "NEW ENEMY!" alert shows at the top centre for 3s (its poster, name and description on a wood plaque, fading in and out), without pausing the game. Several in a row queue up. It runs on real time, so it lasts as long at x2 speed.
+- **Defeats and bounties:** every kill of a type counts (Elites too; Keg Runners blowing up on the hull and Thief Monkeys getting away don't). Reaching 10 / 100 / 500 defeats pays 10 / 25 / 50 Pearls at once, with a small toast under the wave plaque (the stamp, the type and count, and the Pearls) that fades after 2.5s; toasts stack.
+
 ## Sound
 
 - All sound effects are synthesized with the Web Audio API; there are no audio files.
@@ -206,8 +216,8 @@ Each step should leave the game playable. (Built under the kampung theme; names 
 
 ## Saving
 
-- Auto-saves after every wave ends, every upgrade, every chest opened and every slot change, plus when the page is hidden or closed.
-- Saves carry a version number (currently 7: v2 added the mute setting, v3 the Legendary pity counter, v4 prestige, v5 the pirate reskin, which renamed every saved field and hero ID without changing any values, v6 removed prestige and converted Renown to Pearls, v7 the ability bar's Auto toggle). When the save format changes, bump the version and add a migration from the old one so existing players keep their progress.
+- Auto-saves after every wave ends, every upgrade, every chest opened, every slot change and on closing the Wanted Board, plus when the page is hidden or closed.
+- Saves carry a version number (currently 8: v2 added the mute setting, v3 the Legendary pity counter, v4 prestige, v5 the pirate reskin, which renamed every saved field and hero ID without changing any values, v6 removed prestige and converted Renown to Pearls, v7 the ability bar's Auto toggle, v8 the Wanted Board: enemy types met, posters opened, defeats and bounties paid per type). Loading a v7 save marks every enemy type whose first wave the player has already passed as met, with its poster already seen (so an old save doesn't light up with "new" posters); defeats start counting from zero. When the save format changes, bump the version and add a migration from the old one so existing players keep their progress.
 - Loading is defensive: out-of-range or unknown values are clamped or dropped, and an unreadable save is kept aside as a backup instead of being lost.
 - **Reset progress** button (between waves) wipes the save after a confirmation.
 
@@ -220,7 +230,7 @@ Layout follows `ui_mock_battle.png` and `ui_mock_between_waves.png`.
 - **During a wave:** an enemies-left bar at top-centre ("N ENEMIES LEFT", the fill shrinking as the wave is beaten); the **ability bar** at the bottom centre: a 26px wood button per crewmate on the ship, in slot order, with their face (cropped from their sprite), their key number (1–6) in the corner, a dark clockwise cooldown sweep over the face with the seconds left, and a pulsing 2px gold glow when ready, then the **AUTO** toggle (gold text and glow when on); and a speed button bottom-right showing the current speed (x1 / x2); clicking it toggles. At x2 everything in the battle runs twice as fast: movement, attacks, spawns, animations and effects. The speed is remembered for the rest of the session (not saved), and between waves the game always runs at normal speed. The between-wave panel and buttons are hidden.
 - **Shipwright** (between waves only): a parchment panel under a wood title plate with rows for Hull (level, HP per level), Build deck (decks built) and each hero on the ship (face, level, damage or The Captain's buff), each with a gold buy button showing the gold cost (grey when unaffordable, MAX when maxed). Five rows show at a time; with more, arrows by the title plate and the mouse wheel scroll it.
 - **Hero picker:** click a ship slot to see every owned hero (face, rarity, level, stars and where they're placed, then their ability's name, cooldown and effect, with durations at their current level and stars), plus "Leave empty"; it replaces the Shipwright while open. It is wider than the Shipwright (260px, reaching left over the sea) with taller rows, four at a time.
-- **Bottom bar** (between waves): **SET SAIL!** (starts the wave), **Chests** (with a red dot when a chest is affordable) and **Crew** (the Crew Roster).
+- **Bottom bar** (between waves): **SET SAIL!** (starts the wave), **Chests** (with a red dot when a chest is affordable), **Crew** (the Crew Roster) and **Wanted** (the Wanted Board, with a red dot when a poster hasn't been opened).
 - The reset confirmation uses the same parchment panels, wood plates and buttons.
 
 ## Later (not in v0.1)

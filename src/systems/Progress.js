@@ -1,4 +1,6 @@
-import { ABILITY_SCALING, ECONOMY, HEROES, SHIP, PACKS, RARITY, STARTING_HEROES, UPGRADES } from '../config.js';
+import {
+  ABILITY_SCALING, ECONOMY, ENEMIES, HEROES, SHIP, PACKS, RARITY, STARTING_HEROES, UPGRADES, WANTED,
+} from '../config.js';
 
 const scaledCost = ({ baseCost, costGrowth }, level) => Math.round(baseCost * costGrowth ** level);
 
@@ -19,6 +21,13 @@ export class Progress {
     // One entry per possible slot (all decks); only the first slotCount are usable.
     this.slots = Array(SHIP.maxDecks * SHIP.slotsPerDeck).fill(null);
     this.slots[0] = STARTING_HEROES[0];
+
+    // Wanted Board, by ENEMIES key: types met so far (posters unlocked),
+    // posters opened since, defeats, and bounty tiers paid (0-3).
+    this.discovered = [];
+    this.seenPosters = [];
+    this.defeats = {};
+    this.bounties = {};
 
     this.muted = false;             // sound effects off
     this.autoAbilities = false;     // ability bar's Auto toggle
@@ -48,6 +57,10 @@ export class Progress {
       muted: this.muted,
       autoAbilities: this.autoAbilities,
       packsSinceLegendary: this.packsSinceLegendary,
+      discovered: [...this.discovered],
+      seenPosters: [...this.seenPosters],
+      defeats: { ...this.defeats },
+      bounties: { ...this.bounties },
     };
   }
 
@@ -74,6 +87,14 @@ export class Progress {
     for (const id of p.owned) {
       if (data.heroLevels?.[id] != null) p.heroLevels[id] = int(data.heroLevels[id], 1);
       if (data.heroStars?.[id] != null) p.heroStars[id] = int(data.heroStars[id], 0, PACKS.maxStars);
+    }
+
+    const enemyIds = (list) => (Array.isArray(list) ? [...new Set(list.filter((id) => id in ENEMIES))] : []);
+    p.discovered = enemyIds(data.discovered);
+    p.seenPosters = enemyIds(data.seenPosters).filter((id) => p.discovered.includes(id));
+    for (const id of Object.keys(ENEMIES)) {
+      if (data.defeats?.[id] != null) p.defeats[id] = int(data.defeats[id], 0);
+      if (data.bounties?.[id] != null) p.bounties[id] = int(data.bounties[id], 0, WANTED.bounties.length);
     }
 
     if (Array.isArray(data.slots)) {
@@ -208,6 +229,44 @@ export class Progress {
     this.lastBossRewardWave = this.wave;
     this.pearls += ECONOMY.pearlsPerBoss;
     return ECONOMY.pearlsPerBoss;
+  }
+
+  // --- Wanted Board ---
+
+  isDiscovered(id) { return this.discovered.includes(id); }
+
+  // First sighting of an enemy type: unlocks its poster (unseen until
+  // opened). Returns whether it was new.
+  discover(id) {
+    if (!id || this.isDiscovered(id)) return false;
+    this.discovered.push(id);
+    return true;
+  }
+
+  isPosterSeen(id) { return this.seenPosters.includes(id); }
+  get hasUnseenPoster() { return this.discovered.some((id) => !this.isPosterSeen(id)); }
+  markPosterSeen(id) {
+    if (this.isDiscovered(id) && !this.isPosterSeen(id)) this.seenPosters.push(id);
+  }
+
+  defeatCount(id) { return this.defeats[id] ?? 0; }
+  // Bounty tiers already paid for this type (0 = none).
+  bountyTier(id) { return this.bounties[id] ?? 0; }
+
+  // One more of this type defeated. Pays (in Pearls) any bounty tier it
+  // reaches; returns the tiers paid, [{ tier, defeats, pearls }].
+  recordDefeat(id) {
+    if (!id) return [];
+    this.defeats[id] = this.defeatCount(id) + 1;
+    const paid = [];
+    while (this.bountyTier(id) < WANTED.bounties.length) {
+      const bounty = WANTED.bounties[this.bountyTier(id)];
+      if (this.defeats[id] < bounty.defeats) break;
+      this.bounties[id] = this.bountyTier(id) + 1;
+      this.pearls += bounty.pearls;
+      paid.push(bounty);
+    }
+    return paid;
   }
 
   // --- Costs ---

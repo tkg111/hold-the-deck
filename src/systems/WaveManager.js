@@ -5,6 +5,15 @@ export const isBossWave = (wave) => wave % WAVES.bossEvery === 0;
 export const isSirenWave = (wave) => !isBossWave(wave) && wave >= WAVES.sirenFromWave
   && (wave - WAVES.sirenFromWave) % WAVES.sirenEvery === 0;
 
+// The first wave an enemy type (ENEMIES key) can appear in: its earliest
+// formation, the first Siren wave, or the first boss wave.
+export function enemyFirstWave(key) {
+  if (ENEMIES[key].boss) return WAVES.bossEvery;
+  if (ENEMIES[key].stationary) return WAVES.sirenFromWave;
+  const froms = FORMATIONS.filter((f) => f.members.includes(key)).map((f) => f.from);
+  return froms.length ? Math.min(...froms) : Infinity;
+}
+
 // Per-wave multipliers for enemy HP, damage and kill gold.
 export function waveScaling(wave) {
   const n = wave - 1;
@@ -116,13 +125,14 @@ export class WaveManager {
 
     this.spawnTimer -= dt;
     while (this.spawnTimer <= 0 && this.queue.length) {
-      const { def, elite, follow } = this.queue.shift();
+      const { key, def, elite, follow } = this.queue.shift();
       const { hp, damage, gold } = this.scaling;
       const enemy = new Enemy(this.scene, def, {
         hpMultiplier: hp,
         damageMultiplier: damage,
         gold: Math.round(def.gold * gold * (elite ? ELITE.goldMultiplier : 1)),
         elite,
+        key,
         leader: follow != null ? this.spawned[follow] : null,
       });
       this.spawned.push(enemy);

@@ -1,0 +1,32 @@
+{
+  "poster": {
+    "size": [
+      48,
+      56
+    ],
+    "enemyAt": [
+      8,
+      14
+    ],
+    "enemyBox": [
+      32,
+      30
+    ],
+    "stampAt": [
+      32,
+      40
+    ],
+    "note": "draw the enemy frame 0 at enemyAt; bosses/siren use a 32x32 crop"
+  },
+  "select": {
+    "offset": [
+      -2,
+      -2
+    ]
+  },
+  "bountyTiers": {
+    "bronze": 10,
+    "silver": 100,
+    "gold": 500
+  }
+}

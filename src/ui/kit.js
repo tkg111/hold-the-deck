@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { HEROES, SPRITES, UI_KIT } from '../config.js';
+import { HEROES, SPRITES, UI_KIT, WANTED } from '../config.js';
 import { versioned } from '../version.js';
 
 // The UI kit in public/sprites/ui/: 9-slice wood and parchment panels, gold and
@@ -13,6 +13,16 @@ export const UI = { colors: {}, icons: [], slices: {} };
 
 const KEY = (name) => `ui_${name}`;
 const ICONS_KEY = KEY('icons');
+
+// The Wanted Board art (WANTED.path): texture key per image, and wanted.json
+// (poster layout) in the JSON cache.
+const WANTED_IMAGES = [
+  'icon_wanted', 'poster', 'poster_select', 'poster_unknown',
+  'stamp_bronze', 'stamp_silver', 'stamp_gold',
+  'trait_armoured', 'trait_boss', 'trait_explodes', 'trait_flying', 'trait_shielded', 'trait_support',
+];
+export const wantedKey = (name) => `wanted_${name}`;
+export const WANTED_JSON_KEY = 'wanted';
 
 // Bitmap fonts in public/sprites/ui/fonts/: <font>_<tone>.png + .xml.
 // main: 16px, small: 8px, big: 32px. light: cream with a dark outline (for wood,
@@ -41,6 +51,8 @@ export function preloadUi(scene) {
     for (const state of ['normal', 'hover', 'pressed', 'disabled']) image(`btn_${style}_${state}`);
   }
   load.spritesheet(ICONS_KEY, `${path}icons_sheet.png`, { frameWidth: UI.iconSize, frameHeight: UI.iconSize });
+  for (const name of WANTED_IMAGES) load.image(wantedKey(name), `${WANTED.path}${name}.png`);
+  load.json(WANTED_JSON_KEY, `${WANTED.path}wanted.json`);
   for (const font of FONTS) load.bitmapFont(font, `${path}fonts/${font}.png`, `${path}fonts/${font}.xml`);
 }
 
@@ -78,8 +90,11 @@ export function face(scene, x, y, heroId) {
   return scene.add.image(x, y, sprite.key, 'face');
 }
 
+// A 12px icon from the kit's sheet by name, or any loaded image by texture
+// key (e.g. wantedKey('icon_wanted')).
 export function icon(scene, x, y, name) {
   const frame = UI.icons.indexOf(name);
+  if (frame < 0) return scene.add.image(x, y, name);
   return scene.add.image(x, y, ICONS_KEY, frame);
 }
 

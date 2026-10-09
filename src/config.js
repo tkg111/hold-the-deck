@@ -374,9 +374,14 @@ export const ABILITY_BAR = {
 //              first, its keg hits enemies within radius for enemyDamage
 //   shield:    blocks straight shots until its hp is gone; lobbed ones hit
 //   stationary + song: the Siren (see below)
+// Wanted Board: description is the one-line text on its poster's page,
+// weakTo the crew (HEROES keys) shown as good against it, and face (for
+// sprites bigger than 32x32) where the 32x32 portrait is cropped from.
 export const ENEMIES = {
   drownedSailor: {
     name: 'Drowned Sailor',
+    description: 'Shambles up from the deep and claws at the hull.',
+    weakTo: ['harpooner', 'cannoneer'],
     color: 0x8fb8a8,
     sprite: 'drowned_sailor',  // 32x32, feet on the bottom row
     width: 13,          // torso width; its arms reach further out front
@@ -389,6 +394,8 @@ export const ENEMIES = {
   },
   thiefMonkey: {
     name: 'Thief Monkey',
+    description: 'Dashes aboard, grabs a fistful of gold and runs.',
+    weakTo: ['cabinBoy', 'netThrower'],
     color: 0x8d5a3b,
     sprite: 'thief_monkey',   // 32x32, feet on the bottom row
     width: 14,
@@ -402,6 +409,8 @@ export const ENEMIES = {
   },
   ironCrab: {
     name: 'Iron Crab',
+    description: 'Plated shell shrugs off weak hits. Hit it hard.',
+    weakTo: ['duelist', 'cannoneer', 'grogBrewer'],
     color: 0x5a6470,
     sprite: 'iron_crab',
     sheetOnly: true,
@@ -417,6 +426,8 @@ export const ENEMIES = {
   },
   stormHarpy: {
     name: 'Storm Harpy',
+    description: 'Dives at the top deck. Shoot it down or net it.',
+    weakTo: ['cabinBoy', 'netThrower', 'harpooner'],
     color: 0x6b6fb5,
     sprite: 'storm_harpy',
     sheetOnly: true,
@@ -442,6 +453,8 @@ export const ENEMIES = {
   },
   kegRunner: {
     name: 'Keg Runner',
+    description: 'Blows up on the hull. Pop it early to blast its friends.',
+    weakTo: ['netThrower', 'cabinBoy', 'cannoneer'],
     color: 0x9c6b3a,
     sprite: 'keg_runner',
     sheetOnly: true,
@@ -460,6 +473,8 @@ export const ENEMIES = {
   },
   barnacleKnight: {
     name: 'Barnacle Knight',
+    description: 'Shield stops straight shots. Lob over it.',
+    weakTo: ['shipsCook', 'cannoneer', 'grogBrewer'],
     color: 0x4f7a6a,
     sprite: 'barnacle_knight',
     sheetOnly: true,
@@ -481,8 +496,11 @@ export const ENEMIES = {
   },
   siren: {
     name: 'Siren',
+    description: 'Her song stuns the crew and spurs the horde on.',
+    weakTo: ['duelist', 'harpooner', 'voodooPriestess'],
     color: 0x26a69a,
     sprite: 'siren',     // 48x48; layout.siren is the frame's top-left
+    face: { x: 6, y: 4 },  // Wanted Board: 32x32 crop of frame 0 from here
     sheetOnly: true,
     width: 30,
     height: 48,
@@ -506,9 +524,12 @@ export const ENEMIES = {
   },
   kraken: {
     name: 'The Kraken',
+    description: 'Rises every tenth wave. Bring your best blades.',
+    weakTo: ['duelist', 'voodooPriestess', 'grogBrewer'],
     boss: true,
     color: 0x6a1b9a,
     sprite: 'the_kraken',     // 64x64, flat bottom on the waterline
+    face: { x: 14, y: 22 },   // Wanted Board: 32x32 crop of frame 0 from here
     width: 56,
     height: 60,
     hp: 160,
@@ -532,6 +553,32 @@ export const ELITE = {
   hpMultiplier: 3,
   goldMultiplier: 3,
   tint: 0xffd54f,
+};
+
+// The Wanted Board (enemy book): art in public/sprites/ui/wanted/ with
+// poster positions in its wanted.json. Every enemy type has a poster,
+// unlocked the first time one spawns. Defeating enough of one type pays a
+// bounty in Pearls (claimed automatically) and stamps its poster.
+export const WANTED = {
+  path: 'ui/wanted/',   // under SPRITES.path
+  bounties: [
+    { tier: 'bronze', defeats: 10, pearls: 10 },
+    { tier: 'silver', defeats: 100, pearls: 25 },
+    { tier: 'gold', defeats: 500, pearls: 50 },
+  ],
+  // Board layout (base pixels): posters in a grid on the left, the details
+  // page on the right.
+  columns: 4,
+  gap: 6,
+  gridX: 10,
+  gridY: 34,
+  page: { x: 228, y: 32, width: 244, height: 230 },
+  portraitScale: 2,
+  unseenDot: { x: 44, y: 3 },   // red dot on a poster not opened yet
+  // "NEW ENEMY!" alert the first time a type spawns (game keeps running).
+  alert: { ms: 3000, fadeMs: 250, y: 30, width: 236, height: 66 },  // min height; grows with the description
+  // Bounty toasts, under the wave and hull plaque.
+  toast: { ms: 2500, fadeMs: 300, x: 6, y: 52, gap: 3 },
 };
 
 // Battle speeds the x-button cycles through during a wave (1 = normal).

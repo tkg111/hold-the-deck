@@ -219,6 +219,7 @@ function run(seed, policy) {
   scene.waves = new WaveManager(scene);
   scene.abilities = new AbilitySystem(scene);
   scene.events.on('enemy-killed', (e) => {
+    progress.recordDefeat(e.key);   // bounties pay Pearls
     progress.earnGold(e.gold);
     if (e.def.boss) progress.claimBossPearls();
   });

@@ -17,8 +17,9 @@ import { Button } from '../ui/Button.js';
 import { ConfirmDialog } from '../ui/ConfirmDialog.js';
 import { fmtNumber, pearlsLabel } from '../ui/format.js';
 import { HeroPicker } from '../ui/HeroPicker.js';
+import { Notices } from '../ui/Notices.js';
 import { Shipwright } from '../ui/Shipwright.js';
-import { Bar, icon, light, panel, text, UI } from '../ui/kit.js';
+import { Bar, icon, light, panel, text, UI, wantedKey } from '../ui/kit.js';
 
 const STATE = { IDLE: 'idle', RUNNING: 'running' };
 
@@ -104,8 +105,9 @@ export class GameScene extends Phaser.Scene {
   // top-right with settings, sound and fullscreen under them, the
   // enemies-left bar top-centre during waves, and between waves the
   // Shipwright on the right and SET SAIL! / Chests / Crew along the
-  // bottom. Positions are in the base 480x270 layout; each group is a
-  // container that layoutUi() moves to its corner or edge of the view.
+  // bottom (plus Wanted, where Voyage used to be). Positions are in the base
+  // 480x270 layout; each group is a container that layoutUi() moves to its
+  // corner or edge of the view.
   createUi() {
     const group = (...items) => this.add.container(0, 0, items);
 
@@ -149,14 +151,18 @@ export class GameScene extends Phaser.Scene {
 
     if (import.meta.env.DEV) import('../dev/devTools.js').then((m) => m.installDevTools(this));
 
-    this.startButton = new Button(this, 281, 246, {
+    this.startButton = new Button(this, 211, 246, {
       width: 120, height: 28, style: 'gold', font: 'big', label: 'SET SAIL!', onClick: () => this.startWave(),
     });
-    this.packButton = new Button(this, 377, 248, {
+    this.packButton = new Button(this, 304, 248, {
       width: 64, height: 24, icon: 'chest', label: 'Chests', onClick: () => this.openPacks(),
     });
-    this.collectionButton = new Button(this, 443, 248, {
+    this.collectionButton = new Button(this, 370, 248, {
       width: 60, height: 24, icon: 'book', label: 'Crew', onClick: () => this.openCollection(),
+    });
+    // The Wanted Board (red dot: a poster not opened yet).
+    this.wantedButton = new Button(this, 439, 248, {
+      width: 70, height: 24, icon: wantedKey('icon_wanted'), label: 'Wanted', onClick: () => this.openWanted(),
     });
     // Battle speed (bottom-right, during waves): shows the current speed.
     this.speedButton = new Button(this, 452, 250, {
@@ -169,8 +175,10 @@ export class GameScene extends Phaser.Scene {
     });
     this.abilityBar.setCrew(this.heroes.map((h) => h.id));
     this.bottomBar = group(
-      this.startButton, this.packButton, this.collectionButton, this.speedButton,
+      this.startButton, this.packButton, this.collectionButton, this.wantedButton, this.speedButton,
     );
+    // NEW ENEMY! alert and bounty toasts.
+    this.notices = new Notices(this, this.progress);
 
     this.layoutUi(this.view);
   }
@@ -190,6 +198,7 @@ export class GameScene extends Phaser.Scene {
     this.heroPicker.setPosition(right + 473 - UI_KIT.pickerWidth, view.top + 64);
     this.bottomBar.setPosition(right, view.bottom - DISPLAY.height);
     this.abilityBar.layout(view);
+    this.notices.layout(view);
   }
 
   refreshUi() {
@@ -210,11 +219,12 @@ export class GameScene extends Phaser.Scene {
       this.enemiesBar.setValue(left / Math.max(1, this.waves.total), `${left} ENEMIES LEFT`);
     }
 
-    for (const b of [this.startButton, this.packButton, this.collectionButton]) b.setVisible(idle);
+    for (const b of [this.startButton, this.packButton, this.collectionButton, this.wantedButton]) b.setVisible(idle);
     this.speedButton.setVisible(!idle).setLabel(`x${this.speed}`);
     this.abilityBar.setVisible(!idle);
     // Red dot: a chest is affordable.
     this.packButton.setDot(p.canOpenPack);
+    this.wantedButton.setDot(p.hasUnseenPoster);
     if (this.settingsButton.enabled !== idle) this.settingsButton.setEnabled(idle);
     this.muteButton.setIcon(p.muted ? 'sound_off' : 'sound_on');
     this.fullscreenButton.setIcon(isFullscreen() ? 'windowed' : 'fullscreen');
@@ -252,6 +262,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   onEnemyKilled(enemy) {
+    for (const bounty of this.progress.recordDefeat(enemy.key)) this.notices.bounty(enemy.key, bounty);
     const gold = this.progress.earnGold(enemy.gold);
     const top = enemy.y - enemy.def.height / 2;
     this.floatText(enemy.x, top - 6, `+${gold}`, GOLD_TEXT);
@@ -372,6 +383,19 @@ export class GameScene extends Phaser.Scene {
     toggleFullscreen();
   }
 
+  openWanted() {
+    if (this.state !== STATE.IDLE) return;
+    if (this.heroPicker.visible) this.heroPicker.close();
+    sfx.click();
+    this.scene.launch('WantedScene', {
+      progress: this.progress,
+      onClose: () => {
+        this.refreshUi();
+        this.save();  // posters opened
+      },
+    });
+  }
+
   openPacks() {
     if (this.state !== STATE.IDLE) return;
     if (this.heroPicker.visible) this.heroPicker.close();
@@ -456,11 +480,15 @@ export class GameScene extends Phaser.Scene {
 
   update(_time, delta) {
     this.scenery.syncForeground();
+    this.notices.update(Math.min(delta, 100));
     if (this.state !== STATE.RUNNING) return;
     // Clamp so a backgrounded tab doesn't teleport enemies on return.
     const dt = Math.min(delta, 100) * this.speed;
 
-    this.enemies.push(...this.waves.update(dt));
+    const spawned = this.waves.update(dt);
+    this.enemies.push(...spawned);
+    // First sighting of a type: unlock its poster and announce it.
+    for (const e of spawned) if (this.progress.discover(e.key)) this.notices.newEnemy(e.key);
     for (const e of this.enemies) e.update(dt, this.ship);
     this.abilities.update(dt, this.progress.autoAbilities);
 

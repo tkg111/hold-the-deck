@@ -27,11 +27,13 @@ export class Enemy {
   // layout.harpyFlightY and the Siren appears on her rock at layout.siren.
   //   elite:  3x HP (ELITE), gold tint; gold is already multiplied by the caller
   //   leader: in an escorted formation, the enemy this one keeps behind
+  //   key:    its ENEMIES key (for the Wanted Board)
   constructor(scene, def, {
-    x = LAYOUT.enemySpawnX, hpMultiplier, damageMultiplier, gold, elite = false, leader = null,
+    x = LAYOUT.enemySpawnX, hpMultiplier, damageMultiplier, gold, elite = false, leader = null, key = null,
   }) {
     this.scene = scene;
     this.def = def;
+    this.key = key;
     this.elite = elite;
     const eliteHp = elite ? ELITE.hpMultiplier : 1;
     this.maxHp = Math.round(def.hp * hpMultiplier * eliteHp);

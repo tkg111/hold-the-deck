@@ -1,12 +1,13 @@
-import { ECONOMY } from '../config.js';
+import { ECONOMY, ENEMIES } from '../config.js';
 import { Progress } from './Progress.js';
+import { enemyFirstWave } from './WaveManager.js';
 
 // Storage keys keep the original project name so existing saves are found.
 export const SAVE_KEY = 'kampung-defense/save';
 const CORRUPT_BACKUP_KEY = 'kampung-defense/save-corrupt-backup';
 
 // Bump when the saved shape changes, and add a migration from the old version.
-export const SAVE_VERSION = 7;
+export const SAVE_VERSION = 8;
 
 // v5 pirate reskin: old hero IDs -> new hero IDs.
 const V5_HERO_IDS = {
@@ -64,6 +65,15 @@ function dropPrestige(data) {
   return { ...rest, pearls: count(rest.pearls) + total * ECONOMY.pearlsPerOldRenown };
 }
 
+// v8 Wanted Board: enemy types whose first wave the player has passed count
+// as met (and their posters as already seen, so an old save doesn't light up
+// with "new" posters); defeats start counting from here.
+function addWantedBoard(data) {
+  const wave = Number.isFinite(data.wave) ? data.wave : 1;
+  const met = Object.keys(ENEMIES).filter((id) => enemyFirstWave(id) < wave);
+  return { ...data, discovered: met, seenPosters: [...met], defeats: {}, bounties: {} };
+}
+
 // MIGRATIONS[n] upgrades a version-n save to version n + 1.
 const MIGRATIONS = {
   // v2: sound mute setting saved with progress.
@@ -81,6 +91,8 @@ const MIGRATIONS = {
   5: dropPrestige,
   // v7: the ability bar's Auto toggle.
   6: (data) => ({ ...data, autoAbilities: false }),
+  // v8: Wanted Board (enemy types met, posters seen, defeats, bounties).
+  7: addWantedBoard,
 };
 
 function migrate(save) {
