@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { DISPLAY, HEROES, PACK_FX, RARITY } from '../config.js';
+import { DISPLAY, HEROES, PACK_FX, PACKS, RARITY } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
 import { applyRenderScale, fillView } from '../display.js';
 import { Progress } from '../systems/Progress.js';
@@ -8,7 +8,7 @@ import { Button } from '../ui/Button.js';
 import { createHeroCard, HERO_CARD_SIZE } from '../ui/HeroCard.js';
 import { cssColor, pearlsLabel } from '../ui/format.js';
 import {
-  icon, dark, light, panel, subText, text, UI,
+  face, icon, dark, light, panel, subText, text, UI,
 } from '../ui/kit.js';
 
 const CARD_W = HERO_CARD_SIZE.large.width;
@@ -25,6 +25,12 @@ const LID_Y = CHEST_Y - CHEST_H / 4;   // where the light pours out
 // (including Legendary's orange) reads as the hint.
 const HINT_START = 0xffffff;
 const CONFETTI_COLORS = [0xffd54f, 0xe53935, 0xffffff, 0x66bb6a, 0x29b6f6];
+// "Buy 10" results: a grid of small tiles where the chest stands.
+const TILE_W = 84;
+const TILE_H = 50;
+const TILE_GAP = 6;
+const TILE_COLS = 5;
+const TILES_TOP = 74;
 
 
 // Overlay scene for opening treasure chests (packs). Launched on top of
@@ -69,11 +75,17 @@ export class PackScene extends Phaser.Scene {
 
     this.resultText = text(this, CARD_X, 233, '', light({ font: 'big' })).setOrigin(0.5);
 
-    this.openButton = new Button(this, CARD_X - 50, 257, {
+    this.bulkGrid = this.add.container(0, 0);
+
+    this.openButton = new Button(this, CARD_X - 100, 257, {
       width: 90, height: 22, style: 'gold', icon: 'pearl', label: '',
       onClick: () => this.openPack(),
     });
-    this.closeButton = new Button(this, CARD_X + 50, 257, {
+    this.bulkButton = new Button(this, CARD_X, 257, {
+      width: 90, height: 22, style: 'gold', icon: 'pearl', label: `Buy ${PACKS.bulkCount}  ${PACKS.bulkCost}`,
+      onClick: () => this.openBulk(),
+    });
+    this.closeButton = new Button(this, CARD_X + 100, 257, {
       width: 90, height: 22, label: 'Done',
       onClick: () => this.close(),
     });
@@ -97,6 +109,7 @@ export class PackScene extends Phaser.Scene {
           : `LEGENDARY GUARANTEED WITHIN ${n} CHESTS`);
     }
     this.openButton.setEnabled(!this.busy && this.progress.canOpenPack);
+    this.bulkButton.setEnabled(!this.busy && this.progress.canOpenBulk);
     this.closeButton.setEnabled(!this.busy);
   }
 
@@ -131,6 +144,7 @@ export class PackScene extends Phaser.Scene {
     this.chestGlow.setFillStyle(HINT_START, 0).setScale(1).setAlpha(1);
     this.cardGlow.setVisible(false);
     this.card.removeAll(true).setVisible(false);
+    this.bulkGrid.removeAll(true);
   }
 
   // Fan of light rays pouring up out of the open chest.
@@ -203,7 +217,9 @@ export class PackScene extends Phaser.Scene {
     this.seam.setFillStyle(rarityColor, 0);
     this.drawLight(rarityColor);
     this.light.setScale(1, 0.2);
-    this.card.removeAll(true).add(createHeroCard(this, 0, 0, result.id, { stars: result.isNew ? 0 : result.stars }));
+    this.card.removeAll(true).add(createHeroCard(this, 0, 0, result.id, {
+      stars: result.isNew ? 0 : result.stars, bonus: result.bonus,
+    }));
     this.card.setPosition(CARD_X, CHEST_Y + 40).setAlpha(0).setVisible(true);
     sfx.flip();
 
@@ -234,8 +250,9 @@ export class PackScene extends Phaser.Scene {
     let color = UI.colors.text;
     if (result.isNew) {
       message = 'NEW CREWMATE!';
-    } else if (result.refund) {
-      message = `MAX STARS! +${pearlsLabel(result.refund).toUpperCase()}`;
+    } else if (result.bonusLevel) {
+      message = '+1 BONUS LEVEL!';
+      color = cssColor(rarityColor);
     } else {
       message = '+1 STAR!';
       color = cssColor(rarityColor);
@@ -268,8 +285,71 @@ export class PackScene extends Phaser.Scene {
     this.time.delayedCall(2600, () => emitter.destroy());
   }
 
-  // Big intro card for a hero pulled for the first time. Click to dismiss.
-  showSplash(result) {
+  // "Buy 10": every chest at once, shown as a grid of small tiles (no
+  // build-up), then the new-crewmate splash for each new hero in turn.
+  openBulk() {
+    if (this.busy) return;
+    const results = this.progress.openBulk();
+    if (!results) return;
+    saveProgress(this.progress);
+    this.busy = true;
+    this.resetChest();
+    this.chest.setVisible(false);
+    this.refresh();
+
+    const order = Object.keys(RARITY);
+    const best = results.reduce((a, r) => (order.indexOf(HEROES[r.id].rarity) > order.indexOf(HEROES[a.id].rarity) ? r : a));
+    const bestRarity = HEROES[best.id].rarity;
+    const fresh = results.filter((r) => r.isNew);
+    sfx.reveal(bestRarity, fresh.length > 0);
+    const flash = PACK_FX.revealFlash[bestRarity];
+    if (flash) this.cameras.main.flash(flash, 255, 236, 179);
+
+    const left = CARD_X - (TILE_COLS * TILE_W + (TILE_COLS - 1) * TILE_GAP) / 2;
+    results.forEach((r, i) => {
+      const x = left + (i % TILE_COLS) * (TILE_W + TILE_GAP);
+      const y = TILES_TOP + Math.floor(i / TILE_COLS) * (TILE_H + TILE_GAP);
+      const tile = this.bulkTile(r, x, y).setAlpha(0);
+      this.bulkGrid.add(tile);
+      this.tweens.add({ targets: tile, alpha: 1, duration: 200, delay: i * 60 });
+    });
+    this.resultText.setText(fresh.length ? `${fresh.length} NEW CREWMATE${fresh.length > 1 ? 'S' : ''}!` : `${results.length} CHESTS OPENED`)
+      .setColor(UI.colors.text).setAlpha(1);
+
+    // New crewmates get their splash one after another.
+    const next = () => {
+      const r = fresh.shift();
+      if (!r) {
+        this.busy = false;
+        this.refresh();
+        return;
+      }
+      this.showSplash(r, next);
+    };
+    this.time.delayedCall(results.length * 60 + 500, next);
+  }
+
+  // One "Buy 10" result: parchment with a rarity stripe, the hero's face,
+  // name and what the pull did.
+  bulkTile(result, x, y) {
+    const def = HEROES[result.id];
+    const color = RARITY[def.rarity].color;
+    const tag = result.isNew ? 'NEW!'
+      : result.bonusLevel ? `BONUS +${result.bonus}`
+        : `${result.stars} STAR${result.stars > 1 ? 'S' : ''}`;
+    return this.add.container(Math.round(x), Math.round(y), [
+      panel(this, 0, 0, TILE_W, TILE_H, 'parchment'),
+      this.add.rectangle(3, 3, TILE_W - 6, 3, color).setOrigin(0),
+      face(this, 14, 22, result.id),
+      text(this, 26, 12, def.shortName, dark({ font: 'small' })),
+      text(this, 26, 22, RARITY[def.rarity].label.toUpperCase(), subText()),
+      text(this, TILE_W / 2, 38, tag, subText({ color: result.isNew ? UI.colors.warn : UI.colors.subText })).setOrigin(0.5, 0),
+    ]);
+  }
+
+  // Big intro card for a hero pulled for the first time. Click to dismiss;
+  // then onDone (by default the chest screen is ready again).
+  showSplash(result, onDone = null) {
     const def = HEROES[result.id];
     const rarity = RARITY[def.rarity];
     const cx = DISPLAY.width / 2;
@@ -335,6 +415,10 @@ export class PackScene extends Phaser.Scene {
       sfx.click();
       this.tweens.killTweensOf([rays, card, title, quote, where, hint]);
       splash.destroy(true);
+      if (onDone) {
+        onDone();
+        return;
+      }
       this.busy = false;
       this.refresh();
     });

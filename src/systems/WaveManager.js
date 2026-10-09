@@ -74,12 +74,14 @@ const enemyCount = (wave) => Math.round(WAVES.baseCount + (wave - 1) * WAVES.cou
 // finale's bosses). Built from FORMATIONS, with a Siren on Siren waves and
 // the boss on boss waves. offset: the island's waveOffset (Elites come as on
 // wave + offset, which also seeds the line-up). finale: the
-// island's finale config when this wave is it (see finalePlan).
-export function composeWave(wave, { offset = 0, finale = null } = {}) {
+// island's finale config when this wave is it (see finalePlan). countFactor:
+// multiplies the enemy count and Elite chance (Endless grace, see
+// Progress.endlessGrace).
+export function composeWave(wave, { offset = 0, finale = null, countFactor = 1 } = {}) {
   const random = seededRandom(wave * 7919 + 17 + offset * 104729);
   if (finale) return finalePlan(wave, offset, finale, random);
   const n = wave - 1;
-  let count = enemyCount(wave);
+  let count = Math.round(enemyCount(wave) * countFactor);
   if (isBossWave(wave)) count = Math.round(count * WAVES.bossEscortFactor);
 
   const groups = pickFormations(wave, count, random);
@@ -87,7 +89,7 @@ export function composeWave(wave, { offset = 0, finale = null } = {}) {
   if (isSirenWave(wave)) groups.splice(Math.round(groups.length * WAVES.sirenSpawnAt), 0, solo('siren'));
   if (isBossWave(wave)) groups.splice(Math.round(groups.length * WAVES.bossSpawnAt), 0, solo(bossOf(wave)));
 
-  const elites = eliteChance(wave + offset);
+  const elites = eliteChance(wave + offset) * countFactor;
   const interval = Math.max(WAVES.minSpawnInterval, WAVES.spawnInterval + n * WAVES.spawnIntervalPerWave);
   const plan = [];
   for (const g of groups) {

@@ -49,8 +49,9 @@ export class Enemy {
     this.gold = gold;
     this.attackCooldown = 0;
     this.alive = true;
-    // Shield and keg blast grow with the wave like HP does, armour like damage.
-    this.armor = (def.armor ?? 0) * damageMultiplier;
+    // Shield and keg blast grow with the wave like HP does; armour is a
+    // share of each hit, the same at every wave.
+    this.armor = def.armor ?? 0;
     this.shieldMax = def.shield ? Math.round(def.shield.hp * hpMultiplier * eliteHp) : 0;
     this.shieldHp = this.shieldMax;
     this.blastDamage = def.blast ? def.blast.enemyDamage * hpMultiplier : 0;
@@ -571,10 +572,16 @@ export class Enemy {
     });
   }
 
+  // A hullShare enemy's one hit on the ship: a share of its max HP.
+  hullHit(ship) {
+    const { hullShare } = this.def;
+    return hullShare ? ship.maxHp * (this.elite ? hullShare.elite : hullShare.normal) : this.damage;
+  }
+
   // Keg Runner at the ship: it blows up on the hull (no gold).
   blowUpAtShip(ship) {
     this.alive = false;
-    ship.takeDamage(this.damage);
+    ship.takeDamage(this.hullHit(ship));
     this.explode();
     this.removeOverlays();
     this.body.destroy();
@@ -584,7 +591,7 @@ export class Enemy {
   // gone, with no gold.
   board(ship) {
     this.alive = false;
-    ship.takeDamage(this.damage);
+    ship.takeDamage(this.hullHit(ship));
     this.removeOverlays();
     this.scene.tweens.add({ targets: this.body, alpha: 0, duration: 250, onComplete: () => this.body.destroy() });
   }
@@ -602,13 +609,17 @@ export class Enemy {
   //   dot:   damage over time (poison): armour and shields don't stop it
   //   lobbed: an arcing hit, which goes over a Barnacle Knight's shield
   //   throughShield: passes through the shield (the Ghost Pirate's cutlass)
-  //   ignoreArmor: armour doesn't reduce it (the Sharpshooter)
+  //   ignoreArmor: armour doesn't reduce it (the Sharpshooter, the Cannoneer,
+  //                Broadside, Whale Harpoon)
+  // Armour takes its share off the hit itself; a curse's bonus damage gets
+  // through it.
   takeDamage(amount, {
     flash = true, dot = false, lobbed = false, throughShield = false, ignoreArmor = false,
   } = {}) {
     if (!this.alive) return;
-    let damage = this.isCursed ? amount * (1 + this.curseBonus) : amount;
-    if (this.armor && !dot && !ignoreArmor) damage = Math.max(this.def.minDamage, damage - this.armor);
+    let damage = amount;
+    if (this.armor && !dot && !ignoreArmor) damage = Math.max(this.def.minDamage, amount * (1 - this.armor));
+    if (this.isCursed) damage += amount * this.curseBonus;
     if (flash) {
       this.setFlash(true);
       this.scene.time.delayedCall(FX.hitFlashMs, () => this.alive && this.setFlash(false));

@@ -156,7 +156,7 @@ export class WantedScene extends Phaser.Scene {
     const stats = [
       ['HP', fmtNumber(Math.round(def.hp * scaling.hp))],
       ['SPEED', dash(def.speed)],
-      ['DAMAGE', dash(def.damage * scaling.damage)],
+      ['DAMAGE', def.hullShare ? `${Math.round(def.hullShare.normal * 100)}% HULL` : dash(def.damage * scaling.damage)],
       ['FIRST WAVE', `${enemyFirstWave(id)}`],
     ];
     add(text(this, right, statsY, `AT WAVE ${p.wave}`, subText()));

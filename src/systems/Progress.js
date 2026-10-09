@@ -1,6 +1,8 @@
 import {
   ABILITY_SCALING, ECONOMY, ENEMIES, HEROES, ISLANDS, SHIP, PACKS, RARITY, STARTING_HEROES, UPGRADES, WANTED,
+  WAVES,
 } from '../config.js';
+import { waveScaling } from './WaveManager.js';
 
 const islandDef = (id) => ISLANDS.find((i) => i.id === id);
 // A fresh island's record: its wave counter, best wave cleared, whether its
@@ -27,6 +29,7 @@ export class Progress {
     this.owned = [...STARTING_HEROES];
     this.heroLevels = {};           // missing entry = level 1
     this.heroStars = {};            // missing entry = 0 stars
+    this.heroBonus = {};            // Bonus Levels (duplicates past max stars); missing = 0
     // One entry per possible slot (all decks); only the first slotCount are usable.
     this.slots = Array(SHIP.maxDecks * SHIP.slotsPerDeck).fill(null);
     this.slots[0] = STARTING_HEROES[0];
@@ -64,6 +67,7 @@ export class Progress {
       owned,
       heroLevels: ownedOnly(this.heroLevels),
       heroStars: ownedOnly(this.heroStars),
+      heroBonus: ownedOnly(this.heroBonus),
       slots: this.slots.map((id) => (id && owned.includes(id) ? id : null)),
       muted: this.muted,
       autoAbilities: this.autoAbilities,
@@ -112,6 +116,7 @@ export class Progress {
     for (const id of p.owned) {
       if (data.heroLevels?.[id] != null) p.heroLevels[id] = int(data.heroLevels[id], 1);
       if (data.heroStars?.[id] != null) p.heroStars[id] = int(data.heroStars[id], 0, PACKS.maxStars);
+      if (data.heroBonus?.[id] != null) p.heroBonus[id] = int(data.heroBonus[id], 0);
     }
 
     const enemyIds = (list) => (Array.isArray(list) ? [...new Set(list.filter((id) => id in ENEMIES))] : []);
@@ -159,7 +164,23 @@ export class Progress {
 
   // What WaveManager needs to build the current wave.
   get waveOptions() {
-    return { offset: this.island.waveOffset, finale: this.isFinaleWave ? this.island.finale : null };
+    return {
+      offset: this.island.waveOffset,
+      finale: this.isFinaleWave ? this.island.finale : null,
+      countFactor: this.endlessGrace,
+    };
+  }
+
+  // Endless grace: the first waves past a beaten finale bring fewer enemies
+  // (WAVES.endlessGraceStart x on the first, rising to the full count), so
+  // Endless doesn't open with a spike. 1 otherwise.
+  get endlessGrace() {
+    const { finale } = this.island;
+    if (!finale || !this.record.cleared) return 1;
+    const k = this.wave - finale.wave;   // 1 = the first wave after the finale
+    const n = WAVES.endlessGraceWaves;
+    if (k < 1 || k > n) return 1;
+    return WAVES.endlessGraceStart + (1 - WAVES.endlessGraceStart) * (k - 1) / n;
   }
 
   isIslandCleared(id) { return !!this.islands[id]?.cleared; }
@@ -195,6 +216,7 @@ export class Progress {
   }
   heroLevel(id) { return this.heroLevels[id] ?? 1; }
   heroStarCount(id) { return this.heroStars[id] ?? 0; }
+  heroBonusLevels(id) { return this.heroBonus[id] ?? 0; }
   get slotCount() { return this.decks * SHIP.slotsPerDeck; }
 
   // [{ id, slot }] for heroes in usable slots.
@@ -230,8 +252,7 @@ export class Progress {
   get hullMaxHp() { return this.hullMaxHpAt(this.hullHpLevel); }
 
   hullMaxHpAt(hpLevel) {
-    return SHIP.baseHp
-      + hpLevel * UPGRADES.hullHp.hpPerLevel
+    return Math.round(SHIP.baseHp * UPGRADES.hullHp.hpGrowth ** hpLevel)
       + (this.decks - 1) * UPGRADES.deck.hpPerDeck;
   }
 
@@ -241,14 +262,23 @@ export class Progress {
     const starBonus = PACKS.starDamageBonus[this.heroStarCount(id)];
     return HEROES[id].damage
       * (1 + (level - 1) * UPGRADES.heroLevel.damagePerLevel)
-      * (1 + starBonus);
+      * (1 + starBonus)
+      * (1 + this.heroBonusLevels(id) * PACKS.bonusLevelDamage);
   }
 
-  // Damage bonus an aura hero (The Captain) gives his deck, e.g. 0.5 = +50%.
+  // A hero's own attack speed multiplier from its level (the Cabin Boy's
+  // levelSpeed); 1 for everyone else.
+  heroAttackSpeed(id, level = this.heroLevel(id)) {
+    const { levelSpeed } = HEROES[id];
+    return levelSpeed ? 1 + Math.min(levelSpeed.max, (level - 1) * levelSpeed.perLevel) : 1;
+  }
+
+  // Damage bonus an aura hero (The Captain) gives his deck, e.g. 0.4 = +40%.
   heroAuraBonus(id, level = this.heroLevel(id)) {
     const { aura } = HEROES[id];
-    const starBonus = PACKS.starDamageBonus[this.heroStarCount(id)];
-    return (aura.damageBonus + (level - 1) * aura.damageBonusPerLevel) * (1 + starBonus);
+    return Math.min(aura.maxDamageBonus, aura.damageBonus
+      + (level - 1) * aura.damageBonusPerLevel
+      + this.heroStarCount(id) * aura.damageBonusPerStar);
   }
 
   // Multiplier for a hero's ability durations (and stun), from level and stars.
@@ -257,13 +287,14 @@ export class Progress {
     return Math.min(maxScale, 1 + (this.heroLevel(id) - 1) * perLevel + this.heroStarCount(id) * perStar);
   }
 
-  // Buffs from aura heroes for each active hero: slot -> { damage, attackSpeed }
-  // multipliers. An aura hero buffs the others on its deck, not itself.
+  // Buffs for each active hero: slot -> { damage, attackSpeed } multipliers,
+  // from aura heroes (an aura hero buffs the others on its deck, not itself;
+  // buffed: has one) and from the hero's own level speed.
   get deckBuffs() {
     const buffs = {};
     const deckOf = (slot) => Math.floor(slot / SHIP.slotsPerDeck);
     const active = this.activeHeroes;
-    for (const { slot } of active) buffs[slot] = { damage: 1, attackSpeed: 1, buffed: false };
+    for (const { id, slot } of active) buffs[slot] = { damage: 1, attackSpeed: this.heroAttackSpeed(id), buffed: false };
     for (const src of active) {
       const { aura } = HEROES[src.id];
       if (!aura) continue;
@@ -278,7 +309,7 @@ export class Progress {
   }
 
   waveClearGold(wave = this.scalingWave) {
-    return ECONOMY.waveClearBase + (wave - 1) * ECONOMY.waveClearPerWave;
+    return Math.round((ECONOMY.waveClearBase + (wave - 1) * ECONOMY.waveClearPerWave) * waveScaling(wave).gold);
   }
 
   // Add gold; returns the amount paid.
@@ -396,6 +427,8 @@ export class Progress {
   get packCost() { return PACKS.cost; }
 
   get canOpenPack() { return this.freeLegendaryChests > 0 || this.pearls >= this.packCost; }
+  // "Buy 10" (Pearls only; free chests open one at a time).
+  get canOpenBulk() { return this.pearls >= PACKS.bulkCost; }
 
   // Rarity weights limited to rarities that have heroes, so rates stay valid
   // if a tier is empty (e.g. Legendary before its heroes exist).
@@ -431,6 +464,22 @@ export class Progress {
     const freeChest = this.freeLegendaryChests > 0;
     if (freeChest) this.freeLegendaryChests--;
     else this.pearls -= this.packCost;
+    return this.pull(random, freeChest);
+  }
+
+  // "Buy 10": PACKS.bulkCount paid chests for PACKS.bulkCost Pearls. Returns
+  // the pulls in order (see pull), or null if unaffordable.
+  openBulk(random = Math.random) {
+    if (!this.canOpenBulk) return null;
+    this.pearls -= PACKS.bulkCost;
+    return Array.from({ length: PACKS.bulkCount }, () => this.pull(random, false));
+  }
+
+  // One chest's hero: a Legendary from a free chest or at pity, else rolled.
+  // A new hero joins the crew, a duplicate adds a star, and one past max
+  // stars adds a Bonus Level. Returns { id, pity, isNew, stars, bonus,
+  // bonusLevel, slot }.
+  pull(random, freeChest) {
     const pity = !freeChest && this.packsUntilPity <= 1;
     const id = Progress.rollHero(random, freeChest || pity ? 'legendary' : null);
     if (HEROES[id].rarity === 'legendary') this.packsSinceLegendary = 0;
@@ -441,14 +490,14 @@ export class Progress {
       // Generous: drop a new hero straight into the first free slot.
       const free = this.slots.slice(0, this.slotCount).indexOf(null);
       if (free !== -1) this.slots[free] = id;
-      return { id, pity, isNew: true, stars: 0, refund: 0, slot: free };
+      return { id, pity, isNew: true, stars: 0, bonus: 0, slot: free };
     }
     if (this.heroStarCount(id) < PACKS.maxStars) {
       this.heroStars[id] = this.heroStarCount(id) + 1;
-      return { id, pity, isNew: false, stars: this.heroStars[id], refund: 0 };
+      return { id, pity, isNew: false, stars: this.heroStars[id], bonus: this.heroBonusLevels(id) };
     }
-    this.pearls += PACKS.maxStarRefund;
-    return { id, pity, isNew: false, stars: PACKS.maxStars, refund: PACKS.maxStarRefund };
+    this.heroBonus[id] = this.heroBonusLevels(id) + 1;
+    return { id, pity, isNew: false, stars: PACKS.maxStars, bonus: this.heroBonus[id], bonusLevel: true };
   }
 
   levelHero(id) {

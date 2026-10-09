@@ -1,4 +1,4 @@
-import { HEROES, SHIP, UPGRADES } from '../config.js';
+import { HEROES, SHIP } from '../config.js';
 import { Button } from './Button.js';
 import { fmtNumber } from './format.js';
 import { face, icon, dark, subText, text } from './kit.js';
@@ -27,7 +27,7 @@ export class Shipwright extends ScrollPanel {
       {
         art: (s) => icon(s, 6, 11, 'hull'),
         title: () => 'Hull',
-        detail: () => `LV ${p.hullHpLevel}  +${UPGRADES.hullHp.hpPerLevel} HP`,
+        detail: () => `LV ${p.hullHpLevel}  +${p.hullMaxHpAt(p.hullHpLevel + 1) - p.hullMaxHp} HP`,
         cost: () => p.hullHpCost(),
         buy: () => p.buyHullHp(),
       },

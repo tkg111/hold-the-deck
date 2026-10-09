@@ -91,7 +91,7 @@ export class CollectionScene extends Phaser.Scene {
       const x = cx - rowWidth / 2 + w / 2 + col * (w + GAP);
       const y = GRID_TOP + h / 2 + row * (h + GAP);
       this.grid.add(createHeroCard(this, x, y, id, p.isOwned(id)
-        ? { size: 'small', stars: p.heroStarCount(id), level: p.heroLevel(id) }
+        ? { size: 'small', stars: p.heroStarCount(id), bonus: p.heroBonusLevels(id), level: p.heroLevel(id) }
         : { size: 'small', silhouette: true }));
       if (p.isOwned(id)) {
         this.grid.add(this.add.zone(x, y, w, h).setInteractive({ useHandCursor: true })
@@ -111,7 +111,7 @@ export class CollectionScene extends Phaser.Scene {
     const cy = DISPLAY.height / 2;
     const backdrop = fillView(this, 0x0d1117, 0.85);
     const card = createHeroCard(this, cx - 76, cy, id, {
-      stars: p.heroStarCount(id), level: p.heroLevel(id),
+      stars: p.heroStarCount(id), bonus: p.heroBonusLevels(id), level: p.heroLevel(id),
     });
     const w = 150;
     const h = 96;

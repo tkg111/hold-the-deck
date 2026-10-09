@@ -182,8 +182,10 @@ function arrangeCrew(p) {
   order.forEach((id, i) => { p.slots[i] = id; });
 }
 
-// Chests and crew after every wave; gold only when spending (see top).
+// Chests (Buy 10 whenever it's affordable) and crew after every wave; gold
+// only when spending (see top).
 function between(p, spend) {
+  while (p.canOpenBulk) p.openBulk();
   while (p.canOpenPack) p.openPack();
   arrangeCrew(p);
   if (spend) spendGold(p);

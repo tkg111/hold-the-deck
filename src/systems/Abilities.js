@@ -172,7 +172,7 @@ const ACTIONS = {
     });
   },
 
-  // Whale Harpoon: sweeps the whole lane, hitting every enemy once.
+  // Whale Harpoon: sweeps the whole lane, hitting every enemy once (through armour).
   harpooner(sys, { hero, def }) {
     sys.effects.push(new WhaleHarpoon(sys, def, hero.damage * def.damage));
     shake(sys.scene, def.shake);
@@ -508,7 +508,7 @@ class WhaleHarpoon {
     for (const e of this.sys.targets()) {
       if (this.hits.has(e) || e.x - e.def.width / 2 > this.x) continue;
       this.hits.add(e);
-      e.takeDamage(this.damage);
+      e.takeDamage(this.damage, { ignoreArmor: true });
       playFx(this.sys.scene, def.impact, e.x, e.y);
     }
     const y = this.yAt(this.x);
@@ -521,7 +521,7 @@ class WhaleHarpoon {
 }
 
 // Cannonballs falling one after another at spots spread along the lane, each
-// exploding where it lands.
+// exploding where it lands (through armour).
 class Broadside {
   constructor(sys, def, damage) {
     this.sys = sys;
@@ -558,7 +558,7 @@ class Broadside {
   land(x, y) {
     const { def } = this;
     for (const e of this.sys.targets()) {
-      if (Math.abs(e.x - x) <= def.radius + e.def.width / 2) e.takeDamage(this.damage, { lobbed: true });
+      if (Math.abs(e.x - x) <= def.radius + e.def.width / 2) e.takeDamage(this.damage, { lobbed: true, ignoreArmor: true });
     }
     playFx(this.sys.scene, def.impact, x, y - 12);
     shake(this.sys.scene, def.shake);

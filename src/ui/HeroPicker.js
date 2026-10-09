@@ -9,7 +9,9 @@ const secs = (ms) => `${+(ms / 1000).toFixed(1)}s`;
 // One-line summary of a hero's effect, built from its config numbers.
 export function describeHero(def) {
   if (def.aura) {
-    return `No attack. Deck buff: +${pct(def.aura.damageBonus)} dmg, +${pct(def.aura.attackSpeedBonus)} speed`;
+    const { aura } = def;
+    return `No attack. Deck buff: +${pct(aura.damageBonus)} dmg (+${pct(aura.damageBonusPerLevel)} per level, `
+      + `max ${pct(aura.maxDamageBonus)}), +${pct(aura.attackSpeedBonus)} speed`;
   }
   const parts = [];
   if (def.stun) parts.push(`${pct(def.stun.chance)} chance to stun ${secs(def.stun.duration)}`);
@@ -26,6 +28,7 @@ export function describeHero(def) {
   if (def.chain) parts.push(`chain lightning hits up to ${def.chain.targets}`);
   if (def.antiAir) parts.push(def.flyerBonus ? `hits flyers for ${def.flyerBonus}x` : 'hits flyers');
   if (def.netsFlyers) parts.push('nets ground flyers');
+  if (def.levelSpeed) parts.push(`+${pct(def.levelSpeed.perLevel)} attack speed per level (max ${pct(def.levelSpeed.max)})`);
   const text = parts.join(', ') || 'Fast shots, no effect';
   return text[0].toUpperCase() + text.slice(1);
 }
@@ -87,7 +90,7 @@ export class HeroPicker extends ScrollPanel {
       const rarity = RARITY[def.rarity];
       const where = progress.slotOf(id);
       const note = where === slot ? '  HERE' : where >= 0 ? `  SLOT ${where + 1}` : '';
-      const stars = starLabel(progress.heroStarCount(id));
+      const stars = starLabel(progress.heroStarCount(id), progress.heroBonusLevels(id));
       const name = text(scene, 16, -1, def.name, dark());
       row.add([
         face(scene, 6, 14, id),

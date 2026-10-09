@@ -1,4 +1,4 @@
-import { HEROES, PACKS, RARITY, SPRITES } from '../config.js';
+import { HEROES, PACKS, RARITY, SPRITES, UI_KIT } from '../config.js';
 import { cssColor } from './format.js';
 import { describeHero } from './HeroPicker.js';
 import { antiAirIcon, dark, hitsFlyers, light, panel, starRow, subText, text, UI } from './kit.js';
@@ -15,10 +15,11 @@ const SIZES = {
 // stars, level and effect.
 //   size:       'large' or 'small'
 //   stars:      number to show a row of pixel stars, or null to hide it
+//   bonus:      Bonus Levels, shown as "+N" after the stars (0: nothing)
 //   level:      number to show "LV N", or null to hide it
 //   silhouette: an unknown, not-yet-collected hero: wood card, black sprite
 export function createHeroCard(scene, x, y, id, {
-  size = 'large', stars = null, level = null, silhouette = false,
+  size = 'large', stars = null, bonus = 0, level = null, silhouette = false,
 } = {}) {
   const S = SIZES[size];
   const def = HEROES[id];
@@ -49,7 +50,11 @@ export function createHeroCard(scene, x, y, id, {
     return card;
   }
   if (stars != null) {
-    card.add(starRow(scene, 0, ty + 3, stars, PACKS.maxStars));
+    // With Bonus Levels the stars shift left to make room for "+N".
+    const plus = bonus > 0 ? text(scene, 0, ty, `+${bonus}`, subText({ color: UI_KIT.starColor })) : null;
+    const shift = plus ? Math.ceil((plus.inkWidth + 2) / 2) : 0;
+    card.add(starRow(scene, -shift, ty + 3, stars, PACKS.maxStars));
+    if (plus) card.add(plus.setPosition(Math.round(-shift + STAR_ROW_HALF + 2), ty));
     ty += 8;
   }
   if (level != null) {
@@ -62,6 +67,9 @@ export function createHeroCard(scene, x, y, id, {
   }
   return card;
 }
+
+// Half the width of a full row of pixel stars (see starRow in kit.js).
+const STAR_ROW_HALF = Math.ceil((PACKS.maxStars * 5 + (PACKS.maxStars - 1)) / 2);
 
 // Rarity colours are picked for dark backgrounds, which the wood plate is.
 const rarityColorOnWood = (rarity) => cssColor(RARITY[rarity].color);

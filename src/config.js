@@ -102,7 +102,7 @@ export const SHIP = {
   // The ship sprites are 160x160 art pixels (ship_stage1..3 plus a _front
   // railing layer each), all at layout.json's shipPos; enemies stop at its
   // shipContactX.
-  baseHp: 100,
+  baseHp: 120,          // max hull HP at hull level 0 (see UPGRADES.hullHp)
   startingDecks: 1,
   maxDecks: 3,
   slotsPerDeck: 2,
@@ -134,15 +134,17 @@ export const RARITY = {
 //                                     front enemy for `length` px, hitting each enemy once
 //   lob:    { flightTime, arcHeight } — arcing shot aimed where the target will be
 //   crit:   { chance, multiplier }  — chance for a multiplied hit
-//   aura:   { damageBonus, damageBonusPerLevel, attackSpeedBonus } — doesn't attack;
-//           buffs the other heroes on the same deck. damageBonus grows per level
-//           and with stars (same star bonus as damage).
+//   aura:   { damageBonus, damageBonusPerLevel, damageBonusPerStar, maxDamageBonus,
+//           attackSpeedBonus } — doesn't attack; buffs the other heroes on the
+//           same deck. The damage bonus grows per level and per star, up to
+//           maxDamageBonus.
+//   levelSpeed: { perLevel, max }    — attack speed +perLevel per level above 1, up to +max
 //   antiAir: true                   — can hit flying enemies (Storm Harpies)
 //   netsFlyers: true                — can't hurt flyers in the air, but can aim
 //                                     at them: the net grounds them (see slow)
 //   flyerBonus: n                   — n x damage against flyers
 //   targets: 'furthest'             — aims at the enemy furthest from the ship
-//   ignoresArmor: true              — armour doesn't reduce its hits
+//   ignoresArmor: true              — armour doesn't reduce its hits (area hits too)
 //   passesShields: true             — straight shots that pass through shields
 //   muzzle: { x, y, fx }            — shots start here (from the hero's centre x
 //                                     and feet), with fx playing there
@@ -163,6 +165,7 @@ export const HEROES = {
     projectileSpeed: 325,
     projectile: { sprite: 'pebble', impact: 'hit_spark' },
     antiAir: true,
+    levelSpeed: { perLevel: 0.01, max: 0.5 },
     catchphrase: "Aye aye! Point me at 'em and I'll sling till they sink!",
   },
   shipsCook: {
@@ -183,8 +186,8 @@ export const HEROES = {
     shortName: 'Netter',
     rarity: 'rare',
     color: 0x29b6f6,
-    damage: 6,
-    attackInterval: 2200,
+    damage: 10,
+    attackInterval: 1800,
     range: 300,
     projectileSpeed: 190,
     projectile: { sprite: 'net_throw', impact: 'hit_spark' },
@@ -212,7 +215,7 @@ export const HEROES = {
     shortName: 'Grog',
     rarity: 'rare',
     color: 0x558b2f,
-    damage: 4,
+    damage: 5,
     attackInterval: 900,
     range: 360,
     projectile: { sprite: 'grog_bottle', impact: 'grog_splash' },
@@ -244,6 +247,7 @@ export const HEROES = {
     range: 325,
     projectile: { sprite: 'cannonball', impact: 'explosion' },
     area: { radius: 47.5 },
+    ignoresArmor: true,
     lob: { flightTime: 1000, arcHeight: 75 },
     catchphrase: 'FIRE IN THE HOLE! Mind yer heads, lads!',
   },
@@ -252,12 +256,12 @@ export const HEROES = {
     shortName: 'Duelist',
     rarity: 'legendary',
     color: 0xb71c1c,
-    damage: 40,
+    damage: 24,
     attackInterval: 1300,
     range: 340,
     projectileSpeed: 475,
     projectile: { sprite: 'blade_arc', impact: 'hit_spark', rotate: true },
-    crit: { chance: 0.35, multiplier: 2.5 },
+    crit: { chance: 0.3, multiplier: 2.2 },
     antiAir: true,
     catchphrase: "En garde. This won't take long.",
   },
@@ -267,7 +271,7 @@ export const HEROES = {
     rarity: 'legendary',
     color: 0x1a237e,
     damage: 0,
-    aura: { damageBonus: 0.5, damageBonusPerLevel: 0.04, attackSpeedBonus: 0.3 },
+    aura: { damageBonus: 0.4, damageBonusPerLevel: 0.02, damageBonusPerStar: 0.05, maxDamageBonus: 1, attackSpeedBonus: 0.3 },
     catchphrase: 'All hands on deck! Make me proud, ye scurvy dogs!',
   },
   parrotKeeper: {
@@ -281,7 +285,7 @@ export const HEROES = {
     projectileSpeed: 210,
     projectile: { sprite: 'parrot_fly', impact: 'hit_spark' },
     antiAir: true,
-    flyerBonus: 2.5,
+    flyerBonus: 4,
     catchphrase: "Polly wants a harpy! Sic 'em, me beauties!",
   },
   shipsDoctor: {
@@ -289,7 +293,7 @@ export const HEROES = {
     shortName: 'Doctor',
     rarity: 'rare',
     color: 0xeceff1,
-    damage: 4,
+    damage: 7,
     attackInterval: 1000,
     range: 320,
     projectileSpeed: 260,
@@ -330,7 +334,7 @@ export const HEROES = {
     shortName: 'Storm',
     rarity: 'legendary',
     color: 0x5c6bc0,
-    damage: 20,
+    damage: 28,
     attackInterval: 1500,
     range: 340,
     antiAir: true,
@@ -495,9 +499,12 @@ export const ABILITY_BAR = {
 // where it stops. sprite: the <sprite>_sheet.png animations (animations.json);
 // sheetOnly: there is no single <sprite>.png. walkAnim / idleAnim rename the
 // "walk" / "idle" animation. Numbers scale per wave (see WAVES): hp,
-// shield.hp and blast.enemyDamage with the HP multiplier, damage and armor
-// with the damage multiplier, gold with the gold multiplier.
-//   armor:     flat amount taken off every hit (not poison), down to minDamage
+// shield.hp and blast.enemyDamage with the HP multiplier, damage with the
+// damage multiplier, gold with the gold multiplier.
+//   armor:     share of each hit's damage it shrugs off, down to minDamage;
+//              poison, curse bonus damage and ignoresArmor crew/abilities get through
+//   hullShare: { normal, elite } — its one hit on the ship is this share of
+//              the hull's max HP (instead of damage; not scaled by wave)
 //   flies:     cruises at layout.harpyFlightY, then dives at the top deck; only
 //              antiAir crew can hit it while airborne, and a net grounds it
 //   blast:     blows up on reaching the ship (damage, to the hull); killed
@@ -555,7 +562,7 @@ export const ENEMIES = {
     damage: 8,
     attackInterval: 1200,
     gold: 6,
-    armor: 4,
+    armor: 0.6,
     minDamage: 1,
   },
   stormHarpy: {
@@ -596,7 +603,8 @@ export const ENEMIES = {
     height: 31,
     hp: 12,
     speed: 55,
-    damage: 30,         // to the hull when it blows up at the ship
+    damage: 30,         // Wanted Board only; the hull takes hullShare
+    hullShare: { normal: 0.12, elite: 0.22 },   // of max hull HP when it blows up at the ship
     attackInterval: 1000,
     gold: 4,
     blast: {
@@ -666,7 +674,7 @@ export const ENEMIES = {
     face: { x: 14, y: 22 },   // Wanted Board: 32x32 crop of frame 0 from here
     width: 56,
     height: 60,
-    hp: 160,
+    hp: 400,
     speed: 9,
     damage: 12,
     attackInterval: 1500,
@@ -685,7 +693,7 @@ export const ENEMIES = {
     face: { x: 0, y: 30 },    // Wanted Board: 32x32 crop of frame 0 (its skull bow)
     width: 90,
     height: 60,
-    hp: 150,
+    hp: 450,
     speed: 0,
     damage: 4,          // per ghost cannonball that hits the hull
     attackInterval: 1000,
@@ -720,7 +728,8 @@ export const ENEMIES = {
     height: 15,
     hp: 30,
     speed: 18,
-    damage: 15,         // boarding damage, once, when it reaches the ship
+    damage: 15,         // Wanted Board only; the hull takes hullShare
+    hullShare: { normal: 0.15, elite: 0.25 },  // of max hull HP, once, when it reaches the ship
     attackInterval: 1000,
     gold: 3,
     boards: true,       // deals its damage on arrival, then is gone
@@ -747,9 +756,9 @@ export const ELITE = {
 export const WANTED = {
   path: 'ui/wanted/',   // under SPRITES.path
   bounties: [
-    { tier: 'bronze', defeats: 10, pearls: 10 },
-    { tier: 'silver', defeats: 100, pearls: 25 },
-    { tier: 'gold', defeats: 500, pearls: 50 },
+    { tier: 'bronze', defeats: 25, pearls: 10 },
+    { tier: 'silver', defeats: 250, pearls: 25 },
+    { tier: 'gold', defeats: 1000, pearls: 50 },
   ],
   // Board layout (base pixels): posters in a grid on the left, the details
   // page on the right.
@@ -779,7 +788,7 @@ export const WAVES = {
   hpPerWave: 0.5,
   hpPerWaveSquared: 0.012,
   // Enemy damage multiplier: (1 + damageGrowth) ^ (wave - 1)
-  damageGrowth: 0.08,
+  damageGrowth: 0.04,
   // Time between formations shrinks each wave down to a minimum; members of
   // a formation enter formationSpacing ms apart.
   spawnInterval: 1400,
@@ -801,8 +810,15 @@ export const WAVES = {
   // Galleon on 20, 40...
   bossEvery: 10,
   bosses: ['kraken', 'ghostGalleon'],
-  bossEscortFactor: 0.5,   // fraction of the normal enemy count
+  bossEscortFactor: 0.65,   // fraction of the normal enemy count
   bossSpawnAt: 0.3,        // boss enters this far through the spawn queue
+
+  // Endless grace: the first endlessGraceWaves waves after an island's finale
+  // is beaten bring fewer enemies (and Elites): endlessGraceStart x the usual
+  // count on the first, rising evenly to the full count on the wave after
+  // the last.
+  endlessGraceWaves: 10,
+  endlessGraceStart: 0.5,
 };
 
 // The voyage is split into islands of `waves` waves each, in map.json's
@@ -830,10 +846,10 @@ export const ISLANDS = [
       wave: 50,
       title: 'WRATH OF SKULL COVE',
       detail: 'WAVE 50 - FINAL BATTLE',
-      galleonAt: 1500, krakenAfter: 20000, hpFactor: 0.7,
-      trickle: 0.3, trickleFrom: 5000, trickleInterval: 3200,
+      galleonAt: 1500, krakenAfter: 20000, hpFactor: 1.5,
+      trickle: 1.0, trickleFrom: 5000, trickleInterval: 3200,
       rage: 1.6, rageTint: 0xff5a5a,
-      pearls: 60, legendaryChests: 1,
+      pearls: 40, legendaryChests: 1,
       clearedTitle: 'SKULL COVE CLEARED!',
     },
   },
@@ -897,7 +913,8 @@ export const ECONOMY = {
   startingGold: 0,
   // Kill gold multiplier: (1 + killGoldGrowth) ^ (wave - 1)
   killGoldGrowth: 0.07,
-  // Wave clear bonus: waveClearBase + (wave - 1) * waveClearPerWave
+  // Wave clear bonus: (waveClearBase + (wave - 1) * waveClearPerWave) times
+  // the kill gold multiplier
   waveClearBase: 10,
   waveClearPerWave: 4,
 
@@ -906,7 +923,7 @@ export const ECONOMY = {
   startingPearls: 3,        // enough for one chest right away
   pearlsPerWave: 1,         // every wave clear
   pearlsMilestoneEvery: 5,  // clearing every Nth wave pays a bonus on top
-  pearlsPerMilestone: 5,
+  pearlsPerMilestone: 3,
   pearlsPerBoss: 5,         // first kill of each boss wave only
 
   // Saves from before prestige was removed (save v6): all Renown, held plus
@@ -915,7 +932,10 @@ export const ECONOMY = {
 };
 
 export const PACKS = {
-  cost: 3,
+  cost: 5,
+  // "Buy 10": bulkCount chests at once for bulkCost Pearls.
+  bulkCount: 10,
+  bulkCost: 45,
   // Rarity weights; renormalized over rarities that actually have heroes.
   rates: { common: 0.45, rare: 0.3, epic: 0.18, legendary: 0.07 },
   // Pity: a Legendary is guaranteed within this many packs.
@@ -923,8 +943,9 @@ export const PACKS = {
   maxStars: 5,
   // Total damage bonus at each star count (index = stars). Each star adds more than the last.
   starDamageBonus: [0, 0.1, 0.25, 0.45, 0.7, 1.0],
-  // Duplicate of a max-star hero refunds this many Pearls instead.
-  maxStarRefund: 1,
+  // A duplicate of a max-star hero gives a Bonus Level instead: each one is
+  // +bonusLevelDamage damage (on top of level and stars), uncapped.
+  bonusLevelDamage: 0.05,
 };
 
 // Treasure-chest presentation, per rarity of the hero being pulled.
@@ -947,9 +968,10 @@ export const PACK_FX = {
 // Upgrade cost at level L: round(baseCost * costGrowth ^ L)
 export const UPGRADES = {
   hullHp: {
-    hpPerLevel: 25,
+    // Max hull HP at level L: round(SHIP.baseHp * hpGrowth ^ L), plus decks.
+    hpGrowth: 1.07,
     baseCost: 20,
-    costGrowth: 1.25,
+    costGrowth: 1.15,
   },
   deck: {
     costs: [100, 300],  // cost of deck 2, deck 3
