@@ -1,6 +1,7 @@
 import { ENEMIES, FX, SHIP, SPRITES } from './config.js';
 import { initLayout, LAYOUT } from './layout.js';
 import { preloadUi } from './ui/kit.js';
+import { versioned } from './version.js';
 
 export const SHIP_SLOTS_KEY = 'ship_slots';
 const ANIMATIONS_KEY = 'animations';
@@ -26,6 +27,12 @@ export const fxKey = (name) => `fx_${name}`;
 // sheet's frame size, so the sheets are queued once it has loaded.
 export function preloadSprites(scene) {
   const load = scene.load;
+  // Version every file's URL as it's queued (once: the loader outlives a
+  // scene restart).
+  if (!load.versioned) {
+    load.versioned = true;
+    load.on('addfile', (key, type, loader, file) => { file.url = versioned(file.url); });
+  }
   load.setPath(`${import.meta.env.BASE_URL}${SPRITES.path}`);
   for (let d = 1; d <= SHIP.maxDecks; d++) {
     load.image(shipStageKey(d), `${shipStageKey(d)}.png`);

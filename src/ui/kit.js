@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { HEROES, SPRITES, UI_KIT } from '../config.js';
+import { versioned } from '../version.js';
 
 // The UI kit in public/sprites/ui/: 9-slice wood and parchment panels, gold and
 // wood buttons (normal / hover / pressed / disabled), a bar frame, a 12px icon
@@ -21,7 +22,7 @@ const FONTS = ['main_light', 'main_dark', 'small_light', 'small_dark', 'big_ligh
 
 export async function loadUiSpec() {
   const base = `${import.meta.env.BASE_URL}${SPRITES.path}${UI_KIT.path}`;
-  const spec = await (await fetch(`${base}ui.json`)).json();
+  const spec = await (await fetch(versioned(`${base}ui.json`))).json();
   UI.colors = spec.colors;
   UI.icons = spec.icons.order;
   UI.iconSize = spec.icons.size;

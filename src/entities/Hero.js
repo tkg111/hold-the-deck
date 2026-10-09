@@ -1,7 +1,7 @@
 import { FX, HEROES, SPRITES } from '../config.js';
 import { laneFeetY } from '../layout.js';
 import { FX_DEPTH, fxSprite, playFx } from '../fx.js';
-import { findAnim, sheetKey } from '../sprites.js';
+import { findAnim, fxKey, sheetKey } from '../sprites.js';
 import { DEPTH } from './Ship.js';
 import { LobProjectile, nearestLiving, PiercingProjectile, Projectile } from './Projectile.js';
 
@@ -88,11 +88,13 @@ export class Hero {
       this.buffRing = fxSprite(this.scene, sprite, this.x, this.feetY);
       this.buffRing.setOrigin(0.5, (footRow + 0.5) / this.buffRing.height).setDepth(DEPTH.hero - 0.6);
     }
+    const anim = fxKey(sprite);
     if (mode === 'boosted') {
-      this.buffRing.setAlpha(1).play(this.buffRing.texture.key);
+      this.buffRing.setAlpha(1);
+      if (this.scene.anims.exists(anim)) this.buffRing.play(anim);
     } else {
       this.buffRing.setAlpha(sourceAlpha).stop();
-      this.buffRing.setFrame(0);
+      if (this.scene.anims.exists(anim)) this.buffRing.setFrame(0);
     }
   }
 

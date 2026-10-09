@@ -5,10 +5,19 @@ import { fxKey } from './sprites.js';
 // Projectiles and impacts draw over the scene and its overlays; UI is higher.
 export const FX_DEPTH = 5;
 
+const warned = new Set();  // missing sheets already reported
+
 // A sprite of the effect `name` at (x, y), playing its animation if it has one
-// (looping or once, as fx.json says).
+// (looping or once, as fx.json says). A sheet that failed to load gives a
+// sprite of Phaser's blank texture (and a warning) rather than its
+// missing-texture box, so the effect just doesn't show.
 export function fxSprite(scene, name, x, y) {
   const key = fxKey(name);
+  if (!scene.textures.exists(key)) {
+    if (!warned.has(name)) console.warn(`[fx] missing effect sheet: ${name}`);
+    warned.add(name);
+    return scene.add.sprite(x, y, '__DEFAULT');
+  }
   const sprite = scene.add.sprite(x, y, key, 0);
   if (scene.anims.exists(key)) sprite.play(key);
   return sprite;

@@ -9,7 +9,7 @@ Passion project — no real money, no ads, no timers. Everything is earned throu
 ## Tech
 
 - **Engine:** Phaser 3 + Vite (JavaScript)
-- **Hosting:** GitHub Pages
+- **Hosting:** GitHub Pages. Every asset URL (sprites, sheets, fonts and the JSON data files) carries the build's version (`?v=...`, new on each build), so after a deploy browsers don't mix cached old data files with the new code (Pages caches files for 10 minutes). An effect sheet that still fails to load is simply not drawn (with a console warning) rather than showing Phaser's missing-texture box.
 - **Saving:** browser localStorage (auto-save), versioned so old saves can be migrated
 - **Resolution:** the base resolution is **480x270** pixels, shown at the largest whole-number scale at which 480x270 still fits the window. The view then fills the window: it is the window size divided by that scale (never smaller than 480x270), so a window that isn't an exact multiple shows more of the world instead of empty borders (e.g. 1280x720 is scale 2 with a 640x360 view). Scale and view are re-picked whenever the window, fullscreen state or browser zoom changes. Everything (sprites, UI and text) is drawn at 1x in those pixels and every object is drawn on whole pixels (`roundPixels`).
 - **Fullscreen:** a button next to the sound toggle switches the page to fullscreen and back (its icon shows which); Esc also leaves. It is hidden where the browser doesn't support fullscreen (e.g. iPhone Safari).
