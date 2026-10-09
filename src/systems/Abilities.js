@@ -44,11 +44,12 @@ export class AbilitySystem {
 
   isReady(i) { return this.slots[i]?.cooldown <= 0; }
 
-  // Only worth using with an enemy on screen (in range of the crewmate, for
-  // the attack speed boosts).
+  // Only worth using with an enemy on screen it can reach (in range of the
+  // crewmate, for the attack speed boosts; flyers in the air only count for
+  // abilities with air).
   hasTarget({ hero, def }) {
     const range = def.needsRange ? ABILITY_BAR.supportRange : Infinity;
-    return this.scene.enemies.some((e) => e.targetable && Math.hypot(e.x - hero.x, e.y - hero.y) <= range);
+    return this.targets({ air: def.air }).some((e) => Math.hypot(e.x - hero.x, e.y - hero.y) <= range);
   }
 
   // Fire ability i if it's ready and has a target. Returns whether it fired.
@@ -83,7 +84,9 @@ export class AbilitySystem {
     this.effects = [];
   }
 
-  targets() { return this.scene.enemies.filter((e) => e.targetable); }
+  // Enemies an ability can affect: those on the lane, plus flyers in the
+  // air with air.
+  targets({ air = false } = {}) { return this.scene.enemies.filter((e) => e.canBeHit(air)); }
 
   // An arcing throw of the ability's sprite from the hero at an enemy (bends
   // to another if it dies).
@@ -91,7 +94,7 @@ export class AbilitySystem {
     this.scene.projectiles.push(new LobProjectile(this.scene, {
       x: hero.x, y: hero.y, target,
       flightTime: def.flightTime, arcHeight: def.arcHeight, sprite: def.sprite,
-      findTarget: (x, y) => nearestLiving(this.scene.enemies, x, y),
+      findTarget: (x, y) => nearestLiving(this.scene.enemies, x, y, (e) => e.canBeHit(false)),
       aimAt,
       onHit: (_hit, x, y) => onLand(x, y),
     }));
@@ -130,10 +133,10 @@ const ACTIONS = {
     });
   },
 
-  // Big Net: slows every enemy on screen.
+  // Big Net: slows every enemy on screen, grounding flyers.
   netThrower(sys, { def, scale }) {
     const duration = def.duration * scale;
-    for (const e of sys.targets()) e.applySlow(def.slow, duration);
+    for (const e of sys.targets({ air: true })) e.applySlow(def.slow, duration);
     sys.effects.push(new NetDrop(sys.scene, def, duration));
   },
 
@@ -210,7 +213,7 @@ class HexCast {
     if (this.time < this.def.curseAt) return true;
     const { def } = this;
     const burst = fxDuration(this.sys.scene, def.impact);
-    for (const e of this.sys.targets()) {
+    for (const e of this.sys.targets({ air: true })) {
       e.applyCurse(def.bonus, def.duration * this.scale);
       e.delayCurseMark(burst);
       playFx(this.sys.scene, def.impact, e.x, e.y);
@@ -375,7 +378,7 @@ class Broadside {
   land(x, y) {
     const { def } = this;
     for (const e of this.sys.targets()) {
-      if (Math.abs(e.x - x) <= def.radius + e.def.width / 2) e.takeDamage(this.damage);
+      if (Math.abs(e.x - x) <= def.radius + e.def.width / 2) e.takeDamage(this.damage, { lobbed: true });
     }
     playFx(this.sys.scene, def.impact, x, y - 12);
     shake(this.sys.scene, def.shake);

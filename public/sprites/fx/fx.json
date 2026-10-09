@@ -278,5 +278,25 @@
     "repeat": -1,
     "kind": "ability",
     "use": "Lunge: on the Duelist's target while crits remain (32x32 enemy box)"
+  },
+  "shield_break": {
+    "file": "shield_break.png",
+    "frameWidth": 24,
+    "frameHeight": 24,
+    "frames": 3,
+    "fps": 12,
+    "repeat": 0,
+    "kind": "impact",
+    "use": "Barnacle Knight's shield breaking"
+  },
+  "siren_note": {
+    "file": "siren_note.png",
+    "frameWidth": 12,
+    "frameHeight": 12,
+    "frames": 2,
+    "fps": 6,
+    "repeat": -1,
+    "kind": "projectile",
+    "use": "Siren's song: floats from her to the crewmate she stuns"
   }
 }

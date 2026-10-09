@@ -10,7 +10,7 @@ import { createAnimations, preloadSprites } from '../sprites.js';
 import { Ship } from '../entities/Ship.js';
 import { Hero } from '../entities/Hero.js';
 import { clearSave, loadProgress, saveProgress } from '../systems/Save.js';
-import { isBossWave, WaveManager } from '../systems/WaveManager.js';
+import { composeWave, isBossWave, isSirenWave, WaveManager } from '../systems/WaveManager.js';
 import { AbilitySystem } from '../systems/Abilities.js';
 import { AbilityBar } from '../ui/AbilityBar.js';
 import { Button } from '../ui/Button.js';
@@ -378,18 +378,31 @@ export class GameScene extends Phaser.Scene {
     this.scene.launch('PackScene', { progress: this.progress, onClose: () => this.onRosterChanged() });
   }
 
-  startWave() {
+  // confirmed: the player chose to set sail despite the flyer warning.
+  startWave({ confirmed = false } = {}) {
     if (this.state !== STATE.IDLE) return;
     if (this.heroes.length === 0) {
       this.showBanner('ASSIGN A HERO!', { detail: 'CLICK A SLOT ON THE SHIP', color: UI.colors.warn });
       return;
     }
     if (this.heroPicker.visible) this.heroPicker.close();
+    // Storm Harpies ahead and nobody on the ship can hit (or net) flyers.
+    const flyers = composeWave(this.progress.wave).some((s) => s.def.flies);
+    if (flyers && !confirmed && !this.heroes.some((h) => h.antiAir)) {
+      new ConfirmDialog(this, {
+        title: 'Flyers ahead!',
+        message: 'Storm Harpies fly in this wave, and none of your crew can hit flyers. Set sail anyway?',
+        confirmLabel: 'Set sail',
+        onConfirm: () => this.startWave({ confirmed: true }),
+      });
+      return;
+    }
     this.ship.setSlotsEnabled(false);
     this.ship.restore();
     this.waves.start(this.progress.wave);
     this.abilities.resetCooldowns();
     if (isBossWave(this.progress.wave)) this.showBanner('THE KRAKEN RISES!', { color: UI.colors.warn });
+    else if (isSirenWave(this.progress.wave)) this.showBanner('A SIREN SINGS!', { color: UI.colors.warn });
     this.state = STATE.RUNNING;
     this.applySpeed();
     this.refreshUi();

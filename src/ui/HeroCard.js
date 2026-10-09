@@ -1,7 +1,7 @@
 import { HEROES, PACKS, RARITY, SPRITES } from '../config.js';
 import { cssColor } from './format.js';
 import { describeHero } from './HeroPicker.js';
-import { dark, light, panel, starRow, subText, text, UI } from './kit.js';
+import { antiAirIcon, dark, hitsFlyers, light, panel, starRow, subText, text, UI } from './kit.js';
 
 // Card sizes in art pixels. 'large' is the chest reveal and new-crewmate
 // splash; 'small' fits ten to a screen in the Crew Roster (no effect text).
@@ -37,6 +37,8 @@ export function createHeroCard(scene, x, y, id, {
   // Sprite standing on a line below the plate.
   const feetY = top + (S.plate + 2) + (32 * S.spriteScale);
   card.add(heroPortrait(scene, id, feetY, S.spriteScale, silhouette));
+  // Anti-air crew: a mark in the top-right corner under the plate.
+  if (!silhouette && hitsFlyers(def)) card.add(antiAirIcon(scene, w / 2 - 8, top + S.plate + 7));
 
   let ty = feetY + 1;
   card.add(text(scene, 0, ty, silhouette ? '???' : def.name, silhouette ? light() : dark())

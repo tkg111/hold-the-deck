@@ -4,8 +4,9 @@ import { SHIP_SLOTS_KEY, shipFrontKey, shipStageKey } from '../sprites.js';
 
 // Draw order, back to front, as layout.json's drawOrder: background, ship,
 // crew, enemies, The Kraken (and its splash), the animated foreground, then
-// the ship's front railing layer. Slot markers and enemy HP bars go
-// on top of the scene; projectiles and UI stay above all of these.
+// the ship's front railing layer. Flying enemies are in front of all that
+// (they dive at the decks); slot markers and enemy HP bars go on top of the
+// scene; projectiles and UI stay above all of these.
 export const DEPTH = {
   background: -20,
   ship: -19,
@@ -15,6 +16,7 @@ export const DEPTH = {
   splash: -15,
   foreground: -14,
   shipFront: -13,
+  flyer: -12.5,
   slotMarkers: -12,
   enemyOverlay: -10,
 };
@@ -112,6 +114,14 @@ export class Ship {
   // Where a hero in the given slot stands: centre x and feet y.
   slotPosition(slot) {
     return this.slots[slot];
+  }
+
+  // Where a flyer hovers to attack the top deck: off its frontmost slot by
+  // (hoverX, hoverY) from that slot's feet.
+  flyerHoverPoint({ hoverX, hoverY }) {
+    const top = this.slots.slice((this.decks - 1) * SHIP.slotsPerDeck, this.decks * SHIP.slotsPerDeck);
+    const front = top.reduce((a, s) => (s.x > a.x ? s : a));
+    return { x: front.x + hoverX, y: front.feetY + hoverY };
   }
 
   takeDamage(amount) {

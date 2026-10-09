@@ -23,6 +23,13 @@ export class Hero {
     this.boosts = [];
     this.lunge = null;
     this.boostSprites = {};   // fx sprite name -> sprite
+    // Stunned by the Siren's song: no attacks (cooldown paused), stun stars
+    // over the head.
+    this.stunTime = 0;
+    this.stunStars = null;
+    // Anti-air crew can hit flyers in the air; the Net Thrower can aim at
+    // them too (his net grounds them).
+    this.antiAir = !!(this.def.antiAir || this.def.netsFlyers);
 
     const sprite = SPRITES.heroes[id];
     const { width } = SPRITES.placeholderHero;
@@ -30,6 +37,7 @@ export class Hero {
     this.x = x;
     this.feetY = feetY;
     this.y = feetY - height / 2;
+    this.top = feetY - height;
 
     // Buff ring under the feet while boosted: always for a hero The Captain
     // buffs (deck buff), and while an ability boost lasts. The Captain
@@ -98,12 +106,37 @@ export class Hero {
     }
   }
 
-  // End of a wave: boosts and Lunge end with it.
+  // End of a wave: boosts, Lunge and stuns end with it.
   clearAbilities() {
     this.boosts = [];
     this.lunge = null;
+    this.stunTime = 0;
     this.tickAbilities(0);
+    this.tickStun(0);
   }
+
+  // The Siren's note: no attacks for ms.
+  stun(ms) {
+    this.stunTime = Math.max(this.stunTime, ms);
+    if (!this.stunStars) {
+      this.stunStars = fxSprite(this.scene, 'stun_stars', Math.round(this.x), Math.round(this.top) - FX.statusGap)
+        .setOrigin(0.5, 1).setDepth(DEPTH.slotMarkers);
+    }
+    this.body.anims?.pause();
+  }
+
+  tickStun(dt) {
+    this.stunTime = Math.max(0, this.stunTime - dt);
+    if (this.stunTime > 0 || !this.stunStars) return;
+    this.stunStars.destroy();
+    this.stunStars = null;
+    this.body.anims?.resume();
+  }
+
+  get isStunned() { return this.stunTime > 0; }
+
+  // Whether this crewmate can hit (or, the Net Thrower, net) the enemy.
+  canHit(e) { return e.canBeHit(this.antiAir); }
 
   get speedMult() {
     return this.boosts.reduce((m, b) => m * b.mult, 1);
@@ -123,7 +156,7 @@ export class Hero {
   // The enemy with the most HP left (Lunge's target).
   toughest(enemies) {
     let best = null;
-    for (const e of enemies) if (e.targetable && (!best || e.hp > best.hp)) best = e;
+    for (const e of enemies) if (this.canHit(e) && (!best || e.hp > best.hp)) best = e;
     return best;
   }
 
@@ -137,7 +170,8 @@ export class Hero {
   // Returns a new projectile if the hero fired this frame.
   update(dt, enemies) {
     this.tickAbilities(dt);
-    if (this.def.aura) return null;  // support hero: never attacks
+    this.tickStun(dt);
+    if (this.def.aura || this.isStunned) return null;  // support hero: never attacks
     this.cooldown -= dt * this.speedMult;
     if (this.cooldown > 0) return null;
 
@@ -166,7 +200,7 @@ export class Hero {
       sprite: def.projectile.sprite, rotate: def.projectile.rotate,
       onHit: (hit, x, y) => this.onHit(hit, x, y, lunge),
       // Used when the target dies mid-flight.
-      findTarget: (x, y) => nearestLiving(this.scene.enemies, x, y),
+      findTarget: (x, y) => nearestLiving(this.scene.enemies, x, y, (e) => this.canHit(e)),
     };
     if (def.lob) {
       return new LobProjectile(this.scene, {
@@ -180,6 +214,7 @@ export class Hero {
         ...common, ...def.pierce,
         speed: def.projectileSpeed,
         enemies: () => this.scene.enemies,
+        canHit: (e) => this.canHit(e),
       });
     }
     return new Projectile(this.scene, { ...common, speed: def.projectileSpeed });
@@ -187,40 +222,44 @@ export class Hero {
 
   // Where an enemy will be after msLeft, for lobbed shots: walking left at its
   // current (possibly slowed) speed, standing still if stunned, never past where
-  // it stops. Walkers follow the lane up or down.
+  // it stops. Walkers follow the lane up or down. Flyers and the Siren are
+  // aimed at where they are.
   leadPoint(enemy, msLeft) {
-    const lead = enemy.isStunned ? 0
-      : enemy.speed * (enemy.isSlowed ? enemy.slowFactor : 1) * msLeft / 1000;
+    if (enemy.def.flies || enemy.def.stationary) return { x: enemy.x, y: enemy.y };
+    const lead = enemy.isStunned ? 0 : enemy.speed * enemy.pace * msLeft / 1000;
     const x = Math.max(enemy.stopX, enemy.x - lead);
     const y = enemy.def.emerges ? enemy.y : laneFeetY(x) - enemy.def.height / 2;
     return { x, y };
   }
 
-  // Closest living enemy to the ship that's within range. The Voodoo Priestess prefers
-  // enemies that aren't cursed yet, and the Grog Brewer ones not yet
-  // poisoned, so their effects spread across the wave.
+  // Closest living enemy to the ship that's within range (and that it can
+  // hit: flyers in the air need anti-air). The Voodoo Priestess prefers
+  // enemies that aren't cursed yet, the Grog Brewer ones not yet poisoned,
+  // so their effects spread across the wave, and the Net Thrower flyers still
+  // in the air, to ground them.
   pickTarget(enemies) {
-    const { curse, poison } = this.def;
+    const { curse, poison, netsFlyers } = this.def;
     let best = null;
     let bestFresh = null;
     for (const e of enemies) {
-      if (!e.targetable) continue;
+      if (!this.canHit(e)) continue;
       if (Math.hypot(e.x - this.x, e.y - this.y) > this.def.range) continue;
       if (!best || e.x < best.x) best = e;
-      const fresh = (curse && !e.isCursed) || (poison && !e.isPoisoned);
+      const fresh = (curse && !e.isCursed) || (poison && !e.isPoisoned) || (netsFlyers && e.airborne);
       if (fresh && (!bestFresh || e.x < bestFresh.x)) bestFresh = e;
     }
     return bestFresh || best;
   }
 
   // The shot landed at (x, y): its impact plays there, then damage and
-  // effects go to the target (or everything in the area).
+  // effects go to the target (or everything in the area it can hit). Lobbed
+  // shots go over a Barnacle Knight's shield.
   onHit(target, x, y, lunge = null) {
-    const { area, stun, slow, curse, poison, crit } = this.def;
+    const { area, stun, slow, curse, poison, crit, lob } = this.def;
     playFx(this.scene, this.def.projectile.impact, x, y);
     const victims = area
-      ? this.scene.enemies.filter((e) => e.targetable && Math.hypot(e.x - x, e.y - y) <= area.radius)
-      : (target && target.targetable ? [target] : []);
+      ? this.scene.enemies.filter((e) => this.canHit(e) && Math.hypot(e.x - x, e.y - y) <= area.radius)
+      : (target && this.canHit(target) ? [target] : []);
 
     for (const e of victims) {
       let damage = this.damage;
@@ -229,7 +268,7 @@ export class Hero {
         this.scene.floatText(e.x, e.y - e.def.height / 2 - 13, 'CRIT!', '#ffca28');
       }
       if (lunge) playFx(this.scene, lunge.impact, e.x, e.y, FX_DEPTH + 1);
-      e.takeDamage(damage);
+      e.takeDamage(damage, { lobbed: !!lob });
       if (!e.alive) continue;
       if (stun && Math.random() < stun.chance) e.applyStun(stun.duration);
       if (slow) e.applySlow(slow.factor, slow.duration);
@@ -240,6 +279,7 @@ export class Hero {
 
   destroy() {
     this.buffRing?.destroy();
+    this.stunStars?.destroy();
     for (const sprite of Object.values(this.boostSprites)) sprite.destroy();
     this.body.destroy();
   }

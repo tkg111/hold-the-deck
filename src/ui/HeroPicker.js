@@ -1,6 +1,6 @@
 import { ABILITIES, HEROES, RARITY, UI_KIT } from '../config.js';
 import { rarityTextColor, starLabel } from './format.js';
-import { face, hexColor, dark, subText, text, UI } from './kit.js';
+import { antiAirIcon, face, hexColor, hitsFlyers, dark, subText, text, UI } from './kit.js';
 import { ScrollPanel } from './ScrollPanel.js';
 
 const pct = (n) => `${Math.round(n * 100)}%`;
@@ -20,6 +20,8 @@ export function describeHero(def) {
   if (def.crit) parts.push(`${pct(def.crit.chance)} crit chance for ${def.crit.multiplier}x damage`);
   if (def.slow) parts.push(`slows ${pct(1 - def.slow.factor)} for ${secs(def.slow.duration)}`);
   if (def.curse) parts.push(`curse: +${pct(def.curse.bonus)} damage taken from all`);
+  if (def.antiAir) parts.push('hits flyers');
+  if (def.netsFlyers) parts.push('nets ground flyers');
   const text = parts.join(', ') || 'Fast shots, no effect';
   return text[0].toUpperCase() + text.slice(1);
 }
@@ -81,14 +83,17 @@ export class HeroPicker extends ScrollPanel {
       const where = progress.slotOf(id);
       const note = where === slot ? '  HERE' : where >= 0 ? `  SLOT ${where + 1}` : '';
       const stars = starLabel(progress.heroStarCount(id));
+      const name = text(scene, 16, -1, def.name, dark());
       row.add([
         face(scene, 6, 14, id),
-        text(scene, 16, -1, def.name, dark()),
+        name,
         text(scene, 16, 11, `${rarity.label}  LV ${progress.heroLevel(id)}${stars ? `  ${stars}` : ''}${note}`,
           subText({ color: rarityTextColor(def.rarity) })),
         text(scene, 16, 19, abilityTitle(id), subText()),
         text(scene, 16, 26, describeAbility(id, progress.abilityScale(id)), subText()),
       ]);
+      // Anti-air crew: the mark after their name.
+      if (hitsFlyers(def)) row.add(antiAirIcon(scene, 16 + name.inkWidth + 7, 4));
     } else {
       row.add(text(scene, 16, 12, 'Leave empty', subText()));
     }

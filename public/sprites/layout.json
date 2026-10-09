@@ -59,5 +59,15 @@
     "the Kraken",
     "fg_sheet.png",
     "ship_stageN_front.png"
-  ]
+  ],
+  "siren": {
+    "x": 232,
+    "y": 192,
+    "note": "top-left of her 48x48 frame; the rock base sits in the water under the wave layer"
+  },
+  "harpyFlightY": {
+    "min": 140,
+    "max": 175,
+    "note": "flyers cruise at this height, then dive at the top deck"
+  }
 }

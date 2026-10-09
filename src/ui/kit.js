@@ -210,6 +210,24 @@ export class Bar extends Phaser.GameObjects.Container {
   }
 }
 
+// --- Anti-air mark ---
+
+// An up arrow through a crosshair ring (7x7), for crew who can hit flyers.
+const ANTI_AIR = ['..###..', '.#.#.#.', '#.###.#', '#..#..#', '#..#..#', '.#.#.#.', '..###..'];
+
+// The anti-air mark centred on (x, y), in UI_KIT.antiAirColor.
+export function antiAirIcon(scene, x, y) {
+  const g = scene.add.graphics({ x: Math.round(x) - 3, y: Math.round(y) - 3 });
+  g.fillStyle(hexColor(UI_KIT.antiAirColor));
+  ANTI_AIR.forEach((row, r) => [...row].forEach((c, col) => {
+    if (c === '#') g.fillRect(col, r, 1, 1);
+  }));
+  return g;
+}
+
+// Whether a hero can hit flyers (the Net Thrower nets them, which counts).
+export const hitsFlyers = (def) => !!(def.antiAir || def.netsFlyers);
+
 // --- Pixel stars (the fonts have no star glyph) ---
 
 const STAR = ['..#..', '.###.', '#####', '.###.', '#.#.#'];

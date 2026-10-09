@@ -198,6 +198,25 @@ class Sfx {
     this.noise({ start: t, duration: 0.3, volume: 0.35, filterFrom: 700, filterTo: 150, q: 0.8 });
   }
 
+  // --- Enemies ---
+
+  // The Siren's song: a soft, wavering three-note phrase.
+  sirenSong() {
+    const t = this.ready();
+    if (t == null) return;
+    [880, 1046.5, 987.77].forEach((f, i) => {
+      this.tone({ freq: f, endFreq: f * 0.98, type: 'sine', start: t + i * 0.22, duration: 0.4, volume: 0.12, attack: 0.08 });
+    });
+  }
+
+  // A Barnacle Knight's shield shattering: a crack and a clang.
+  shieldBreak() {
+    const t = this.ready();
+    if (t == null) return;
+    this.noise({ start: t, duration: 0.2, volume: 0.4, filterFrom: 2500, filterTo: 800, q: 1.2 });
+    this.tone({ freq: 700, endFreq: 420, type: 'triangle', start: t, duration: 0.3, volume: 0.2 });
+  }
+
   // An ability that can't be used right now.
   denied() {
     const t = this.ready();

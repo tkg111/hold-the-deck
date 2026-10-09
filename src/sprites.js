@@ -40,7 +40,9 @@ export function preloadSprites(scene) {
   }
   load.json(SHIP_SLOTS_KEY, `${SHIP_SLOTS_KEY}.json`);
   for (const { key } of Object.values(SPRITES.heroes)) load.image(key, `${key}.png`);
-  for (const def of Object.values(ENEMIES)) if (def.sprite) load.image(def.sprite, `${def.sprite}.png`);
+  for (const def of Object.values(ENEMIES)) {
+    if (def.sprite && !def.sheetOnly) load.image(def.sprite, `${def.sprite}.png`);
+  }
   load.image(BACKGROUND_KEY, `${BACKGROUND_KEY}.png`);
   const splash = SPRITES.krakenSplash;
   load.spritesheet(splash.key, `${splash.key}.png`, { frameWidth: splash.frameWidth, frameHeight: splash.frameHeight });

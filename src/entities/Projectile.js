@@ -4,16 +4,18 @@ import { FX_DEPTH, fxSprite } from '../fx.js';
 // right; with `rotate` it turns to its flight angle, otherwise it keeps its
 // own animation (the spinning ones).
 //
-// All projectiles take `findTarget(x, y)`, which returns the nearest living,
-// targetable enemy (or null). When a projectile's target dies before it lands, it switches
+// All projectiles take `findTarget(x, y)`, which returns the nearest living
+// enemy the shooter can hit (or null). When a projectile's target dies before it lands, it switches
 // to that enemy instead of wasting the shot on an empty spot; it fizzles only
 // when no enemies are left.
 
-export function nearestLiving(enemies, x, y) {
+// canHit(enemy): whether the shooter can hit it (anti-air); by default
+// anything targetable.
+export function nearestLiving(enemies, x, y, canHit = (e) => e.targetable) {
   let best = null;
   let bestDist = Infinity;
   for (const e of enemies) {
-    if (!e.targetable) continue;
+    if (!canHit(e)) continue;
     const d = Math.hypot(e.x - x, e.y - y);
     if (d < bestDist) {
       best = e;
@@ -135,11 +137,12 @@ export class LobProjectile {
 
 // Flies down to the front of the enemy line, then skims along it (toward the
 // incoming enemies) for `length` px, hitting each enemy it passes once, up to
-// maxTargets. Calls onHit(enemy, x, y) per enemy. If the target dies before the
+// maxTargets. Calls onHit(enemy, x, y) per enemy it can hit (canHit). If the target dies before the
 // harpoon reaches the line, it re-aims at the nearest living enemy; once skimming
 // it hits whatever is on the line.
 export class PiercingProjectile {
-  constructor(scene, { x, y, target, speed, sprite, length, maxTargets, hitRadius, enemies, onHit, findTarget }) {
+  constructor(scene, { x, y, target, speed, sprite, length, maxTargets, hitRadius, enemies, canHit, onHit, findTarget }) {
+    this.canHit = canHit;
     this.speed = speed;
     this.length = length;
     this.hitRadius = hitRadius;
@@ -195,7 +198,7 @@ export class PiercingProjectile {
     if (wp) this.sprite.rotation = Math.atan2(wp.y - this.sprite.y, wp.x - this.sprite.x);
 
     for (const e of this.enemies()) {
-      if (!e.targetable || this.hits.has(e)) continue;
+      if (!this.canHit(e) || this.hits.has(e)) continue;
       const reach = this.hitRadius + e.def.width / 2;
       if (Math.abs(e.x - this.sprite.x) <= reach && Math.abs(e.y - this.sprite.y) <= e.def.height / 2 + this.hitRadius) {
         this.hits.add(e);

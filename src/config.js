@@ -67,6 +67,7 @@ export const UI_KIT = {
   starEmptyColor: '#c9b48a',
   dividerColor: '#d9c39a', // lines between parchment rows
   dotRadius: 3,           // red "something to do" dot on buttons
+  antiAirColor: '#2f6db5', // anti-air mark on crew cards and picker rows
   shipwrightRows: 5,      // rows visible at once; more scroll
   rowHeight: 28,
   // The hero picker: wider than the Shipwright (it extends left over the
@@ -127,6 +128,9 @@ export const RARITY = {
 //   aura:   { damageBonus, damageBonusPerLevel, attackSpeedBonus } — doesn't attack;
 //           buffs the other heroes on the same deck. damageBonus grows per level
 //           and with stars (same star bonus as damage).
+//   antiAir: true                   — can hit flying enemies (Storm Harpies)
+//   netsFlyers: true                — can't hurt flyers in the air, but can aim
+//                                     at them: the net grounds them (see slow)
 export const HEROES = {
   cabinBoy: {
     name: 'Cabin Boy',
@@ -138,6 +142,7 @@ export const HEROES = {
     range: 350,
     projectileSpeed: 325,
     projectile: { sprite: 'pebble', impact: 'hit_spark' },
+    antiAir: true,
     catchphrase: "Aye aye! Point me at 'em and I'll sling till they sink!",
   },
   shipsCook: {
@@ -165,6 +170,7 @@ export const HEROES = {
     projectile: { sprite: 'net_throw', impact: 'hit_spark' },
     area: { radius: 37.5 },
     slow: { factor: 0.5, duration: 2500 },
+    netsFlyers: true,
     catchphrase: 'Hold still, ye barnacle-brained bilge rats!',
   },
   voodooPriestess: {
@@ -178,6 +184,7 @@ export const HEROES = {
     projectileSpeed: 225,
     projectile: { sprite: 'spirit_orb', impact: 'hit_spark' },
     curse: { bonus: 0.3, duration: 4000 },
+    antiAir: true,
     catchphrase: "The spirits whisper yer name... and they're hungry.",
   },
   grogBrewer: {
@@ -204,6 +211,7 @@ export const HEROES = {
     projectileSpeed: 215,
     projectile: { sprite: 'harpoon', impact: 'hit_spark', rotate: true },
     pierce: { maxTargets: 6, length: 150, hitRadius: 11 },
+    antiAir: true,
     catchphrase: "Line 'em up, and I'll skewer the lot of 'em!",
   },
   cannoneer: {
@@ -230,6 +238,7 @@ export const HEROES = {
     projectileSpeed: 475,
     projectile: { sprite: 'blade_arc', impact: 'hit_spark', rotate: true },
     crit: { chance: 0.35, multiplier: 2.5 },
+    antiAir: true,
     catchphrase: "En garde. This won't take long.",
   },
   captain: {
@@ -257,10 +266,12 @@ export const STARTING_HEROES = ['cabinBoy'];
 // `sprite` is what's thrown or dropped and `impact` plays where it hits.
 // Abilities need a targetable enemy on screen to fire; needsRange ones (the
 // attack speed boosts) need one within range of the crew (ABILITY_BAR.supportRange).
+// Only abilities with air: true count (and reach) flying Storm Harpies; the
+// rest work on the lane.
 export const ABILITIES = {
   cabinBoy: {
     name: 'Rapid Fire', cooldown: 15000, color: 0xfff176,
-    attackSpeed: 3, duration: 4000, needsRange: true,
+    attackSpeed: 3, duration: 4000, needsRange: true, air: true,
     fx: { sprite: 'rapid_fire', behind: true },
     effect: 'Triple attack speed for {duration}',
   },
@@ -272,7 +283,7 @@ export const ABILITIES = {
   },
   netThrower: {
     name: 'Big Net', cooldown: 20000, color: 0x81d4fa,
-    slow: 0.5, duration: 5000,
+    slow: 0.5, duration: 5000, air: true,   // grounds flyers like the Net Thrower's net
     sprite: 'big_net',   // tiled along the lane
     dropTime: 350, fadeTime: 400,   // the net drops in, and fades as the slow ends
     effect: 'Slows every enemy {slow} for {duration}',
@@ -294,7 +305,7 @@ export const ABILITIES = {
   },
   voodooPriestess: {
     name: 'Hex', cooldown: 25000, color: 0xce93d8,
-    bonus: 0.5, duration: 6000,
+    bonus: 0.5, duration: 6000, air: true,
     // hex_cast plays on her, its ring (this row of the 48px frame) at her
     // feet; curseAt ms in, the curse lands on every enemy with a hex_hit
     // burst, and their curse mark shows once the burst is over.
@@ -310,14 +321,14 @@ export const ABILITIES = {
   },
   duelist: {
     name: 'Lunge', cooldown: 22000, color: 0xff5252,
-    hits: 5,
+    hits: 5, air: true,
     impact: 'lunge_cross',   // on the target with each crit
     mark: 'lunge_target',    // loops on the target while crits remain
     effect: 'Next {hits} hits on toughest foe crit',
   },
   captain: {
     name: 'All Hands!', cooldown: 30000, color: 0xffd54f,
-    attackSpeed: 1.5, duration: 6000, needsRange: true,
+    attackSpeed: 1.5, duration: 6000, needsRange: true, air: true,
     fx: { sprite: 'all_hands' },
     effect: 'Whole crew +{attackSpeed} attack speed {duration}',
   },
@@ -349,6 +360,20 @@ export const ABILITY_BAR = {
   supportRange: 350,
 };
 
+// Every enemy is 32x32 (The Kraken 64x64, the Siren 48x48) with its feet on
+// the bottom row; width and height are its visible body, used for hits and
+// where it stops. sprite: the <sprite>_sheet.png animations (animations.json);
+// sheetOnly: there is no single <sprite>.png. walkAnim / idleAnim rename the
+// "walk" / "idle" animation. Numbers scale per wave (see WAVES): hp,
+// shield.hp and blast.enemyDamage with the HP multiplier, damage and armor
+// with the damage multiplier, gold with the gold multiplier.
+//   armor:     flat amount taken off every hit (not poison), down to minDamage
+//   flies:     cruises at layout.harpyFlightY, then dives at the top deck; only
+//              antiAir crew can hit it while airborne, and a net grounds it
+//   blast:     blows up on reaching the ship (damage, to the hull); killed
+//              first, its keg hits enemies within radius for enemyDamage
+//   shield:    blocks straight shots until its hp is gone; lobbed ones hit
+//   stationary + song: the Siren (see below)
 export const ENEMIES = {
   drownedSailor: {
     name: 'Drowned Sailor',
@@ -375,6 +400,110 @@ export const ENEMIES = {
     gold: 3,
     stealPercent: 0.05, // ...steals this share of current gold, then vanishes
   },
+  ironCrab: {
+    name: 'Iron Crab',
+    color: 0x5a6470,
+    sprite: 'iron_crab',
+    sheetOnly: true,
+    width: 26,
+    height: 23,
+    hp: 60,
+    speed: 12,
+    damage: 8,
+    attackInterval: 1200,
+    gold: 6,
+    armor: 4,
+    minDamage: 1,
+  },
+  stormHarpy: {
+    name: 'Storm Harpy',
+    color: 0x6b6fb5,
+    sprite: 'storm_harpy',
+    sheetOnly: true,
+    idleAnim: 'fly',    // loops the whole time; "dive" shows while diving
+    width: 18,
+    height: 22,
+    hp: 22,
+    speed: 30,
+    damage: 6,
+    attackInterval: 1100,
+    gold: 5,
+    flies: {
+      // Where it hovers to attack: off the front of the top deck (from the
+      // frontmost slot on it: x to the right, y up from its feet).
+      hoverX: 22,
+      hoverY: -14,
+      hoverSpread: 8,   // each picks a spot up to this far off it, so they don't stack
+      diveFrom: 70,     // starts diving this far right of the hover point
+      diveSpeed: 110,
+      climbSpeed: 40,   // back up to its height after a net
+      fallSpeed: 120,   // dropping to the lane when netted
+    },
+  },
+  kegRunner: {
+    name: 'Keg Runner',
+    color: 0x9c6b3a,
+    sprite: 'keg_runner',
+    sheetOnly: true,
+    width: 16,
+    height: 31,
+    hp: 12,
+    speed: 55,
+    damage: 30,         // to the hull when it blows up at the ship
+    attackInterval: 1000,
+    gold: 4,
+    blast: {
+      radius: 40, enemyDamage: 40,
+      fx: 'explosion', fxScale: 2,
+      shake: { duration: 120, intensity: 0.004 },
+    },
+  },
+  barnacleKnight: {
+    name: 'Barnacle Knight',
+    color: 0x4f7a6a,
+    sprite: 'barnacle_knight',
+    sheetOnly: true,
+    walkAnim: 'walk_shield',
+    width: 18,
+    height: 29,
+    hp: 50,
+    speed: 16,
+    damage: 10,
+    attackInterval: 1100,
+    gold: 8,
+    // brokenAnim: its walk once the shield is gone; fx plays at (offsetX,
+    // offsetY) from its feet, where the shield is. barColor: the shield bar
+    // over its HP bar.
+    shield: {
+      hp: 60, brokenAnim: 'walk_noshield',
+      fx: 'shield_break', offsetX: -10, offsetY: -14, barColor: 0xb0bec5,
+    },
+  },
+  siren: {
+    name: 'Siren',
+    color: 0x26a69a,
+    sprite: 'siren',     // 48x48; layout.siren is the frame's top-left
+    sheetOnly: true,
+    width: 30,
+    height: 48,
+    hp: 100,
+    speed: 0,
+    damage: 0,
+    attackInterval: 1000,
+    gold: 20,
+    stationary: true,   // appears at layout.siren (fading in) and stays
+    fadeInMs: 500,
+    // Every interval ms (the first after firstAt) she plays "sing" for
+    // singMs and sends a siren_note (at noteSpeed) to a random crewmate on
+    // the ship, stunning them for stun ms, and every other enemy within
+    // hasteRadius of her moves and attacks hasteMult x as fast for
+    // hasteDuration ms.
+    song: {
+      firstAt: 2500, interval: 6000, singMs: 1200,
+      note: 'siren_note', noteSpeed: 120, stun: 1500,
+      hasteRadius: 110, hasteMult: 1.5, hasteDuration: 4000,
+    },
+  },
   kraken: {
     name: 'The Kraken',
     boss: true,
@@ -382,9 +511,9 @@ export const ENEMIES = {
     sprite: 'the_kraken',     // 64x64, flat bottom on the waterline
     width: 56,
     height: 60,
-    hp: 400,
+    hp: 160,
     speed: 9,
-    damage: 25,
+    damage: 12,
     attackInterval: 1500,
     gold: 50,
     statusResist: 0.5,  // stun and slow durations multiplied by this
@@ -392,28 +521,48 @@ export const ENEMIES = {
   },
 };
 
+// From fromWave, any enemy but the boss can spawn as an Elite: gold tint,
+// hpMultiplier x HP (and shield), goldMultiplier x gold. Chance per enemy:
+// chance + (wave - fromWave) * chancePerWave, up to maxChance.
+export const ELITE = {
+  fromWave: 20,
+  chance: 0.08,
+  chancePerWave: 0.004,
+  maxChance: 0.3,
+  hpMultiplier: 3,
+  goldMultiplier: 3,
+  tint: 0xffd54f,
+};
+
 // Battle speeds the x-button cycles through during a wave (1 = normal).
 // Session only: it isn't saved, and between waves everything runs at 1x.
 export const GAME_SPEEDS = [1, 2];
 
 export const WAVES = {
-  // Enemy count: baseCount + (wave - 1) * countPerWave
+  // Enemies per wave (at least): baseCount + (wave - 1) * countPerWave.
+  // Waves are built from FORMATIONS until they hold that many.
   baseCount: 5,
-  countPerWave: 2,
-  // Enemy HP multiplier: 1 + (wave - 1) * hpGrowth
-  hpGrowth: 0.2,
-  // Enemy damage multiplier: 1 + (wave - 1) * damageGrowth
-  damageGrowth: 0.1,
-  // Spawn interval shrinks each wave down to a minimum.
-  spawnInterval: 900,
-  spawnIntervalPerWave: -30,
-  minSpawnInterval: 350,
+  countPerWave: 2.5,
+  // Enemy HP multiplier: 1 + n * hpPerWave + n^2 * hpPerWaveSquared, n = wave - 1
+  hpPerWave: 0.5,
+  hpPerWaveSquared: 0.012,
+  // Enemy damage multiplier: (1 + damageGrowth) ^ (wave - 1)
+  damageGrowth: 0.08,
+  // Time between formations shrinks each wave down to a minimum; members of
+  // a formation enter formationSpacing ms apart.
+  spawnInterval: 1400,
+  spawnIntervalPerWave: -20,
+  minSpawnInterval: 700,
+  formationSpacing: 350,
+  // In an escorted formation the others keep at least this far behind the
+  // leader while it walks (they're free once it dies or reaches the ship).
+  followGap: 16,
 
-  // Thief Monkey share of a wave: thiefMonkeyShare + (wave - thiefMonkeyFromWave) * thiefMonkeySharePerWave, capped.
-  thiefMonkeyFromWave: 3,
-  thiefMonkeyShare: 0.15,
-  thiefMonkeySharePerWave: 0.01,
-  thiefMonkeyShareMax: 0.4,
+  // A Siren joins every sirenEvery-th wave from sirenFromWave (not boss
+  // waves), entering this far through the wave.
+  sirenFromWave: 16,
+  sirenEvery: 3,
+  sirenSpawnAt: 0.25,
 
   // Every bossEvery-th wave: The Kraken plus a reduced escort of regular enemies.
   bossEvery: 10,
@@ -421,10 +570,30 @@ export const WAVES = {
   bossSpawnAt: 0.3,        // boss enters this far through the spawn queue
 };
 
+// Groups a wave is built from, picked at random by weight from those
+// unlocked (from: first wave); a formation's first wave always has one.
+// members: ENEMIES keys, front first. escort: the rest keep behind the first
+// while it walks, so e.g. Keg Runners shelter behind a Barnacle Knight's
+// shield. A wave's line-up is seeded by its number, so a retry meets the
+// same formations.
+export const FORMATIONS = [
+  { from: 1, weight: 4, members: ['drownedSailor'] },
+  { from: 2, weight: 3, members: ['drownedSailor', 'drownedSailor', 'drownedSailor'] },
+  { from: 3, weight: 1.5, members: ['thiefMonkey'] },
+  { from: 4, weight: 1.5, escort: true, members: ['drownedSailor', 'thiefMonkey', 'thiefMonkey'] },
+  { from: 6, weight: 2, escort: true, members: ['ironCrab', 'drownedSailor', 'drownedSailor'] },
+  { from: 8, weight: 2, members: ['stormHarpy', 'stormHarpy'] },
+  { from: 10, weight: 1.5, members: ['kegRunner', 'kegRunner'] },
+  { from: 12, weight: 1.5, escort: true, members: ['ironCrab', 'kegRunner', 'kegRunner'] },
+  { from: 14, weight: 2, escort: true, members: ['barnacleKnight', 'kegRunner', 'kegRunner'] },
+  { from: 15, weight: 1.5, escort: true, members: ['barnacleKnight', 'barnacleKnight', 'drownedSailor', 'drownedSailor'] },
+  { from: 18, weight: 1.5, escort: true, members: ['barnacleKnight', 'ironCrab', 'stormHarpy', 'stormHarpy'] },
+];
+
 export const ECONOMY = {
   startingGold: 0,
-  // Kill gold multiplier: 1 + (wave - 1) * killGoldGrowth
-  killGoldGrowth: 0.1,
+  // Kill gold multiplier: (1 + killGoldGrowth) ^ (wave - 1)
+  killGoldGrowth: 0.07,
   // Wave clear bonus: waveClearBase + (wave - 1) * waveClearPerWave
   waveClearBase: 10,
   waveClearPerWave: 4,
@@ -487,6 +656,6 @@ export const UPGRADES = {
     // Damage at level L: baseDamage * (1 + (L - 1) * damagePerLevel)
     damagePerLevel: 0.2,
     baseCost: 15,
-    costGrowth: 1.25,
+    costGrowth: 1.22,
   },
 };

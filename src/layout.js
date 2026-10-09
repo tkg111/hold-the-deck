@@ -5,7 +5,8 @@
 // the enemy lane and the Kraken's rising spot) is anchored to the right edge
 // and the ship stays at the left, with more sea in between: shiftIsland(dx)
 // moves everything island-side right by dx. Ship-side points (the ship, where
-// enemies stop, where the Kraken glides to) never move.
+// enemies stop, where the Kraken glides to, the Siren's rock, so she stays in
+// the crew's range) never move.
 export const LAYOUT = {};
 
 let base = null;
@@ -29,6 +30,10 @@ export function initLayout(json) {
       toX: advance.toX,
     },
     foreground: { frames: json.foreground.frames, fps: json.foreground.fps },
+    // Top-left of the Siren's 48x48 frame.
+    siren: { x: json.siren.x, y: json.siren.y },
+    // Storm Harpies cruise with their body centre between these heights.
+    flightY: { min: json.harpyFlightY.min, max: json.harpyFlightY.max },
   };
   shiftIsland(LAYOUT.islandShift ?? 0);
 }

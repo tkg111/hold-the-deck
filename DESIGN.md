@@ -14,12 +14,12 @@ Passion project — no real money, no ads, no timers. Everything is earned throu
 - **Resolution:** the base resolution is **480x270** pixels, shown at the largest whole-number scale at which 480x270 still fits the window. The view then fills the window: it is the window size divided by that scale (never smaller than 480x270), so a window that isn't an exact multiple shows more of the world instead of empty borders (e.g. 1280x720 is scale 2 with a 640x360 view). Scale and view are re-picked whenever the window, fullscreen state or browser zoom changes. Everything (sprites, UI and text) is drawn at 1x in those pixels and every object is drawn on whole pixels (`roundPixels`).
 - **Fullscreen:** a button next to the sound toggle switches the page to fullscreen and back (its icon shows which); Esc also leaves. It is hidden where the browser doesn't support fullscreen (e.g. iPhone Safari).
 - **Art:** pixel-art sprites in `public/sprites/`, drawn with Phaser's `pixelArt` setting (nearest-neighbour, whole-pixel positions) at 1x in the base resolution, so pixels stay square. Every hero and enemy has a sprite, as does the ship (one per deck count). Anything added later without art falls back to a coloured rectangle.
-- **Battle scene:** `bg.png` (sky, sea and a palm island on the right) behind everything and `fg_sheet.png` (near water and island foliage, 3 frames looping at 3 fps) in front, positioned and layered as `layout.json` describes. In a view bigger than 480x270 the ship stays at the bottom-left and the island (with its beach, the enemy lane, the spawn point and the Kraken's rising spot) is anchored to the right edge, so extra width is more open sea between them and enemies walk further before they reach the ship (and the heroes' range). Left of `bg.png` the sea and sky (and the near water in front of the ship) are the left 288 columns of `bg.png` / `fg_sheet.png`, repeated mirror-wise so the seams match; above it the sky bands continue upward, each one darker by the same step as the top two bands of `bg.png`, up to 5 extra bands, then the last colour carries on to the top. If the window is resized mid-wave, walking enemies keep the same share of their way left to go. Draw order: background, ship, crew, enemies, The Kraken (and its splash), foreground, ship railing layer; slot markers, labels, HP bars, projectiles and UI go on top.
+- **Battle scene:** `bg.png` (sky, sea and a palm island on the right) behind everything and `fg_sheet.png` (near water and island foliage, 3 frames looping at 3 fps) in front, positioned and layered as `layout.json` describes. In a view bigger than 480x270 the ship stays at the bottom-left and the island (with its beach, the enemy lane, the spawn point and the Kraken's rising spot) is anchored to the right edge, so extra width is more open sea between them and enemies walk further before they reach the ship (and the heroes' range). Left of `bg.png` the sea and sky (and the near water in front of the ship) are the left 288 columns of `bg.png` / `fg_sheet.png`, repeated mirror-wise so the seams match; above it the sky bands continue upward, each one darker by the same step as the top two bands of `bg.png`, up to 5 extra bands, then the last colour carries on to the top. If the window is resized mid-wave, walking enemies keep the same share of their way left to go. The Siren's rock (`layout.siren`) is ship-side and doesn't move with the island, so she stays in the crew's range. Draw order: background, ship, crew, enemies (the Siren among them, her rock under the near water), The Kraken (and its splash), foreground, ship railing layer, flying enemies; slot markers, labels, HP bars, projectiles and UI go on top.
 - **Positions (layout.json):** the ship's top-left is at `shipPos`. Walking enemies enter at `enemySpawnX` off the island's beach and follow the lane: their feet y is interpolated between the lane points as they walk, from the sand down into the water. They stop when their front edge reaches `shipContactX`.
 - **Ship sprites:** `ship_stage1/2/3.png` (160x160) show the ship with 1, 2 or 3 decks built; the one matching the current deck count is shown. Heroes are drawn between it and the matching `ship_stageN_front.png` railing layer, so they stand behind the railings. Hero slot positions come from `ship_slots.json` (each deck's 2 slots as centre x and feet y in sprite pixels). Where two slots on a deck are close together, the second hero's name label sits higher so the labels don't overlap. Empty slots show a frame and a "+".
-- **Character sprites:** heroes, the Drowned Sailor and the Thief Monkey are 32x32 with the feet on the bottom row; they stand on their slot (heroes) or the lane (enemies). The Kraken is 64x64. Rectangle placeholders stand the same way.
-- **Effect sprites:** every projectile, impact, status mark and ability effect is a sheet in `public/sprites/fx/`, drawn at 1x; `fx.json` gives each one's frame size, frame count, fps, whether it loops or plays once (one-shot effects hold their last frame) and what it's for. Shots are drawn flying right: the harpoon, whale harpoon and Duelist's blade arc turn to their flight angle, and the spinning ones (frying pan, grog bottle, stew pot, grog barrel) just loop their animation. Lobbed shots (cannonball, grog bottle, frying pan, stew pot, grog barrel) fly in an arc to where the target will be; the rest fly straight. Where a shot hits, its impact plays: an explosion for cannonballs, a grog splash for bottles (and the Grog Barrel), a hit spark for everything else. Every hit (except poison ticks) flashes the enemy white for 60ms.
-- **Animation:** in battle, characters are animated from `<name>_sheet.png`, with frame sizes, frame lists and fps from `animations.json`. Crewmates loop "idle" and play "attack" each time they fire, then return to idle; each one's idle starts on a frame staggered by slot so the crew doesn't bob in sync. The Drowned Sailor and Thief Monkey loop "walk" while moving and stand still otherwise. The Kraken loops "idle" and plays "attack" each time it hits the ship. Animations slow down with the enemy when slowed and freeze while stunned. Characters without an animation fall back to their single PNG (a little lunge or squash when they attack).
+- **Character sprites:** heroes and every enemy but two are 32x32 with the feet on the bottom row, all facing left; they stand on their slot (heroes) or the lane (enemies). The Kraken is 64x64 and the Siren 48x48 (on her rock). Each enemy's hit box is its visible body (`width` / `height` in config), measured from its art. The newer enemies (Iron Crab, Storm Harpy, Keg Runner, Barnacle Knight, Siren) only have sheets, no single PNG. Rectangle placeholders stand the same way.
+- **Effect sprites:** every projectile, impact, status mark and ability effect is a sheet in `public/sprites/fx/`, drawn at 1x; `fx.json` gives each one's frame size, frame count, fps, whether it loops or plays once (one-shot effects hold their last frame) and what it's for. Shots are drawn flying right: the harpoon, whale harpoon and Duelist's blade arc turn to their flight angle, and the spinning ones (frying pan, grog bottle, stew pot, grog barrel) just loop their animation. Lobbed shots (cannonball, grog bottle, frying pan, stew pot, grog barrel) fly in an arc to where the target will be; the rest fly straight. Where a shot hits, its impact plays: an explosion for cannonballs, a grog splash for bottles (and the Grog Barrel), a hit spark for everything else. Every hit (except poison ticks) flashes the enemy white for 60ms. Enemy effects: a Keg Runner's blast is the explosion at 2x size, a Barnacle Knight's shield breaking plays `shield_break` where the shield was, and the Siren's `siren_note` floats from her to the crewmate it stuns.
+- **Animation:** in battle, characters are animated from `<name>_sheet.png`, with frame sizes, frame lists and fps from `animations.json`. Crewmates loop "idle" and play "attack" each time they fire, then return to idle; each one's idle starts on a frame staggered by slot so the crew doesn't bob in sync. The Drowned Sailor, Thief Monkey, Iron Crab and Keg Runner loop "walk" while moving and stand still otherwise; the Barnacle Knight walks with "walk_shield" until its shield breaks, then "walk_noshield". The Storm Harpy loops "fly" the whole time, showing "dive" while it dives. The Siren loops "idle" and plays "sing" while she sings. The Kraken loops "idle" and plays "attack" each time it hits the ship. Animations slow down with the enemy when slowed (and speed up while the Siren hastes it) and freeze while stunned. Characters without an animation fall back to their single PNG (a little lunge or squash when they attack).
 - **UI kit:** `public/sprites/ui/` holds 9-slice wood and parchment panels, gold and wood buttons (normal / hover / pressed / disabled images, used for those states), a bar frame and a 12px icon sheet; `ui.json` gives the slice sizes, icon order and colours. Mock-ups: `ui_mock_battle.png` and `ui_mock_between_waves.png` in the project root.
 - **Fonts:** all text is bitmap text from `public/sprites/ui/fonts/`, never scaled and positioned on whole pixels (centred text included), so it is as crisp as the art. Pre-coloured fonts by background:
   - **main_light** (16px, cream with a dark outline): on wood panels and wood buttons, and over the scene. Coloured text (red warnings, rarity names, gold amounts) tints it; the outline stays dark.
@@ -32,13 +32,13 @@ Passion project — no real money, no ads, no timers. Everything is earned throu
 ## Core Loop
 
 1. Player presses **Start Wave**. Hull HP is refilled to full before every wave.
-2. Enemies spawn on the right and walk left toward the ship.
+2. Enemies spawn on the right in formations and come left toward the ship.
 3. Heroes on the ship auto-attack.
 4. **Wave cleared:** earn gold and Pearls (see Currencies) and advance to the next wave.
 5. **Hull HP hits 0:** wave fails, wave number does NOT advance. Gold earned from kills during the attempt is kept. Player can upgrade and retry. No other penalty.
 6. Between waves: upgrade screen, hero slot assignment, treasure chests.
 
-Waves are endless and scale in difficulty.
+Waves are endless and scale in difficulty (see Waves).
 
 ## The Ship
 
@@ -47,17 +47,58 @@ Waves are endless and scale in difficulty.
 - Upgradeable **hull HP** (+25 max HP per level).
 - Heroes are assigned to slots by the player between waves (click a slot, pick an owned hero; picking a hero already placed elsewhere swaps them). Only slotted heroes fight.
 
-## Enemies (v0.1)
+## Enemies
 
-| Enemy | Role | Behaviour |
-|---|---|---|
-| **Drowned Sailor** | Basic | Walks to the ship and attacks it. Most of every wave. |
-| **Thief Monkey** | Fast thief | Fast, low HP. On reaching the ship, steals a % of gold instead of dealing damage, then disappears. |
-| **The Kraken** | Boss | Appears every 10 waves with a reduced escort. Rises out of the sea in front of the ship (layout.json's `kraken.rise`: over 2.5s, with a splash at the waterline) and can't be targeted or hit until it has fully risen. Then it glides left at its normal speed to `kraken.advance.toX` and attacks from there. Very high HP, slow, hits the ship hard. **Status resist:** stun and slow last half as long on it, so it can't be stun-locked. |
+| Enemy | From wave | Role | Behaviour |
+|---|---|---|---|
+| **Drowned Sailor** | 1 | Basic | Walks to the ship and attacks it. Most of every early wave. |
+| **Thief Monkey** | 3 | Fast thief | Fast, low HP. On reaching the ship, steals 5% of gold instead of dealing damage, then disappears. |
+| **Iron Crab** | 6 | Slow tank | Slow, lots of HP, and **armour**: every hit loses a flat amount (4, growing with the wave's damage multiplier), down to 1 damage, so weak fast hits (an unlevelled Cabin Boy) barely hurt it. Poison isn't reduced. |
+| **Storm Harpy** | 8 | Flyer | Flies in at a random height between `layout.harpyFlightY`'s min and max (140–175), then **dives** (from 70px out) at the top deck and attacks the hull from a spot off its frontmost slot (each harpy picks a spot up to 8px off it, so they don't stack). While airborne only **anti-air** crew can hit it: Cabin Boy, Harpooner, Voodoo Priestess and The Duelist. **Nets ground it:** a Net Thrower's net (his shots and Big Net) drops it to the lane for as long as the net's slow lasts, where anyone can hit it and it can't move or attack; then it climbs back up. |
+| **Keg Runner** | 10 | Suicide runner | Fast and fragile. On reaching the ship it blows up for heavy hull damage (30, scaled like any enemy damage) and is gone, with no gold. Killed first, its keg explodes where it fell (the explosion at 2x size and a camera shake), hitting every enemy on the lane within 40px for 40 x the wave's HP multiplier (over shields, and it can set off other kegs). |
+| **Barnacle Knight** | 14 | Shield | Its shield (60 x the wave's HP multiplier, shown as a grey bar over its HP bar) blocks every straight shot until the shield's HP is gone; then `shield_break` plays and it walks on without it. **Lobbed** attacks go over the shield and hit it directly: Ship's Cook, Grog Brewer, Cannoneer, Hot Stew, Grog Barrel and Broadside (and Keg Runner blasts). Status effects from blocked shots still land. |
+| **Siren** | 16 | Support | Joins every 3rd wave from 16 (16, 19, 22…, never a boss wave), a quarter of the way through it: she fades in on her rock at `layout.siren` and never moves. Every 6s (the first 2.5s after she appears) she plays "sing" and sends a `siren_note` to a random crewmate on the ship: it stuns them for 1.5s (no attacks, stun stars over their head), and every other enemy within 110px of her moves and attacks 50% faster for 4s. Stunning or slowing her delays her song. She must be killed to clear the wave. An "A SIREN SINGS!" banner warns at the start of her waves. |
+| **The Kraken** | 10 | Boss | Appears every 10 waves with a reduced escort. Rises out of the sea in front of the ship (layout.json's `kraken.rise`: over 2.5s, with a splash at the waterline) and can't be targeted or hit until it has fully risen. Then it glides left at its normal speed to `kraken.advance.toX` and attacks from there. Very high HP, slow, hits the ship hard. **Status resist:** stun and slow last half as long on it, so it can't be stun-locked. Never Elite. |
+
+### Elites
+
+From wave 20 any enemy but the boss can spawn as an **Elite**: tinted gold, 3x HP (and 3x shield), 3x gold. The chance per enemy is 8% at wave 20, +0.4% per wave after, up to 30%.
+
+## Waves
+
+- **Formations:** a wave is built from formations (`FORMATIONS` in config), picked at random by weight from the ones unlocked so far, until it holds at least 5 enemies + 2.5 per wave after the first. A formation's first wave always includes it, so each new enemy is introduced on schedule. Formations come 1.4s apart (0.02s less each wave, down to 0.7s); members of one enter 0.35s apart. In an **escorted** formation the others keep at least 16px behind the leader while it walks, and are free once it dies or reaches the ship: Keg Runners shelter behind a Barnacle Knight's shield or an Iron Crab, Thief Monkeys behind a Drowned Sailor.
+
+  | From | Formation |
+  |---|---|
+  | 1 | a Drowned Sailor |
+  | 2 | three Drowned Sailors |
+  | 3 | a Thief Monkey |
+  | 4 | escorted: a Drowned Sailor, two Thief Monkeys |
+  | 6 | escorted: an Iron Crab, two Drowned Sailors |
+  | 8 | two Storm Harpies |
+  | 10 | two Keg Runners |
+  | 12 | escorted: an Iron Crab, two Keg Runners |
+  | 14 | escorted: a Barnacle Knight, two Keg Runners |
+  | 15 | escorted: two Barnacle Knights, two Drowned Sailors |
+  | 18 | escorted: a Barnacle Knight, an Iron Crab, two Storm Harpies |
+
+- **Same line-up on a retry:** the formations, their order and which enemies are Elite come from a generator seeded by the wave number, so retrying a wave meets the same line-up (and the flyer warning below knows what's coming).
+- **Boss waves** (every 10th): half the usual enemies, with The Kraken entering 30% of the way through.
+- **Scaling** (n = wave - 1): enemy HP x (1 + 0.5n + 0.012n²), about 6.5x at wave 10, 15x at wave 20, 39x at wave 40 and 72x at wave 60 (it used to be 1 + 0.2n); enemy damage x 1.08ⁿ; kill gold x 1.07ⁿ.
+- **Flyer warning:** pressing SET SAIL! for a wave with Storm Harpies when nobody on the ship can hit flyers (no anti-air crew and no Net Thrower) asks first: "Flyers ahead!", with Cancel / Set sail.
+
+### Balance simulation
+
+`npm run sim [-- runs maxWave]` plays the game headless from a fresh save (the real battle code, with Phaser stubbed out; see `scripts/sim/`). A bot opens every affordable chest, puts its best crew on the ship (The Captain beside the strongest, someone anti-air from wave 8) and either spends all its gold after every wave (**greedy**) or only after losing one (**lazy**: its waves between losses show how often upgrades are needed). `SIM_CONFIG` takes JSON merged into config, for trying numbers. With the current numbers (10 runs each, up to wave 70):
+- **Greedy** clears about 98% of waves 1–40 on the first try, 95% of 41–50, 88% of 51–60 and 83% of 61–70. Half the runs reach wave 70, in about 65–75 minutes of battle; the rest stall (15 losses in a row) between waves 51 and 64.
+- **Lazy** has to upgrade every 3–8 waves through waves 1–40 (losing about 1 wave in 6 on the first try), then every 1–2 waves after 40. Its runs stall between waves 30 and 64, or reach 70.
+- Early losses are mostly boss waves and the first Iron Crab and Storm Harpy waves; later ones Siren and Elite-heavy waves. Chest luck moves a run a lot (a run without The Captain stalls sooner).
 
 ## Heroes
 
-All heroes are ranged and attack from the ship, except The Captain, who supports. If a shot's target dies while it is in flight, the shot switches to the nearest living enemy (a lobbed cannonball bends its arc to land on it); shots only fizzle when no enemies are left.
+All heroes are ranged and attack from the ship, except The Captain, who supports. If a shot's target dies while it is in flight, the shot switches to the nearest living enemy it can hit (a lobbed cannonball bends its arc to land on it); shots only fizzle when no enemies are left.
+
+**Anti-air:** the Cabin Boy, Harpooner, Voodoo Priestess and The Duelist can hit Storm Harpies in the air; the rest only hit enemies on the lane (their area hits skip harpies overhead). The Net Thrower can't hurt a harpy in the air either, but aims at them (preferring ones still flying), because his net grounds them. Anti-air crew and the Net Thrower carry a small blue mark (an up-arrow in a ring) in the top-right corner of their card and after their name in the hero picker, and their effect line says "hits flyers" / "nets ground flyers".
 
 | Hero | Rarity | Attack | Effect |
 |---|---|---|---|
@@ -91,6 +132,8 @@ Every crewmate has one active ability, used during waves from the ability bar (o
 
 - **Scaling:** damage from abilities is a multiple of the crewmate's own damage, so it grows with level and stars like their attacks do. Durations (and the Hot Stew stun) are multiplied by 1 + 2% per level above 1 + 10% per star, up to 2x. Speed boosts stack multiplicatively (Rapid Fire during All Hands! is 4.5x).
 - **Using them:** every ability is ready at the start of each wave. An ability only fires with an enemy to use it on: any targetable enemy on screen, or for the attack speed boosts (Rapid Fire, All Hands!) one within 350px of the crewmate. Pressing one that can't fire plays a dull blip and keeps it ready. Stun and slow from abilities are halved on The Kraken like any other.
+- **Flyers:** only Rapid Fire, Big Net, Hex, Lunge and All Hands! reach (and count) Storm Harpies in the air; Big Net grounds them like the Net Thrower's shots. Hot Stew, Grog Barrel, Whale Harpoon and Broadside work on the lane only.
+- **Siren stuns:** a crewmate stunned by the Siren's note can still use their ability.
 - **Auto:** a toggle at the end of the ability bar fires every ability as soon as it is ready and has a target. Saved with progress (save v7).
 - **Feedback:** the ability name floats up from the crewmate in its colour, with a synthesized sound per ability (blips, a whoosh and clang, a net swish, a barrel crash and glugs, a ringing harpoon, an eerie hex, cannon booms on each impact, a sword "shing", a bugle call). Effects: Rapid Fire's streaks behind the Cabin Boy and All Hands!' sparkles over each crewmate while they last; the stew pot and grog barrel spin through the air and splash (stew splash, grog splash); Big Net drops from above the view onto the lane (tiled along it), lies there while the slow lasts and fades out as it ends; the poison puddle lies on the lane while it lasts and fades out; the whale harpoon skims the lane, turned to its slope, with a hit spark on each enemy; Hex plays its cast on the Priestess (centred on her, its ring at her feet), then a hex burst on each enemy as the curse lands, and the curse mark once the burst is over; a gold buff ring loops under the feet of every boosted crewmate (Rapid Fire, All Hands!, The Captain's deck buff), and The Captain always stands on a still, 60%-dimmed one as the buff's source; a target marker loops on the enemy the Duelist's next Lunge shot will hit (the toughest) while crits remain; Broadside's cannonballs drop onto the lane and explode; each Lunge crit flashes a cross on the target.
 
@@ -143,12 +186,12 @@ There is no prestige or reset loop: progress is one endless voyage. (A "New Voya
 ## Sound
 
 - All sound effects are synthesized with the Web Audio API; there are no audio files.
-- Current effects: chest rattle, chest opening, reveal chime (scales with rarity), new-hero sparkle, UI clicks, one per ability plus pot, barrel and cannonball impacts.
+- Current effects: chest rattle, chest opening, reveal chime (scales with rarity), new-hero sparkle, UI clicks, one per ability plus pot, barrel and cannonball impacts, Keg Runner blasts (the cannonball boom), a Barnacle Knight's shield breaking (a crack and a clang) and the Siren's song (a soft three-note phrase).
 - **Sound: On/Off** toggle on the main screen (usable mid-wave), saved with progress.
 
 ## Starting Numbers
 
-All placeholders, meant to be tuned once playable. Every balance value lives in `src/config.js`; the numbers quoted in this doc are the current values there, and the config wins if they ever disagree.
+Every balance value lives in `src/config.js`; the numbers quoted in this doc are the current values there, and the config wins if they ever disagree. Wave scaling, enemy stats and upgrade costs were tuned with the balance simulation (see Waves): along with the steeper HP curve, hero level costs grow x1.22 per level (was x1.25), and The Kraken has 160 HP and hits for 12 (was 400 and 25) since it now scales much harder.
 
 ## v0.1 Build Order
 
@@ -182,6 +225,6 @@ Layout follows `ui_mock_battle.png` and `ui_mock_between_waves.png`.
 
 ## Later (not in v0.1)
 
-- More enemies: Cursed Gulls (flying, only some heroes can hit), Floating Skulls (high damage, low HP)
+- More enemies: Floating Skulls (high damage, low HP)
 - Music (sound effects exist; no background music yet)
 - Save export/import
