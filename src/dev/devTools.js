@@ -66,8 +66,8 @@ export function installDevTools(scene) {
     autoButton.setLabel(autoLabel());
   };
   // Visible during waves too, so it can be turned off mid-wave.
-  const autoButton = new Button(scene, 64, 237, {
-    ...small, width: 124, label: autoLabel(),
+  const autoButton = new Button(scene, 76, 237, {
+    ...small, width: 148, label: autoLabel(),
     onClick: () => {
       auto.on = !auto.on;
       auto.paused = false;
@@ -78,7 +78,7 @@ export function installDevTools(scene) {
   });
 
   const corner = scene.add.container(0, 0, [devButton, pearlsButton, waveButton, autoButton]).setDepth(20);
-  const layout = (view) => corner.setPosition(view.left, view.bottom - DISPLAY.height);
+  const layout = (view) => corner.setPosition(view.left, Math.round(view.bottom - DISPLAY.height));
   layout(scene.view);
 
   // Buttons that don't pause it: its own, SET SAIL! (a wave started by hand

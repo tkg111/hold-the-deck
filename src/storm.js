@@ -69,7 +69,7 @@ export class Storm {
   // Cover the view: the tint, rain and flash all of it, the clouds along its
   // top (at storm.json's y, or the view's top if that's higher up).
   layout(view) {
-    for (const o of [this.tint, this.rain, this.flash]) o.setPosition(view.left, view.top).setSize(view.width, view.height);
+    for (const o of [this.tint, this.rain, this.flash]) o.setPosition(view.left, view.top).setSize(view.width, Math.ceil(view.height));
     this.clouds.setPosition(view.left, Math.min(view.top, this.cloudsY)).setSize(view.width, this.clouds.height);
     this.view = view;
   }

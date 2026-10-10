@@ -3,28 +3,31 @@
 
 export const GAME_TITLE = 'Hold the Deck';
 
-// The game's base resolution: 480x270 pixels, shown at the largest whole-number
-// scale that fits the window (see src/display.js). All positions, sizes,
-// distances and speeds are in these base pixels, and sprites and text are
-// drawn at 1x in them.
+// The game's base resolution: 480x270 pixels. The game area is always 480
+// wide, scaled to fill the window's width, and between 270 (16:9) and 360
+// (4:3) tall; outside that range it's centred with bars (see src/display.js).
+// All positions, sizes, distances and speeds are in these base pixels, and
+// sprites and text are drawn at 1x in them.
 export const DISPLAY = {
   width: 480,
   height: 270,
+  maxAspect: 16 / 9,   // wider windows get bars left and right
+  minAspect: 4 / 3,    // taller ones get bars above and below
+  bars: {
+    color: '#141a30',
+    // The frame round the game area, rings from the inside out: [width in
+    // CSS px, colour].
+    border: [[1, '#2a170a'], [3, '#8a5a2e'], [1, '#2a170a']],
+  },
 };
 
-// Filling a view bigger than the base resolution (see src/display.js and
-// src/scenery.js). The battle scene keeps bg.png's island at the right edge
-// and the ship at the bottom-left; extra width is sea in between, extra height
-// is sky above.
+// The battle backdrop in a view taller than 270: bg_tall.png (480x430) holds
+// bg.png's picture at y = originY, so that row sits at the battlefield's
+// y = 0. skyShare of the extra height goes above (more sky), the rest below
+// (more sea).
 export const SCENERY = {
-  // Sea and sky to the left of bg.png (and the near water of fg_sheet.png) are
-  // its leftmost mirrorWidth columns, repeated mirror-wise so the seams match.
-  // Stays left of the beach (sand starts at x = 302 on the bottom row).
-  mirrorWidth: 288,
-  // Above bg.png the sky bands keep going: each band darker than the one
-  // below it by the same step as bg.png's top two, as tall as its second
-  // band, up to this many; higher than that the last colour carries on.
-  maxExtraSkyBands: 5,
+  originY: 100,
+  skyShare: 0.6,
 };
 
 // Pixel art, drawn with Phaser's pixelArt setting. Scene positions come from

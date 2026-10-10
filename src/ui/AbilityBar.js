@@ -89,7 +89,7 @@ export class AbilityBar extends Phaser.GameObjects.Container {
     const n = this.entries.length;
     const total = n * size + Math.max(0, n - 1) * gap + autoGap + autoWidth;
     const left = Math.round(view.centerX - total / 2);
-    const y = view.bottom - bottomMargin - Math.ceil(size / 2);
+    const y = Math.round(view.bottom) - bottomMargin - Math.ceil(size / 2);
     this.setPosition(0, 0);
     this.entries.forEach((e, i) => {
       const x = left + i * (size + gap) + Math.floor(size / 2);

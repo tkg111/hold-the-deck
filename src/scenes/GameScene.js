@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { DEV, DISPLAY, ENEMIES, GAME_SPEEDS, HEROES, SIM, UI_KIT } from '../config.js';
+import { DEV, DISPLAY, ENEMIES, GAME_SPEEDS, HEROES, SCENERY, SIM, UI_KIT } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
 import { DEV_TOOLS } from '../devFlag.js';
 import {
@@ -38,11 +38,11 @@ export class GameScene extends Phaser.Scene {
   }
 
   create() {
-    // The battlefield is the fixed 480x270 world of layout.json, flush with
-    // the view's bottom-right corner (the island at the right edge): extra
-    // width is open sea behind the ship, extra height is sky. Nothing in the
-    // battle depends on the view's size.
-    applyRenderScale(this, { x: 1, y: 1 });
+    // The battlefield is the fixed 480x270 world of layout.json, as wide as
+    // the view. Extra height (up to 90 in a 4:3 view) is more sky above and
+    // more sea below, SCENERY.skyShare of it on top. Nothing in the battle
+    // depends on the view's size.
+    applyRenderScale(this, { y: SCENERY.skyShare });
     createAnimations(this);
     this.progress = loadProgress();
     sfx.init(this.game);
@@ -53,7 +53,6 @@ export class GameScene extends Phaser.Scene {
     this.projectiles = [];
 
     this.scenery = new Scenery(this);
-    this.scenery.layout(this.view);
     this.storm = new Storm(this);
     this.ship = new Ship(this, this.progress);
     this.heroes = [];
@@ -93,10 +92,9 @@ export class GameScene extends Phaser.Scene {
     this.refreshUi();
   }
 
-  // The window changed size: fill the new view with sea and sky and re-anchor
-  // the HUD (the battlefield itself doesn't move).
+  // The window changed size: re-cover the view with the storm and re-anchor
+  // the HUD (the battlefield and backdrop don't move).
   onViewResize(view) {
-    this.scenery.layout(view);
     this.storm.layout(view);
     this.layoutUi(view);
   }
@@ -191,8 +189,8 @@ export class GameScene extends Phaser.Scene {
 
   // Anchor the HUD to the view: plaques to their top corners, the enemies bar
   // to the top centre, the Shipwright (and hero picker) to the right and the
-  // button bar to the bottom right, under the Shipwright. (The view's right
-  // and bottom edges are the base layout's; see create().)
+  // button bar to the bottom right, under the Shipwright. (The view is the
+  // game area: always 480 wide, 270 to 360 tall; see create().)
   layoutUi(view) {
     const right = view.right - DISPLAY.width;
     const center = Math.round(view.centerX - DISPLAY.width / 2);
@@ -202,7 +200,7 @@ export class GameScene extends Phaser.Scene {
     this.banner.setPosition(center + 188, view.top + 80);
     this.shipwright.setPosition(right + 273, view.top + 64);
     this.heroPicker.setPosition(right + 473 - UI_KIT.pickerWidth, view.top + 64);
-    this.bottomBar.setPosition(right, view.bottom - DISPLAY.height);
+    this.bottomBar.setPosition(right, Math.round(view.bottom - DISPLAY.height));
     this.abilityBar.layout(view);
     this.notices.layout(view);
   }
@@ -521,7 +519,6 @@ export class GameScene extends Phaser.Scene {
   }
 
   update(_time, delta) {
-    this.scenery.syncForeground();
     this.notices.update(Math.min(delta, 100));
     this.storm.update(Math.min(delta, 100));
     if (this.state !== STATE.RUNNING) return;
