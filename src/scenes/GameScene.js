@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { DEV, DISPLAY, ENEMIES, GAME_SPEEDS, HEROES, SIM, UI_KIT } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
+import { DEV_TOOLS } from '../devFlag.js';
 import {
   applyRenderScale, fullscreenSupported, isFullscreen, toggleFullscreen,
 } from '../display.js';
@@ -149,7 +150,7 @@ export class GameScene extends Phaser.Scene {
       this.refreshUi();  // brings the Shipwright back
     });
 
-    if (import.meta.env.DEV) import('../dev/devTools.js').then((m) => m.installDevTools(this));
+    if (DEV_TOOLS) import('../dev/devTools.js').then((m) => m.installDevTools(this));
 
     this.startButton = new Button(this, 211, 246, {
       width: 120, height: 28, style: 'gold', font: 'big', label: 'SET SAIL!', onClick: () => this.startWave(),
@@ -502,7 +503,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   cycleSpeed() {
-    const speeds = import.meta.env.DEV ? [...GAME_SPEEDS, DEV.extraSpeed] : GAME_SPEEDS;
+    const speeds = DEV_TOOLS ? [...GAME_SPEEDS, DEV.extraSpeed] : GAME_SPEEDS;
     const i = speeds.indexOf(this.speed);
     this.speed = speeds[(i + 1) % speeds.length];
     sfx.click();

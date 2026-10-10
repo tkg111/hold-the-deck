@@ -31,7 +31,8 @@ Game title: `GAME_TITLE` in `src/config.js` and `<title>` in `index.html`.
   fonts from `public/sprites/ui/fonts/`, unscaled, snapped to whole pixels),
   never `scene.add.text`. Use the light fonts on wood, wood buttons and over
   the scene, and the dark ones on parchment and gold buttons.
-- Dev-only tools live in `src/dev/` and are loaded via a dynamic import behind
-  `import.meta.env.DEV`, so they never ship in production builds.
+- Dev tools live in `src/dev/` and are loaded via a dynamic import behind
+  `DEV_TOOLS` (`src/devFlag.js`): always in dev builds, and on the live site
+  only when the URL has `?dev`, so players don't see them.
 - Stop the dev server before running `npm ci` on Windows (it locks a native
   binary in `node_modules`).

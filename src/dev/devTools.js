@@ -7,8 +7,8 @@ import { Button } from '../ui/Button.js';
 // wave is started by hand with SET SAIL! again.
 const auto = { on: false, paused: false };
 
-// Development-only controls. Loaded via dynamic import behind
-// import.meta.env.DEV, so none of this ships in production builds. They sit
+// Dev controls. Loaded via dynamic import only when DEV_TOOLS is on
+// (see devFlag.js: dev builds, or ?dev on the live site). They sit
 // in the bottom-left corner of the view (positions in the base 480x270).
 export function installDevTools(scene) {
   const { progress } = scene;

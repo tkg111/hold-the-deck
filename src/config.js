@@ -788,7 +788,7 @@ export const SIM = {
   maxFrameMs: 100,
 };
 
-// Development builds only (see src/dev/).
+// Dev tools only (dev builds, or ?dev on the live site; see src/devFlag.js).
 export const DEV = {
   extraSpeed: 4,          // added to the speed button's cycle
   autoContinueMs: 2000,   // auto-continue: pause before the next wave / retry
