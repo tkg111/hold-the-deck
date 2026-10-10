@@ -1,4 +1,4 @@
-import { FX, HEROES, SPRITES } from '../config.js';
+import { FX, HEROES, SHIP, SPRITES } from '../config.js';
 import { laneFeetY } from '../layout.js';
 import { FX_DEPTH, fxSprite, playFx } from '../fx.js';
 import { findAnim, fxKey, sheetKey } from '../sprites.js';
@@ -21,6 +21,7 @@ export class Hero {
     this.id = id;
     this.def = HEROES[id];
     this.aura = aura;
+    this.deck = Math.floor(index / SHIP.slotsPerDeck);   // 0 = the bottom deck
     // Captain's Log credit for each kind of damage (see BattleStats).
     this.source = {
       attack: damageSource(id, 'attack'), ability: damageSource(id, 'ability'), effect: damageSource(id, 'effect'),
@@ -35,8 +36,8 @@ export class Hero {
     this.boosts = [];
     this.lunge = null;
     this.boostSprites = {};   // fx sprite name -> sprite
-    // Stunned by the Siren's song: no attacks (cooldown paused), stun stars
-    // over the head.
+    // Stunned by the Siren's song or a lava bomb: no attacks (cooldown
+    // paused), stun stars over the head.
     this.stunTime = 0;
     this.stunStars = null;
     // Anti-air crew can hit flyers in the air; the Net Thrower can aim at
@@ -127,7 +128,7 @@ export class Hero {
     this.tickStun(0);
   }
 
-  // The Siren's note: no attacks for ms.
+  // The Siren's note or a lava bomb on this deck: no attacks for ms.
   stun(ms) {
     this.stunTime = Math.max(this.stunTime, ms);
     if (!this.stunStars) {
@@ -270,15 +271,16 @@ export class Hero {
   }
 
   // Where an enemy will be after msLeft, for lobbed shots: walking left at its
-  // current (possibly slowed) speed, standing still if stunned, scared or
-  // pushed, never past where it stops. Walkers follow the lane up or down,
-  // boats the waterline. Flyers, the Siren and the Ghost Galleon are aimed at
-  // where they are.
+  // current (possibly slowed, or hurried by a fire puddle) speed, standing
+  // still if stunned, scared or pushed, never past where it stops. Walkers
+  // follow the lane up or down, boats the waterline. Flyers and anchored
+  // enemies (the Siren, the Ghost Galleon, the Molten Leviathan) are aimed
+  // at where they are.
   leadPoint(enemy, msLeft) {
     const { def } = enemy;
-    if (def.flies || def.stationary || def.galleon) return { x: enemy.x, y: enemy.y };
+    if (def.flies || enemy.anchored) return { x: enemy.x, y: enemy.y };
     const still = enemy.isStunned || enemy.isAfraid || enemy.pushLeft > 0;
-    const lead = still ? 0 : enemy.speed * enemy.pace * msLeft / 1000;
+    const lead = still ? 0 : enemy.speed * enemy.pace * enemy.moveBoost * msLeft / 1000;
     const x = Math.max(enemy.stopX, enemy.x - lead);
     const y = def.emerges || def.floats ? enemy.y : laneFeetY(x) - def.height / 2;
     return { x, y };

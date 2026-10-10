@@ -103,7 +103,7 @@ export class Progress {
       };
     }
     p.islands[ISLANDS[0].id] ??= newIsland();
-    p.islandId = islandDef(data.island) && p.isIslandUnlocked(data.island) ? data.island : ISLANDS[0].id;
+    p.islandId = islandDef(data.island) && p.canSailTo(data.island) ? data.island : ISLANDS[0].id;
     p.islands[p.islandId] ??= newIsland();
     p.mapSeen = data.mapSeen === true;
     p.freeLegendaryChests = int(data.freeLegendaryChests, 0);
@@ -180,9 +180,10 @@ export class Progress {
     return !!finale && !this.record.cleared && this.wave === finale.wave;
   }
 
-  // What WaveManager needs to build the current wave.
+  // What WaveManager (and the volcano) need to build the current wave.
   get waveOptions() {
     return {
+      island: this.island,
       offset: this.island.waveOffset,
       finale: this.isFinaleWave ? this.island.finale : null,
       countFactor: this.endlessGrace,
@@ -203,12 +204,18 @@ export class Progress {
 
   isIslandCleared(id) { return !!this.islands[id]?.cleared; }
 
-  // The first island is always open; each later one once the one before is
-  // cleared, if it's available yet.
+  // On the map, the first island is always open and each later one opens
+  // once the one before is cleared.
   isIslandUnlocked(id) {
     const i = ISLANDS.findIndex((d) => d.id === id);
     if (i <= 0) return i === 0;
-    return ISLANDS[i].available && this.isIslandCleared(ISLANDS[i - 1].id);
+    return this.isIslandCleared(ISLANDS[i - 1].id);
+  }
+
+  // Whether the ship can sail there: unlocked, and it has content yet
+  // (`available`; the rest are "coming soon").
+  canSailTo(id) {
+    return this.isIslandUnlocked(id) && !!islandDef(id)?.available;
   }
 
   // The world map opens once any island is cleared.
@@ -216,7 +223,7 @@ export class Progress {
 
   // Sail to an unlocked island; its wave counter carries on where it was.
   sailTo(id) {
-    if (!this.isIslandUnlocked(id)) return false;
+    if (!this.canSailTo(id)) return false;
     this.islandId = id;
     this.islands[id] ??= newIsland();
     return true;

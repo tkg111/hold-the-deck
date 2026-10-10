@@ -238,6 +238,39 @@ class Sfx {
     this.noise({ start: t + 0.1, duration: 1.4, volume: 0.4, filterFrom: 400, filterTo: 80, q: 0.7 });
   }
 
+  // Lava bombs launched: a falling whistle.
+  bombWhistle() {
+    const t = this.ready();
+    if (t == null) return;
+    this.tone({ freq: 1400, endFreq: 500, type: 'sine', start: t, duration: 1.1, volume: 0.07, attack: 0.1 });
+  }
+
+  // A lava bomb or magma glob landing: a thud and a sizzle.
+  lavaSplash() {
+    const t = this.ready();
+    if (t == null) return;
+    this.tone({ freq: 140, endFreq: 60, type: 'sine', start: t, duration: 0.25, volume: 0.35 });
+    this.noise({ start: t + 0.03, duration: 0.6, volume: 0.25, filterFrom: 6000, filterTo: 3000, q: 0.5 });
+  }
+
+  // The Molten Leviathan spitting: a wet, low glop.
+  spit() {
+    const t = this.ready();
+    if (t == null) return;
+    this.tone({ freq: 220, endFreq: 90, type: 'triangle', start: t, duration: 0.25, volume: 0.25 });
+    this.noise({ start: t, duration: 0.2, volume: 0.2, filterFrom: 900, filterTo: 300, q: 1 });
+  }
+
+  // The Molten Leviathan's roar: a long growl with a rumble under it.
+  roar() {
+    const t = this.ready();
+    if (t == null) return;
+    for (const f of [82, 87]) {
+      this.tone({ freq: f, endFreq: f * 0.7, type: 'sawtooth', start: t, duration: 1.2, volume: 0.12, attack: 0.15 });
+    }
+    this.noise({ start: t, duration: 1.2, volume: 0.35, filterFrom: 500, filterTo: 120, q: 0.6 });
+  }
+
   // A Barnacle Knight's shield shattering: a crack and a clang.
   shieldBreak() {
     const t = this.ready();

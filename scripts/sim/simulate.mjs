@@ -1,4 +1,4 @@
-// Headless auto-play balance simulation: `npm run sim [-- runs maxWave]`.
+// Headless auto-play balance simulation: `npm run sim [-- runs maxWave [voyage]]`.
 //
 // Runs the real battle code (waves, enemies, crew, abilities, Progress) with
 // Phaser stubbed out, from a fresh save, with a simple bot playing between
@@ -9,23 +9,27 @@
 //           wait for a slot), so it only loses where the curve outpaces it
 //   lazy:   only spends after losing a wave, so its waves between losses
 //           show how often upgrades are needed
-// Each run stops at maxWave, or when one wave has been lost MAX_TRIES times
-// in a row (a wall).
+// Each run plays Skull Cove and stops at maxWave, or when one wave has been
+// lost MAX_TRIES times in a row (a wall). With "voyage", a cleared island is
+// followed by the next one the ship can sail to (Ember Isle after Skull
+// Cove), and maxWave is the wave to reach on the last island it gets to.
 //
 // To try numbers without editing config.js, set SIM_CONFIG to JSON merged
 // into its exports, e.g. SIM_CONFIG='{"WAVES":{"hpGrowth":0.1}}'.
 import { readFileSync } from 'node:fs';
 import * as config from '../../src/config.js';
-import { HEROES, RARITY, SHIP } from '../../src/config.js';
+import { HEROES, ISLANDS, RARITY, SHIP } from '../../src/config.js';
 import { initLayout } from '../../src/layout.js';
 import { Ship } from '../../src/entities/Ship.js';
 import { Hero } from '../../src/entities/Hero.js';
 import { AbilitySystem } from '../../src/systems/Abilities.js';
 import { Progress } from '../../src/systems/Progress.js';
+import { Volcano } from '../../src/systems/Volcano.js';
 import { WaveManager } from '../../src/systems/WaveManager.js';
 
 const RUNS = Number(process.argv[2] ?? 5);
 const MAX_WAVE = Number(process.argv[3] ?? 50);
+const VOYAGE = process.argv[4] === 'voyage';
 const MAX_TRIES = 15;
 const DT = 50;                   // ms per step (the game clamps to 100)
 const WAVE_TIMEOUT = 10 * 60e3;  // a wave this long counts as lost
@@ -41,9 +45,15 @@ if (process.env.SIM_CONFIG) override(config, JSON.parse(process.env.SIM_CONFIG))
 
 const sprites = new URL('../../public/sprites/', import.meta.url);
 const readJson = (path) => JSON.parse(readFileSync(new URL(path, sprites), 'utf8'));
-const fxSheets = readJson('fx/fx.json');
+const fxSheets = { ...readJson('fx/fx.json'), ...readJson('ember/fx/fx_ember.json') };
 initLayout(readJson('layout.json'));
-const shipSlots = readJson('ship_slots.json');
+// The JSON files the battle code reads from the cache (ship slots; the
+// Ghost Galleon's gun ports and the Molten Leviathan's mouth and position).
+const jsonCache = {
+  ship_slots: readJson('ship_slots.json'),
+  animations_new_enemies: readJson('animations_new_enemies.json'),
+  animations_ember: readJson('ember/animations_ember.json'),
+};
 
 // --- A stand-in scene: game objects are inert stubs that keep x / y ---
 
@@ -84,7 +94,7 @@ function makeScene() {
     anims: { exists: () => false, get: () => null },
     textures: { exists: (key) => key.startsWith('fx_'), getFrame: fxSize },
     cameras: { main: { shake() {} } },
-    cache: { json: { get: () => shipSlots }, bitmapFont: { exists: () => true } },
+    cache: { json: { get: (key) => jsonCache[key] }, bitmapFont: { exists: () => true } },
     events: {
       on(name, fn, ctx) { (listeners[name] ??= []).push(fn.bind(ctx)); },
       emit(name, ...args) { for (const fn of listeners[name] ?? []) fn(...args); },
@@ -114,12 +124,13 @@ function seedRandom(seed) {
 // --- One battle ---
 
 function playWave(scene, progress) {
-  const { ship, waves, abilities } = scene;
+  const { ship, waves, volcano, abilities } = scene;
   ship.sync(progress);
   rebuildHeroes(scene, progress);
   scene.enemies = [];
   scene.projectiles = [];
   waves.start(progress.wave, progress.waveOptions);
+  volcano.start(progress.waveOptions);
   abilities.resetCooldowns();
   let time = 0;
   let won = false;
@@ -127,6 +138,7 @@ function playWave(scene, progress) {
     time += DT;
     scene.enemies.push(...waves.update(DT));
     for (const e of scene.enemies) e.update(DT, ship);
+    volcano.update(DT);
     abilities.update(DT, true);
     for (const h of scene.heroes) {
       const shot = h.update(DT, scene.enemies);
@@ -136,12 +148,14 @@ function playWave(scene, progress) {
     scene.enemies = scene.enemies.filter((e) => e.alive);
     scene.projectiles = scene.projectiles.filter((p) => !p.done);
     if (ship.isDestroyed || time > WAVE_TIMEOUT) break;
-    if (waves.doneSpawning && scene.enemies.length === 0) {
+    // Lava bombs still falling don't hold up a win.
+    if (waves.doneSpawning && !scene.enemies.some((e) => !e.def.hazard)) {
       won = true;
       break;
     }
   }
   waves.stop();
+  volcano.stop();
   abilities.clear();
   for (const h of scene.heroes) h.clearAbilities();
   if (won) progress.winWave();
@@ -215,8 +229,10 @@ function run(seed, policy) {
   scene.progress = progress;
   scene.ship = new Ship(scene, progress);
   scene.waves = new WaveManager(scene);
+  scene.volcano = new Volcano(scene);
   scene.abilities = new AbilitySystem(scene);
   scene.events.on('enemy-killed', (e) => {
+    if (e.def.hazard) return;   // a lava bomb shot down
     progress.recordDefeat(e.key);   // bounties pay Pearls
     progress.earnGold(e.gold);
     if (e.def.boss) {
@@ -233,14 +249,22 @@ function run(seed, policy) {
   let attempts = 0;
   let playTime = 0;
   between(progress, true);
+  // Voyage: on to the next island once this one is cleared.
+  const sailOn = () => {
+    if (!VOYAGE || !progress.isIslandCleared(progress.islandId)) return;
+    const next = ISLANDS[ISLANDS.indexOf(progress.island) + 1];
+    if (next && progress.sailTo(next.id)) tries = 0;
+  };
   while (progress.wave <= MAX_WAVE && tries < MAX_TRIES) {
     const wave = progress.wave;
+    const island = progress.islandId;
     const result = playWave(scene, progress);
     attempts++;
     playTime += result.time;
     tries = result.won ? 0 : tries + 1;
-    log.push({ wave, ...result });
+    log.push({ wave, island, ...result });
     between(progress, policy === 'greedy' || !result.won);
+    sailOn();
   }
   const crew = progress.activeHeroes.map(({ id }) => `${HEROES[id].shortName} ${progress.heroLevel(id)}`).join(', ');
   return { progress, log, attempts, playTime, crew, wall: tries >= MAX_TRIES };
@@ -248,22 +272,29 @@ function run(seed, policy) {
 
 const mins = (ms) => `${Math.round(ms / 60000)}m`;
 const bandOf = (wave) => Math.floor((wave - 1) / 10);
+// A wave on an island, e.g. "34" on Skull Cove and "E12" further on.
+const islandTag = (id) => (id === ISLANDS[0].id ? '' : ISLANDS.find((d) => d.id === id).name[0]);
+const waveTag = ({ island, wave }) => `${islandTag(island)}${wave}`;
 
 for (const policy of ['greedy', 'lazy']) {
   console.log(`--- ${policy}: ${RUNS} runs from a fresh save, up to wave ${MAX_WAVE} ---`);
-  const bands = [];   // per 10 waves: first tries, first-try wins, losses
+  const bands = new Map();   // per island and 10 waves: first tries, first-try wins, losses
   for (let r = 0; r < RUNS; r++) {
     const res = run(1000 + r, policy);
-    const lost = [...new Set(res.log.filter((l) => !l.won).map((l) => l.wave))];
+    const lost = [...new Set(res.log.filter((l) => !l.won).map(waveTag))];
     const retries = res.log.filter((l) => !l.won).length;
-    console.log(`run ${r + 1}: wave ${res.progress.wave}${res.wall ? ' (wall)' : ''}, ${mins(res.playTime)} of battle, `
+    const at = waveTag({ island: res.progress.islandId, wave: res.progress.wave });
+    console.log(`run ${r + 1}: wave ${at}${res.wall ? ' (wall)' : ''}, ${mins(res.playTime)} of battle, `
       + `${retries} losses on ${lost.length} waves: ${lost.join(' ') || '-'}`);
     console.log(`  hull LV ${res.progress.hullHpLevel}, decks ${res.progress.decks}, crew: ${res.crew}`);
     const seen = new Set();
-    for (const { wave, won } of res.log) {
-      const b = (bands[bandOf(wave)] ??= { tries: 0, firstWins: 0, losses: 0, cleared: 0 });
-      if (!seen.has(wave)) {
-        seen.add(wave);
+    for (const { island, wave, won } of res.log) {
+      const key = `${ISLANDS.findIndex((d) => d.id === island)}:${bandOf(wave)}`;
+      if (!bands.has(key)) bands.set(key, { island, band: bandOf(wave), tries: 0, firstWins: 0, losses: 0, cleared: 0 });
+      const b = bands.get(key);
+      const tag = waveTag({ island, wave });
+      if (!seen.has(tag)) {
+        seen.add(tag);
         b.tries++;
         if (won) b.firstWins++;
       }
@@ -271,7 +302,8 @@ for (const policy of ['greedy', 'lazy']) {
       else b.losses++;
     }
   }
-  console.log(bands.map((b, i) => b && `waves ${i * 10 + 1}-${i * 10 + 10}: `
+  const sorted = [...bands.entries()].sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }));
+  console.log(sorted.map(([, b]) => `${islandTag(b.island)}waves ${b.band * 10 + 1}-${b.band * 10 + 10}: `
     + `${Math.round(100 * b.firstWins / b.tries)}% first try, `
-    + `${b.losses ? (b.cleared / b.losses).toFixed(1) : '-'} clears per loss`).filter(Boolean).join('\n'));
+    + `${b.losses ? (b.cleared / b.losses).toFixed(1) : '-'} clears per loss`).join('\n'));
 }

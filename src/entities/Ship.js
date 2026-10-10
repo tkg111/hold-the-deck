@@ -125,6 +125,16 @@ export class Ship {
     return { x: front.x + hoverX, y: front.feetY + hoverY };
   }
 
+  // Where a lava bomb lands on a built deck (0 = the bottom one): between
+  // its slots, at their feet.
+  deckSpot(deck) {
+    const slots = this.slots.slice(deck * SHIP.slotsPerDeck, (deck + 1) * SHIP.slotsPerDeck);
+    return {
+      x: slots.reduce((sum, s) => sum + s.x, 0) / slots.length,
+      feetY: Math.max(...slots.map((s) => s.feetY)),
+    };
+  }
+
   // enemy: who hit it, for the Captain's Log (only the HP actually lost counts).
   takeDamage(amount, enemy = null) {
     if (enemy) this.scene.stats?.hullHit(enemy, Math.min(amount, this.hp));

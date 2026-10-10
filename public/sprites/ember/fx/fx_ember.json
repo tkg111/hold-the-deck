@@ -1,0 +1,62 @@
+{
+  "lava_bomb": {
+    "file": "lava_bomb.png",
+    "frameWidth": 12,
+    "frameHeight": 16,
+    "frames": 2,
+    "fps": 8,
+    "repeat": -1,
+    "kind": "hazard",
+    "use": "falls onto the deck marked by bomb_warning; anti-air crew can shoot it"
+  },
+  "bomb_warning": {
+    "file": "bomb_warning.png",
+    "frameWidth": 28,
+    "frameHeight": 8,
+    "frames": 2,
+    "fps": 6,
+    "repeat": -1,
+    "kind": "hazard",
+    "use": "on the target deck ~1.2 s before a lava bomb lands"
+  },
+  "lava_splash": {
+    "file": "lava_splash.png",
+    "frameWidth": 32,
+    "frameHeight": 20,
+    "frames": 4,
+    "fps": 12,
+    "repeat": 0,
+    "kind": "impact",
+    "use": "lava bomb / magma glob hit"
+  },
+  "magma_glob": {
+    "file": "magma_glob.png",
+    "frameWidth": 12,
+    "frameHeight": 12,
+    "frames": 2,
+    "fps": 8,
+    "repeat": -1,
+    "kind": "projectile",
+    "use": "Molten Leviathan spit, lobbed at the hull"
+  },
+  "fire_puddle": {
+    "file": "fire_puddle.png",
+    "frameWidth": 32,
+    "frameHeight": 8,
+    "frames": 3,
+    "fps": 6,
+    "repeat": -1,
+    "kind": "decor",
+    "use": "left on the lane where a Magma Crab dies (~4 s)"
+  },
+  "steam_burst": {
+    "file": "steam_burst.png",
+    "frameWidth": 64,
+    "frameHeight": 24,
+    "frames": 3,
+    "fps": 8,
+    "repeat": 0,
+    "kind": "impact",
+    "use": "where the Leviathan rises / sinks"
+  }
+}

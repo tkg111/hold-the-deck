@@ -23,16 +23,19 @@ const STATUS = {
 
 export class Enemy {
   // Walkers enter at layout.json's enemySpawnX and follow the lane (x is only
-  // an override for testing); an emerging enemy (The Kraken) rises out of the
-  // sea at layout.kraken instead, a flyer (Storm Harpy) cruises in at
-  // layout.harpyFlightY, the Siren appears on her rock at layout.siren and the
-  // Ghost Galleon emerges at layout.ghostGalleon. A boarding boat rows in from
-  // x (the Galleon launches it) on the waterline.
+  // an override for testing, or where a golem broke apart); an emerging enemy
+  // (The Kraken) rises out of the sea at layout.kraken instead, a flyer
+  // (Storm Harpy, Ash Bat) cruises in at layout.harpyFlightY, the Siren
+  // appears on her rock at layout.siren, the Ghost Galleon emerges at
+  // layout.ghostGalleon and the Molten Leviathan rises at its sheet's
+  // `position`. A boarding boat rows in from x (the Galleon launches it) on
+  // the waterline; a lava bomb falls at x.
   //   elite:  3x HP (ELITE), gold tint; gold is already multiplied by the caller
   //   leader: in an escorted formation, the enemy this one keeps behind
   //   key:    its ENEMIES key (for the Wanted Board)
+  //   fall:   a lava bomb's { deck, feetY (where it lands), fromY, ms }
   constructor(scene, def, {
-    x = LAYOUT.enemySpawnX, hpMultiplier, damageMultiplier, gold, elite = false, leader = null, key = null,
+    x = LAYOUT.enemySpawnX, hpMultiplier, damageMultiplier, gold, elite = false, leader = null, key = null, fall = null,
   }) {
     this.scene = scene;
     this.def = def;
@@ -76,6 +79,8 @@ export class Enemy {
     this.fearTime = 0;        // Haunt: flees back toward the island
     this.pushLeft = 0;        // Tidal Wave: px still to be pushed back
     this.pushSpeed = 0;
+    this.boostTime = 0;       // walking faster through a Magma Crab's fire puddle
+    this.boostMult = 1;
     // A boss that enrages (the finale) attacks this much faster.
     this.rage = 1;
 
@@ -92,13 +97,18 @@ export class Enemy {
         this.body.play(this.idleAnim);
         if (this.attackAnim) this.body.on(`animationcomplete-${this.attackAnim}`, () => this.body.play(this.idleAnim));
       }
+    } else if (def.fx) {
+      this.body = fxSprite(scene, def.fx, 0, 0);
     } else if (def.sprite && !def.sheetOnly) {
       this.body = scene.add.image(0, 0, def.sprite);
     } else {
       this.body = scene.add.rectangle(0, 0, def.width, def.height, def.color).setStrokeStyle(1, 0x333333);
     }
-    // The Ghost Galleon sits just behind The Kraken (which can surface in front of it).
-    const depth = def.emerges ? DEPTH.kraken : def.galleon ? DEPTH.kraken - 0.1 : def.flies ? DEPTH.flyer : DEPTH.enemy;
+    // The Ghost Galleon and the Molten Leviathan sit just behind The Kraken
+    // (which can surface in front of them), under the near water.
+    const depth = def.emerges ? DEPTH.kraken
+      : def.galleon || def.leviathan ? DEPTH.kraken - 0.1
+        : def.flies || def.falls ? DEPTH.flyer : DEPTH.enemy;
     this.body.setOrigin(0.5, 1).setDepth(depth);
     if (elite) this.setFlash(false);  // gold tint
 
@@ -152,6 +162,39 @@ export class Enemy {
       for (const anim of [this.emergeAnim, this.fireAnim]) {
         if (anim) this.body.on(`animationcomplete-${anim}`, () => this.alive && this.body.play(this.idleAnim));
       }
+    } else if (def.leviathan) {
+      // The Molten Leviathan: its frame's top-left at its sheet's `position`
+      // once risen; it rises in place from riseFrom px lower (can't be hit
+      // meanwhile), then stays, spitting and roaring.
+      const l = def.leviathan;
+      const spec = sheetSpec(scene, def.sprite);
+      const { x: lx, y: ly } = spec?.position ?? LAYOUT.ghostGalleon;
+      this.frameW = spec?.frameWidth ?? this.body.displayWidth;
+      this.frameH = spec?.frameHeight ?? this.body.displayHeight;
+      this.frameLeft = lx;
+      this.frameTop = ly;
+      this.riseTop = ly + l.riseFrom;
+      this.mouth = spec?.mouth ?? [this.frameW / 4, this.frameH / 2];
+      this.x = lx + this.frameW / 2;
+      this.stopX = this.x;
+      this.setFeetY(this.riseTop + this.frameH);
+      this.riseTime = l.riseMs;
+      this.steamTimer = 0;
+      this.spitTimer = l.firstSpitAt;
+      this.roarTimer = l.firstRoarAt;
+      this.spitAnim = findAnim(scene, def.sprite, 'spit');
+      this.sinkAnim = findAnim(scene, def.sprite, 'sink');
+      if (this.spitAnim) this.body.on(`animationcomplete-${this.spitAnim}`, () => this.alive && this.body.play(this.idleAnim));
+    } else if (def.falls) {
+      // A lava bomb: falls straight down from fall.fromY to land on its deck
+      // (feet at fall.feetY) after fall.ms, over the warning shown there.
+      this.x = x;
+      this.stopX = x;
+      this.fall = fall;
+      this.fallSpeed = (fall.feetY - fall.fromY) / (fall.ms / 1000);
+      this.setFeetY(fall.fromY);
+      this.warning = fxSprite(scene, def.falls.warning, Math.round(x), Math.round(fall.feetY))
+        .setOrigin(0.5, 1).setDepth(DEPTH.slotMarkers);
     } else if (def.flies) {
       // Cruises in at a random height, then dives at the top deck.
       const { min, max } = LAYOUT.flightY;
@@ -193,19 +236,22 @@ export class Enemy {
 
   get isRising() { return this.riseTime > 0; }
   // Drawn centred on its body rather than standing in a 32x32 box (status
-  // and target marks): The Kraken and the Ghost Galleon.
-  get large() { return !!(this.def.emerges || this.def.galleon); }
-  // Walkers that Haunt can scare and Tidal Wave can push: not flyers, the
-  // Siren or the Ghost Galleon.
-  get canBeMoved() { return !this.def.flies && !this.def.stationary && !this.def.galleon; }
+  // and target marks): The Kraken, the Ghost Galleon and the Molten Leviathan.
+  get large() { return !!(this.def.emerges || this.def.galleon || this.def.leviathan); }
+  // Stays where it appeared (or falls straight down): the Siren, the Ghost
+  // Galleon, the Molten Leviathan and lava bombs.
+  get anchored() { return !!(this.def.stationary || this.def.galleon || this.def.leviathan || this.def.falls); }
+  // Walkers that Haunt can scare, Tidal Wave can push and fire puddles
+  // hurry: not flyers or anything anchored.
+  get canBeMoved() { return !this.def.flies && !this.anchored; }
   // How far back toward the island it can be scared or pushed: where it
   // walked in from (The Kraken: where it rose).
   get retreatX() { return this.def.emerges ? this.riseLeft + this.frameW / 2 : LAYOUT.enemySpawnX; }
   get isAfraid() { return this.fearTime > 0; }
   // Whether heroes can aim at or hit it (anti-air aside, see airborne).
   get targetable() { return this.alive && !this.isRising; }
-  // A flyer in the air: only anti-air crew can hit it.
-  get airborne() { return !!this.def.flies && !this.isGrounded; }
+  // A flyer in the air (or a falling lava bomb): only anti-air crew can hit it.
+  get airborne() { return (!!this.def.flies && !this.isGrounded) || !!this.def.falls; }
   get isGrounded() { return this.groundTime > 0; }
   get hpBarWidth() { return this.def.boss ? 40 : this.def.width + 4; }
   get hpBarY() { return Math.round(this.y - this.def.height / 2 - 4); }
@@ -217,6 +263,8 @@ export class Enemy {
   get hasShield() { return this.shieldHp > 0; }
   // How fast it moves and attacks: slows and the Siren's haste multiply.
   get pace() { return (this.isSlowed ? this.slowFactor : 1) * (this.isHasted ? this.hasteMult : 1); }
+  // Walking only: faster through a fire puddle.
+  get moveBoost() { return this.boostTime > 0 ? this.boostMult : 1; }
 
   // Whether a hero (or ability) can hit it: anything targetable on the lane,
   // and flyers in the air only with anti-air.
@@ -275,6 +323,13 @@ export class Enemy {
     this.hasteTime = Math.max(this.hasteTime, duration);
   }
 
+  // A fire puddle: walks mult x as fast for duration (renewed while in it).
+  applyMoveBoost(mult, duration) {
+    if (!this.canBeMoved) return;
+    this.boostMult = this.boostTime > 0 ? Math.max(this.boostMult, mult) : mult;
+    this.boostTime = Math.max(this.boostTime, duration);
+  }
+
   tickStatus(dt) {
     if (this.isPoisoned) {
       const tick = Math.min(dt, this.poisonTime);
@@ -289,6 +344,7 @@ export class Enemy {
     this.curseMarkDelay = Math.max(0, this.curseMarkDelay - dt);
     this.hasteTime = Math.max(0, this.hasteTime - dt);
     this.fearTime = Math.max(0, this.fearTime - dt);
+    this.boostTime = Math.max(0, this.boostTime - dt);
   }
 
   // --- Behaviour ---
@@ -308,8 +364,12 @@ export class Enemy {
       const sdt = dt * this.pace;
       if (this.def.flies) {
         moving = this.fly(sdt, dt, ship);
+      } else if (this.def.falls) {
+        if (this.drop(sdt, ship)) return;   // landed
       } else if (this.def.galleon) {
         this.sail(sdt, ship);
+      } else if (this.def.leviathan) {
+        this.lurk(sdt, ship);
       } else if (this.def.stationary) {
         this.sing(sdt);
       } else if (this.isAfraid) {
@@ -341,7 +401,7 @@ export class Enemy {
   // own height.
   followGround() {
     const { def } = this;
-    if (def.emerges || def.flies || def.stationary || def.galleon) this.setFeetY(this.feetY);
+    if (def.emerges || def.flies || this.anchored) this.setFeetY(this.feetY);
     else this.setFeetY(def.floats ? LAYOUT.boatWaterY : laneFeetY(this.x));
   }
 
@@ -355,7 +415,7 @@ export class Enemy {
 
   // Haunt: runs back toward the island at its own pace. Returns whether it moved.
   flee(sdt) {
-    const x = Math.min(this.retreatX, this.x + this.speed * sdt / 1000);
+    const x = Math.min(this.retreatX, this.x + this.speed * this.moveBoost * sdt / 1000);
     const moved = x > this.x;
     this.x = x;
     return moved;
@@ -369,7 +429,7 @@ export class Enemy {
     if (leader?.alive && leader.x > leader.stopX) {
       minX = Math.max(minX, leader.x + (leader.def.width + this.def.width) / 2 + WAVES.followGap);
     }
-    const x = Math.max(minX, this.x - this.speed * sdt / 1000);
+    const x = Math.max(minX, this.x - this.speed * this.moveBoost * sdt / 1000);
     const moved = x < this.x;
     if (moved) this.x = x;
     return moved;
@@ -506,21 +566,129 @@ export class Enemy {
 
   // A boarding boat sets off from the bow, scaled like the wave.
   launchBoat() {
-    const { scene } = this;
     const def = ENEMIES.boardingBoat;
-    const boat = new Enemy(scene, def, {
-      x: this.frameLeft + this.def.galleon.boatX + def.width / 2,
+    this.spawnFrom('boardingBoat', this.frameLeft + this.def.galleon.boatX + def.width / 2);
+  }
+
+  // Another enemy joining the wave from this one (a boarding boat, a broken
+  // golem's crabs) at x, scaled like it (never Elite), counted in the wave.
+  spawnFrom(key, x) {
+    const { scene } = this;
+    const def = ENEMIES[key];
+    const enemy = new Enemy(scene, def, {
+      x,
       hpMultiplier: this.hpMultiplier,
       damageMultiplier: this.damageMultiplier,
       gold: Math.round(def.gold * (scene.waves?.scaling.gold ?? 1)),
+      key: def.minion ? null : key,
     });
-    scene.enemies.push(boat);
+    scene.enemies.push(enemy);
     if (scene.waves) scene.waves.total++;
+    return enemy;
+  }
+
+  // An Obsidian Golem breaks into Magma Crabs where it fell, spread along the
+  // lane (never past where walkers stop).
+  split() {
+    const { into, count, spread } = this.def.splits;
+    const minX = LAYOUT.shipContactX + ENEMIES[into].width / 2;
+    for (let i = 0; i < count; i++) {
+      const x = this.x + (i - (count - 1) / 2) * spread;
+      this.spawnFrom(into, Phaser.Math.Clamp(x, minX, LAYOUT.enemySpawnX));
+    }
+  }
+
+  // A lava bomb falling toward its deck; lands at the bottom. Returns
+  // whether it landed (and is gone).
+  drop(sdt, ship) {
+    this.setFeetY(Math.min(this.fall.feetY, this.feetY + this.fallSpeed * sdt / 1000));
+    if (this.feetY < this.fall.feetY) return false;
+    this.land(ship);
+    return true;
+  }
+
+  // The bomb hits its deck: a share of the hull, the deck's crew stunned, a
+  // lava splash and a shake.
+  land(ship) {
+    const { scene } = this;
+    const f = this.def.falls;
+    this.alive = false;
+    ship.takeDamage(this.hullHit(ship), this);
+    for (const h of scene.heroes) if (h.deck === this.fall.deck) h.stun(f.stun);
+    playFx(scene, f.impact, this.x, this.feetY).setOrigin(0.5, 1);
+    scene.cameras.main.shake(f.shake.duration, f.shake.intensity);
+    sfx.lavaSplash();
+    this.removeOverlays();
+    this.body.destroy();
+  }
+
+  // The Molten Leviathan, once risen: a magma glob every spitEvery (faster
+  // when enraged) and a roar every roarEvery.
+  lurk(sdt, ship) {
+    const l = this.def.leviathan;
+    this.spitTimer -= sdt * this.rage;
+    this.roarTimer -= sdt;
+    if (this.spitTimer <= 0) {
+      this.spitTimer += l.spitEvery;
+      this.spit(ship);
+    }
+    if (this.roarTimer <= 0) {
+      this.roarTimer += l.roarEvery;
+      this.roar();
+    }
+  }
+
+  // "spit", and a magma glob lobbed from its mouth at a random spot on the hull.
+  spit(ship) {
+    const { scene } = this;
+    const l = this.def.leviathan;
+    if (this.spitAnim) this.body.play(this.spitAnim);
+    sfx.spit();
+    const [mx, my] = this.mouth;
+    const target = { alive: true, ...ship.hullTarget() };
+    scene.projectiles.push(new LobProjectile(scene, {
+      x: this.frameLeft + mx, y: this.frameTop + my, target,
+      flightTime: l.flightTime, arcHeight: l.arcHeight, sprite: l.glob,
+      aimAt: (t) => ({ x: t.x, y: t.y }),
+      findTarget: () => null,
+      onHit: (_t, x, y) => {
+        ship.takeDamage(this.damage, this);
+        playFx(scene, l.impact, x, y);
+        sfx.lavaSplash();
+      },
+    }));
+  }
+
+  // A roar: "spit" with the jaws wide, a shake, and lava bombs at once.
+  roar() {
+    const { scene } = this;
+    const l = this.def.leviathan;
+    if (this.spitAnim) this.body.play(this.spitAnim);
+    sfx.roar();
+    scene.cameras.main.shake(l.roarShake.duration, l.roarShake.intensity);
+    scene.volcano?.dropBombs(l.roarBombs);
+  }
+
+  // A steam burst on the water where the Leviathan rises or sinks.
+  steam() {
+    const l = this.def.leviathan;
+    playFx(this.scene, l.steam, this.x, LAYOUT.waterY - l.aboveWater, DEPTH.splash).setOrigin(0.5, 0);
   }
 
   rise(dt) {
     if (this.def.galleon) {
       this.riseTime = Math.max(0, this.riseTime - dt);
+      return;
+    }
+    if (this.def.leviathan) {
+      const l = this.def.leviathan;
+      this.riseTime = Math.max(0, this.riseTime - dt);
+      this.feetY = Phaser.Math.Linear(this.riseTop, this.frameTop, 1 - this.riseTime / l.riseMs) + this.frameH;
+      this.steamTimer -= dt;
+      if (this.isRising && this.steamTimer <= 0) {
+        this.steamTimer += l.steamEvery;
+        this.steam();
+      }
       return;
     }
     const k = LAYOUT.kraken;
@@ -540,7 +708,7 @@ export class Enemy {
   animate(moving) {
     const anims = this.body.anims;
     if (!anims) return;
-    anims.timeScale = this.pace * this.rage;
+    anims.timeScale = this.pace * this.rage * this.moveBoost;
     this.body.setFlipX?.(this.isAfraid);   // fleeing: facing the island
     if (this.walkAnim) {
       if (moving) this.body.play(this.walkAnim, true);
@@ -683,14 +851,20 @@ export class Enemy {
   }
 
   // source: the killing blow's (BattleStats), credited with the kill.
+  // A lava bomb shot down bursts in the air, and isn't counted as a kill.
   die(source = null) {
     this.alive = false;
     this.killSource = source;
-    if (source) this.scene.stats?.kill(source);
+    if (source && !this.def.hazard) this.scene.stats?.kill(source);
     this.scene.events.emit('enemy-killed', this);
     this.removeOverlays();
-    if (this.def.galleon) {
+    if (this.def.galleon || this.def.leviathan) {
       this.sink();
+      return;
+    }
+    if (this.def.falls) {
+      playFx(this.scene, this.def.falls.impact, this.x, this.y);
+      this.body.destroy();
       return;
     }
     this.scene.tweens.add({
@@ -701,13 +875,18 @@ export class Enemy {
       onComplete: () => this.body.destroy(),
     });
     if (this.def.blast) this.blastEnemies();
+    if (this.def.firePuddle) this.scene.volcano?.addPuddle(this.x, this.def.firePuddle);
+    if (this.def.splits) this.split();
   }
 
-  // The Ghost Galleon goes down: "sink", then it fades out.
+  // The Ghost Galleon or the Molten Leviathan goes down: "sink" (the
+  // Leviathan in a burst of steam), then it fades out.
   sink() {
     this.body.clearTint?.();
+    if (this.def.leviathan) this.steam();
+    const { sinkFadeMs } = this.def.galleon ?? this.def.leviathan;
     const fade = () => this.scene.tweens.add({
-      targets: this.body, alpha: 0, duration: this.def.galleon.sinkFadeMs, onComplete: () => this.body.destroy(),
+      targets: this.body, alpha: 0, duration: sinkFadeMs, onComplete: () => this.body.destroy(),
     });
     if (!this.sinkAnim) {
       fade();
@@ -738,6 +917,8 @@ export class Enemy {
 
   removeOverlays() {
     this.removeSplash();
+    this.warning?.destroy();
+    this.warning = null;
     this.hpBar.destroy();
     for (const sprite of Object.values(this.statusSprites)) sprite.destroy();
     this.statusSprites = {};

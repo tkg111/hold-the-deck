@@ -1,18 +1,40 @@
-import { ENEMIES, FX, MAP, SHIP, SPRITES, STORM } from './config.js';
+import { ASHFALL, ENEMIES, FX, ISLANDS, MAP, SHIP, SPRITES, STORM } from './config.js';
 import { initLayout, LAYOUT } from './layout.js';
 import { preloadUi } from './ui/kit.js';
 import { versioned } from './version.js';
 
 export const SHIP_SLOTS_KEY = 'ship_slots';
-// Character sheets and their animations: crew in animations.json, enemies
-// in animations_new_enemies.json (which also has the Ghost Galleon's gunPorts).
-const ANIMATION_FILES = ['animations', 'animations_new_enemies'];
-const FX_JSON_KEY = 'fx_list';
+// Character sheets and their animations (key: the JSON's cache key, dir: the
+// folder of it and its sheets): crew in animations.json, enemies in
+// animations_new_enemies.json (which also has the Ghost Galleon's gunPorts)
+// and Ember Isle's in ember/animations_ember.json (with the Molten
+// Leviathan's mouth and position).
+const ANIMATION_FILES = [
+  { key: 'animations', dir: '' },
+  { key: 'animations_new_enemies', dir: '' },
+  { key: 'animations_ember', dir: 'ember/' },
+];
+// Effect sheet lists: fx/fx.json, and Ember Isle's ember/fx/fx_ember.json.
+const FX_FILES = [
+  { key: 'fx_list', dir: FX.path, file: 'fx.json' },
+  { key: 'fx_ember', dir: 'ember/fx/', file: 'fx_ember.json' },
+];
 const LAYOUT_KEY = 'layout';
-export const BACKGROUND_KEY = 'bg_tall';  // bg.png's picture with more sky and sea (see SCENERY)
-export const FOREGROUND_KEY = 'fg_sheet';
-export const FOREGROUND_ANIM = 'fg_loop';
+const BACKGROUND_KEY = 'bg_tall';  // bg.png's picture with more sky and sea (see SCENERY)
+const FOREGROUND_KEY = 'fg_sheet';
 export const SPLASH_ANIM = 'kraken_splash';
+
+// The battle backdrop of an island (ISLANDS entry): its own scenery, or
+// Skull Cove's. bg: the tall background's texture key; fg: the foreground
+// sheet's; anim: the foreground loop.
+export function sceneryKeys(island) {
+  const id = island?.scenery ? island.id : null;
+  return id
+    ? { bg: `bg_${id}`, fg: `fg_${id}`, anim: `fg_loop_${id}` }
+    : { bg: BACKGROUND_KEY, fg: FOREGROUND_KEY, anim: 'fg_loop' };
+}
+// Ember Isle's falling ash sheet (ASHFALL).
+export const ASH_KEY = 'ash';
 
 export const shipStageKey = (decks) => `ship_stage${decks}`;
 export const shipFrontKey = (decks) => `ship_stage${decks}_front`;
@@ -77,42 +99,54 @@ export function preloadSprites(scene) {
     if (def.sprite && !def.sheetOnly) load.image(def.sprite, `${def.sprite}.png`);
   }
   load.image(BACKGROUND_KEY, `${BACKGROUND_KEY}.png`);
+  for (const island of ISLANDS) {
+    if (island.scenery) load.image(sceneryKeys(island).bg, `${island.scenery.path}${island.scenery.bg}.png`);
+  }
+  load.spritesheet(ASH_KEY, `${ASHFALL.path}${ASHFALL.file}`, { frameWidth: ASHFALL.frameWidth, frameHeight: ASHFALL.frameHeight });
   const splash = SPRITES.krakenSplash;
   load.spritesheet(splash.key, `${splash.key}.png`, { frameWidth: splash.frameWidth, frameHeight: splash.frameHeight });
-  // The foreground sheet's frames are each the size of the scene.
+  // The foreground sheets' frames are each the size of the scene.
   load.json(LAYOUT_KEY, `${LAYOUT_KEY}.json`);
   load.once(`filecomplete-json-${LAYOUT_KEY}`, (key, type, data) => {
-    load.spritesheet(FOREGROUND_KEY, `${FOREGROUND_KEY}.png`, { frameWidth: data.size[0], frameHeight: data.size[1] });
-  });
-  preloadUi(scene);
-  // Projectile, impact, status and ability effects: fx/fx.json gives each
-  // sheet's file and frame size.
-  load.json(FX_JSON_KEY, `${FX.path}fx.json`);
-  load.once(`filecomplete-json-${FX_JSON_KEY}`, (key, type, data) => {
-    for (const [name, { file, frameWidth, frameHeight }] of Object.entries(data)) {
-      load.spritesheet(fxKey(name), `${FX.path}${file}`, { frameWidth, frameHeight });
+    const frame = { frameWidth: data.size[0], frameHeight: data.size[1] };
+    load.spritesheet(FOREGROUND_KEY, `${FOREGROUND_KEY}.png`, frame);
+    for (const island of ISLANDS) {
+      if (island.scenery) load.spritesheet(sceneryKeys(island).fg, `${island.scenery.path}${island.scenery.fg}.png`, frame);
     }
   });
+  preloadUi(scene);
+  // Projectile, impact, status, ability and hazard effects: each fx list
+  // gives its sheets' files and frame sizes.
+  for (const { key: listKey, dir, file: listFile } of FX_FILES) {
+    load.json(listKey, `${dir}${listFile}`);
+    load.once(`filecomplete-json-${listKey}`, (key, type, data) => {
+      for (const [name, { file, frameWidth, frameHeight }] of Object.entries(data)) {
+        load.spritesheet(fxKey(name), `${dir}${file}`, { frameWidth, frameHeight });
+      }
+    });
+  }
   preloadStorm(load);
   preloadMap(load);
-  for (const file of ANIMATION_FILES) {
-    load.json(file, `${file}.json`);
+  for (const { key: file, dir } of ANIMATION_FILES) {
+    load.json(file, `${dir}${file}.json`);
     load.once(`filecomplete-json-${file}`, (key, type, data) => {
       for (const [name, { frameWidth, frameHeight }] of Object.entries(data)) {
-        load.spritesheet(sheetKey(name), `${sheetKey(name)}.png`, { frameWidth, frameHeight });
+        load.spritesheet(sheetKey(name), `${dir}${sheetKey(name)}.png`, { frameWidth, frameHeight });
       }
     });
   }
 }
 
-// Read layout.json and register every animation: animations.json's as
-// "<name>_<anim>", plus the foreground loop and the Kraken's splash.
+// Read layout.json and register every animation: the animation files' as
+// "<name>_<anim>", plus each foreground loop and the Kraken's splash.
 export function createAnimations(scene) {
   initLayout(scene.cache.json.get(LAYOUT_KEY));
-  if (!scene.anims.exists(FOREGROUND_ANIM)) {
+  for (const island of [null, ...ISLANDS.filter((i) => i.scenery)]) {
+    const { fg, anim } = sceneryKeys(island);
+    if (scene.anims.exists(anim)) continue;
     scene.anims.create({
-      key: FOREGROUND_ANIM,
-      frames: scene.anims.generateFrameNumbers(FOREGROUND_KEY, { start: 0, end: LAYOUT.foreground.frames - 1 }),
+      key: anim,
+      frames: scene.anims.generateFrameNumbers(fg, { start: 0, end: LAYOUT.foreground.frames - 1 }),
       frameRate: LAYOUT.foreground.fps,
       repeat: -1,
     });
@@ -128,7 +162,8 @@ export function createAnimations(scene) {
   }
   // Effects with more than one frame animate as fx_<name>; repeat 0 ones
   // play once and hold their last frame.
-  for (const [name, { frames, fps, repeat }] of Object.entries(scene.cache.json.get(FX_JSON_KEY))) {
+  const effects = FX_FILES.flatMap(({ key }) => Object.entries(scene.cache.json.get(key) ?? {}));
+  for (const [name, { frames, fps, repeat }] of effects) {
     const key = fxKey(name);
     if (frames < 2 || scene.anims.exists(key)) continue;
     scene.anims.create({
@@ -138,11 +173,11 @@ export function createAnimations(scene) {
       repeat,
     });
   }
-  const sheets = ANIMATION_FILES.flatMap((file) => Object.entries(scene.cache.json.get(file) ?? {}));
+  const sheets = ANIMATION_FILES.flatMap(({ key }) => Object.entries(scene.cache.json.get(key) ?? {}));
   for (const [name, { frameWidth, frameHeight, ...anims }] of sheets) {
     for (const [anim, spec] of Object.entries(anims)) {
       const key = animKey(name, anim);
-      // Skip extra data (gunPorts) and animations already made.
+      // Skip extra data (gunPorts, mouth, position) and animations already made.
       if (!spec?.frames || scene.anims.exists(key)) continue;
       const { frames, fps, repeat } = spec;
       scene.anims.create({
@@ -158,8 +193,8 @@ export function createAnimations(scene) {
 // A character sheet's entry in the animation files (frame size, animations
 // and any extra data such as the Ghost Galleon's gunPorts), or null.
 export function sheetSpec(scene, name) {
-  for (const file of ANIMATION_FILES) {
-    const spec = scene.cache.json.get(file)?.[name];
+  for (const { key } of ANIMATION_FILES) {
+    const spec = scene.cache.json.get(key)?.[name];
     if (spec && !Array.isArray(spec)) return spec;
   }
   return null;

@@ -427,7 +427,7 @@ class LungeMark {
     const e = lunge.target?.targetable ? lunge.target : this.hero.toughest(this.hero.scene.enemies);
     this.sprite.setVisible(!!e);
     if (e) {
-      if (e.def.emerges) this.sprite.setOrigin(0.5).setPosition(Math.round(e.x), Math.round(e.y));
+      if (e.large) this.sprite.setOrigin(0.5).setPosition(Math.round(e.x), Math.round(e.y));
       else this.sprite.setOrigin(0.5, 1).setPosition(Math.round(e.x), Math.round(e.feetY));
     }
     return true;

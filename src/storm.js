@@ -11,19 +11,18 @@ import { STORM_JSON_KEY, stormKey } from './sprites.js';
 // fades in and out (start() / stop()). It runs on real time, so x2 speed
 // doesn't hurry it.
 
-const RAIN_FRAME = (i) => stormKey(`rain_${i}`);
-
-// Each rain frame as a texture of its own, so a TileSprite can tile it (a
-// TileSprite always tiles a whole texture).
-function rainFrames(scene, spec) {
+// Each of the first `frames` frames of a sheet (texture key) as a texture
+// of its own, "<key>_<i>", so a TileSprite can tile it (a TileSprite always
+// tiles a whole texture). Returns their keys.
+export function frameTextures(scene, sheetKey, frames) {
   const keys = [];
-  const sheet = scene.textures.get(stormKey('rain'));
-  for (let i = 0; i < spec.rain.frames; i++) {
-    const key = RAIN_FRAME(i);
+  const sheet = scene.textures.get(sheetKey);
+  for (let i = 0; i < frames; i++) {
+    const key = `${sheetKey}_${i}`;
     keys.push(key);
     if (scene.textures.exists(key)) continue;
     const frame = sheet.get(i);
-    const canvas = scene.textures.createCanvas(key, spec.rain.frameWidth, spec.rain.frameHeight);
+    const canvas = scene.textures.createCanvas(key, frame.cutWidth, frame.cutHeight);
     canvas.context.drawImage(sheet.getSourceImage(), frame.cutX, frame.cutY, frame.cutWidth, frame.cutHeight,
       0, 0, frame.cutWidth, frame.cutHeight);
     canvas.refresh();
@@ -48,7 +47,7 @@ export class Storm {
     const clouds = scene.textures.get(stormKey('clouds')).getSourceImage();
     this.clouds = scene.add.tileSprite(0, 0, 1, clouds.height, stormKey('clouds')).setOrigin(0).setDepth(depth + 0.1);
     this.cloudsY = spec.clouds.y;
-    this.rainKeys = rainFrames(scene, spec);
+    this.rainKeys = frameTextures(scene, stormKey('rain'), spec.rain.frames);
     this.rain = scene.add.tileSprite(0, 0, 1, 1, this.rainKeys[0]).setOrigin(0).setDepth(depth + 0.3);
     this.flash = scene.add.rectangle(0, 0, 1, 1, 0xffffff, 0).setOrigin(0).setDepth(depth + 0.4);
     this.flashTime = 0;

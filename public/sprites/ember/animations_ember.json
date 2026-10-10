@@ -1,0 +1,99 @@
+{
+  "cinder_skeleton": {
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "walk": {
+      "frames": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "fps": 7,
+      "repeat": -1
+    }
+  },
+  "magma_crab": {
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "walk": {
+      "frames": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "fps": 5,
+      "repeat": -1
+    }
+  },
+  "ash_bat": {
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "fly": {
+      "frames": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "fps": 12,
+      "repeat": -1
+    }
+  },
+  "obsidian_golem": {
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "walk": {
+      "frames": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "fps": 4,
+      "repeat": -1
+    }
+  },
+  "molten_leviathan": {
+    "frameWidth": 96,
+    "frameHeight": 80,
+    "idle": {
+      "frames": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "fps": 4,
+      "repeat": -1
+    },
+    "spit": {
+      "frames": [
+        4,
+        5
+      ],
+      "fps": 6,
+      "repeat": 0
+    },
+    "sink": {
+      "frames": [
+        6,
+        7,
+        8,
+        9
+      ],
+      "fps": 3,
+      "repeat": 0
+    },
+    "mouth": [
+      10,
+      34
+    ],
+    "position": {
+      "x": 214,
+      "y": 162,
+      "note": "top-left of the 96x80 frame; rise from y+60 over ~2.5 s with steam_burst"
+    }
+  }
+}

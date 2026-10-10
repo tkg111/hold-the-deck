@@ -24,10 +24,28 @@ export const DISPLAY = {
 // The battle backdrop in a view taller than 270: bg_tall.png (480x430) holds
 // bg.png's picture at y = originY, so that row sits at the battlefield's
 // y = 0. skyShare of the extra height goes above (more sky), the rest below
-// (more sea).
+// (more sea). An island with its own `scenery` (see ISLANDS) swaps in its
+// tall background and foreground sheet, laid out the same way.
 export const SCENERY = {
   originY: 100,
   skyShare: 0.6,
+};
+
+// Ember Isle's falling ash (public/sprites/ember/ash_sheet.png, frames of
+// frameWidth x frameHeight), tiled over the whole game area under the HUD
+// while the ship is at an island with `ash`, at fps (real time). The finale's
+// eruption fades in a red tint over the battle and heavier ash: extra layers
+// of the same sheet, each offset by a fraction of a tile and drifting down at
+// drift px/s. Changes fade over fadeMs.
+export const ASHFALL = {
+  path: 'ember/',       // under SPRITES.path
+  file: 'ash_sheet.png',
+  frameWidth: 64,
+  frameHeight: 64,
+  frames: 4,
+  fps: 6,
+  fadeMs: 1200,
+  eruption: { tint: 0xd8380c, tintAlpha: 0.22, layers: 2, drift: 14 },
 };
 
 // Pixel art, drawn with Phaser's pixelArt setting. Scene positions come from
@@ -497,10 +515,12 @@ export const ABILITY_BAR = {
   supportRange: 350,
 };
 
-// Every enemy is 32x32 (The Kraken 64x64, the Siren 48x48) with its feet on
-// the bottom row; width and height are its visible body, used for hits and
-// where it stops. sprite: the <sprite>_sheet.png animations (animations.json);
-// sheetOnly: there is no single <sprite>.png. walkAnim / idleAnim rename the
+// Every enemy is 32x32 (The Kraken 64x64, the Siren 48x48, the Ghost Galleon
+// and the Molten Leviathan 96x80) with its feet on the bottom row; width and
+// height are its visible body, used for hits and where it stops. sprite: the
+// <sprite>_sheet.png animations (animations.json, animations_new_enemies.json,
+// ember/animations_ember.json); sheetOnly: no single <sprite>.png is loaded
+// (there is none, or it isn't used). walkAnim / idleAnim rename the
 // "walk" / "idle" animation. Numbers scale per wave (see WAVES): hp,
 // shield.hp and blast.enemyDamage with the HP multiplier, damage with the
 // damage multiplier, gold with the gold multiplier.
@@ -517,7 +537,12 @@ export const ABILITY_BAR = {
 //   galleon:   the Ghost Galleon's emerge, volleys and boats (see below)
 //   boards:    deals its damage once on reaching the ship, then is gone
 //   floats:    keeps its bottom on layout.boardingBoat.waterlineY
-//   minion:    spawned by a boss; no Wanted poster or defeat count
+//   minion:    spawned by a boss or a hazard; no Wanted poster or defeat count
+//   firePuddle: leaves a fire puddle on the lane where it dies (see below)
+//   splits:    on death, breaks into `count` of `into` (ENEMIES key), spread
+//              `spread` px apart, scaled like it (never Elite)
+//   leviathan: the Molten Leviathan's rise, spits and roars (see below)
+//   falls + hazard: a lava bomb (see below); not part of the wave's count
 // Wanted Board: description is the one-line text on its poster's page,
 // weakTo the crew (HEROES keys) shown as good against it, and face (for
 // sprites bigger than 32x32) where the 32x32 portrait is cropped from.
@@ -737,6 +762,147 @@ export const ENEMIES = {
     gold: 3,
     boards: true,       // deals its damage on arrival, then is gone
   },
+
+  // Ember Isle (art in public/sprites/ember/, all facing left).
+  cinderSkeleton: {
+    name: 'Cinder Skeleton',
+    description: 'Smouldering bones that stagger on through anything. Placeholder.',
+    weakTo: ['stormCaller', 'harpooner', 'cannoneer'],
+    color: 0x8a5a4a,
+    sprite: 'cinder_skeleton',
+    sheetOnly: true,
+    width: 13,
+    height: 30,
+    hp: 20,
+    speed: 22.5,
+    damage: 5,
+    attackInterval: 1000,
+    gold: 2,
+  },
+  magmaCrab: {
+    name: 'Magma Crab',
+    description: 'Armoured shell; burns a puddle that hurries others. Placeholder.',
+    weakTo: ['sharpshooter', 'duelist', 'cannoneer'],
+    color: 0xb5482a,
+    sprite: 'magma_crab',
+    sheetOnly: true,
+    width: 26,
+    height: 23,
+    hp: 60,
+    speed: 12,
+    damage: 8,
+    attackInterval: 1200,
+    gold: 6,
+    armor: 0.6,
+    minDamage: 1,
+    // Where it dies, fire_puddle (an ember fx sheet) lies on the lane for ms;
+    // ground enemies in it move speedBonus faster (for linger ms after
+    // leaving it). It fades out over its last fadeMs.
+    firePuddle: { sprite: 'fire_puddle', ms: 4000, speedBonus: 0.3, linger: 100, fadeMs: 400 },
+  },
+  ashBat: {
+    name: 'Ash Bat',
+    description: 'Swoops at the top deck in threes. Fragile. Placeholder.',
+    weakTo: ['parrotKeeper', 'cabinBoy', 'netThrower'],
+    color: 0x4a4048,
+    sprite: 'ash_bat',
+    sheetOnly: true,
+    idleAnim: 'fly',    // loops the whole time (it has no dive animation)
+    width: 22,
+    height: 14,
+    hp: 9,
+    speed: 55,
+    damage: 3,
+    attackInterval: 1000,
+    gold: 3,
+    flies: {
+      hoverX: 22,
+      hoverY: -14,
+      hoverSpread: 10,
+      diveFrom: 60,
+      diveSpeed: 150,
+      climbSpeed: 50,
+      fallSpeed: 140,
+    },
+  },
+  obsidianGolem: {
+    name: 'Obsidian Golem',
+    description: 'Slow and huge. Breaks into two Magma Crabs. Placeholder.',
+    weakTo: ['duelist', 'voodooPriestess', 'grogBrewer'],
+    color: 0x2e2a35,
+    sprite: 'obsidian_golem',
+    sheetOnly: true,
+    width: 24,
+    height: 30,
+    hp: 180,
+    speed: 8,
+    damage: 14,
+    attackInterval: 1600,
+    gold: 12,
+    splits: { into: 'magmaCrab', count: 2, spread: 12 },
+  },
+  moltenLeviathan: {
+    name: 'Molten Leviathan',
+    description: 'Rises from the lava sea to spit fire and call down bombs. Placeholder.',
+    weakTo: ['duelist', 'sharpshooter', 'parrotKeeper'],
+    boss: true,
+    color: 0x6a2a1e,
+    sprite: 'molten_leviathan',  // 96x80; its sheet's `position` is the frame's top-left
+    face: { x: 10, y: 15 },      // Wanted Board: 32x32 crop of frame 0 (its head)
+    sheetOnly: true,
+    width: 80,
+    height: 64,
+    hp: 450,
+    speed: 0,
+    damage: 6,          // per magma glob that hits the hull
+    attackInterval: 1000,
+    gold: 50,
+    statusResist: 0.5,
+    banner: 'THE MOLTEN LEVIATHAN!',
+    // It rises in place from riseFrom px below its `position` over riseMs
+    // (can't be hit meanwhile), a steam burst at the waterline (its top
+    // aboveWater px over layout.waterY) every steamEvery ms, then loops
+    // "idle". Every spitEvery ms (the first after firstSpitAt; faster when
+    // enraged) it plays "spit" and lobs a magma glob from its `mouth` (in
+    // animations_ember.json) at a random spot on the hull, landing
+    // flightTime ms later with `impact`. Every roarEvery ms (the first after
+    // firstRoarAt) it roars: "spit", a shake and roarBombs lava bombs at once.
+    // On death it plays "sink" and fades out over sinkFadeMs.
+    leviathan: {
+      riseMs: 2500, riseFrom: 60,
+      steam: 'steam_burst', steamEvery: 600, aboveWater: 23,
+      firstSpitAt: 1500, spitEvery: 4000,
+      glob: 'magma_glob', impact: 'lava_splash', flightTime: 1100, arcHeight: 50,
+      firstRoarAt: 7000, roarEvery: 12000, roarBombs: 3,
+      roarShake: { duration: 400, intensity: 0.004 },
+      sinkFadeMs: 600,
+    },
+  },
+  // Ember Isle's hazard (no poster; see the island's lavaBombs). It falls
+  // from the sky onto a deck: only anti-air crew can hit it on the way down.
+  // Landing, it takes hullShare of the hull's max HP (not scaled by wave),
+  // stuns that deck's crew for stun ms, plays `impact` and shakes the camera;
+  // shot down, it bursts in the air harmlessly. Its HP isn't scaled by the
+  // wave either: any anti-air hit pops it.
+  lavaBomb: {
+    name: 'Lava Bomb',
+    color: 0xff7a1a,
+    fx: 'lava_bomb',    // drawn from an fx sheet (ember/fx/fx_ember.json)
+    minion: true,
+    hazard: true,
+    width: 10,
+    height: 15,
+    hp: 1,
+    speed: 0,
+    damage: 0,
+    hullShare: { normal: 0.06, elite: 0.06 },
+    attackInterval: 1000,
+    gold: 0,
+    falls: {
+      warning: 'bomb_warning', impact: 'lava_splash', stun: 1000,
+      shake: { duration: 150, intensity: 0.004 },
+    },
+  },
 };
 
 // From fromWave, any enemy but the boss can spawn as an Elite: gold tint,
@@ -766,6 +932,7 @@ export const WANTED = {
   // Board layout (base pixels): posters in a grid on the left, the details
   // page on the right.
   columns: 4,
+  rows: 3,              // posters per page = columns x rows; more turn the page
   gap: 6,
   gridX: 10,
   gridY: 34,
@@ -840,14 +1007,15 @@ export const WAVES = {
   followGap: 16,
 
   // A Siren joins every sirenEvery-th wave from sirenFromWave (not boss
-  // waves), entering this far through the wave.
+  // waves), entering this far through the wave. (An island can set its own
+  // sirenFromWave.)
   sirenFromWave: 16,
   sirenEvery: 3,
   sirenSpawnAt: 0.25,
 
   // Every bossEvery-th wave: a boss plus a reduced escort of regular enemies.
   // The bosses take turns: The Kraken on waves 10, 30, 50..., The Ghost
-  // Galleon on 20, 40...
+  // Galleon on 20, 40... (Skull Cove's; an island can set its own `bosses`.)
   bossEvery: 10,
   bosses: ['kraken', 'ghostGalleon'],
   bossEscortFactor: 0.65,   // fraction of the normal enemy count
@@ -861,39 +1029,101 @@ export const WAVES = {
   endlessGraceStart: 0.5,
 };
 
+// Ember Isle's formations (like FORMATIONS, below): Cinder Skeletons instead
+// of Drowned Sailors, its own Magma Crabs, Ash Bats (in threes) and Obsidian
+// Golems, with Skull Cove's Keg Runners and Barnacle Knights mixed in.
+export const EMBER_FORMATIONS = [
+  { from: 1, weight: 4, members: ['cinderSkeleton'] },
+  { from: 2, weight: 3, members: ['cinderSkeleton', 'cinderSkeleton', 'cinderSkeleton'] },
+  { from: 3, weight: 2, escort: true, members: ['magmaCrab', 'cinderSkeleton', 'cinderSkeleton'] },
+  { from: 5, weight: 2, members: ['ashBat', 'ashBat', 'ashBat'] },
+  { from: 6, weight: 1, members: ['kegRunner', 'kegRunner'] },
+  { from: 8, weight: 1.5, escort: true, members: ['magmaCrab', 'kegRunner', 'kegRunner'] },
+  { from: 9, weight: 1.5, escort: true, members: ['obsidianGolem', 'cinderSkeleton', 'cinderSkeleton'] },
+  { from: 12, weight: 1.5, escort: true, members: ['barnacleKnight', 'kegRunner', 'kegRunner'] },
+  { from: 14, weight: 1.5, escort: true, members: ['barnacleKnight', 'cinderSkeleton', 'ashBat', 'ashBat', 'ashBat'] },
+  { from: 18, weight: 1.5, escort: true, members: ['obsidianGolem', 'barnacleKnight', 'cinderSkeleton', 'cinderSkeleton'] },
+];
+
 // The voyage is split into islands of `waves` waves each, in map.json's
 // order (public/sprites/map/). Ship, crew, upgrades and Pearls carry over;
 // each island keeps its own wave counter and best wave. Later islands are
 // harder: enemy HP, damage, kill gold and Elite chance are those of wave
 // (wave + waveOffset), while new enemies still arrive on the usual waves.
-// Only `available` islands can be unlocked (by clearing the one before); the
-// rest are placeholders on the map. hazard / boss: the map card's lines.
+// Each island opens on the map once the one before is cleared; only
+// `available` ones (with content) can be sailed to, the rest say "coming
+// soon". hazard / boss: the map card's lines.
 // Clearing an island's finale wave opens Endless mode there: its waves go on
 // past `waves` as before.
+// What an island fights, where it differs from Skull Cove's (the defaults):
+//   formations: its FORMATIONS list; bosses: its WAVES.bosses (taking turns);
+//   sirenFromWave: its first Siren wave
+//   scenery: { path, bg, fg } its own tall background and foreground sheet
+//            (same sizes and layout positions as bg_tall.png / fg_sheet.png)
+//   ash: ASHFALL over the scene while the ship is there
+//   lavaBombs: during every wave a lava bomb (ENEMIES.lavaBomb) every
+//            min-max ms: bomb_warning shows on a random built deck while the
+//            bomb falls onto it from fromY (battlefield y) over warnMs.
+//            Several at once go to different decks while there are enough,
+//            then up to jitter px apart on the same one.
+// finale: the island's last wave (`wave`): its banner (title, detail),
+// weather ('storm': STORM; 'eruption': ASHFALL's eruption), its bosses
+// ({ key, at: ms into the wave }, each with hpFactor x its usual HP), and a
+// trickle of regular enemies (trickle x the usual count, a group every
+// trickleInterval ms from trickleFrom). enrage 'onBossDown': when one boss
+// dies the other enrages; 'fromStart': they arrive enraged. Enraged bosses
+// are tinted rageTint and attack (fire, launch boats, spit) rage x as fast.
+// bombs overrides lavaBombs' min / max for the wave. Winning pays `pearls`
+// and legendaryChests free Legendary chests, and its banner says clearedTitle
+// and `unlocks`.
 export const ISLANDS = [
   {
     id: 'skull_cove', name: 'Skull Cove', waves: 50, waveOffset: 0, available: true,
     hazard: 'Harpies, Sirens', boss: 'Kraken & Galleon',
-    // Wave 50: "Wrath of Skull Cove". A storm rolls in (STORM), then the
-    // Ghost Galleon emerges (galleonAt ms in) and The Kraken surfaces
-    // krakenAfter ms after it, each with hpFactor x its usual HP, while a
-    // trickle of regular enemies comes in (trickle x the usual count, a group
-    // every trickleInterval ms from trickleFrom). When one boss dies the
-    // other enrages: tinted, attacking (and firing, launching boats) rage x
-    // as fast. Winning pays `pearls` and a free Legendary chest, clears the
-    // storm and unlocks the world map.
+    // Wave 50: "Wrath of Skull Cove". A storm rolls in, the Ghost Galleon
+    // emerges, and The Kraken surfaces 20s after it. Unlocks the world map.
     finale: {
       wave: 50,
       title: 'WRATH OF SKULL COVE',
       detail: 'WAVE 50 - FINAL BATTLE',
-      galleonAt: 1500, krakenAfter: 20000, hpFactor: 1.5,
+      weather: 'storm',
+      bosses: [{ key: 'ghostGalleon', at: 1500 }, { key: 'kraken', at: 21500 }],
+      hpFactor: 1.5,
       trickle: 1.0, trickleFrom: 5000, trickleInterval: 3200,
-      rage: 1.6, rageTint: 0xff5a5a,
+      enrage: 'onBossDown', rage: 1.6, rageTint: 0xff5a5a,
       pearls: 40, legendaryChests: 1,
       clearedTitle: 'SKULL COVE CLEARED!',
+      unlocks: 'WORLD MAP UNLOCKED',
     },
   },
-  { id: 'ember_isle', name: 'Ember Isle', waves: 50, waveOffset: 30, available: false, hazard: 'Lava bombs', boss: '???' },
+  {
+    // Ember Isle's wave 1 is as hard as Skull Cove's wave 50.
+    id: 'ember_isle', name: 'Ember Isle', waves: 50, waveOffset: 49, available: true,
+    hazard: 'Lava bombs', boss: 'Molten Leviathan',
+    scenery: { path: 'ember/', bg: 'bg_ember_tall', fg: 'fg_ember_sheet' },
+    ash: true,
+    formations: EMBER_FORMATIONS,
+    bosses: ['moltenLeviathan'],
+    sirenFromWave: 7,
+    lavaBombs: { min: 8000, max: 12000, warnMs: 1200, fromY: -70, jitter: 8 },
+    // Wave 50: "Eruption". The volcano erupts (red tint, heavier ash, a bomb
+    // every ~4s) and an enraged Leviathan rises with a strong escort.
+    // Unlocks Frostbite Reef on the map.
+    finale: {
+      wave: 50,
+      title: 'ERUPTION',
+      detail: 'WAVE 50 - FINAL BATTLE',
+      weather: 'eruption',
+      bosses: [{ key: 'moltenLeviathan', at: 3500 }],   // after the banner
+      hpFactor: 1.5,
+      trickle: 1.3, trickleFrom: 4000, trickleInterval: 2800,
+      enrage: 'fromStart', rage: 1.6, rageTint: 0xff5a5a,
+      bombs: { min: 3500, max: 4500 },
+      pearls: 40, legendaryChests: 1,
+      clearedTitle: 'EMBER ISLE CLEARED!',
+      unlocks: 'FROSTBITE REEF UNLOCKED',
+    },
+  },
   { id: 'frostbite_reef', name: 'Frostbite Reef', waves: 50, waveOffset: 60, available: false, hazard: '???', boss: '???' },
   { id: 'fogbound_isle', name: 'Fogbound Isle', waves: 50, waveOffset: 90, available: false, hazard: '???', boss: '???' },
 ];

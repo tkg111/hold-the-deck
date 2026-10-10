@@ -1,8 +1,8 @@
 import Phaser from 'phaser';
-import { DISPLAY, ENEMIES, HEROES, UI_KIT, WANTED } from '../config.js';
+import { DISPLAY, ENEMIES, HEROES, ISLANDS, UI_KIT, WANTED } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
 import { applyRenderScale, fillView } from '../display.js';
-import { enemyFirstWave, waveScaling } from '../systems/WaveManager.js';
+import { enemyDebut, waveScaling } from '../systems/WaveManager.js';
 import { Button } from '../ui/Button.js';
 import { fmtNumber } from '../ui/format.js';
 import {
@@ -11,10 +11,26 @@ import {
 import { createPoster, enemyPortrait, traitIconKey, traitsOf, wantedLayout } from '../ui/wanted.js';
 
 // The Wanted Board (enemy book): a poster for every enemy type on the left,
-// and the selected one's page on the right (portrait, traits, stats at the
-// current wave, description, crew it's weak to, bounty). Posters of types not
-// met yet are blank and can't be opened; opening one marks it seen.
-// Launched with { progress, onClose }.
+// in the order they're met on the voyage, a page of them at a time (arrows by
+// the title turn it), and the selected one's page on the right (portrait,
+// traits, stats at the current wave, description, crew it's weak to,
+// bounty). Posters of types not met yet are blank and can't be opened;
+// opening one marks it seen. Launched with { progress, onClose }.
+
+// Where a type comes in the voyage, for sorting: island, then wave.
+const debutOrder = (id) => {
+  const debut = enemyDebut(id);
+  return debut ? debut.island * 1000 + debut.wave : Infinity;
+};
+
+// The page's "first wave" stat: [label, value]. Skull Cove's types give the
+// wave; later islands' name the island in the label.
+function firstWave(id) {
+  const debut = enemyDebut(id);
+  if (!debut) return ['FIRST WAVE', '-'];
+  const label = debut.island === 0 ? 'FIRST WAVE' : `${ISLANDS[debut.island].name.toUpperCase()} WAVE`;
+  return [label, `${debut.wave}`];
+}
 export class WantedScene extends Phaser.Scene {
   constructor() {
     super('WantedScene');
@@ -24,20 +40,34 @@ export class WantedScene extends Phaser.Scene {
     this.progress = progress;
     this.onClose = onClose;
     this.selected = null;
+    this.posterPage = 0;   // which page of posters shows
   }
 
   create() {
     applyRenderScale(this);
     const p = this.progress;
     this.ids = Object.keys(ENEMIES).filter((id) => !ENEMIES[id].minion)
-      .sort((a, b) => enemyFirstWave(a) - enemyFirstWave(b));
+      .sort((a, b) => debutOrder(a) - debutOrder(b));
+    this.perPage = WANTED.columns * WANTED.rows;
+    this.pages = Math.ceil(this.ids.length / this.perPage);
     const cx = DISPLAY.width / 2;
 
     fillView(this, 0x0d1117, 0.9);
     panel(this, cx - 70, 4, 140, 20, 'wood');
     text(this, cx, 14, 'WANTED BOARD', light()).setOrigin(0.5);
     const found = this.ids.filter((id) => p.isDiscovered(id)).length;
-    text(this, cx + 76, 14, `${found}/${this.ids.length} FOUND`, { font: 'small', ...light() }).setOrigin(0, 0.5);
+    text(this, cx + (this.pages > 1 ? 96 : 76), 14, `${found}/${this.ids.length} FOUND`, { font: 'small', ...light() }).setOrigin(0, 0.5);
+    if (this.pages > 1) {
+      const arrow = (x, step, angle) => {
+        const b = new Button(this, x, 14, {
+          width: 18, height: 18, icon: 'arrow_up', onClick: () => this.turnPage(step),
+        });
+        b.icon.setAngle(angle);
+        return b;
+      };
+      this.prevButton = arrow(cx - 82, -1, -90);
+      this.nextButton = arrow(cx + 82, 1, 90);
+    }
     text(this, 8, 14, 'CLICK A POSTER', { font: 'small', ...light() }).setOrigin(0, 0.5);
     new Button(this, DISPLAY.width - 30, 14, {
       width: 48, height: 20, label: 'Back', onClick: () => this.close(),
@@ -57,12 +87,20 @@ export class WantedScene extends Phaser.Scene {
     return { x: WANTED.gridX + col * (L.width + WANTED.gap), y: WANTED.gridY + row * (L.height + WANTED.gap) };
   }
 
-  // Every poster; met ones open their page, the selected one is framed.
+  turnPage(step) {
+    const page = Phaser.Math.Clamp(this.posterPage + step, 0, this.pages - 1);
+    if (page === this.posterPage) return;
+    sfx.click();
+    this.posterPage = page;
+    this.drawPosters();
+  }
+
+  // This page's posters; met ones open their page, the selected one is framed.
   drawPosters() {
     const p = this.progress;
     const L = wantedLayout(this);
     this.posters.removeAll(true);
-    this.ids.forEach((id, i) => {
+    this.ids.slice(this.posterPage * this.perPage, (this.posterPage + 1) * this.perPage).forEach((id, i) => {
       const { x, y } = this.posterPos(i);
       this.posters.add(createPoster(this, x, y, id, p, { unseen: p.isDiscovered(id) && !p.isPosterSeen(id) }));
       if (id === this.selected) {
@@ -74,11 +112,13 @@ export class WantedScene extends Phaser.Scene {
         this.posters.add(zone);
       }
     });
+    this.prevButton?.setEnabled(this.posterPage > 0);
+    this.nextButton?.setEnabled(this.posterPage < this.pages - 1);
   }
 
   // Under the posters: what the bounties pay.
   drawLegend() {
-    const rows = Math.ceil(this.ids.length / WANTED.columns);
+    const rows = Math.min(WANTED.rows, Math.ceil(this.ids.length / WANTED.columns));
     const L = wantedLayout(this);
     const top = WANTED.gridY + rows * (L.height + WANTED.gap) + 4;
     const width = WANTED.columns * (L.width + WANTED.gap) - WANTED.gap;
@@ -149,15 +189,15 @@ export class WantedScene extends Phaser.Scene {
       chipX += cw + 3;
     }
 
-    // Stats at the current wave.
-    const scaling = waveScaling(p.wave);
+    // Stats at the current wave (on this island, which may start harder).
+    const scaling = waveScaling(p.scalingWave);
     const statsY = traitsOf(def).length ? chipY + 18 : py;
     const dash = (n) => (n > 0 ? fmtNumber(Math.round(n)) : '-');
     const stats = [
       ['HP', fmtNumber(Math.round(def.hp * scaling.hp))],
       ['SPEED', dash(def.speed)],
       ['DAMAGE', def.hullShare ? `${Math.round(def.hullShare.normal * 100)}% HULL` : dash(def.damage * scaling.damage)],
-      ['FIRST WAVE', `${enemyFirstWave(id)}`],
+      firstWave(id),
     ];
     add(text(this, right, statsY, `AT WAVE ${p.wave}`, subText()));
     stats.forEach(([label, value], i) => {

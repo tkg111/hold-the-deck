@@ -15,8 +15,8 @@ import {
 // ship token bobbing by the current island. Cleared islands fly a flag;
 // locked ones are greyscale and faded with a "?" and "???" for a name.
 // Clicking an unlocked island shows its card (island number, waves, hazard,
-// boss, best wave, Endless once cleared) with SET SAIL!, which sails there.
-// Launched with { progress, onClose(sailed) }.
+// boss, best wave, Endless once cleared) with SET SAIL!, which sails there
+// (or a disabled COMING SOON for an island with no content yet). Launched with { progress, onClose(sailed) }.
 
 const GREY = (key) => `${key}_grey`;
 
@@ -176,10 +176,12 @@ export class MapScene extends Phaser.Scene {
       add(text(this, x + 10, ry, label, subText()), text(this, x + MAP.card.valueX, ry, value, subText({ color: UI.colors.textOnParchment })));
     });
     add(this.add.rectangle(x + 8, y + 86, w - 16, 1, hexColor(UI_KIT.dividerColor)).setOrigin(0));
-    add(new Button(this, x + w / 2, y + h - 20, {
-      width: w - 24, height: 24, style: 'gold', label: 'SET SAIL!',
+    // An island without content yet can't be sailed to.
+    const button = new Button(this, x + w / 2, y + h - 20, {
+      width: w - 24, height: 24, style: 'gold', label: def.available ? 'SET SAIL!' : 'COMING SOON',
       onClick: () => this.setSail(def.id),
-    }));
+    });
+    add(button.setEnabled(def.available));
   }
 
   // Sail to the island (or, if the ship is already there, just back to it).

@@ -5,6 +5,7 @@ import { DEV_TOOLS } from '../devFlag.js';
 import {
   applyRenderScale, fullscreenSupported, isFullscreen, toggleFullscreen,
 } from '../display.js';
+import { Ashfall } from '../ashfall.js';
 import { Scenery } from '../scenery.js';
 import { createAnimations, mapKey, preloadSprites } from '../sprites.js';
 import { Storm } from '../storm.js';
@@ -13,6 +14,7 @@ import { Hero } from '../entities/Hero.js';
 import { clearSave, loadProgress, saveProgress } from '../systems/Save.js';
 import { bossOf, composeWave, isBossWave, isSirenWave, WaveManager } from '../systems/WaveManager.js';
 import { AbilitySystem } from '../systems/Abilities.js';
+import { Volcano } from '../systems/Volcano.js';
 import { BattleStats, mvpOf } from '../systems/BattleStats.js';
 import { AbilityBar } from '../ui/AbilityBar.js';
 import { Button } from '../ui/Button.js';
@@ -25,6 +27,8 @@ import { Bar, icon, light, panel, text, UI, wantedKey } from '../ui/kit.js';
 
 const STATE = { IDLE: 'idle', RUNNING: 'running' };
 
+// Enemies that count toward the wave (not hazards such as lava bombs).
+const isFoe = (e) => !e.def.hazard;
 
 // Gold amounts floating up from kills.
 const GOLD_TEXT = '#ffd86a';
@@ -53,7 +57,9 @@ export class GameScene extends Phaser.Scene {
     this.enemies = [];
     this.projectiles = [];
 
-    this.scenery = new Scenery(this);
+    this.scenery = new Scenery(this, this.progress.island);
+    this.ashfall = new Ashfall(this);
+    this.ashfall.setIsland(this.progress.island, { instant: true });
     this.storm = new Storm(this);
     this.ship = new Ship(this, this.progress);
     this.heroes = [];
@@ -62,6 +68,7 @@ export class GameScene extends Phaser.Scene {
     this.rebuildHeroes();
 
     this.waves = new WaveManager(this);
+    this.volcano = new Volcano(this);   // Ember Isle's lava bombs and fire puddles
     // Scene events outlive a restart, so unhook on shutdown to avoid double handlers.
     const handlers = {
       'enemy-killed': this.onEnemyKilled,
@@ -94,10 +101,11 @@ export class GameScene extends Phaser.Scene {
     this.refreshUi();
   }
 
-  // The window changed size: re-cover the view with the storm and re-anchor
-  // the HUD (the battlefield and backdrop don't move).
+  // The window changed size: re-cover the view with the storm and ash and
+  // re-anchor the HUD (the battlefield and backdrop don't move).
   onViewResize(view) {
     this.storm.layout(view);
+    this.ashfall.layout(view);
     this.layoutUi(view);
   }
 
@@ -225,7 +233,7 @@ export class GameScene extends Phaser.Scene {
 
     this.enemiesBar.setVisible(!idle);
     if (!idle) {
-      const left = this.waves.queue.length + this.enemies.filter((e) => e.alive).length;
+      const left = this.waves.queue.length + this.enemies.filter((e) => e.alive && isFoe(e)).length;
       this.enemiesBar.setValue(left / Math.max(1, this.waves.total), `${left} ENEMIES LEFT`);
     }
 
@@ -273,6 +281,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   onEnemyKilled(enemy) {
+    if (!isFoe(enemy)) return;   // a lava bomb shot down
     for (const bounty of this.progress.recordDefeat(enemy.key)) this.notices.bounty(enemy.key, bounty);
     const gold = this.progress.earnGold(enemy.gold);
     const top = enemy.y - enemy.def.height / 2;
@@ -428,7 +437,11 @@ export class GameScene extends Phaser.Scene {
     this.scene.launch('MapScene', {
       progress: this.progress,
       onClose: (sailed) => {
-        if (sailed) this.showBanner(`SAILING TO ${this.progress.island.name.toUpperCase()}`);
+        if (sailed) {
+          this.scenery.setIsland(this.progress.island);
+          this.ashfall.setIsland(this.progress.island);
+          this.showBanner(`SAILING TO ${this.progress.island.name.toUpperCase()}`);
+        }
         this.refreshUi();
         this.save();
       },
@@ -449,12 +462,14 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     if (this.heroPicker.visible) this.heroPicker.close();
-    // Storm Harpies ahead and nobody on the ship can hit (or net) flyers.
-    const flyers = composeWave(this.progress.wave, this.progress.waveOptions).some((s) => s.def.flies);
+    // Flyers ahead (Storm Harpies, Ash Bats) and nobody on the ship can hit
+    // (or net) them.
+    const options = this.progress.waveOptions;
+    const flyers = composeWave(this.progress.wave, options).some((s) => s.def.flies);
     if (flyers && !confirmed && !this.heroes.some((h) => h.antiAir)) {
       new ConfirmDialog(this, {
         title: 'Flyers ahead!',
-        message: 'Storm Harpies fly in this wave, and none of your crew can hit flyers. Set sail anyway?',
+        message: 'Flyers come in this wave, and none of your crew can hit them. Set sail anyway?',
         confirmLabel: 'Set sail',
         onConfirm: () => this.startWave({ confirmed: true }),
       });
@@ -463,15 +478,17 @@ export class GameScene extends Phaser.Scene {
     this.ship.setSlotsEnabled(false);
     this.ship.restore();
     this.stats.start(this.progress.wave, this.progress.islandId, this.heroes);
-    this.waves.start(this.progress.wave, this.progress.waveOptions);
+    this.waves.start(this.progress.wave, options);
+    this.volcano.start(options);
     this.abilities.resetCooldowns();
-    const { finale } = this.progress.waveOptions;
+    const { finale, island } = options;
     if (finale) {
-      // The island's finale: the storm rolls in under its banner.
-      this.storm.start();
+      // The island's finale: its weather rolls in under its banner.
+      if (finale.weather === 'storm') this.storm.start();
+      if (finale.weather === 'eruption') this.ashfall.erupt();
       this.showBanner(finale.title, { detail: finale.detail, hold: 3000 });
-    } else if (isBossWave(this.progress.wave)) this.showBanner(ENEMIES[bossOf(this.progress.wave)].banner, { color: UI.colors.warn });
-    else if (isSirenWave(this.progress.wave)) this.showBanner('A SIREN SINGS!', { color: UI.colors.warn });
+    } else if (isBossWave(this.progress.wave)) this.showBanner(ENEMIES[bossOf(this.progress.wave, island)].banner, { color: UI.colors.warn });
+    else if (isSirenWave(this.progress.wave, island)) this.showBanner('A SIREN SINGS!', { color: UI.colors.warn });
     this.state = STATE.RUNNING;
     this.simCarry = 0;   // game time not yet simulated (under one step)
     this.waveTime = 0;   // game time simulated this wave
@@ -486,6 +503,7 @@ export class GameScene extends Phaser.Scene {
     this.progress.logWave(record);
     this.applySpeed();
     this.waves.stop();
+    this.volcano.stop();
     this.abilities.clear();
     for (const h of this.heroes) h.clearAbilities();
     for (const e of this.enemies) e.destroy();
@@ -494,14 +512,16 @@ export class GameScene extends Phaser.Scene {
     this.projectiles = [];
 
     this.storm.stop();
+    this.ashfall.calm();
     if (won) {
       const wave = this.progress.wave;
       const { gold, pearls, finale } = this.progress.winWave();
       if (finale) {
-        // The island is cleared: its reward, and the world map opens.
+        // The island is cleared: its reward, and what it unlocks (the world
+        // map, the next island).
         sfx.reveal('legendary', true);
         this.showBanner(finale.clearedTitle, {
-          detail: `+${pearlsLabel(pearls).toUpperCase()}  +${finale.legendaryChests} LEGENDARY CHEST  -  WORLD MAP UNLOCKED`,
+          detail: `+${pearlsLabel(pearls).toUpperCase()}  +${finale.legendaryChests} LEGENDARY CHEST  -  ${finale.unlocks}`,
           hold: 4500,
         });
       } else {
@@ -543,6 +563,7 @@ export class GameScene extends Phaser.Scene {
   update(_time, delta) {
     this.notices.update(Math.min(delta, 100));
     this.storm.update(Math.min(delta, 100));
+    this.ashfall.update(Math.min(delta, 100));
     if (this.state !== STATE.RUNNING) return;
     // Fixed steps of game time, so the wave plays out the same at any frame
     // rate (see SIM in config).
@@ -566,6 +587,7 @@ export class GameScene extends Phaser.Scene {
     // The finale: a boss arriving after the other fell comes in enraged.
     for (const e of spawned) if (e.def.boss && e.rage > 1) this.showBanner(`${e.def.name.toUpperCase()} ENRAGES!`, { color: UI.colors.warn });
     for (const e of this.enemies) e.update(dt, this.ship);
+    this.volcano.update(dt);
     this.abilities.update(dt, this.progress.autoAbilities);
 
     for (const h of this.heroes) {
@@ -581,6 +603,7 @@ export class GameScene extends Phaser.Scene {
       this.endWave(false);
       return;
     }
-    if (this.waves.doneSpawning && this.enemies.length === 0) this.endWave(true);
+    // Won once every foe is beaten (lava bombs still falling don't count).
+    if (this.waves.doneSpawning && !this.enemies.some(isFoe)) this.endWave(true);
   }
 }

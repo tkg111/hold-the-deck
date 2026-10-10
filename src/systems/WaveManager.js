@@ -1,19 +1,49 @@
-import { ECONOMY, ELITE, ENEMIES, FORMATIONS, WAVES } from '../config.js';
+import { ECONOMY, ELITE, ENEMIES, FORMATIONS, ISLANDS, WAVES } from '../config.js';
 import { Enemy } from '../entities/Enemy.js';
 
-export const isBossWave = (wave) => wave % WAVES.bossEvery === 0;
-// The boss of a boss wave (ENEMIES key): WAVES.bosses take turns.
-export const bossOf = (wave) => WAVES.bosses[(wave / WAVES.bossEvery - 1) % WAVES.bosses.length];
-export const isSirenWave = (wave) => !isBossWave(wave) && wave >= WAVES.sirenFromWave
-  && (wave - WAVES.sirenFromWave) % WAVES.sirenEvery === 0;
+// What an island's waves are made of (its ISLANDS entry, Skull Cove by
+// default): its formations, bosses and first Siren wave, falling back to
+// Skull Cove's (FORMATIONS, WAVES) for anything it doesn't set.
+export function islandContent(island = ISLANDS[0]) {
+  return {
+    formations: island.formations ?? FORMATIONS,
+    bosses: island.bosses ?? WAVES.bosses,
+    sirenFromWave: island.sirenFromWave ?? WAVES.sirenFromWave,
+  };
+}
 
-// The first wave an enemy type (ENEMIES key) can appear in: its earliest
-// formation, the first Siren wave, or its first boss wave.
-export function enemyFirstWave(key) {
-  if (ENEMIES[key].boss) return WAVES.bossEvery * (WAVES.bosses.indexOf(key) + 1);
-  if (ENEMIES[key].stationary) return WAVES.sirenFromWave;
-  const froms = FORMATIONS.filter((f) => f.members.includes(key)).map((f) => f.from);
-  return froms.length ? Math.min(...froms) : Infinity;
+export const isBossWave = (wave) => wave % WAVES.bossEvery === 0;
+// The boss of a boss wave on an island (ENEMIES key): its bosses take turns.
+export function bossOf(wave, island) {
+  const { bosses } = islandContent(island);
+  return bosses[(wave / WAVES.bossEvery - 1) % bosses.length];
+}
+export function isSirenWave(wave, island) {
+  const { sirenFromWave } = islandContent(island);
+  return !isBossWave(wave) && wave >= sirenFromWave && (wave - sirenFromWave) % WAVES.sirenEvery === 0;
+}
+
+// The first wave an enemy type (ENEMIES key) can appear in on an island: its
+// earliest formation, the first Siren wave, its first boss wave or the
+// finale. Infinity if it never does.
+export function enemyFirstWave(key, island = ISLANDS[0]) {
+  const { formations, bosses, sirenFromWave } = islandContent(island);
+  const waves = formations.filter((f) => f.members.includes(key)).map((f) => f.from);
+  if (bosses.includes(key)) waves.push(WAVES.bossEvery * (bosses.indexOf(key) + 1));
+  if (island.finale?.bosses.some((b) => b.key === key)) waves.push(island.finale.wave);
+  if (ENEMIES[key].stationary) waves.push(sirenFromWave);
+  return waves.length ? Math.min(...waves) : Infinity;
+}
+
+// Where an enemy type is first met on the voyage: { island (ISLANDS index),
+// wave }, or null if it isn't on any island yet.
+export function enemyDebut(key) {
+  for (let i = 0; i < ISLANDS.length; i++) {
+    if (!ISLANDS[i].available) continue;
+    const wave = enemyFirstWave(key, ISLANDS[i]);
+    if (wave < Infinity) return { island: i, wave };
+  }
+  return null;
 }
 
 // Per-wave multipliers for enemy HP, damage and kill gold.
@@ -45,10 +75,10 @@ function seededRandom(seed) {
   };
 }
 
-// The regular formations of a wave until they hold `count` enemies (each
-// formation's first wave always includes it), shuffled.
-function pickFormations(wave, count, random) {
-  const unlocked = FORMATIONS.filter((f) => wave >= f.from);
+// The regular formations (from `formations`) of a wave until they hold
+// `count` enemies (each formation's first wave always includes it), shuffled.
+function pickFormations(wave, count, formations, random) {
+  const unlocked = formations.filter((f) => wave >= f.from);
   const groups = unlocked.filter((f) => f.from === wave);
   let size = groups.reduce((sum, f) => sum + f.members.length, 0);
   const totalWeight = unlocked.reduce((sum, f) => sum + f.weight, 0);
@@ -71,23 +101,26 @@ const enemyCount = (wave) => Math.round(WAVES.baseCount + (wave - 1) * WAVES.cou
 // The wave's spawn plan, in order: [{ key, def, elite, delay, follow, hpFactor }].
 // delay: ms after the previous spawn; follow: index (in the plan) of the
 // leader this one keeps behind, or null; hpFactor: multiplies its HP (the
-// finale's bosses). Built from FORMATIONS, with a Siren on Siren waves and
-// the boss on boss waves. offset: the island's waveOffset (Elites come as on
-// wave + offset, which also seeds the line-up). finale: the
-// island's finale config when this wave is it (see finalePlan). countFactor:
-// multiplies the enemy count and Elite chance (Endless grace, see
-// Progress.endlessGrace).
-export function composeWave(wave, { offset = 0, finale = null, countFactor = 1 } = {}) {
+// finale's bosses). Built from the island's formations, with a Siren on Siren
+// waves and the boss on boss waves. island: its ISLANDS entry. offset: its
+// waveOffset (Elites come as on wave + offset, which also seeds the
+// line-up). finale: the island's finale config when this wave is it (see
+// finalePlan). countFactor: multiplies the enemy count and Elite chance
+// (Endless grace, see Progress.endlessGrace).
+export function composeWave(wave, {
+  island = ISLANDS[0], offset = 0, finale = null, countFactor = 1,
+} = {}) {
   const random = seededRandom(wave * 7919 + 17 + offset * 104729);
-  if (finale) return finalePlan(wave, offset, finale, random);
+  const { formations } = islandContent(island);
+  if (finale) return finalePlan(wave, offset, finale, formations, random);
   const n = wave - 1;
   let count = Math.round(enemyCount(wave) * countFactor);
   if (isBossWave(wave)) count = Math.round(count * WAVES.bossEscortFactor);
 
-  const groups = pickFormations(wave, count, random);
+  const groups = pickFormations(wave, count, formations, random);
   const solo = (key) => ({ members: [key] });
-  if (isSirenWave(wave)) groups.splice(Math.round(groups.length * WAVES.sirenSpawnAt), 0, solo('siren'));
-  if (isBossWave(wave)) groups.splice(Math.round(groups.length * WAVES.bossSpawnAt), 0, solo(bossOf(wave)));
+  if (isSirenWave(wave, island)) groups.splice(Math.round(groups.length * WAVES.sirenSpawnAt), 0, solo('siren'));
+  if (isBossWave(wave)) groups.splice(Math.round(groups.length * WAVES.bossSpawnAt), 0, solo(bossOf(wave, island)));
 
   const elites = eliteChance(wave + offset) * countFactor;
   const interval = Math.max(WAVES.minSpawnInterval, WAVES.spawnInterval + n * WAVES.spawnIntervalPerWave);
@@ -109,19 +142,16 @@ export function composeWave(wave, { offset = 0, finale = null, countFactor = 1 }
   return plan;
 }
 
-// An island's finale: the Ghost Galleon at galleonAt, The Kraken
-// krakenAfter ms later, in front of it (both at hpFactor x their HP), and a trickle of
-// regular formations (trickle x the usual count) every trickleInterval ms
-// from trickleFrom.
-function finalePlan(wave, offset, finale, random) {
-  const groups = pickFormations(wave, Math.round(enemyCount(wave) * finale.trickle), random);
+// An island's finale: each of its bosses at its time (with hpFactor x its
+// HP), and a trickle of regular formations (trickle x the usual count) every
+// trickleInterval ms from trickleFrom.
+function finalePlan(wave, offset, finale, formations, random) {
+  const groups = pickFormations(wave, Math.round(enemyCount(wave) * finale.trickle), formations, random);
   const elites = eliteChance(wave + offset);
   const timed = [];   // { time, entry, leader }
-  const boss = (key, time) => timed.push({
-    time, entry: { key, def: ENEMIES[key], elite: false, hpFactor: finale.hpFactor },
-  });
-  boss('ghostGalleon', finale.galleonAt);
-  boss('kraken', finale.galleonAt + finale.krakenAfter);
+  for (const { key, at } of finale.bosses) {
+    timed.push({ time: at, entry: { key, def: ENEMIES[key], elite: false, hpFactor: finale.hpFactor } });
+  }
   groups.forEach((g, gi) => {
     const start = finale.trickleFrom + gi * finale.trickleInterval;
     const leader = { key: g.members[0] };
@@ -156,7 +186,7 @@ export class WaveManager {
 
   get doneSpawning() { return this.queue.length === 0; }
 
-  // options: { offset, finale } (Progress.waveOptions).
+  // options: { island, offset, finale, countFactor } (Progress.waveOptions).
   start(wave, options = {}) {
     this.queue = composeWave(wave, options);
     this.spawned = [];
@@ -164,7 +194,8 @@ export class WaveManager {
     this.scaling = waveScaling(wave + (options.offset ?? 0));
     this.spawnTimer = this.queue[0]?.delay ?? 0;
     this.finale = options.finale ?? null;
-    this.enraged = false;
+    // A finale whose bosses arrive enraged.
+    this.enraged = this.finale?.enrage === 'fromStart';
   }
 
   stop() {

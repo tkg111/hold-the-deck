@@ -65,7 +65,8 @@ function dropPrestige(data) {
   return { ...rest, pearls: count(rest.pearls) + total * ECONOMY.pearlsPerOldRenown };
 }
 
-// v8 Wanted Board: enemy types whose first wave the player has passed count
+// v8 Wanted Board: enemy types whose first wave (on Skull Cove, the only
+// island then) the player has passed count
 // as met (and their posters as already seen, so an old save doesn't light up
 // with "new" posters); defeats start counting from here.
 function addWantedBoard(data) {
