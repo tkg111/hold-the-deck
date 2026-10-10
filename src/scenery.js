@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { DISPLAY, SCENERY } from './config.js';
+import { SCENERY } from './config.js';
 import { DEPTH } from './entities/Ship.js';
 import { BACKGROUND_KEY, FOREGROUND_ANIM, FOREGROUND_KEY } from './sprites.js';
 
@@ -7,10 +7,10 @@ const STRIP = 'strip';  // frame name of the mirrored strip (per sheet frame for
 
 // The battle scene's backdrop: bg.png behind everything and the animated
 // foreground (near water and island) over the enemies so they wade into the
-// sea. Both are anchored to the right of the view with the island. When the
-// view is wider than bg.png, the sea and sky left of it (and the near water in
-// front of the ship) are bg.png's / fg_sheet.png's left strip, mirrored back
-// and forth; when it's taller, sky bands continue upward.
+// sea. Both sit at the battlefield's fixed spot (top-left at 0, 0). When the
+// view is wider than bg.png, the sea and sky left of it (behind the ship) are
+// bg.png's / fg_sheet.png's left strip, mirrored back and forth; when it's
+// taller, sky bands continue upward.
 export class Scenery {
   constructor(scene) {
     this.scene = scene;
@@ -24,21 +24,17 @@ export class Scenery {
     this.bands = skyBands(scene);
   }
 
-  // Lay out for the scene's view (left edge at x = 0, bottom at the base
-  // bottom; see GameScene).
+  // Lay out for the scene's view (right and bottom edges at the base
+  // layout's; see GameScene).
   layout(view) {
-    const dx = view.width - DISPLAY.width;
-    this.bg.setX(dx);
-    this.fg.setX(dx);
-
     for (const s of [...this.bgStrips, ...this.fgStrips]) s.destroy();
     this.bgStrips = [];
     this.fgStrips = [];
     const w = SCENERY.mirrorWidth;
     // Strip i ends where strip i - 1 (or bg.png) starts; even ones are flipped
     // so each seam joins matching columns.
-    for (let i = 0; i * w < dx; i++) {
-      const x = dx - (i + 1) * w;
+    for (let i = 0; i * w < -view.left; i++) {
+      const x = -(i + 1) * w;
       const flip = i % 2 === 0;
       this.bgStrips.push(this.scene.add.image(x, 0, BACKGROUND_KEY, STRIP)
         .setOrigin(0).setFlipX(flip).setDepth(DEPTH.background));
@@ -56,7 +52,7 @@ export class Scenery {
       const c = top.map((v, i) => Phaser.Math.Clamp(Math.round(v + n * step[i]), 0, 255));
       // The last band runs to the top of the view.
       const bandTop = k >= SCENERY.maxExtraSkyBands ? view.top : Math.max(view.top, y - height);
-      g.fillStyle(Phaser.Display.Color.GetColor(...c)).fillRect(0, bandTop, view.width, y - bandTop);
+      g.fillStyle(Phaser.Display.Color.GetColor(...c)).fillRect(view.left, bandTop, view.width, y - bandTop);
       if (bandTop === view.top) break;
     }
   }

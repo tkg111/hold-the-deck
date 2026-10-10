@@ -1,19 +1,14 @@
 // The battle scene's layout from public/sprites/layout.json (in base pixels).
 // Filled by initLayout() once the file has loaded.
 //
-// When the view is wider than the base 480 pixels, the island (with its beach,
-// the enemy lane and the Kraken's rising spot) is anchored to the right edge
-// and the ship stays at the left, with more sea in between: shiftIsland(dx)
-// moves everything island-side right by dx. Ship-side points (the ship, where
-// enemies stop, where the Kraken glides to, the Siren's rock, so she stays in
-// the crew's range) never move.
+// The battlefield is a fixed 480x270 world: none of these positions depend on
+// the window. A bigger view only shows more sea and sky around it (see
+// GameScene.create and Scenery).
 export const LAYOUT = {};
-
-let base = null;
 
 export function initLayout(json) {
   const { rise, advance } = json.kraken;
-  base = {
+  Object.assign(LAYOUT, {
     shipX: json.shipPos.x,           // top-left of ship_stageN.png
     shipY: json.shipPos.y,
     waterY: json.waterY,
@@ -34,22 +29,10 @@ export function initLayout(json) {
     siren: { x: json.siren.x, y: json.siren.y },
     // Storm Harpies cruise with their body centre between these heights.
     flightY: { min: json.harpyFlightY.min, max: json.harpyFlightY.max },
-    // Top-left of the Ghost Galleon's 96x80 frame. Ship-side like the
-    // Siren's rock (it never moves, so it has to stay in the crew's range).
+    // Top-left of the Ghost Galleon's 96x80 frame.
     ghostGalleon: { x: json.ghostGalleon.x, y: json.ghostGalleon.y },
     // Boarding boats keep their frame's bottom on this line.
     boatWaterY: json.boardingBoat.waterlineY,
-  };
-  shiftIsland(LAYOUT.islandShift ?? 0);
-}
-
-export function shiftIsland(dx) {
-  Object.assign(LAYOUT, base, {
-    islandShift: dx,
-    enemySpawnX: base.enemySpawnX + dx,
-    // The lane's ship end stays put; the rest moves with the island.
-    lane: base.lane.map(([x, y]) => [x > base.shipContactX ? x + dx : x, y]),
-    kraken: { ...base.kraken, x: base.kraken.x + dx },
   });
 }
 

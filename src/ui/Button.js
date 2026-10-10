@@ -33,6 +33,11 @@ export class Button extends Phaser.GameObjects.Container {
     this.add([this.bg, this.content, this.dot]);
     this.layout();
 
+    // Every click is also announced on the scene ('button-pressed', button).
+    const click = () => {
+      scene.events.emit('button-pressed', this);
+      onClick();
+    };
     this.bg.setInteractive({ useHandCursor: true });
     this.bg.on('pointerover', () => { this.hovered = true; this.paint(); });
     this.bg.on('pointerout', () => { this.hovered = false; this.pressed = false; this.paint(); });
@@ -40,13 +45,13 @@ export class Button extends Phaser.GameObjects.Container {
       if (!this.enabled) return;
       this.pressed = true;
       this.paint();
-      if (!onRelease) onClick();
+      if (!onRelease) click();
     });
     this.bg.on('pointerup', () => {
       const clicked = this.pressed && onRelease;
       this.pressed = false;
       this.paint();
-      if (clicked) onClick();
+      if (clicked) click();
     });
 
     scene.add.existing(this);

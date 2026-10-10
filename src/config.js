@@ -779,6 +779,21 @@ export const WANTED = {
 // Session only: it isn't saved, and between waves everything runs at 1x.
 export const GAME_SPEEDS = [1, 2];
 
+// The battle runs in fixed steps of stepMs of game time, however many fit in
+// each frame's time (x the battle speed), so a wave plays out the same at any
+// frame rate. A frame counts as at most maxFrameMs of real time, so a
+// backgrounded tab doesn't teleport enemies on return.
+export const SIM = {
+  stepMs: 1000 / 240,
+  maxFrameMs: 100,
+};
+
+// Development builds only (see src/dev/).
+export const DEV = {
+  extraSpeed: 4,          // added to the speed button's cycle
+  autoContinueMs: 2000,   // auto-continue: pause before the next wave / retry
+};
+
 export const WAVES = {
   // Enemies per wave (at least): baseCount + (wave - 1) * countPerWave.
   // Waves are built from FORMATIONS until they hold that many.

@@ -31,11 +31,8 @@ export class Enemy {
   //   elite:  3x HP (ELITE), gold tint; gold is already multiplied by the caller
   //   leader: in an escorted formation, the enemy this one keeps behind
   //   key:    its ENEMIES key (for the Wanted Board)
-  //   inFront: The Kraken in a finale rises at its spot in the 480-wide
-  //           layout, in front of the Ghost Galleon, however wide the view
   constructor(scene, def, {
     x = LAYOUT.enemySpawnX, hpMultiplier, damageMultiplier, gold, elite = false, leader = null, key = null,
-    inFront = false,
   }) {
     this.scene = scene;
     this.def = def;
@@ -108,7 +105,7 @@ export class Enemy {
       const k = LAYOUT.kraken;
       this.frameW = this.body.displayWidth;
       this.frameH = this.body.displayHeight;
-      this.riseLeft = inFront ? k.x - LAYOUT.islandShift : k.x;
+      this.riseLeft = k.x;
       this.x = this.riseLeft + this.frameW / 2;
       this.stopX = k.toX + this.frameW / 2;
       this.riseTime = k.riseMs;
@@ -186,18 +183,6 @@ export class Enemy {
   // Position by the middle of the body (flyers).
   setY(y) {
     this.setFeetY(y + this.def.height / 2);
-  }
-
-  // The view was resized mid-wave and the island moved (spawn x from
-  // oldSpawnX to newSpawnX): keep the same share of the way left to walk.
-  rescaleLane(oldSpawnX, newSpawnX) {
-    if (!this.alive || this.def.stationary || this.x <= this.stopX) return;
-    const k = (newSpawnX - this.stopX) / (oldSpawnX - this.stopX);
-    this.x = Math.max(this.stopX, this.stopX + (this.x - this.stopX) * k);
-    if (this.splash) this.splash.setX(Math.round(this.x - this.frameW / 2));
-    this.followGround();
-    this.nameTag?.setPosition(this.x, this.hpBarY - 2);
-    this.drawHpBar();
   }
 
   get isRising() { return this.riseTime > 0; }

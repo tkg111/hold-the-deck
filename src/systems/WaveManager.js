@@ -118,7 +118,7 @@ function finalePlan(wave, offset, finale, random) {
   const elites = eliteChance(wave + offset);
   const timed = [];   // { time, entry, leader }
   const boss = (key, time) => timed.push({
-    time, entry: { key, def: ENEMIES[key], elite: false, hpFactor: finale.hpFactor, inFront: true },
+    time, entry: { key, def: ENEMIES[key], elite: false, hpFactor: finale.hpFactor },
   });
   boss('ghostGalleon', finale.galleonAt);
   boss('kraken', finale.galleonAt + finale.krakenAfter);
@@ -190,7 +190,7 @@ export class WaveManager {
 
     this.spawnTimer -= dt;
     while (this.spawnTimer <= 0 && this.queue.length) {
-      const { key, def, elite, follow, hpFactor, inFront } = this.queue.shift();
+      const { key, def, elite, follow, hpFactor } = this.queue.shift();
       const { hp, damage, gold } = this.scaling;
       const enemy = new Enemy(this.scene, def, {
         hpMultiplier: hp * (hpFactor ?? 1),
@@ -199,7 +199,6 @@ export class WaveManager {
         elite,
         key,
         leader: follow != null ? this.spawned[follow] : null,
-        inFront,
       });
       if (this.enraged && def.boss) enemy.enrage(this.finale.rage, this.finale.rageTint);
       this.spawned.push(enemy);

@@ -1,10 +1,9 @@
 import Phaser from 'phaser';
-import { DISPLAY, ENEMIES, GAME_SPEEDS, HEROES, UI_KIT } from '../config.js';
+import { DEV, DISPLAY, ENEMIES, GAME_SPEEDS, HEROES, SIM, UI_KIT } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
 import {
   applyRenderScale, fullscreenSupported, isFullscreen, toggleFullscreen,
 } from '../display.js';
-import { LAYOUT, shiftIsland } from '../layout.js';
 import { Scenery } from '../scenery.js';
 import { createAnimations, mapKey, preloadSprites } from '../sprites.js';
 import { Storm } from '../storm.js';
@@ -38,11 +37,12 @@ export class GameScene extends Phaser.Scene {
   }
 
   create() {
-    // The battle fills the window from the bottom-left: the ship stays there,
-    // the island moves out to the right edge, extra height is sky.
-    applyRenderScale(this, { x: 0, y: 1 });
+    // The battlefield is the fixed 480x270 world of layout.json, flush with
+    // the view's bottom-right corner (the island at the right edge): extra
+    // width is open sea behind the ship, extra height is sky. Nothing in the
+    // battle depends on the view's size.
+    applyRenderScale(this, { x: 1, y: 1 });
     createAnimations(this);
-    shiftIsland(this.view.width - DISPLAY.width);
     this.progress = loadProgress();
     sfx.init(this.game);
     sfx.setMuted(this.progress.muted);
@@ -92,14 +92,11 @@ export class GameScene extends Phaser.Scene {
     this.refreshUi();
   }
 
-  // The window changed size: move the island (and enemies on their way from
-  // it) and re-anchor the HUD.
+  // The window changed size: fill the new view with sea and sky and re-anchor
+  // the HUD (the battlefield itself doesn't move).
   onViewResize(view) {
-    const oldSpawnX = LAYOUT.enemySpawnX;
-    shiftIsland(view.width - DISPLAY.width);
     this.scenery.layout(view);
     this.storm.layout(view);
-    for (const e of this.enemies) e.rescaleLane(oldSpawnX, LAYOUT.enemySpawnX);
     this.layoutUi(view);
   }
 
@@ -193,7 +190,7 @@ export class GameScene extends Phaser.Scene {
 
   // Anchor the HUD to the view: plaques to their top corners, the enemies bar
   // to the top centre, the Shipwright (and hero picker) to the right and the
-  // button bar to the bottom right, under the Shipwright. (The view's left
+  // button bar to the bottom right, under the Shipwright. (The view's right
   // and bottom edges are the base layout's; see create().)
   layoutUi(view) {
     const right = view.right - DISPLAY.width;
@@ -201,7 +198,7 @@ export class GameScene extends Phaser.Scene {
     this.topLeft.setPosition(view.left, view.top);
     this.topCenter.setPosition(center, view.top);
     this.topRight.setPosition(right, view.top);
-    this.banner.setPosition(188 + Math.round((view.width - DISPLAY.width) / 2), view.top + 80);
+    this.banner.setPosition(center + 188, view.top + 80);
     this.shipwright.setPosition(right + 273, view.top + 64);
     this.heroPicker.setPosition(right + 473 - UI_KIT.pickerWidth, view.top + 64);
     this.bottomBar.setPosition(right, view.bottom - DISPLAY.height);
@@ -238,9 +235,7 @@ export class GameScene extends Phaser.Scene {
     this.muteButton.setIcon(p.muted ? 'sound_off' : 'sound_on');
     this.fullscreenButton.setIcon(isFullscreen() ? 'windowed' : 'fullscreen');
     this.shipwright.setVisible(idle && !this.heroPicker.visible);
-    this.devButton?.setVisible(idle);
-    this.devPearlsButton?.setVisible(idle);
-    this.devWaveButton?.setVisible(idle);
+    this.devTools?.refresh(idle);
     if (idle) this.shipwright.refresh();
   }
 
@@ -461,8 +456,11 @@ export class GameScene extends Phaser.Scene {
     } else if (isBossWave(this.progress.wave)) this.showBanner(ENEMIES[bossOf(this.progress.wave)].banner, { color: UI.colors.warn });
     else if (isSirenWave(this.progress.wave)) this.showBanner('A SIREN SINGS!', { color: UI.colors.warn });
     this.state = STATE.RUNNING;
+    this.simCarry = 0;   // game time not yet simulated (under one step)
+    this.waveTime = 0;   // game time simulated this wave
     this.applySpeed();
     this.refreshUi();
+    this.events.emit('wave-started');
   }
 
   endWave(won) {
@@ -500,18 +498,20 @@ export class GameScene extends Phaser.Scene {
     this.ship.setSlotsEnabled(true);
     this.refreshUi();
     this.save();
+    this.events.emit('wave-ended', won);
   }
 
   cycleSpeed() {
-    const i = GAME_SPEEDS.indexOf(this.speed);
-    this.speed = GAME_SPEEDS[(i + 1) % GAME_SPEEDS.length];
+    const speeds = import.meta.env.DEV ? [...GAME_SPEEDS, DEV.extraSpeed] : GAME_SPEEDS;
+    const i = speeds.indexOf(this.speed);
+    this.speed = speeds[(i + 1) % speeds.length];
     sfx.click();
     this.applySpeed();
     this.refreshUi();
   }
 
   // Run the battle at this.speed while a wave is on, 1x otherwise: game logic
-  // (via update's dt), sprite animations, tweens and timers all follow it.
+  // (via update's steps), sprite animations, tweens and timers all follow it.
   applySpeed() {
     const scale = this.state === STATE.RUNNING ? this.speed : 1;
     this.anims.globalTimeScale = scale;
@@ -524,9 +524,21 @@ export class GameScene extends Phaser.Scene {
     this.notices.update(Math.min(delta, 100));
     this.storm.update(Math.min(delta, 100));
     if (this.state !== STATE.RUNNING) return;
-    // Clamp so a backgrounded tab doesn't teleport enemies on return.
-    const dt = Math.min(delta, 100) * this.speed;
+    // Fixed steps of game time, so the wave plays out the same at any frame
+    // rate (see SIM in config).
+    this.simCarry += Math.min(delta, SIM.maxFrameMs) * this.speed;
+    while (this.simCarry >= SIM.stepMs) {
+      this.simCarry -= SIM.stepMs;
+      this.waveTime += SIM.stepMs;
+      this.tick(SIM.stepMs);
+      if (this.state !== STATE.RUNNING) return;  // the wave ended
+    }
+    this.refreshUi();
+    this.abilityBar.refresh(this.abilities, this.progress.autoAbilities);
+  }
 
+  // One step of the battle: dt ms of game time.
+  tick(dt) {
     const spawned = this.waves.update(dt);
     this.enemies.push(...spawned);
     // First sighting of a type: unlock its poster and announce it.
@@ -549,11 +561,6 @@ export class GameScene extends Phaser.Scene {
       this.endWave(false);
       return;
     }
-    if (this.waves.doneSpawning && this.enemies.length === 0) {
-      this.endWave(true);
-      return;
-    }
-    this.refreshUi();
-    this.abilityBar.refresh(this.abilities, this.progress.autoAbilities);
+    if (this.waves.doneSpawning && this.enemies.length === 0) this.endWave(true);
   }
 }
