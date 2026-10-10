@@ -778,6 +778,28 @@ export const WANTED = {
   toast: { ms: 2500, fadeMs: 300, x: 6, y: 52, gap: 3 },
 };
 
+// The Captain's Log (battle stats): what each crewmate did in the last few
+// waves and which enemies hurt the hull, opened from the Log button between
+// waves, plus an MVP plaque after every wave.
+export const BATTLE_LOG = {
+  keep: 5,              // waves kept (in the save)
+  // Damage bar segments (on parchment): attacks / abilities / poison & effects.
+  colors: { attack: '#c0582c', ability: '#3d78c2', effect: '#5e9e3a' },
+  // The panel (base pixels): parchment, tab buttons, rows.
+  panel: { x: 16, y: 30, width: 448, height: 236 },
+  tabWidth: 92,
+  infoY: 60,            // the line under the tabs: summary and bar legend
+  rowsY: 70,            // first row's top
+  rowHeight: 32,
+  visibleRows: 6,       // more scroll (mouse wheel or the arrows)
+  barX: 136,            // from the row's left
+  barWidth: 170,
+  // MVP plaque under the wave banner after each wave (doesn't block
+  // anything; real time, so as long at any speed). x is its centre in the
+  // base layout, y its top below the view's top.
+  mvp: { ms: 2500, fadeMs: 300, x: 188, y: 126 },
+};
+
 // Battle speeds the x-button cycles through during a wave (1 = normal).
 // Session only: it isn't saved, and between waves everything runs at 1x.
 export const GAME_SPEEDS = [1, 2];

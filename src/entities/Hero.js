@@ -2,19 +2,29 @@ import { FX, HEROES, SPRITES } from '../config.js';
 import { laneFeetY } from '../layout.js';
 import { FX_DEPTH, fxSprite, playFx } from '../fx.js';
 import { findAnim, fxKey, sheetKey } from '../sprites.js';
+import { damageSource } from '../systems/BattleStats.js';
 import { DEPTH } from './Ship.js';
 import {
   ChainLightning, LobProjectile, nearestLiving, PiercingProjectile, Projectile,
 } from './Projectile.js';
 
 export class Hero {
-  // damage and attackInterval come from Progress (level, stars, deck buffs).
+  // damage and attackInterval come from Progress (level, stars, deck buffs);
+  // aura ({ from, damage, speed }): The Captain's deck buff, if he buffs
+  // this crewmate (for the Captain's Log).
   // The hero stands with its feet at (x, feetY); this.y is the middle of its
   // body, where shots start.
-  constructor(scene, id, { index, x, feetY }, { damage, attackInterval, buffed = false }) {
+  constructor(scene, id, { index, x, feetY }, {
+    damage, attackInterval, buffed = false, aura = null,
+  }) {
     this.scene = scene;
     this.id = id;
     this.def = HEROES[id];
+    this.aura = aura;
+    // Captain's Log credit for each kind of damage (see BattleStats).
+    this.source = {
+      attack: damageSource(id, 'attack'), ability: damageSource(id, 'ability'), effect: damageSource(id, 'effect'),
+    };
     this.damage = damage;
     this.attackInterval = attackInterval;
     this.cooldown = 0;
@@ -253,7 +263,7 @@ export class Hero {
     let damage = this.damage;
     for (const e of targets) {
       playFx(this.scene, chain.impact, e.x, e.y);
-      e.takeDamage(damage * (e.def.flies ? this.def.flyerBonus ?? 1 : 1));
+      e.takeDamage(damage * (e.def.flies ? this.def.flyerBonus ?? 1 : 1), { source: this.source.attack });
       damage *= chain.falloff;
     }
     return new ChainLightning(this.scene, { points, sprite: chain.segment, showMs: chain.segmentMs });
@@ -299,7 +309,8 @@ export class Hero {
   // effects go to the target (or everything in the area it can hit). Lobbed
   // shots go over a Barnacle Knight's shield and the Ghost Pirate's cutlass
   // passes through it; the Sharpshooter's ignore armour; the Parrot Keeper's
-  // hit flyers harder.
+  // hit flyers harder. Lunge shots count as the Duelist's ability in the
+  // Captain's Log; curses and poison as effects.
   onHit(target, x, y, lunge = null) {
     const {
       area, stun, slow, curse, poison, crit, lob, flyerBonus, passesShields, ignoresArmor,
@@ -309,6 +320,8 @@ export class Hero {
       ? this.scene.enemies.filter((e) => this.canHit(e) && Math.hypot(e.x - x, e.y - y) <= area.radius)
       : (target && this.canHit(target) ? [target] : []);
 
+    const { stats } = this.scene;
+    const source = lunge ? this.source.ability : this.source.attack;
     for (const e of victims) {
       let damage = this.damage;
       if (crit && (lunge || Math.random() < crit.chance)) {
@@ -317,12 +330,20 @@ export class Hero {
       }
       if (lunge) playFx(this.scene, lunge.impact, e.x, e.y, FX_DEPTH + 1);
       if (flyerBonus && e.def.flies) damage *= flyerBonus;
-      e.takeDamage(damage, { lobbed: !!lob, throughShield: !!passesShields, ignoreArmor: !!ignoresArmor });
+      e.takeDamage(damage, {
+        lobbed: !!lob, throughShield: !!passesShields, ignoreArmor: !!ignoresArmor, source,
+      });
       if (!e.alive) continue;
-      if (stun && Math.random() < stun.chance) e.applyStun(stun.duration);
-      if (slow) e.applySlow(slow.factor, slow.duration);
-      if (curse) e.applyCurse(curse.bonus, curse.duration);
-      if (poison) e.applyPoison(this.damage * poison.ratio, poison.duration);
+      if (stun && Math.random() < stun.chance) {
+        e.applyStun(stun.duration);
+        stats?.add(this.id, 'stuns');
+      }
+      if (slow) {
+        e.applySlow(slow.factor, slow.duration);
+        stats?.add(this.id, 'slowed');
+      }
+      if (curse) e.applyCurse(curse.bonus, curse.duration, this.source.effect);
+      if (poison) e.applyPoison(this.damage * poison.ratio, poison.duration, this.source.effect);
     }
   }
 

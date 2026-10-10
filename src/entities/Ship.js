@@ -125,7 +125,9 @@ export class Ship {
     return { x: front.x + hoverX, y: front.feetY + hoverY };
   }
 
-  takeDamage(amount) {
+  // enemy: who hit it, for the Captain's Log (only the HP actually lost counts).
+  takeDamage(amount, enemy = null) {
+    if (enemy) this.scene.stats?.hullHit(enemy, Math.min(amount, this.hp));
     this.hp = Math.max(0, this.hp - amount);
     this.scene.cameras.main.shake(80, 0.003);
   }

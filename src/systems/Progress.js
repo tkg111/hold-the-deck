@@ -1,5 +1,5 @@
 import {
-  ABILITY_SCALING, ECONOMY, ENEMIES, HEROES, ISLANDS, SHIP, PACKS, RARITY, STARTING_HEROES, UPGRADES, WANTED,
+  ABILITY_SCALING, BATTLE_LOG, ECONOMY, ENEMIES, HEROES, ISLANDS, SHIP, PACKS, RARITY, STARTING_HEROES, UPGRADES, WANTED,
   WAVES,
 } from '../config.js';
 import { waveScaling } from './WaveManager.js';
@@ -41,6 +41,10 @@ export class Progress {
     this.defeats = {};
     this.bounties = {};
 
+    // Captain's Log: the last BATTLE_LOG.keep waves' records (BattleStats),
+    // oldest first.
+    this.battleLog = [];
+
     this.muted = false;             // sound effects off
     this.autoAbilities = false;     // ability bar's Auto toggle
 
@@ -76,6 +80,7 @@ export class Progress {
       seenPosters: [...this.seenPosters],
       defeats: { ...this.defeats },
       bounties: { ...this.bounties },
+      battleLog: this.battleLog,
     };
   }
 
@@ -127,6 +132,10 @@ export class Progress {
       if (data.bounties?.[id] != null) p.bounties[id] = int(data.bounties[id], 0, WANTED.bounties.length);
     }
 
+    if (Array.isArray(data.battleLog)) {
+      p.battleLog = data.battleLog.slice(-BATTLE_LOG.keep).map((r) => logRecordFromSave(r, int)).filter(Boolean);
+    }
+
     if (Array.isArray(data.slots)) {
       const seen = new Set();
       p.slots = p.slots.map((_, i) => {
@@ -137,6 +146,15 @@ export class Progress {
       });
     }
     return p;
+  }
+
+  // --- Captain's Log ---
+
+  // A finished wave's record (BattleStats.finish); keeps the last few.
+  logWave(record) {
+    if (!record) return;
+    this.battleLog.push(record);
+    if (this.battleLog.length > BATTLE_LOG.keep) this.battleLog.splice(0, this.battleLog.length - BATTLE_LOG.keep);
   }
 
   // --- Islands ---
@@ -289,20 +307,27 @@ export class Progress {
 
   // Buffs for each active hero: slot -> { damage, attackSpeed } multipliers,
   // from aura heroes (an aura hero buffs the others on its deck, not itself;
-  // buffed: has one) and from the hero's own level speed.
+  // buffed: has one) and from the hero's own level speed. aura: the aura's
+  // part alone ({ from: the aura hero, damage, speed }), or null.
   get deckBuffs() {
     const buffs = {};
     const deckOf = (slot) => Math.floor(slot / SHIP.slotsPerDeck);
     const active = this.activeHeroes;
-    for (const { id, slot } of active) buffs[slot] = { damage: 1, attackSpeed: this.heroAttackSpeed(id), buffed: false };
+    for (const { id, slot } of active) {
+      buffs[slot] = { damage: 1, attackSpeed: this.heroAttackSpeed(id), buffed: false, aura: null };
+    }
     for (const src of active) {
       const { aura } = HEROES[src.id];
       if (!aura) continue;
       for (const { slot } of active) {
         if (slot === src.slot || deckOf(slot) !== deckOf(src.slot)) continue;
-        buffs[slot].damage *= 1 + this.heroAuraBonus(src.id);
-        buffs[slot].attackSpeed *= 1 + aura.attackSpeedBonus;
-        buffs[slot].buffed = true;
+        const b = buffs[slot];
+        b.damage *= 1 + this.heroAuraBonus(src.id);
+        b.attackSpeed *= 1 + aura.attackSpeedBonus;
+        b.buffed = true;
+        b.aura ??= { from: src.id, damage: 1, speed: 1 };
+        b.aura.damage *= 1 + this.heroAuraBonus(src.id);
+        b.aura.speed *= 1 + aura.attackSpeedBonus;
       }
     }
     return buffs;
@@ -505,4 +530,32 @@ export class Progress {
     this.heroLevels[id] = this.heroLevel(id) + 1;
     return true;
   }
+}
+
+// A saved Captain's Log record (see BattleStats.finish), checked like the rest
+// of the save: unknown crew and enemy types dropped, numbers clamped. null if
+// it isn't one.
+function logRecordFromSave(r, int) {
+  if (!r || typeof r !== 'object' || !Array.isArray(r.crew)) return null;
+  const crew = r.crew.filter((c) => c && c.id in HEROES).map((c) => {
+    const entry = {
+      id: c.id,
+      attack: int(c.attack, 0),
+      ability: int(c.ability, 0),
+      effect: int(c.effect, 0),
+      kills: int(c.kills, 0),
+      uses: int(c.uses, 0),
+    };
+    if (c.support != null) entry.support = int(c.support, 0);
+    return entry;
+  });
+  const hull = {};
+  for (const [k, v] of Object.entries(r.hull ?? {})) if (k in ENEMIES) hull[k] = int(v, 0);
+  return {
+    wave: int(r.wave, 1),
+    island: ISLANDS.some((d) => d.id === r.island) ? r.island : ISLANDS[0].id,
+    won: r.won === true,
+    crew,
+    hull,
+  };
 }

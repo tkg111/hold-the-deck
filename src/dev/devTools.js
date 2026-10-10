@@ -14,7 +14,7 @@ export function installDevTools(scene) {
   const { progress } = scene;
   const small = { height: 12, font: 'small' };
   const label = () => `DEV ALL HEROES ${progress.devUnlockAll ? 'ON' : 'OFF'}`;
-  const devButton = new Button(scene, 64, 263, {
+  const devButton = new Button(scene, 64, 229, {
     ...small, width: 124, label: label(),
     onClick: () => {
       if (scene.state !== 'idle') return;
@@ -23,14 +23,14 @@ export function installDevTools(scene) {
       scene.onRosterChanged();
     },
   });
-  const pearlsButton = new Button(scene, 32, 250, {
+  const pearlsButton = new Button(scene, 32, 216, {
     ...small, width: 60, label: '+10 PRL',
     onClick: () => {
       progress.pearls += 10;
       scene.refreshUi();
     },
   });
-  const waveButton = new Button(scene, 96, 250, {
+  const waveButton = new Button(scene, 96, 216, {
     ...small, width: 60, label: '+10 WAVE',
     onClick: () => {
       if (scene.state !== 'idle') return;
@@ -66,7 +66,7 @@ export function installDevTools(scene) {
     autoButton.setLabel(autoLabel());
   };
   // Visible during waves too, so it can be turned off mid-wave.
-  const autoButton = new Button(scene, 76, 237, {
+  const autoButton = new Button(scene, 76, 203, {
     ...small, width: 148, label: autoLabel(),
     onClick: () => {
       auto.on = !auto.on;

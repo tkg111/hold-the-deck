@@ -59,6 +59,16 @@ export function enemyPortrait(scene, x, y, id, scale = 1) {
   return scene.add.image(x, y, key, 'wanted_face').setOrigin(0).setScale(scale);
 }
 
+// The poster's picture of the enemy (its box, 32x30), top-left at (x, y),
+// for small rows (the Captain's Log); a block in its colour if its sheet is
+// missing.
+export function enemyThumb(scene, x, y, id) {
+  const key = portraitFrames(scene, id);
+  const { boxW, boxH } = wantedLayout(scene);
+  if (!key) return scene.add.rectangle(x, y, boxW, boxH, ENEMIES[id].color).setOrigin(0);
+  return scene.add.image(x, y, key, 'wanted_poster').setOrigin(0);
+}
+
 // A poster as a container with its top-left at (x, y): poster.png with the
 // enemy drawn in its box and the highest bounty stamp earned, or
 // poster_unknown.png for a type not met yet. unseen: a red dot (not opened).

@@ -13,6 +13,7 @@ import { Hero } from '../entities/Hero.js';
 import { clearSave, loadProgress, saveProgress } from '../systems/Save.js';
 import { bossOf, composeWave, isBossWave, isSirenWave, WaveManager } from '../systems/WaveManager.js';
 import { AbilitySystem } from '../systems/Abilities.js';
+import { BattleStats, mvpOf } from '../systems/BattleStats.js';
 import { AbilityBar } from '../ui/AbilityBar.js';
 import { Button } from '../ui/Button.js';
 import { ConfirmDialog } from '../ui/ConfirmDialog.js';
@@ -57,6 +58,7 @@ export class GameScene extends Phaser.Scene {
     this.ship = new Ship(this, this.progress);
     this.heroes = [];
     this.abilities = new AbilitySystem(this);
+    this.stats = new BattleStats();   // the Captain's Log, while a wave runs
     this.rebuildHeroes();
 
     this.waves = new WaveManager(this);
@@ -168,6 +170,10 @@ export class GameScene extends Phaser.Scene {
     this.mapButton = new Button(this, 125, 248, {
       width: 46, height: 24, icon: mapKey('ship_token'), label: 'Map', onClick: () => this.openMap(),
     });
+    // The Captain's Log (battle stats of the last waves), left of Map.
+    this.logButton = new Button(this, 77, 248, {
+      width: 46, height: 24, icon: 'book', label: 'Log', onClick: () => this.openLog(),
+    });
     // Battle speed (bottom-right, during waves): shows the current speed.
     this.speedButton = new Button(this, 452, 250, {
       width: 40, height: 22, label: '', onClick: () => this.cycleSpeed(),
@@ -179,7 +185,7 @@ export class GameScene extends Phaser.Scene {
     });
     this.abilityBar.setCrew(this.heroes.map((h) => h.id));
     this.bottomBar = group(
-      this.mapButton, this.startButton, this.packButton, this.collectionButton, this.wantedButton, this.speedButton,
+      this.logButton, this.mapButton, this.startButton, this.packButton, this.collectionButton, this.wantedButton, this.speedButton,
     );
     // NEW ENEMY! alert and bounty toasts.
     this.notices = new Notices(this, this.progress);
@@ -223,7 +229,9 @@ export class GameScene extends Phaser.Scene {
       this.enemiesBar.setValue(left / Math.max(1, this.waves.total), `${left} ENEMIES LEFT`);
     }
 
-    for (const b of [this.startButton, this.packButton, this.collectionButton, this.wantedButton]) b.setVisible(idle);
+    for (const b of [this.startButton, this.packButton, this.collectionButton, this.wantedButton, this.logButton]) {
+      b.setVisible(idle);
+    }
     this.mapButton.setVisible(idle && p.mapUnlocked).setDot(!p.mapSeen);
     this.speedButton.setVisible(!idle).setLabel(`x${this.speed}`);
     this.abilityBar.setVisible(!idle);
@@ -321,6 +329,7 @@ export class GameScene extends Phaser.Scene {
         damage: p.heroDamage(id) * buff.damage,
         attackInterval: (HEROES[id].attackInterval ?? 0) / buff.attackSpeed,
         buffed: buff.buffed,
+        aura: buff.aura,
       });
     });
     this.abilities.setCrew(this.heroes, p);
@@ -403,6 +412,14 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  // The Captain's Log: what the crew did in the last few waves.
+  openLog() {
+    if (this.state !== STATE.IDLE) return;
+    if (this.heroPicker.visible) this.heroPicker.close();
+    sfx.click();
+    this.scene.launch('LogScene', { progress: this.progress, onClose: () => this.refreshUi() });
+  }
+
   // The world map; sailing to another island picks up its wave counter.
   openMap() {
     if (this.state !== STATE.IDLE || !this.progress.mapUnlocked) return;
@@ -445,6 +462,7 @@ export class GameScene extends Phaser.Scene {
     }
     this.ship.setSlotsEnabled(false);
     this.ship.restore();
+    this.stats.start(this.progress.wave, this.progress.islandId, this.heroes);
     this.waves.start(this.progress.wave, this.progress.waveOptions);
     this.abilities.resetCooldowns();
     const { finale } = this.progress.waveOptions;
@@ -464,6 +482,8 @@ export class GameScene extends Phaser.Scene {
 
   endWave(won) {
     this.state = STATE.IDLE;
+    const record = this.stats.finish(won);
+    this.progress.logWave(record);
     this.applySpeed();
     this.waves.stop();
     this.abilities.clear();
@@ -493,6 +513,8 @@ export class GameScene extends Phaser.Scene {
       // Kill gold earned this wave is kept; the wave just doesn't advance.
       this.showBanner('SHIP SUNK!', { detail: 'UPGRADE AND TRY AGAIN', color: UI.colors.warn });
     }
+    const mvp = record && mvpOf(record);
+    if (mvp) this.notices.mvp(mvp.id, mvp.damage);
     this.ship.restore();
     this.ship.setSlotsEnabled(true);
     this.refreshUi();

@@ -69,6 +69,7 @@ export class AbilitySystem {
       return false;
     }
     s.cooldown = s.def.cooldown;
+    this.scene.stats?.abilityUsed(s.id);
     sfx.ability(s.id);
     const { hero } = s;
     this.scene.floatText(hero.x, hero.y - 22, s.def.name.toUpperCase(), cssColor(s.def.color));
@@ -138,7 +139,9 @@ const ACTIONS = {
       aimAt: (e, ms) => hero.leadPoint(e, ms),
       onLand: (x, y) => {
         for (const e of sys.targets()) {
-          if (Math.hypot(e.x - x, e.y - y) <= def.radius) e.applyStun(def.stun * scale);
+          if (Math.hypot(e.x - x, e.y - y) > def.radius) continue;
+          e.applyStun(def.stun * scale);
+          sys.scene.stats?.add(hero.id, 'stuns');
         }
         playFx(sys.scene, def.impact, x, y);
         sfx.splat();
@@ -147,9 +150,11 @@ const ACTIONS = {
   },
 
   // Big Net: slows every enemy on screen, grounding flyers.
-  netThrower(sys, { def, scale }) {
+  netThrower(sys, { hero, def, scale }) {
     const duration = def.duration * scale;
-    for (const e of sys.targets({ air: true })) e.applySlow(def.slow, duration);
+    const caught = sys.targets({ air: true });
+    for (const e of caught) e.applySlow(def.slow, duration);
+    sys.scene.stats?.add(hero.id, 'slowed', caught.length);
     sys.effects.push(new NetDrop(sys.scene, def, duration));
   },
 
@@ -166,7 +171,7 @@ const ACTIONS = {
       },
       onLand: (x, y) => {
         playFx(sys.scene, def.impact, x, y);
-        sys.effects.push(new Puddle(sys, x, def, hero.damage * def.damagePerSecond, def.duration * scale));
+        sys.effects.push(new Puddle(sys, x, def, hero.damage * def.damagePerSecond, def.duration * scale, hero.source.effect));
         sfx.crash();
       },
     });
@@ -174,7 +179,7 @@ const ACTIONS = {
 
   // Whale Harpoon: sweeps the whole lane, hitting every enemy once (through armour).
   harpooner(sys, { hero, def }) {
-    sys.effects.push(new WhaleHarpoon(sys, def, hero.damage * def.damage));
+    sys.effects.push(new WhaleHarpoon(sys, def, hero.damage * def.damage, hero.source.ability));
     shake(sys.scene, def.shake);
   },
 
@@ -185,7 +190,7 @@ const ACTIONS = {
 
   // Broadside: cannonballs rain down spread along the lane.
   cannoneer(sys, { hero, def }) {
-    sys.effects.push(new Broadside(sys, def, hero.damage * def.damage));
+    sys.effects.push(new Broadside(sys, def, hero.damage * def.damage, hero.source.ability));
   },
 
   // Lunge: the Duelist's next hits go to the toughest enemy, all crits.
@@ -206,7 +211,7 @@ const ACTIONS = {
       sys.scene.projectiles.push(new Projectile(sys.scene, {
         x: hero.x, y: hero.y, target: e, speed: def.speed, sprite: def.sprite,
         onHit: (hit, x, y) => {
-          hit.takeDamage(damage);
+          hit.takeDamage(damage, { source: hero.source.ability });
           playFx(sys.scene, def.impact, x, y);
         },
         findTarget: () => null,   // a parrot whose flyer is gone flies off
@@ -216,9 +221,10 @@ const ACTIONS = {
   },
 
   // Patch Up: mends part of the hull, with crosses rising over it.
-  shipsDoctor(sys, { def }) {
+  shipsDoctor(sys, { hero, def }) {
     const { ship } = sys.scene;
     const healed = ship.heal(ship.maxHp * def.heal);
+    sys.scene.stats?.add(hero.id, 'healed', healed);
     sys.effects.push(new HealRise(sys.scene, def));
     const at = ship.hullTarget();
     sys.scene.floatText(at.x, at.y - def.rise, `+${fmtNumber(Math.round(healed))} HP`, cssColor(def.color));
@@ -236,7 +242,7 @@ const ACTIONS = {
 
   // Tidal Wave: a wave rolls along the lane, pushing walkers back.
   stormCaller(sys, { hero, def }) {
-    sys.effects.push(new TidalWave(sys, def, hero.damage * def.damage));
+    sys.effects.push(new TidalWave(sys, def, hero.damage * def.damage, hero.source.ability));
   },
 };
 
@@ -324,7 +330,7 @@ class Deadeye {
     scene.projectiles.push(new Projectile(scene, {
       ...hero.muzzlePoint(), target: e, speed: def.speed, sprite: projectile.sprite, rotate: true,
       onHit: (hit, x, y) => {
-        hit.takeDamage(hero.damage * def.damage, { ignoreArmor: true, throughShield: true });
+        hit.takeDamage(hero.damage * def.damage, { ignoreArmor: true, throughShield: true, source: hero.source.ability });
         playFx(scene, projectile.impact, x, y);
         shake(scene, def.shake);
       },
@@ -341,10 +347,11 @@ class Deadeye {
 // bottom def.sink px under the walkers' feet) to the far edge; each walker
 // it reaches takes the damage and is pushed def.push px back.
 class TidalWave {
-  constructor(sys, def, damage) {
+  constructor(sys, def, damage, source) {
     this.sys = sys;
     this.def = def;
     this.damage = damage;
+    this.source = source;
     this.sprite = fxSprite(sys.scene, def.sprite, 0, 0).setOrigin(1, 1).setDepth(DEPTH.foreground + 0.5);
     this.x = LAYOUT.shipContactX;   // the wave's front
     this.hit = new Set();
@@ -357,7 +364,7 @@ class TidalWave {
     for (const e of this.sys.targets({ needs: 'movable' })) {
       if (this.hit.has(e) || e.x - e.def.width / 2 > this.x) continue;
       this.hit.add(e);
-      e.takeDamage(this.damage);
+      e.takeDamage(this.damage, { source: this.source });
       e.pushBack(def.push, def.speed);
     }
     this.sprite.setPosition(Math.round(this.x), Math.round(laneFeetY(this.x) + def.sink));
@@ -380,6 +387,7 @@ function shake(scene, { duration, intensity }) {
 class HexCast {
   constructor(sys, hero, def, scale) {
     this.sys = sys;
+    this.hero = hero;
     this.def = def;
     this.scale = scale;
     this.time = 0;
@@ -394,7 +402,7 @@ class HexCast {
     const { def } = this;
     const burst = fxDuration(this.sys.scene, def.impact);
     for (const e of this.sys.targets({ air: true })) {
-      e.applyCurse(def.bonus, def.duration * this.scale);
+      e.applyCurse(def.bonus, def.duration * this.scale, this.hero.source.effect);
       e.delayCurseMark(burst);
       playFx(this.sys.scene, def.impact, e.x, e.y);
     }
@@ -460,10 +468,11 @@ class NetDrop {
 // The poison puddle lying on the lane while it lasts: enemies standing in it
 // are poisoned. Fades out at the end.
 class Puddle {
-  constructor(sys, x, def, dps, duration) {
+  constructor(sys, x, def, dps, duration, source) {
     this.sys = sys;
     this.def = def;
     this.dps = dps;
+    this.source = source;
     this.x = x;
     this.time = duration;
     // Over the near water, so it shows where walkers wade.
@@ -475,7 +484,7 @@ class Puddle {
   update(dt) {
     this.time -= dt;
     for (const e of this.sys.targets()) {
-      if (Math.abs(e.x - this.x) <= this.half + e.def.width / 2) e.applyPoison(this.dps, this.def.lingerTime);
+      if (Math.abs(e.x - this.x) <= this.half + e.def.width / 2) e.applyPoison(this.dps, this.def.lingerTime, this.source);
     }
     this.sprite.setAlpha(Phaser.Math.Clamp(this.time / this.def.fadeTime, 0, 1));
     return this.time > 0;
@@ -487,10 +496,11 @@ class Puddle {
 // A giant harpoon skimming the lane from the ship to the far edge, turned to
 // follow the lane's slope.
 class WhaleHarpoon {
-  constructor(sys, def, damage) {
+  constructor(sys, def, damage, source) {
     this.sys = sys;
     this.def = def;
     this.damage = damage;
+    this.source = source;
     this.sprite = fxSprite(sys.scene, def.sprite, 0, 0).setOrigin(1, 0.5).setDepth(FX_DEPTH);
     this.length = this.sprite.width;
     this.x = LAYOUT.shipContactX - this.length;  // the tip
@@ -508,7 +518,7 @@ class WhaleHarpoon {
     for (const e of this.sys.targets()) {
       if (this.hits.has(e) || e.x - e.def.width / 2 > this.x) continue;
       this.hits.add(e);
-      e.takeDamage(this.damage, { ignoreArmor: true });
+      e.takeDamage(this.damage, { ignoreArmor: true, source: this.source });
       playFx(this.sys.scene, def.impact, e.x, e.y);
     }
     const y = this.yAt(this.x);
@@ -523,10 +533,11 @@ class WhaleHarpoon {
 // Cannonballs falling one after another at spots spread along the lane, each
 // exploding where it lands (through armour).
 class Broadside {
-  constructor(sys, def, damage) {
+  constructor(sys, def, damage, source) {
     this.sys = sys;
     this.def = def;
     this.damage = damage;
+    this.source = source;
     this.time = 0;
     const from = LAYOUT.shipContactX + def.radius / 2;
     const to = LAYOUT.enemySpawnX - 10;
@@ -558,7 +569,7 @@ class Broadside {
   land(x, y) {
     const { def } = this;
     for (const e of this.sys.targets()) {
-      if (Math.abs(e.x - x) <= def.radius + e.def.width / 2) e.takeDamage(this.damage, { lobbed: true, ignoreArmor: true });
+      if (Math.abs(e.x - x) <= def.radius + e.def.width / 2) e.takeDamage(this.damage, { lobbed: true, ignoreArmor: true, source: this.source });
     }
     playFx(this.sys.scene, def.impact, x, y - 12);
     shake(this.sys.scene, def.shake);

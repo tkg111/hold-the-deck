@@ -65,6 +65,12 @@ export class Enemy {
     this.curseMarkDelay = 0;  // ms before the curse mark shows (after Hex's burst)
     this.poisonTime = 0;
     this.poisonDps = 0;
+    // Who to credit in the Captain's Log (BattleStats sources): the poison's
+    // ticks, the curse's bonus damage, and the blow that killed it (for a
+    // Keg Runner's blast).
+    this.poisonSource = null;
+    this.curseSource = null;
+    this.killSource = null;
     this.hasteTime = 0;       // sped up by the Siren's song
     this.hasteMult = 1;
     this.fearTime = 0;        // Haunt: flees back toward the island
@@ -245,7 +251,8 @@ export class Enemy {
     this.pushSpeed = speed;
   }
 
-  applyCurse(bonus, duration) {
+  applyCurse(bonus, duration, source = null) {
+    if (!this.isCursed || bonus >= this.curseBonus) this.curseSource = source;
     this.curseBonus = this.isCursed ? Math.max(this.curseBonus, bonus) : bonus;
     this.curseTime = Math.max(this.curseTime, duration);
   }
@@ -255,8 +262,10 @@ export class Enemy {
     this.curseMarkDelay = ms;
   }
 
-  // Re-poisoning refreshes the timer and keeps the stronger tick.
-  applyPoison(damagePerSecond, duration) {
+  // Re-poisoning refreshes the timer and keeps the stronger tick (and
+  // whoever gave it).
+  applyPoison(damagePerSecond, duration, source = null) {
+    if (!this.isPoisoned || damagePerSecond >= this.poisonDps) this.poisonSource = source;
     this.poisonDps = this.isPoisoned ? Math.max(this.poisonDps, damagePerSecond) : damagePerSecond;
     this.poisonTime = Math.max(this.poisonTime, duration);
   }
@@ -270,7 +279,7 @@ export class Enemy {
     if (this.isPoisoned) {
       const tick = Math.min(dt, this.poisonTime);
       this.poisonTime -= tick;
-      this.takeDamage(this.poisonDps * tick / 1000, { flash: false, dot: true });
+      this.takeDamage(this.poisonDps * tick / 1000, { flash: false, dot: true, source: this.poisonSource });
       if (!this.alive) return;
     }
     this.stunTime = Math.max(0, this.stunTime - dt);
@@ -369,7 +378,7 @@ export class Enemy {
   attack(sdt, ship) {
     this.attackCooldown -= sdt;
     if (this.attackCooldown > 0) return;
-    ship.takeDamage(this.damage);
+    ship.takeDamage(this.damage, this);
     this.attackCooldown = this.def.attackInterval / this.rage;
     if (this.attackAnim) this.body.play(this.attackAnim);
     // Otherwise a little lunge so attacks read visually
@@ -488,7 +497,7 @@ export class Enemy {
         aimAt: (t) => ({ x: t.x, y: t.y }),
         findTarget: () => null,
         onHit: (_t, x, y) => {
-          ship.takeDamage(this.damage);
+          ship.takeDamage(this.damage, this);
           playFx(scene, g.impact, x, y);
         },
       }));
@@ -566,7 +575,7 @@ export class Enemy {
   // Keg Runner at the ship: it blows up on the hull (no gold).
   blowUpAtShip(ship) {
     this.alive = false;
-    ship.takeDamage(this.hullHit(ship));
+    ship.takeDamage(this.hullHit(ship), this);
     this.explode();
     this.removeOverlays();
     this.body.destroy();
@@ -576,7 +585,7 @@ export class Enemy {
   // gone, with no gold.
   board(ship) {
     this.alive = false;
-    ship.takeDamage(this.hullHit(ship));
+    ship.takeDamage(this.hullHit(ship), this);
     this.removeOverlays();
     this.scene.tweens.add({ targets: this.body, alpha: 0, duration: 250, onComplete: () => this.body.destroy() });
   }
@@ -596,28 +605,46 @@ export class Enemy {
   //   throughShield: passes through the shield (the Ghost Pirate's cutlass)
   //   ignoreArmor: armour doesn't reduce it (the Sharpshooter, the Cannoneer,
   //                Broadside, Whale Harpoon)
+  //   source: who dealt it, for the Captain's Log (BattleStats.damageSource)
   // Armour takes its share off the hit itself; a curse's bonus damage gets
   // through it.
   takeDamage(amount, {
-    flash = true, dot = false, lobbed = false, throughShield = false, ignoreArmor = false,
+    flash = true, dot = false, lobbed = false, throughShield = false, ignoreArmor = false, source = null,
   } = {}) {
     if (!this.alive) return;
     let damage = amount;
     if (this.armor && !dot && !ignoreArmor) damage = Math.max(this.def.minDamage, amount * (1 - this.armor));
-    if (this.isCursed) damage += amount * this.curseBonus;
+    const curse = this.isCursed ? amount * this.curseBonus : 0;
+    damage += curse;
     if (flash) {
       this.setFlash(true);
       this.scene.time.delayedCall(FX.hitFlashMs, () => this.alive && this.setFlash(false));
     }
     if (this.hasShield && !dot && !lobbed && !throughShield) {
+      this.credit(source, Math.min(damage, this.shieldHp), damage, curse);
       this.shieldHp -= damage;
       if (!this.hasShield) this.breakShield();
       this.drawHpBar();
       return;
     }
+    this.credit(source, Math.min(damage, this.hp), damage, curse);
     this.hp -= damage;
-    if (this.hp <= 0) this.die();
+    if (this.hp <= 0) this.die(source);
     else this.drawHpBar();
+  }
+
+  // Log what a hit of `damage` really dealt (dealt: without overkill) for
+  // its source; the curse's share of it goes to whoever cursed the enemy.
+  credit(source, dealt, damage, curse) {
+    const { stats } = this.scene;
+    if (!stats || !source || dealt <= 0) return;
+    if (curse > 0 && this.curseSource) {
+      const cursePart = dealt * curse / damage;
+      stats.dealt(this.curseSource, cursePart);
+      stats.dealt(source, dealt - cursePart);
+    } else {
+      stats.dealt(source, dealt);
+    }
   }
 
   // shield_break plays where the shield was, and it walks on without it.
@@ -655,8 +682,11 @@ export class Enemy {
     if (this.alive) this.setFlash(false);
   }
 
-  die() {
+  // source: the killing blow's (BattleStats), credited with the kill.
+  die(source = null) {
     this.alive = false;
+    this.killSource = source;
+    if (source) this.scene.stats?.kill(source);
     this.scene.events.emit('enemy-killed', this);
     this.removeOverlays();
     if (this.def.galleon) {
@@ -688,13 +718,14 @@ export class Enemy {
   }
 
   // A Keg Runner killed before reaching the ship: its keg goes off where it
-  // fell, hitting every enemy on the lane within the blast radius.
+  // fell, hitting every enemy on the lane within the blast radius (credited
+  // to whoever killed it).
   blastEnemies() {
     this.explode();
     const { radius } = this.def.blast;
     for (const e of this.scene.enemies) {
       if (e === this || !e.canBeHit(false)) continue;
-      if (Math.hypot(e.x - this.x, e.y - this.y) <= radius) e.takeDamage(this.blastDamage, { lobbed: true });
+      if (Math.hypot(e.x - this.x, e.y - this.y) <= radius) e.takeDamage(this.blastDamage, { lobbed: true, source: this.killSource });
     }
   }
 
