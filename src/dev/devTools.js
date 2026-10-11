@@ -1,4 +1,5 @@
-import { DEV, DISPLAY } from '../config.js';
+import { DEV, DISPLAY, ISLANDS } from '../config.js';
+import { isBossWave } from '../systems/WaveManager.js';
 import { Button } from '../ui/Button.js';
 
 // Auto-continue, kept across scene restarts in a session: when on, a cleared
@@ -40,6 +41,32 @@ export function installDevTools(scene) {
     },
   });
 
+  // Sail on to the next island with content (back to Skull Cove after the
+  // last), unlocking it: the islands before it are marked cleared.
+  const islands = ISLANDS.filter((i) => i.available);
+  const nextIsland = () => islands[(islands.indexOf(progress.island) + 1) % islands.length];
+  const islandLabel = () => `DEV SAIL: ${(nextIsland().shortName ?? nextIsland().name).toUpperCase()}`;
+  const islandButton = new Button(scene, 64, 190, {
+    ...small, width: 124, label: islandLabel(),
+    onClick: () => {
+      if (scene.state !== 'idle' || !progress.devSailTo(nextIsland().id)) return;
+      islandButton.setLabel(islandLabel());
+      scene.arriveAtIsland();
+      scene.refreshUi();
+      scene.save();
+    },
+  });
+  // Skip ahead to the next boss wave or the island's finale (not past it).
+  const bossButton = new Button(scene, 64, 177, {
+    ...small, width: 124, label: 'DEV NEXT BOSS WAVE',
+    onClick: () => {
+      if (scene.state !== 'idle' || progress.isFinaleWave) return;
+      do progress.advanceWave();
+      while (!isBossWave(progress.wave) && !progress.isFinaleWave);
+      scene.refreshUi();
+    },
+  });
+
   let timer = null;
   let autoStarting = false;
   const cancel = () => {
@@ -77,7 +104,7 @@ export function installDevTools(scene) {
     },
   });
 
-  const corner = scene.add.container(0, 0, [devButton, pearlsButton, waveButton, autoButton]).setDepth(20);
+  const corner = scene.add.container(0, 0, [devButton, pearlsButton, waveButton, islandButton, bossButton, autoButton]).setDepth(20);
   const layout = (view) => corner.setPosition(view.left, Math.round(view.bottom - DISPLAY.height));
   layout(scene.view);
 
@@ -112,7 +139,8 @@ export function installDevTools(scene) {
   scene.devTools = {
     // Between waves only, apart from auto-continue.
     refresh(idle) {
-      for (const b of [devButton, pearlsButton, waveButton]) b.setVisible(idle);
+      for (const b of [devButton, pearlsButton, waveButton, islandButton, bossButton]) b.setVisible(idle);
+      islandButton.setLabel(islandLabel());   // the map may have moved the ship
     },
   };
   scene.refreshUi();

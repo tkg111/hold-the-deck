@@ -21,6 +21,25 @@ const STATUS = {
   slow: { sprite: 'net_draped', active: (e) => e.isSlowed },
 };
 
+// An island's spawnPuff (Frostbite Reef's snow_puff as enemies step out of
+// the pines): its fx at a random point in its box, over the front scenery.
+export function playSpawnPuff(scene, puff) {
+  const [x0, x1] = puff.x;
+  const [y0, y1] = puff.y;
+  const x = Math.round(x0 + Math.random() * (x1 - x0));
+  const y = Math.round(y0 + Math.random() * (y1 - y0));
+  playFx(scene, puff.fx, x, y, DEPTH.frontScenery + 0.1);
+}
+
+// How long an animation in a character's sheet entry runs (ms), and how far
+// into it `frame` comes; 0 without the sheet (the balance sim).
+function animTiming(spec, anim, frame = null) {
+  const a = spec?.[anim];
+  if (!a?.frames) return { ms: 0, at: 0 };
+  const step = 1000 / a.fps;
+  return { ms: a.frames.length * step, at: frame == null ? 0 : Math.max(0, a.frames.indexOf(frame)) * step };
+}
+
 export class Enemy {
   // Walkers enter at layout.json's enemySpawnX and follow the lane (x is only
   // an override for testing, or where a golem broke apart); an emerging enemy
@@ -29,13 +48,16 @@ export class Enemy {
   // appears on her rock at layout.siren, the Ghost Galleon emerges at
   // layout.ghostGalleon and the Molten Leviathan rises at its sheet's
   // `position`. A boarding boat rows in from x (the Galleon launches it) on
-  // the waterline; a lava bomb falls at x.
+  // the waterline; a lava bomb falls at x. The Frost Wyrm swoops in to its
+  // perch on the iceberg; the Frost Giant comes in from behind the pines.
   //   elite:  3x HP (ELITE), gold tint; gold is already multiplied by the caller
   //   leader: in an escorted formation, the enemy this one keeps behind
   //   key:    its ENEMIES key (for the Wanted Board)
   //   fall:   a lava bomb's { deck, feetY (where it lands), fromY, ms }
+  //   boulders: the Frost Giant throws ice boulders while walking (the finale)
   constructor(scene, def, {
     x = LAYOUT.enemySpawnX, hpMultiplier, damageMultiplier, gold, elite = false, leader = null, key = null, fall = null,
+    boulders = false,
   }) {
     this.scene = scene;
     this.def = def;
@@ -83,6 +105,12 @@ export class Enemy {
     this.boostMult = 1;
     // A boss that enrages (the finale) attacks this much faster.
     this.rage = 1;
+    // An Ice Witch's shield over it: HP left of it, and its size.
+    this.iceShieldHp = 0;
+    this.iceShieldMax = 0;
+    // ms left of an action animation (a throw, cast, roar or smash), during
+    // which walking animations leave the body alone.
+    this.actionTime = 0;
 
     // Sprites and rectangles alike stand with their feet at (x, feetY);
     // this.y is the middle of the body (def.width x def.height).
@@ -106,10 +134,12 @@ export class Enemy {
     }
     // The Ghost Galleon and the Molten Leviathan sit just behind The Kraken
     // (which can surface in front of them), under the near water.
+    // The Frost Wyrm perches in the background, behind the ship.
     const depth = def.emerges ? DEPTH.kraken
       : def.galleon || def.leviathan ? DEPTH.kraken - 0.1
-        : def.flies || def.falls ? DEPTH.flyer : DEPTH.enemy;
-    this.body.setOrigin(0.5, 1).setDepth(depth);
+        : def.wyrm ? DEPTH.perch
+          : def.flies || def.falls ? DEPTH.flyer : DEPTH.enemy;
+    this.body.setOrigin(...(def.origin ?? [0.5, 1])).setDepth(depth);
     if (elite) this.setFlash(false);  // gold tint
 
     // An emerging enemy rises at layout.kraken (whose x / y are the top-left
@@ -185,6 +215,67 @@ export class Enemy {
       this.spitAnim = findAnim(scene, def.sprite, 'spit');
       this.sinkAnim = findAnim(scene, def.sprite, 'sink');
       if (this.spitAnim) this.body.on(`animationcomplete-${this.spitAnim}`, () => this.alive && this.body.play(this.idleAnim));
+    } else if (def.wyrm) {
+      // The Frost Wyrm: swoops in playing "fly" from wyrm.from to its frame's
+      // top-left at its sheet's perchPos (can't be hit meanwhile), then
+      // perches there, breathing.
+      const w = def.wyrm;
+      const spec = sheetSpec(scene, def.sprite);
+      this.frameW = spec?.frameWidth ?? this.body.displayWidth;
+      this.frameH = spec?.frameHeight ?? this.body.displayHeight;
+      const perch = spec?.perchPos ?? { x: 195, y: 68 };
+      this.perchX = perch.x + this.frameW / 2;
+      this.perchFeetY = perch.y + this.frameH;
+      this.fromX = w.from.x + this.frameW / 2;
+      this.fromFeetY = w.from.y + this.frameH;
+      this.mouth = spec?.mouth ?? [16, 60];
+      this.x = this.fromX;
+      this.stopX = this.perchX;
+      this.setFeetY(this.fromFeetY);
+      this.riseTime = w.flyInMs;
+      this.breathTimer = w.firstBreathAt;
+      this.breathDue = 0;      // ms until the breath under way lands
+      this.extraBreaths = 0;   // quick breaths still to come (after landing)
+      this.airTime = 0;        // lifted off the iceberg, out of reach
+      this.lifted = false;
+      this.breathTiming = animTiming(spec, 'breath');
+      this.flyAnim = findAnim(scene, def.sprite, 'fly');
+      this.breathAnim = findAnim(scene, def.sprite, 'breath');
+      this.fallAnim = findAnim(scene, def.sprite, 'fall');
+      if (this.flyAnim) this.body.play(this.flyAnim);
+      if (this.breathAnim) {
+        this.body.on(`animationcomplete-${this.breathAnim}`, () => this.alive && this.airTime <= 0 && this.body.play(this.idleAnim));
+      }
+    } else if (def.giant) {
+      // The Frost Giant: in from giant.spawnX behind the pines, out of reach
+      // until it has roared at roarX, then down the lane like a walker.
+      const g = def.giant;
+      const spec = sheetSpec(scene, def.sprite);
+      this.frameW = spec?.frameWidth ?? this.body.displayWidth;
+      this.frameH = spec?.frameHeight ?? this.body.displayHeight;
+      this.feet = spec?.feet ?? [this.frameW / 2, this.frameH];
+      this.slamPoint = spec?.slamPoint ?? [0, this.frameH * 0.8];
+      this.smashTiming = animTiming(spec, 'smash', spec?.smash?.impactFrame);
+      this.x = g.spawnX;
+      this.stopX = LAYOUT.shipContactX + def.width / 2;
+      this.setFeetY(laneFeetY(this.x));
+      this.phase = 'enter';    // then 'roar', 'walk' (or 'throw'), 'smash'
+      this.shakeTimer = 0;
+      this.puffTimer = 0;
+      this.smashDue = 0;
+      this.smashes = 0;
+      this.throwDue = 0;
+      this.boulders = boulders;
+      this.boulderTimer = g.boulderEvery;
+      this.roarAnim = findAnim(scene, def.sprite, 'roar');
+      this.smashAnim = findAnim(scene, def.sprite, 'smash');
+      this.shatterAnim = findAnim(scene, def.sprite, 'shatter');
+      // Footsteps: a tiny shake on the walk frames that put a foot down.
+      this.body.on('animationupdate', (anim, frame) => {
+        if (anim.key === this.walkAnim && g.steps.includes(frame.textureFrame)) {
+          scene.cameras.main.shake(g.stepShake.duration, g.stepShake.intensity);
+        }
+      });
     } else if (def.falls) {
       // A lava bomb: falls straight down from fall.fromY to land on its deck
       // (feet at fall.feetY) after fall.ms, over the warning shown there.
@@ -210,8 +301,19 @@ export class Enemy {
       this.setY(this.cruiseY);
     } else {
       this.x = x;
-      this.stopX = LAYOUT.shipContactX + def.width / 2;  // front edge at the ship
+      // Front edge at the ship; a Yeti Raider or Ice Witch stops further out.
+      this.stopX = def.ranged?.stopX ?? def.witch?.stopX ?? LAYOUT.shipContactX + def.width / 2;
       this.setFeetY(def.floats ? LAYOUT.boatWaterY : laneFeetY(this.x));
+      const act = def.ranged ?? def.witch;
+      if (act) {
+        // Its throw or cast: the animation, how long it plays and (a throw)
+        // when the shot leaves.
+        this.spec = sheetSpec(scene, def.sprite);
+        this.actAnim = findAnim(scene, def.sprite, act.anim);
+        this.actTiming = animTiming(this.spec, act.anim, def.ranged?.releaseFrame);
+        this.attackCooldown = act.firstAt;
+        this.releaseDue = 0;   // ms until the shot under way leaves the hand
+      }
     }
 
     this.statusSprites = {};  // STATUS key -> sprite, while that status lasts
@@ -235,12 +337,20 @@ export class Enemy {
   }
 
   get isRising() { return this.riseTime > 0; }
+  // Out of reach for now: the Frost Wyrm in the air, the Frost Giant until
+  // it has roared.
+  get isHidden() {
+    return this.airTime > 0 || (!!this.def.giant && (this.phase === 'enter' || this.phase === 'roar'));
+  }
   // Drawn centred on its body rather than standing in a 32x32 box (status
-  // and target marks): The Kraken, the Ghost Galleon and the Molten Leviathan.
-  get large() { return !!(this.def.emerges || this.def.galleon || this.def.leviathan); }
+  // and target marks): The Kraken, the Ghost Galleon, the Molten Leviathan
+  // and Frostbite Reef's bosses.
+  get large() { return !!(this.def.emerges || this.def.galleon || this.def.leviathan || this.def.wyrm || this.def.giant); }
   // Stays where it appeared (or falls straight down): the Siren, the Ghost
-  // Galleon, the Molten Leviathan and lava bombs.
-  get anchored() { return !!(this.def.stationary || this.def.galleon || this.def.leviathan || this.def.falls); }
+  // Galleon, the Molten Leviathan, the Frost Wyrm and lava bombs.
+  get anchored() {
+    return !!(this.def.stationary || this.def.galleon || this.def.leviathan || this.def.wyrm || this.def.falls);
+  }
   // Walkers that Haunt can scare, Tidal Wave can push and fire puddles
   // hurry: not flyers or anything anchored.
   get canBeMoved() { return !this.def.flies && !this.anchored; }
@@ -249,7 +359,7 @@ export class Enemy {
   get retreatX() { return this.def.emerges ? this.riseLeft + this.frameW / 2 : LAYOUT.enemySpawnX; }
   get isAfraid() { return this.fearTime > 0; }
   // Whether heroes can aim at or hit it (anti-air aside, see airborne).
-  get targetable() { return this.alive && !this.isRising; }
+  get targetable() { return this.alive && !this.isRising && !this.isHidden; }
   // A flyer in the air (or a falling lava bomb): only anti-air crew can hit it.
   get airborne() { return (!!this.def.flies && !this.isGrounded) || !!this.def.falls; }
   get isGrounded() { return this.groundTime > 0; }
@@ -261,10 +371,11 @@ export class Enemy {
   get isPoisoned() { return this.poisonTime > 0; }
   get isHasted() { return this.hasteTime > 0; }
   get hasShield() { return this.shieldHp > 0; }
+  get hasIceShield() { return this.iceShieldHp > 0; }
   // How fast it moves and attacks: slows and the Siren's haste multiply.
   get pace() { return (this.isSlowed ? this.slowFactor : 1) * (this.isHasted ? this.hasteMult : 1); }
-  // Walking only: faster through a fire puddle.
-  get moveBoost() { return this.boostTime > 0 ? this.boostMult : 1; }
+  // Walking only: faster through a fire puddle, slower in a blizzard.
+  get moveBoost() { return (this.boostTime > 0 ? this.boostMult : 1) * (this.scene.blizzard?.chill ?? 1); }
 
   // Whether a hero (or ability) can hit it: anything targetable on the lane,
   // and flyers in the air only with anti-air.
@@ -362,6 +473,7 @@ export class Enemy {
     } else if (!this.isStunned) {
       // Slow and haste affect both moving and attack rate.
       const sdt = dt * this.pace;
+      this.actionTime = Math.max(0, this.actionTime - sdt);
       if (this.def.flies) {
         moving = this.fly(sdt, dt, ship);
       } else if (this.def.falls) {
@@ -370,6 +482,10 @@ export class Enemy {
         this.sail(sdt, ship);
       } else if (this.def.leviathan) {
         this.lurk(sdt, ship);
+      } else if (this.def.wyrm) {
+        this.perch(sdt, ship);
+      } else if (this.def.giant) {
+        moving = this.stride(sdt, ship);
       } else if (this.def.stationary) {
         this.sing(sdt);
       } else if (this.isAfraid) {
@@ -385,6 +501,13 @@ export class Enemy {
       } else if (this.def.boards) {
         this.board(ship);
         return;
+      } else if (this.def.rams) {
+        this.ram(ship);
+        return;
+      } else if (this.def.ranged) {
+        this.throwAt(sdt, ship);
+      } else if (this.def.witch) {
+        this.cast(sdt);
       } else {
         this.attack(sdt, ship);
       }
@@ -669,6 +792,271 @@ export class Enemy {
     scene.volcano?.dropBombs(l.roarBombs);
   }
 
+  // --- Frostbite Reef ---
+
+  // A Yeti Raider at its throwing spot: "throw" every attackInterval, the
+  // snowball leaving its hand on the release frame.
+  throwAt(sdt, ship) {
+    if (this.releaseDue > 0) {
+      this.releaseDue -= sdt;
+      if (this.releaseDue <= 0) this.releaseSnowball(ship);
+    }
+    this.attackCooldown -= sdt * this.rage;
+    if (this.attackCooldown > 0) return;
+    this.attackCooldown += this.def.attackInterval;
+    this.playAction(this.actAnim, this.actTiming.ms);
+    this.releaseDue = Math.max(1, this.actTiming.at);
+  }
+
+  // The snowball arcs from the hand (handOnRelease, frame-relative) to a
+  // random spot on the hull.
+  releaseSnowball(ship) {
+    const r = this.def.ranged;
+    const [hx, hy] = this.spec?.handOnRelease ?? [4, 12];
+    this.lobAtHull(ship, {
+      x: this.x - 16 + hx, y: this.feetY - 32 + hy,
+      sprite: r.shot, impact: r.impact, flightTime: r.flightTime, arcHeight: r.arcHeight,
+      damage: this.damage * r.damageMult,
+    });
+  }
+
+  // A shot from (x, y) arcing to a random spot on the hull, hitting it for
+  // damage with `impact` (a Yeti Raider's snowball, the Frost Giant's boulder).
+  lobAtHull(ship, {
+    x, y, sprite, impact, flightTime, arcHeight, damage, spin = 0,
+  }) {
+    const { scene } = this;
+    const target = { alive: true, ...ship.hullTarget() };
+    scene.projectiles.push(new LobProjectile(scene, {
+      x, y, target, flightTime, arcHeight, sprite, spin,
+      aimAt: (t) => ({ x: t.x, y: t.y }),
+      findTarget: () => null,
+      onHit: (_t, hx, hy) => {
+        ship.takeDamage(damage, this);
+        playFx(scene, impact, hx, hy);
+        sfx.frostHit();
+      },
+    }));
+  }
+
+  // An Ice Witch at her spot: "cast" every witch.every, shielding the front
+  // enemy that has no shield.
+  cast(sdt) {
+    const w = this.def.witch;
+    this.attackCooldown -= sdt * this.rage;
+    if (this.attackCooldown > 0) return;
+    this.attackCooldown += w.every;
+    let front = null;
+    for (const e of this.scene.enemies) {
+      if (e === this || !e.targetable || e.def.hazard || e.hasIceShield || e.hasShield) continue;
+      if (e.def.boss && !w.shieldsBosses) continue;
+      if (!front || e.x < front.x) front = e;
+    }
+    if (!front) return;
+    this.playAction(this.actAnim, this.actTiming.ms);
+    front.giveIceShield(Math.round(front.maxHp * w.share), w);
+  }
+
+  // An Ice Witch's shield: absorbs amount of damage (see takeDamage).
+  giveIceShield(amount, spec) {
+    this.iceShieldMax = amount;
+    this.iceShieldHp = amount;
+    this.iceSpec = spec;
+    this.drawHpBar();
+  }
+
+  breakIceShield() {
+    this.iceShieldHp = 0;
+    playFx(this.scene, this.iceSpec.breakFx, this.x, this.y);
+    sfx.iceBreak();
+  }
+
+  // A Sled Penguin at the ship: one ram for rams.mult x its damage, and it's
+  // gone (no gold).
+  ram(ship) {
+    const { rams } = this.def;
+    this.alive = false;
+    ship.takeDamage(this.damage * rams.mult, this);
+    playFx(this.scene, rams.impact, this.x - this.def.width / 2, this.y);
+    sfx.frostHit();
+    this.removeOverlays();
+    this.scene.tweens.add({ targets: this.body, alpha: 0, duration: 150, onComplete: () => this.body.destroy() });
+  }
+
+  // Play an action animation (anim, if there is one) lasting ms, during
+  // which walking animations leave the body alone.
+  playAction(anim, ms) {
+    this.actionTime = ms;
+    if (anim) this.body.play(anim);
+  }
+
+  // The Frost Wyrm on its perch (once it has flown in): a breath every
+  // breathEvery (faster when enraged); lifted off the iceberg, it waits out
+  // of reach, then lands and breathes twice.
+  perch(sdt, ship) {
+    const w = this.def.wyrm;
+    if (this.airTime > 0) {
+      this.airTime -= sdt;
+      // Up liftPx over liftMs, hover, and back down over the last liftMs.
+      const t = Math.min(1, (w.airMs - this.airTime) / w.liftMs, this.airTime / w.liftMs);
+      this.setFeetY(this.perchFeetY - w.liftPx * Math.max(0, t));
+      if (this.airTime <= 0) this.touchDown();
+      return;
+    }
+    if (this.breathDue > 0) {
+      this.breathDue -= sdt;
+      if (this.breathDue <= 0) this.breathe(ship);
+    }
+    this.breathTimer -= sdt * this.rage;
+    if (this.breathTimer > 0) return;
+    if (this.extraBreaths > 0) {
+      this.extraBreaths--;
+      this.breathTimer += w.gapMs;
+    } else {
+      this.breathTimer += w.breathEvery;
+    }
+    this.playAction(this.breathAnim, this.breathTiming.ms);
+    this.breathDue = Math.max(1, w.breathAt);
+    sfx.frostBreath();
+  }
+
+  // The breath lands: frost_breath with its right edge at the mouth, the
+  // hull takes the Wyrm's damage and the crewmate nearest the bow freezes.
+  breathe(ship) {
+    const { scene } = this;
+    const w = this.def.wyrm;
+    const [mx, my] = this.mouth;
+    const left = Math.round(this.x - this.frameW / 2);
+    const top = Math.round(this.feetY - this.frameH);
+    playFx(scene, w.breath, left + mx, top + my).setOrigin(1, 0.5);
+    ship.takeDamage(this.damage, this);
+    scene.cameras.main.shake(w.shake.duration, w.shake.intensity);
+    ship.crewNearestBow(scene.heroes)?.freeze(w.freezeMs, 'wyrm');
+    sfx.frostHit();
+  }
+
+  // Below liftAt of its HP (once): up off the iceberg, out of reach.
+  liftOff() {
+    const w = this.def.wyrm;
+    this.lifted = true;
+    this.airTime = w.airMs;
+    this.breathDue = 0;
+    this.actionTime = 0;
+    if (this.flyAnim) this.body.play(this.flyAnim);
+  }
+
+  // Back on the iceberg: it breathes at once, and again gapMs later.
+  touchDown() {
+    this.airTime = 0;
+    this.setFeetY(this.perchFeetY);
+    if (this.idleAnim) this.body.play(this.idleAnim);
+    this.breathTimer = 0;
+    this.extraBreaths = 1;
+  }
+
+  // The Frost Giant: its entrance through the pines and roar, then down the
+  // lane (stopping now and then in the finale to hurl a boulder), and at the
+  // ship a smash every attackInterval. Returns whether it moved.
+  stride(sdt, ship) {
+    const { scene } = this;
+    const g = this.def.giant;
+    if (this.phase === 'enter') {
+      this.x = Math.max(g.roarX, this.x - g.entranceSpeed * this.moveBoost * sdt / 1000);
+      if (this.x > g.treesX) {
+        // Pushing through the pines: they shake and shed snow.
+        this.shakeTimer -= sdt;
+        if (this.shakeTimer <= 0) {
+          this.shakeTimer += g.shakeEvery;
+          scene.scenery?.shakeFront(1, g.shakeEvery / 2);
+        }
+        this.puffTimer -= sdt;
+        if (this.puffTimer <= 0) {
+          this.puffTimer += g.puffEvery;
+          const puff = scene.progress?.island.spawnPuff;
+          if (puff) playSpawnPuff(scene, puff);
+        }
+      }
+      if (this.x <= g.roarX) {
+        this.phase = 'roar';
+        this.playAction(this.roarAnim, g.roarMs);
+        scene.cameras.main.shake(g.roarShake.duration, g.roarShake.intensity);
+        scene.showBanner?.(this.def.banner, { color: UI.colors.warn });
+        sfx.roar();
+        return false;
+      }
+      return true;
+    }
+    if (this.phase === 'roar') {
+      if (this.actionTime <= 0) this.phase = 'walk';
+      return false;
+    }
+    if (this.phase === 'throw') {
+      if (this.throwDue > 0) {
+        this.throwDue -= sdt;
+        if (this.throwDue <= 0) this.hurlBoulder(ship);
+      }
+      if (this.actionTime <= 0) this.phase = 'walk';
+      return false;
+    }
+    if (this.isAfraid) return this.flee(sdt);
+    if (this.x > this.stopX) {
+      // Walking (again, if a Tidal Wave pushed it back from the ship).
+      this.phase = 'walk';
+      if (this.boulders) {
+        this.boulderTimer -= sdt * this.rage;
+        if (this.boulderTimer <= 0) {
+          this.boulderTimer += g.boulderEvery;
+          this.phase = 'throw';
+          this.playAction(this.roarAnim, g.throwMs);
+          this.throwDue = g.throwMs;
+          return false;
+        }
+      }
+      return this.walk(sdt);
+    }
+    this.phase = 'smash';
+    if (this.smashDue > 0) {
+      this.smashDue -= sdt;
+      if (this.smashDue <= 0) this.smash(ship);
+    }
+    this.attackCooldown -= sdt * this.rage;
+    if (this.attackCooldown <= 0) {
+      this.attackCooldown += this.def.attackInterval;
+      this.playAction(this.smashAnim, this.smashTiming.ms);
+      this.smashDue = Math.max(1, this.smashTiming.at);
+    }
+    return false;
+  }
+
+  // Where a frame-relative point of the Giant's sheet is now.
+  framePoint([px, py]) {
+    return { x: Math.round(this.x - this.feet[0] + px), y: Math.round(this.feetY - this.feet[1] + py) };
+  }
+
+  // The club lands: the hull takes the Giant's damage, a hard shake and
+  // ground_quake on the slam point; every freezeEvery-th smash also freezes
+  // the crewmate nearest the bow.
+  smash(ship) {
+    const { scene } = this;
+    const g = this.def.giant;
+    ship.takeDamage(this.damage, this);
+    const slam = this.framePoint(this.slamPoint);
+    playFx(scene, 'ground_quake', slam.x, slam.y).setOrigin(0.5, 1);
+    scene.cameras.main.shake(g.smashShake.duration, g.smashShake.intensity);
+    sfx.stomp();
+    if (++this.smashes % g.freezeEvery === 0) ship.crewNearestBow(scene.heroes)?.freeze(g.freezeMs, 'giant');
+  }
+
+  // The finale: an ice boulder hurled from its raised hand at the hull.
+  hurlBoulder(ship) {
+    const g = this.def.giant;
+    const from = this.framePoint(g.throwFrom);
+    this.lobAtHull(ship, {
+      ...from, sprite: g.boulder, impact: g.impact, flightTime: g.flightTime, arcHeight: g.arcHeight,
+      damage: this.damage * g.boulderMult, spin: g.spin,
+    });
+  }
+
   // A steam burst on the water where the Leviathan rises or sinks.
   steam() {
     const l = this.def.leviathan;
@@ -676,6 +1064,20 @@ export class Enemy {
   }
 
   rise(dt) {
+    if (this.def.wyrm) {
+      // Swooping in from the top-right, slowing as it lands.
+      const w = this.def.wyrm;
+      this.riseTime = Math.max(0, this.riseTime - dt);
+      const t = 1 - (this.riseTime / w.flyInMs) ** 2;
+      this.x = Phaser.Math.Linear(this.fromX, this.perchX, t);
+      this.feetY = Phaser.Math.Linear(this.fromFeetY, this.perchFeetY, t);
+      if (!this.isRising) {
+        if (this.idleAnim) this.body.play(this.idleAnim);
+        this.scene.showBanner?.(this.def.banner, { color: UI.colors.warn });
+        sfx.roar();
+      }
+      return;
+    }
     if (this.def.galleon) {
       this.riseTime = Math.max(0, this.riseTime - dt);
       return;
@@ -704,20 +1106,32 @@ export class Enemy {
   }
 
   // Walk only while moving; animations freeze while stunned and follow the
-  // enemy's pace (slow, haste).
+  // enemy's pace (slow, haste). An action (a throw, cast, roar or smash)
+  // plays out; after one a walker stands on its first walk frame.
   animate(moving) {
     const anims = this.body.anims;
     if (!anims) return;
     anims.timeScale = this.pace * this.rage * this.moveBoost;
     this.body.setFlipX?.(this.isAfraid);   // fleeing: facing the island
-    if (this.walkAnim) {
+    if (this.actionTime > 0) {
+      if (this.isStunned) anims.pause();
+      else if (anims.isPaused) anims.resume();
+    } else if (this.walkAnim) {
       if (moving) this.body.play(this.walkAnim, true);
+      else if (anims.currentAnim && anims.currentAnim.key !== this.walkAnim) this.rest();
       else anims.stop();
     } else if (this.isStunned) {
       anims.pause();
     } else if (anims.isPaused) {
       anims.resume();
     }
+  }
+
+  // Standing still on the first frame of its walk.
+  rest() {
+    this.body.anims.stop();
+    const first = this.scene.anims.get(this.walkAnim)?.frames[0];
+    if (first) this.body.setFrame(first.textureFrame);
   }
 
   // Thief behaviour: grab gold and vanish without hurting the ship.
@@ -788,6 +1202,14 @@ export class Enemy {
       this.setFlash(true);
       this.scene.time.delayedCall(FX.hitFlashMs, () => this.alive && this.setFlash(false));
     }
+    // An Ice Witch's shield takes every hit but poison first.
+    if (this.hasIceShield && !dot) {
+      this.credit(source, Math.min(damage, this.iceShieldHp), damage, curse);
+      this.iceShieldHp -= damage;
+      if (!this.hasIceShield) this.breakIceShield();
+      this.drawHpBar();
+      return;
+    }
     if (this.hasShield && !dot && !lobbed && !throughShield) {
       this.credit(source, Math.min(damage, this.shieldHp), damage, curse);
       this.shieldHp -= damage;
@@ -797,8 +1219,14 @@ export class Enemy {
     }
     this.credit(source, Math.min(damage, this.hp), damage, curse);
     this.hp -= damage;
-    if (this.hp <= 0) this.die(source);
-    else this.drawHpBar();
+    if (this.hp <= 0) {
+      this.die(source);
+      return;
+    }
+    // The Frost Wyrm takes to the air once, at liftAt of its HP.
+    const w = this.def.wyrm;
+    if (w && !this.lifted && this.hp <= this.maxHp * w.liftAt) this.liftOff();
+    this.drawHpBar();
   }
 
   // Log what a hit of `damage` really dealt (dealt: without overkill) for
@@ -862,6 +1290,14 @@ export class Enemy {
       this.sink();
       return;
     }
+    if (this.def.wyrm) {
+      this.plunge();
+      return;
+    }
+    if (this.def.giant) {
+      this.shatter();
+      return;
+    }
     if (this.def.falls) {
       playFx(this.scene, this.def.falls.impact, this.x, this.y);
       this.body.destroy();
@@ -896,6 +1332,42 @@ export class Enemy {
     this.body.once(`animationcomplete-${this.sinkAnim}`, fade);
   }
 
+  // The Frost Wyrm goes down: "fall" as it drops sinkPx into the sea over
+  // fallMs, then a splash on the water where it went under.
+  plunge() {
+    const { scene } = this;
+    const w = this.def.wyrm;
+    this.body.clearTint?.();
+    if (this.fallAnim) this.body.play(this.fallAnim);
+    scene.tweens.add({
+      targets: this.body,
+      y: this.body.y + w.sinkPx,
+      duration: w.fallMs,
+      ease: 'Quad.easeIn',
+      onComplete: () => {
+        this.body.destroy();
+        const s = SPRITES.krakenSplash;
+        const splash = scene.add.sprite(Math.round(this.x), LAYOUT.waterY - w.aboveWater, s.key)
+          .setOrigin(0.5, 0).setDepth(DEPTH.splash).play(SPLASH_ANIM);
+        scene.time.delayedCall(2 * s.frames * 1000 / s.fps, () => splash.destroy());
+        sfx.splash();
+      },
+    });
+  }
+
+  // The Frost Giant goes down: "shatter", then it's gone.
+  shatter() {
+    this.body.clearTint?.();
+    const done = () => this.body.destroy();
+    if (!this.shatterAnim) {
+      this.scene.tweens.add({ targets: this.body, alpha: 0, duration: 400, onComplete: done });
+      return;
+    }
+    this.body.play(this.shatterAnim);
+    this.body.once(`animationcomplete-${this.shatterAnim}`, done);
+    sfx.iceBreak();
+  }
+
   // A Keg Runner killed before reaching the ship: its keg goes off where it
   // fell, hitting every enemy on the lane within the blast radius (credited
   // to whoever killed it).
@@ -922,6 +1394,8 @@ export class Enemy {
     this.hpBar.destroy();
     for (const sprite of Object.values(this.statusSprites)) sprite.destroy();
     this.statusSprites = {};
+    this.iceSprite?.destroy();
+    this.iceSprite = null;
     this.nameTag?.destroy();
   }
 
@@ -938,12 +1412,23 @@ export class Enemy {
     this.hpBar.fillStyle(0x000000, 0.6).fillRect(x, y, w, 2);
     const barColor = this.isCursed ? CURSE_COLOR : this.isPoisoned ? POISON_COLOR : 0xe53935;
     this.hpBar.fillStyle(barColor).fillRect(x, y, Math.round(w * pct), 2);
+    let barY = y;
     if (this.hasShield) {
+      barY -= 2;
       const shieldPct = Phaser.Math.Clamp(this.shieldHp / this.shieldMax, 0, 1);
-      this.hpBar.fillStyle(0x000000, 0.6).fillRect(x, y - 2, w, 2);
-      this.hpBar.fillStyle(this.def.shield.barColor).fillRect(x, y - 2, Math.round(w * shieldPct), 2);
+      this.hpBar.fillStyle(0x000000, 0.6).fillRect(x, barY, w, 2);
+      this.hpBar.fillStyle(this.def.shield.barColor).fillRect(x, barY, Math.round(w * shieldPct), 2);
+    }
+    if (this.hasIceShield) {
+      barY -= 2;
+      const icePct = Phaser.Math.Clamp(this.iceShieldHp / this.iceShieldMax, 0, 1);
+      this.hpBar.fillStyle(0x000000, 0.6).fillRect(x, barY, w, 2);
+      this.hpBar.fillStyle(this.iceSpec.barColor).fillRect(x, barY, Math.round(w * icePct), 2);
     }
   }
+
+  // Height of the shield bars over the HP bar.
+  get shieldBarsHeight() { return (this.hasShield ? 2 : 0) + (this.hasIceShield ? 2 : 0); }
 
   // Status sprites: a net draped over a slowed enemy (the same 32x32 box as
   // its sprite, feet on the bottom row), poison bubbles over its body, and
@@ -958,14 +1443,22 @@ export class Enemy {
         delete this.statusSprites[key];
       }
     }
+    // An Ice Witch's shield, looping over the enemy while it lasts.
+    if (this.hasIceShield && !this.iceSprite) {
+      this.iceSprite = fxSprite(this.scene, this.iceSpec.fx, 0, 0).setDepth(DEPTH.enemyOverlay - 0.1);
+    } else if (!this.hasIceShield && this.iceSprite) {
+      this.iceSprite.destroy();
+      this.iceSprite = null;
+    }
     const { slow, poison, stun, fear, curse } = this.statusSprites;
     const x = Math.round(this.x);
-    if (slow) {
-      if (this.large) slow.setOrigin(0.5).setPosition(x, Math.round(this.y));
-      else slow.setOrigin(0.5, 1).setPosition(x, Math.round(this.feetY));
+    for (const over of [slow, this.iceSprite]) {
+      if (!over) continue;
+      if (this.large) over.setOrigin(0.5).setPosition(x, Math.round(this.y));
+      else over.setOrigin(0.5, 1).setPosition(x, Math.round(this.feetY));
     }
     poison?.setPosition(x, Math.round(this.y - this.def.height / 4));
-    let above = this.hpBarY - (this.nameTag ? 10 : 0) - (this.hasShield ? 2 : 0) - FX.statusGap;
+    let above = this.hpBarY - (this.nameTag ? 10 : 0) - this.shieldBarsHeight - FX.statusGap;
     for (const mark of [stun, fear, curse]) {
       if (!mark) continue;
       mark.setOrigin(0.5, 1).setPosition(x, above);

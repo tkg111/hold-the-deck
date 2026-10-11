@@ -17,6 +17,7 @@
 // To try numbers without editing config.js, set SIM_CONFIG to JSON merged
 // into its exports, e.g. SIM_CONFIG='{"WAVES":{"hpGrowth":0.1}}'.
 import { readFileSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
 import * as config from '../../src/config.js';
 import { HEROES, ISLANDS, RARITY, SHIP } from '../../src/config.js';
 import { initLayout } from '../../src/layout.js';
@@ -25,6 +26,7 @@ import { Hero } from '../../src/entities/Hero.js';
 import { AbilitySystem } from '../../src/systems/Abilities.js';
 import { Progress } from '../../src/systems/Progress.js';
 import { Volcano } from '../../src/systems/Volcano.js';
+import { Blizzard } from '../../src/systems/Blizzard.js';
 import { WaveManager } from '../../src/systems/WaveManager.js';
 
 const RUNS = Number(process.argv[2] ?? 5);
@@ -45,14 +47,16 @@ if (process.env.SIM_CONFIG) override(config, JSON.parse(process.env.SIM_CONFIG))
 
 const sprites = new URL('../../public/sprites/', import.meta.url);
 const readJson = (path) => JSON.parse(readFileSync(new URL(path, sprites), 'utf8'));
-const fxSheets = { ...readJson('fx/fx.json'), ...readJson('ember/fx/fx_ember.json') };
+const fxSheets = { ...readJson('fx/fx.json'), ...readJson('ember/fx/fx_ember.json'), ...readJson('frost/fx/fx_frost.json') };
 initLayout(readJson('layout.json'));
 // The JSON files the battle code reads from the cache (ship slots; the
-// Ghost Galleon's gun ports and the Molten Leviathan's mouth and position).
+// Ghost Galleon's gun ports, the Molten Leviathan's mouth and position, and
+// Frostbite Reef's animation timings, hand, mouth, perch and feet).
 const jsonCache = {
   ship_slots: readJson('ship_slots.json'),
   animations_new_enemies: readJson('animations_new_enemies.json'),
   animations_ember: readJson('ember/animations_ember.json'),
+  animations_frost: readJson('frost/animations_frost.json'),
 };
 
 // --- A stand-in scene: game objects are inert stubs that keep x / y ---
@@ -123,14 +127,15 @@ function seedRandom(seed) {
 
 // --- One battle ---
 
-function playWave(scene, progress) {
-  const { ship, waves, volcano, abilities } = scene;
+export function playWave(scene, progress, onStep = null) {
+  const { ship, waves, volcano, blizzard, abilities } = scene;
   ship.sync(progress);
   rebuildHeroes(scene, progress);
   scene.enemies = [];
   scene.projectiles = [];
   waves.start(progress.wave, progress.waveOptions);
   volcano.start(progress.waveOptions);
+  blizzard.start(progress.wave, progress.waveOptions);
   abilities.resetCooldowns();
   let time = 0;
   let won = false;
@@ -139,6 +144,7 @@ function playWave(scene, progress) {
     scene.enemies.push(...waves.update(DT));
     for (const e of scene.enemies) e.update(DT, ship);
     volcano.update(DT);
+    blizzard.update(DT);
     abilities.update(DT, true);
     for (const h of scene.heroes) {
       const shot = h.update(DT, scene.enemies);
@@ -147,6 +153,7 @@ function playWave(scene, progress) {
     for (const p of scene.projectiles) p.update(DT);
     scene.enemies = scene.enemies.filter((e) => e.alive);
     scene.projectiles = scene.projectiles.filter((p) => !p.done);
+    onStep?.(time);
     if (ship.isDestroyed || time > WAVE_TIMEOUT) break;
     // Lava bombs still falling don't hold up a win.
     if (waves.doneSpawning && !scene.enemies.some((e) => !e.def.hazard)) {
@@ -156,6 +163,7 @@ function playWave(scene, progress) {
   }
   waves.stop();
   volcano.stop();
+  blizzard.stop();
   abilities.clear();
   for (const h of scene.heroes) h.clearAbilities();
   if (won) progress.winWave();
@@ -222,15 +230,22 @@ function spendGold(p) {
 
 // --- Runs ---
 
-function run(seed, policy) {
-  seedRandom(seed);
+// A stand-in battle scene for this progress, with its systems.
+export function makeBattle(progress) {
   const scene = makeScene();
-  const progress = new Progress();
   scene.progress = progress;
   scene.ship = new Ship(scene, progress);
   scene.waves = new WaveManager(scene);
   scene.volcano = new Volcano(scene);
+  scene.blizzard = new Blizzard(scene);
   scene.abilities = new AbilitySystem(scene);
+  return scene;
+}
+
+export function run(seed, policy, { maxWave = MAX_WAVE, voyage = VOYAGE, maxTries = MAX_TRIES, stopAt = null } = {}) {
+  seedRandom(seed);
+  const progress = new Progress();
+  const scene = makeBattle(progress);
   scene.events.on('enemy-killed', (e) => {
     if (e.def.hazard) return;   // a lava bomb shot down
     progress.recordDefeat(e.key);   // bounties pay Pearls
@@ -251,11 +266,12 @@ function run(seed, policy) {
   between(progress, true);
   // Voyage: on to the next island once this one is cleared.
   const sailOn = () => {
-    if (!VOYAGE || !progress.isIslandCleared(progress.islandId)) return;
+    if (!voyage || !progress.isIslandCleared(progress.islandId)) return;
     const next = ISLANDS[ISLANDS.indexOf(progress.island) + 1];
     if (next && progress.sailTo(next.id)) tries = 0;
   };
-  while (progress.wave <= MAX_WAVE && tries < MAX_TRIES) {
+  // stopAt(progress): stop as soon as it's true (checked between waves).
+  while (progress.wave <= maxWave && tries < maxTries && !stopAt?.(progress)) {
     const wave = progress.wave;
     const island = progress.islandId;
     const result = playWave(scene, progress);
@@ -267,8 +283,10 @@ function run(seed, policy) {
     sailOn();
   }
   const crew = progress.activeHeroes.map(({ id }) => `${HEROES[id].shortName} ${progress.heroLevel(id)}`).join(', ');
-  return { progress, log, attempts, playTime, crew, wall: tries >= MAX_TRIES };
+  return { progress, log, attempts, playTime, crew, wall: tries >= maxTries };
 }
+
+export { seedRandom };
 
 const mins = (ms) => `${Math.round(ms / 60000)}m`;
 const bandOf = (wave) => Math.floor((wave - 1) / 10);
@@ -276,7 +294,9 @@ const bandOf = (wave) => Math.floor((wave - 1) / 10);
 const islandTag = (id) => (id === ISLANDS[0].id ? '' : ISLANDS.find((d) => d.id === id).name[0]);
 const waveTag = ({ island, wave }) => `${islandTag(island)}${wave}`;
 
-for (const policy of ['greedy', 'lazy']) {
+// Run as `npm run sim` (not when imported by another script).
+const main = !!process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+for (const policy of main ? ['greedy', 'lazy'] : []) {
   console.log(`--- ${policy}: ${RUNS} runs from a fresh save, up to wave ${MAX_WAVE} ---`);
   const bands = new Map();   // per island and 10 waves: first tries, first-try wins, losses
   for (let r = 0; r < RUNS; r++) {

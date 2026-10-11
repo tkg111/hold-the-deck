@@ -279,6 +279,65 @@ class Sfx {
     this.tone({ freq: 700, endFreq: 420, type: 'triangle', start: t, duration: 0.3, volume: 0.2 });
   }
 
+  // --- Frostbite Reef ---
+
+  // A crewmate freezing: a quick rising crackle of ice.
+  freeze() {
+    const t = this.ready();
+    if (t == null) return;
+    this.noise({ start: t, duration: 0.25, volume: 0.25, filterFrom: 3000, filterTo: 7000, q: 2 });
+    this.tone({ freq: 1600, endFreq: 2400, type: 'sine', start: t, duration: 0.2, volume: 0.06 });
+  }
+
+  // Ice breaking (a crewmate tapped free, an ice shield giving way): a
+  // bright crack and tinkle.
+  iceBreak() {
+    const t = this.ready();
+    if (t == null) return;
+    this.noise({ start: t, duration: 0.12, volume: 0.35, filterFrom: 6000, filterTo: 2500, q: 1.5 });
+    [2200, 2900, 2500].forEach((f, i) => {
+      this.tone({ freq: f, type: 'triangle', start: t + 0.04 + i * 0.05, duration: 0.12, volume: 0.06 });
+    });
+  }
+
+  // A snowball, boulder or the breath hitting the hull: a soft crunch.
+  frostHit() {
+    const t = this.ready();
+    if (t == null) return;
+    this.noise({ start: t, duration: 0.15, volume: 0.3, filterFrom: 1800, filterTo: 600, q: 1 });
+  }
+
+  // The Frost Wyrm's breath: a long icy hiss.
+  frostBreath() {
+    const t = this.ready();
+    if (t == null) return;
+    this.noise({ start: t, duration: 0.7, volume: 0.3, filterFrom: 7000, filterTo: 3500, q: 0.7 });
+    this.tone({ freq: 180, endFreq: 120, type: 'sawtooth', start: t, duration: 0.5, volume: 0.06, attack: 0.05 });
+  }
+
+  // The Frost Giant's club landing: a deep thud.
+  stomp() {
+    const t = this.ready();
+    if (t == null) return;
+    this.tone({ freq: 90, endFreq: 30, type: 'sine', start: t, duration: 0.45, volume: 0.5 });
+    this.noise({ start: t, duration: 0.35, volume: 0.35, filterFrom: 500, filterTo: 100, q: 0.8 });
+  }
+
+  // The Frost Wyrm dropping into the sea: a heavy splash.
+  splash() {
+    const t = this.ready();
+    if (t == null) return;
+    this.tone({ freq: 110, endFreq: 50, type: 'sine', start: t, duration: 0.3, volume: 0.35 });
+    this.noise({ start: t, duration: 0.9, volume: 0.35, filterFrom: 2500, filterTo: 600, q: 0.6 });
+  }
+
+  // A blizzard rolling in: a rising gust of wind.
+  wind() {
+    const t = this.ready();
+    if (t == null) return;
+    this.noise({ start: t, duration: 1.6, volume: 0.25, filterFrom: 400, filterTo: 1400, q: 1.5 });
+  }
+
   // An ability that can't be used right now.
   denied() {
     const t = this.ready();

@@ -28,7 +28,8 @@ const debutOrder = (id) => {
 function firstWave(id) {
   const debut = enemyDebut(id);
   if (!debut) return ['FIRST WAVE', '-'];
-  const label = debut.island === 0 ? 'FIRST WAVE' : `${ISLANDS[debut.island].name.toUpperCase()} WAVE`;
+  const island = ISLANDS[debut.island];
+  const label = debut.island === 0 ? 'FIRST WAVE' : `${(island.shortName ?? island.name).toUpperCase()} WAVE`;
   return [label, `${debut.wave}`];
 }
 export class WantedScene extends Phaser.Scene {

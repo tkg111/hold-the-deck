@@ -1,0 +1,175 @@
+{
+  "frozen_corsair": {
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "walk": {
+      "frames": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "fps": 6,
+      "repeat": -1
+    }
+  },
+  "sled_penguin": {
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "slide": {
+      "frames": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "fps": 12,
+      "repeat": -1
+    }
+  },
+  "yeti_raider": {
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "walk": {
+      "frames": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "fps": 5,
+      "repeat": -1
+    },
+    "throw": {
+      "frames": [
+        4,
+        5
+      ],
+      "fps": 4,
+      "repeat": 0
+    },
+    "handOnRelease": [
+      3,
+      11
+    ]
+  },
+  "ice_witch": {
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "glide": {
+      "frames": [
+        0,
+        1
+      ],
+      "fps": 3,
+      "repeat": -1
+    },
+    "cast": {
+      "frames": [
+        2,
+        3
+      ],
+      "fps": 4,
+      "repeat": 0
+    }
+  },
+  "frost_wyrm": {
+    "frameWidth": 112,
+    "frameHeight": 96,
+    "perch": {
+      "frames": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "fps": 3,
+      "repeat": -1
+    },
+    "breath": {
+      "frames": [
+        4,
+        5
+      ],
+      "fps": 4,
+      "repeat": 0
+    },
+    "fly": {
+      "frames": [
+        6,
+        7
+      ],
+      "fps": 8,
+      "repeat": -1
+    },
+    "fall": {
+      "frames": [
+        8,
+        9,
+        10,
+        11
+      ],
+      "fps": 4,
+      "repeat": 0
+    },
+    "mouth": [
+      16,
+      60
+    ],
+    "perchPos": {
+      "x": 195,
+      "y": 68,
+      "note": "top-left of the 112x96 frame so its feet stand on the iceberg (iceberg top at battlefield x=257, y=152)"
+    }
+  },
+  "frost_giant": {
+    "frameWidth": 144,
+    "frameHeight": 144,
+    "walk": {
+      "frames": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "fps": 4,
+      "repeat": -1
+    },
+    "smash": {
+      "frames": [
+        4,
+        5,
+        6
+      ],
+      "fps": 5,
+      "repeat": 0,
+      "impactFrame": 6
+    },
+    "roar": {
+      "frames": [
+        7
+      ],
+      "fps": 1,
+      "repeat": 0
+    },
+    "shatter": {
+      "frames": [
+        8,
+        9,
+        10,
+        11
+      ],
+      "fps": 5,
+      "repeat": 0
+    },
+    "feet": [
+      88,
+      136
+    ],
+    "slamPoint": [
+      11,
+      114
+    ],
+    "note": "origin at feet (88/144, 136/144). Spawns at x=520 behind fg_pines, roars at x=410 (half out of the trees), then walks the lane."
+  }
+}

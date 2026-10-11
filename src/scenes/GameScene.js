@@ -1,20 +1,24 @@
 import Phaser from 'phaser';
-import { DEV, DISPLAY, ENEMIES, GAME_SPEEDS, HEROES, SCENERY, SIM, UI_KIT } from '../config.js';
+import {
+  ASHFALL, DEV, DISPLAY, ENEMIES, GAME_SPEEDS, HEROES, SCENERY, SIM, SNOWFALL, UI_KIT,
+} from '../config.js';
 import { sfx } from '../audio/Sfx.js';
 import { DEV_TOOLS } from '../devFlag.js';
 import {
   applyRenderScale, fullscreenSupported, isFullscreen, toggleFullscreen,
 } from '../display.js';
-import { Ashfall } from '../ashfall.js';
 import { Scenery } from '../scenery.js';
 import { createAnimations, mapKey, preloadSprites } from '../sprites.js';
 import { Storm } from '../storm.js';
+import { Weather } from '../weather.js';
 import { Ship } from '../entities/Ship.js';
 import { Hero } from '../entities/Hero.js';
+import { playSpawnPuff } from '../entities/Enemy.js';
 import { clearSave, loadProgress, saveProgress } from '../systems/Save.js';
 import { bossOf, composeWave, isBossWave, isSirenWave, WaveManager } from '../systems/WaveManager.js';
 import { AbilitySystem } from '../systems/Abilities.js';
 import { Volcano } from '../systems/Volcano.js';
+import { Blizzard } from '../systems/Blizzard.js';
 import { BattleStats, mvpOf } from '../systems/BattleStats.js';
 import { AbilityBar } from '../ui/AbilityBar.js';
 import { Button } from '../ui/Button.js';
@@ -58,8 +62,10 @@ export class GameScene extends Phaser.Scene {
     this.projectiles = [];
 
     this.scenery = new Scenery(this, this.progress.island);
-    this.ashfall = new Ashfall(this);
-    this.ashfall.setIsland(this.progress.island, { instant: true });
+    // Ember Isle's ash and Frostbite Reef's snow.
+    this.ashfall = new Weather(this, ASHFALL);
+    this.snowfall = new Weather(this, SNOWFALL);
+    for (const w of [this.ashfall, this.snowfall]) w.setIsland(this.progress.island, { instant: true });
     this.storm = new Storm(this);
     this.ship = new Ship(this, this.progress);
     this.heroes = [];
@@ -69,11 +75,13 @@ export class GameScene extends Phaser.Scene {
 
     this.waves = new WaveManager(this);
     this.volcano = new Volcano(this);   // Ember Isle's lava bombs and fire puddles
+    this.blizzard = new Blizzard(this); // Frostbite Reef's blizzards
     // Scene events outlive a restart, so unhook on shutdown to avoid double handlers.
     const handlers = {
       'enemy-killed': this.onEnemyKilled,
       'enemy-stole': this.onEnemyStole,
       'slot-clicked': this.onSlotClicked,
+      'slot-tapped': this.onSlotTapped,
       'view-resize': this.onViewResize,
     };
     for (const [name, fn] of Object.entries(handlers)) this.events.on(name, fn, this);
@@ -101,11 +109,12 @@ export class GameScene extends Phaser.Scene {
     this.refreshUi();
   }
 
-  // The window changed size: re-cover the view with the storm and ash and
-  // re-anchor the HUD (the battlefield and backdrop don't move).
+  // The window changed size: re-cover the view with the storm, ash and snow
+  // and re-anchor the HUD (the battlefield and backdrop don't move).
   onViewResize(view) {
     this.storm.layout(view);
     this.ashfall.layout(view);
+    this.snowfall.layout(view);
     this.layoutUi(view);
   }
 
@@ -367,6 +376,12 @@ export class GameScene extends Phaser.Scene {
     this.shipwright.setVisible(false);  // the picker takes its place
   }
 
+  // A ship slot tapped during a wave: breaks the ice on a frozen crewmate there.
+  onSlotTapped(slot) {
+    if (this.state !== STATE.RUNNING) return;
+    this.heroes.find((h) => h.slot === slot)?.thaw();
+  }
+
   onHeroPicked(id) {
     this.progress.assignHero(this.ship.selectedSlot, id);
     this.heroPicker.close();
@@ -437,15 +452,21 @@ export class GameScene extends Phaser.Scene {
     this.scene.launch('MapScene', {
       progress: this.progress,
       onClose: (sailed) => {
-        if (sailed) {
-          this.scenery.setIsland(this.progress.island);
-          this.ashfall.setIsland(this.progress.island);
-          this.showBanner(`SAILING TO ${this.progress.island.name.toUpperCase()}`);
-        }
+        if (sailed) this.arriveAtIsland();
         this.refreshUi();
         this.save();
       },
     });
+  }
+
+  // The ship has sailed to another island (the map, or the dev tools): its
+  // backdrop and weather, and a banner.
+  arriveAtIsland() {
+    const { island } = this.progress;
+    this.scenery.setIsland(island);
+    this.ashfall.setIsland(island);
+    this.snowfall.setIsland(island);
+    this.showBanner(`SAILING TO ${island.name.toUpperCase()}`);
   }
 
   openPacks() {
@@ -480,15 +501,19 @@ export class GameScene extends Phaser.Scene {
     this.stats.start(this.progress.wave, this.progress.islandId, this.heroes);
     this.waves.start(this.progress.wave, options);
     this.volcano.start(options);
+    this.blizzard.start(this.progress.wave, options);   // the finale's blizzard rolls in here
     this.abilities.resetCooldowns();
     const { finale, island } = options;
+    const boss = isBossWave(this.progress.wave) ? ENEMIES[bossOf(this.progress.wave, island)] : null;
     if (finale) {
       // The island's finale: its weather rolls in under its banner.
       if (finale.weather === 'storm') this.storm.start();
-      if (finale.weather === 'eruption') this.ashfall.erupt();
+      if (finale.weather === 'eruption') this.ashfall.worsen();
       this.showBanner(finale.title, { detail: finale.detail, hold: 3000 });
-    } else if (isBossWave(this.progress.wave)) this.showBanner(ENEMIES[bossOf(this.progress.wave, island)].banner, { color: UI.colors.warn });
-    else if (isSirenWave(this.progress.wave, island)) this.showBanner('A SIREN SINGS!', { color: UI.colors.warn });
+    } else if (boss) {
+      // Some bosses announce themselves when they arrive instead.
+      if (!boss.bannerOnEntrance) this.showBanner(boss.banner, { color: UI.colors.warn });
+    } else if (isSirenWave(this.progress.wave, island)) this.showBanner('A SIREN SINGS!', { color: UI.colors.warn });
     this.state = STATE.RUNNING;
     this.simCarry = 0;   // game time not yet simulated (under one step)
     this.waveTime = 0;   // game time simulated this wave
@@ -504,6 +529,7 @@ export class GameScene extends Phaser.Scene {
     this.applySpeed();
     this.waves.stop();
     this.volcano.stop();
+    this.blizzard.stop();
     this.abilities.clear();
     for (const h of this.heroes) h.clearAbilities();
     for (const e of this.enemies) e.destroy();
@@ -513,6 +539,7 @@ export class GameScene extends Phaser.Scene {
 
     this.storm.stop();
     this.ashfall.calm();
+    this.snowfall.calm();
     if (won) {
       const wave = this.progress.wave;
       const { gold, pearls, finale } = this.progress.winWave();
@@ -521,7 +548,7 @@ export class GameScene extends Phaser.Scene {
         // map, the next island).
         sfx.reveal('legendary', true);
         this.showBanner(finale.clearedTitle, {
-          detail: `+${pearlsLabel(pearls).toUpperCase()}  +${finale.legendaryChests} LEGENDARY CHEST  -  ${finale.unlocks}`,
+          detail: `+${pearlsLabel(pearls).toUpperCase()}  +${finale.legendaryChests} LEGENDARY CHEST${finale.legendaryChests > 1 ? 'S' : ''}  -  ${finale.unlocks}`,
           hold: 4500,
         });
       } else {
@@ -564,6 +591,7 @@ export class GameScene extends Phaser.Scene {
     this.notices.update(Math.min(delta, 100));
     this.storm.update(Math.min(delta, 100));
     this.ashfall.update(Math.min(delta, 100));
+    this.snowfall.update(Math.min(delta, 100));
     if (this.state !== STATE.RUNNING) return;
     // Fixed steps of game time, so the wave plays out the same at any frame
     // rate (see SIM in config).
@@ -584,10 +612,15 @@ export class GameScene extends Phaser.Scene {
     this.enemies.push(...spawned);
     // First sighting of a type: unlock its poster and announce it.
     for (const e of spawned) if (this.progress.discover(e.key)) this.notices.newEnemy(e.key);
+    // Frostbite Reef: snow puffs off the pines as each one steps out (the
+    // Frost Giant shakes them itself; the Frost Wyrm flies in).
+    const puff = this.progress.island.spawnPuff;
+    if (puff) for (const e of spawned) if (!e.def.wyrm && !e.def.giant) playSpawnPuff(this, puff);
     // The finale: a boss arriving after the other fell comes in enraged.
     for (const e of spawned) if (e.def.boss && e.rage > 1) this.showBanner(`${e.def.name.toUpperCase()} ENRAGES!`, { color: UI.colors.warn });
     for (const e of this.enemies) e.update(dt, this.ship);
     this.volcano.update(dt);
+    this.blizzard.update(dt);
     this.abilities.update(dt, this.progress.autoAbilities);
 
     for (const h of this.heroes) {

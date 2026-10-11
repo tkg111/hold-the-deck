@@ -71,10 +71,14 @@ export class Projectile {
 // msLeft) -> {x, y}), then calls onHit(target, x, y) with whichever enemy it
 // was last aimed at (area shots hit around the point instead).
 // If the target dies mid-flight, the landing point moves to the nearest living
-// enemy; the arc bends smoothly rather than jumping.
+// enemy; the arc bends smoothly rather than jumping. spin: turns the sprite
+// this many radians per second (the Frost Giant's boulder).
 export class LobProjectile {
-  constructor(scene, { x, y, target, flightTime, arcHeight, sprite, onHit, findTarget, aimAt }) {
+  constructor(scene, {
+    x, y, target, flightTime, arcHeight, sprite, onHit, findTarget, aimAt, spin = 0,
+  }) {
     this.target = target;
+    this.spin = spin;
     this.flightTime = flightTime;
     this.arcHeight = arcHeight;
     this.onHit = onHit;
@@ -124,6 +128,7 @@ export class LobProjectile {
     const t = Math.min(1, this.elapsed / this.flightTime);
     const { x, y } = this.pointAt(t);
     this.sprite.setPosition(x, y);
+    if (this.spin) this.sprite.rotation += this.spin * dt / 1000;
     if (t >= 1) {
       this.onHit(this.target, this.destX, this.destY);
       this.destroy();

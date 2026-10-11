@@ -1,0 +1,82 @@
+{
+  "snowball": {
+    "file": "snowball.png",
+    "frameWidth": 10,
+    "frameHeight": 10,
+    "frames": 1,
+    "fps": 0,
+    "repeat": 0,
+    "kind": "projectile",
+    "use": "Yeti Raider throw, lobbed at the hull"
+  },
+  "frost_breath": {
+    "file": "frost_breath.png",
+    "frameWidth": 64,
+    "frameHeight": 24,
+    "frames": 3,
+    "fps": 10,
+    "repeat": 0,
+    "kind": "projectile",
+    "use": "Frost Wyrm breath: place its right edge at the mouth, reaches 62px left"
+  },
+  "ice_block": {
+    "file": "ice_block.png",
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "frames": 1,
+    "fps": 0,
+    "repeat": 0,
+    "kind": "status",
+    "use": "over a frozen crewmate (blizzard / breath)"
+  },
+  "ice_shield": {
+    "file": "ice_shield.png",
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "frames": 2,
+    "fps": 4,
+    "repeat": -1,
+    "kind": "status",
+    "use": "around an enemy shielded by an Ice Witch"
+  },
+  "frost_hit": {
+    "file": "frost_hit.png",
+    "frameWidth": 16,
+    "frameHeight": 16,
+    "frames": 3,
+    "fps": 16,
+    "repeat": 0,
+    "kind": "impact",
+    "use": "snowball / breath hit, shield break"
+  },
+  "snow_puff": {
+    "file": "snow_puff.png",
+    "frameWidth": 48,
+    "frameHeight": 32,
+    "frames": 4,
+    "fps": 12,
+    "repeat": 0,
+    "kind": "impact",
+    "use": "snow shaken off the front pines as the Giant pushes through (and when any enemy spawns)"
+  },
+  "ground_quake": {
+    "file": "ground_quake.png",
+    "frameWidth": 64,
+    "frameHeight": 24,
+    "frames": 4,
+    "fps": 12,
+    "repeat": 0,
+    "kind": "impact",
+    "use": "where the club lands: centre-bottom on the slam point"
+  },
+  "ice_boulder": {
+    "file": "ice_boulder.png",
+    "frameWidth": 16,
+    "frameHeight": 16,
+    "frames": 1,
+    "fps": 0,
+    "repeat": 0,
+    "kind": "projectile",
+    "use": "boulder the Giant hurls in the finale (spins in code)"
+  }
+}

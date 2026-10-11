@@ -272,6 +272,20 @@ export class Progress {
     if (!on) this.slots = this.slots.map((id) => (id && this.isOwned(id) ? id : null));
   }
 
+  // Dev-only: sail to an island with content, marking every island before
+  // it cleared so it's unlocked (this is saved, like real progress).
+  devSailTo(id) {
+    const i = ISLANDS.findIndex((d) => d.id === id);
+    if (i < 0 || !ISLANDS[i].available) return false;
+    for (const before of ISLANDS.slice(0, i)) {
+      this.islands[before.id] ??= newIsland();
+      this.islands[before.id].cleared = true;
+    }
+    this.islandId = id;
+    this.islands[id] ??= newIsland();
+    return true;
+  }
+
   // --- Derived stats ---
 
   get hullMaxHp() { return this.hullMaxHpAt(this.hullHpLevel); }

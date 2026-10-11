@@ -1,4 +1,5 @@
-import { FX, HEROES, SHIP, SPRITES } from '../config.js';
+import { FREEZE, FX, HEROES, SHIP, SPRITES } from '../config.js';
+import { sfx } from '../audio/Sfx.js';
 import { laneFeetY } from '../layout.js';
 import { FX_DEPTH, fxSprite, playFx } from '../fx.js';
 import { findAnim, fxKey, sheetKey } from '../sprites.js';
@@ -21,6 +22,7 @@ export class Hero {
     this.id = id;
     this.def = HEROES[id];
     this.aura = aura;
+    this.slot = index;
     this.deck = Math.floor(index / SHIP.slotsPerDeck);   // 0 = the bottom deck
     // Captain's Log credit for each kind of damage (see BattleStats).
     this.source = {
@@ -40,6 +42,10 @@ export class Hero {
     // paused), stun stars over the head.
     this.stunTime = 0;
     this.stunStars = null;
+    // Frozen (Frostbite Reef's blizzard, the Frost Wyrm and the Frost Giant):
+    // no attacks either, in a block of ice until it melts or is tapped.
+    this.freezeTime = 0;
+    this.iceBlock = null;
     // Anti-air crew can hit flyers in the air; the Net Thrower can aim at
     // them too (his net grounds them).
     this.antiAir = !!(this.def.antiAir || this.def.netsFlyers);
@@ -119,13 +125,14 @@ export class Hero {
     }
   }
 
-  // End of a wave: boosts, Lunge and stuns end with it.
+  // End of a wave: boosts, Lunge, stuns and ice end with it.
   clearAbilities() {
     this.boosts = [];
     this.lunge = null;
     this.stunTime = 0;
     this.tickAbilities(0);
     this.tickStun(0);
+    this.thaw({ quiet: true });
   }
 
   // The Siren's note or a lava bomb on this deck: no attacks for ms.
@@ -143,10 +150,45 @@ export class Hero {
     if (this.stunTime > 0 || !this.stunStars) return;
     this.stunStars.destroy();
     this.stunStars = null;
-    this.body.anims?.resume();
+    if (!this.isFrozen) this.body.anims?.resume();
   }
 
   get isStunned() { return this.stunTime > 0; }
+
+  // Frozen for ms in a block of ice (FREEZE). cause: what froze them
+  // ('blizzard', 'wyrm', 'giant'), for counting.
+  freeze(ms, cause = null) {
+    this.freezeTime = Math.max(this.freezeTime, ms);
+    this.freezeCause = cause;
+    if (!this.iceBlock) {
+      this.iceBlock = fxSprite(this.scene, FREEZE.sprite, Math.round(this.x), Math.round(this.feetY))
+        .setOrigin(0.5, 1).setDepth(DEPTH.slotMarkers);
+      sfx.freeze();
+    }
+    this.body.anims?.pause();
+  }
+
+  // The ice melts or is tapped away (with a frost_hit on them; quiet: just
+  // gone, at the end of a wave). Returns whether they were frozen.
+  thaw({ quiet = false } = {}) {
+    if (!this.iceBlock) return false;
+    this.freezeTime = 0;
+    this.iceBlock.destroy();
+    this.iceBlock = null;
+    if (!quiet) {
+      playFx(this.scene, FREEZE.breakFx, Math.round(this.x), Math.round(this.y));
+      sfx.iceBreak();
+    }
+    if (!this.isStunned) this.body.anims?.resume();
+    return true;
+  }
+
+  tickFreeze(dt) {
+    this.freezeTime = Math.max(0, this.freezeTime - dt);
+    if (this.freezeTime <= 0 && this.iceBlock) this.thaw();
+  }
+
+  get isFrozen() { return this.freezeTime > 0; }
 
   // Whether this crewmate can hit (or, the Net Thrower, net) the enemy.
   canHit(e) { return e.canBeHit(this.antiAir); }
@@ -184,7 +226,8 @@ export class Hero {
   update(dt, enemies) {
     this.tickAbilities(dt);
     this.tickStun(dt);
-    if (this.def.aura || this.isStunned) return null;  // support hero: never attacks
+    this.tickFreeze(dt);
+    if (this.def.aura || this.isStunned || this.isFrozen) return null;  // support hero: never attacks
     this.cooldown -= dt * this.speedMult;
     if (this.cooldown > 0) return null;
 
@@ -352,6 +395,7 @@ export class Hero {
   destroy() {
     this.buffRing?.destroy();
     this.stunStars?.destroy();
+    this.iceBlock?.destroy();
     for (const sprite of Object.values(this.boostSprites)) sprite.destroy();
     this.body.destroy();
   }

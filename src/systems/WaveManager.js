@@ -75,16 +75,24 @@ function seededRandom(seed) {
   };
 }
 
+// A formation as it comes in a wave: a pack ([min, max] of its one member)
+// gets its size from the wave's generator.
+function rollFormation(f, random) {
+  if (!f.pack) return f;
+  const [min, max] = f.pack;
+  return { ...f, members: Array(min + Math.floor(random() * (max - min + 1))).fill(f.members[0]) };
+}
+
 // The regular formations (from `formations`) of a wave until they hold
 // `count` enemies (each formation's first wave always includes it), shuffled.
 function pickFormations(wave, count, formations, random) {
   const unlocked = formations.filter((f) => wave >= f.from);
-  const groups = unlocked.filter((f) => f.from === wave);
+  const groups = unlocked.filter((f) => f.from === wave).map((f) => rollFormation(f, random));
   let size = groups.reduce((sum, f) => sum + f.members.length, 0);
   const totalWeight = unlocked.reduce((sum, f) => sum + f.weight, 0);
   while (size < count) {
     let roll = random() * totalWeight;
-    const f = unlocked.find((g) => (roll -= g.weight) < 0) ?? unlocked[unlocked.length - 1];
+    const f = rollFormation(unlocked.find((g) => (roll -= g.weight) < 0) ?? unlocked[unlocked.length - 1], random);
     groups.push(f);
     size += f.members.length;
   }
@@ -171,12 +179,16 @@ function finalePlan(wave, offset, finale, formations, random) {
   }));
 }
 
+// How long a type with maxOnScreen (the Ice Witch) waits, at the end of the
+// queue, before trying again.
+const CROWDED_RETRY_MS = 500;
+
 // Spawns one wave's enemies over time.
 export class WaveManager {
   constructor(scene) {
     this.scene = scene;
     this.queue = [];
-    this.spawned = [];   // enemies so far, in plan order (formation leaders)
+    this.spawned = [];   // enemies so far, by their index in the plan (formation leaders)
     this.total = 0;
     this.spawnTimer = 0;
     this.scaling = waveScaling(1);
@@ -188,7 +200,7 @@ export class WaveManager {
 
   // options: { island, offset, finale, countFactor } (Progress.waveOptions).
   start(wave, options = {}) {
-    this.queue = composeWave(wave, options);
+    this.queue = composeWave(wave, options).map((entry, index) => ({ ...entry, index }));
     this.spawned = [];
     this.total = this.queue.length;  // for the enemies-left bar
     this.scaling = waveScaling(wave + (options.offset ?? 0));
@@ -207,11 +219,18 @@ export class WaveManager {
   // The finale: a boss fell, so the other enrages (now, or as it arrives).
   // Returns the bosses that enraged now.
   bossDown() {
-    if (!this.finale || this.enraged) return [];
+    if (this.finale?.enrage !== 'onBossDown' || this.enraged) return [];
     this.enraged = true;
-    const raging = this.spawned.filter((e) => e.alive && e.def.boss);
+    const raging = this.spawned.filter((e) => e?.alive && e.def.boss);
     for (const e of raging) e.enrage(this.finale.rage, this.finale.rageTint);
     return raging;
+  }
+
+  // Whether the screen (with `spawning`, those coming in this step) already
+  // holds as many of the entry's type as it may (its maxOnScreen).
+  crowded({ key, def }, spawning) {
+    if (!def.maxOnScreen) return false;
+    return [...this.scene.enemies, ...spawning].filter((e) => e.alive && e.key === key).length >= def.maxOnScreen;
   }
 
   // Returns any enemies spawned this frame.
@@ -221,7 +240,17 @@ export class WaveManager {
 
     this.spawnTimer -= dt;
     while (this.spawnTimer <= 0 && this.queue.length) {
-      const { key, def, elite, follow, hpFactor } = this.queue.shift();
+      // One whose type is crowded waits its turn: the next that isn't comes
+      // in its place; if none can, they try again shortly.
+      const ready = this.queue.findIndex((entry) => !this.crowded(entry, spawned));
+      if (ready === -1) {
+        this.spawnTimer += CROWDED_RETRY_MS;
+        break;
+      }
+      if (ready > 0) this.queue.unshift(...this.queue.splice(ready, 1));
+      const {
+        key, def, elite, follow, hpFactor, index,
+      } = this.queue.shift();
       const { hp, damage, gold } = this.scaling;
       const enemy = new Enemy(this.scene, def, {
         hpMultiplier: hp * (hpFactor ?? 1),
@@ -229,10 +258,11 @@ export class WaveManager {
         gold: Math.round(def.gold * gold * (elite ? ELITE.goldMultiplier : 1)),
         elite,
         key,
-        leader: follow != null ? this.spawned[follow] : null,
+        leader: follow != null ? this.spawned[follow] ?? null : null,
+        boulders: !!this.finale?.boulders,
       });
       if (this.enraged && def.boss) enemy.enrage(this.finale.rage, this.finale.rageTint);
-      this.spawned.push(enemy);
+      this.spawned[index] = enemy;
       spawned.push(enemy);
       if (this.queue.length) this.spawnTimer += this.queue[0].delay;
     }

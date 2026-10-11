@@ -2,19 +2,22 @@ import { SHIP, SPRITES } from '../config.js';
 import { LAYOUT } from '../layout.js';
 import { SHIP_SLOTS_KEY, shipFrontKey, shipStageKey } from '../sprites.js';
 
-// Draw order, back to front, as layout.json's drawOrder: background, ship,
-// crew, enemies, The Kraken (and its splash), the animated foreground, then
-// the ship's front railing layer. Flying enemies are in front of all that
-// (they dive at the decks); slot markers and enemy HP bars go on top of the
-// scene; projectiles and UI stay above all of these.
+// Draw order, back to front, as layout.json's drawOrder: background (and the
+// Frost Wyrm on its iceberg), ship, crew, enemies, The Kraken (and its
+// splash), the animated foreground, an island's front layer (Frostbite Reef's
+// pines), then the ship's front railing layer. Flying enemies are in front of
+// all that (they dive at the decks); slot markers and enemy HP bars go on top
+// of the scene; projectiles and UI stay above all of these.
 export const DEPTH = {
   background: -20,
+  perch: -19.5,        // the Frost Wyrm, in the background
   ship: -19,
   hero: -18,
   enemy: -17,
   kraken: -16,
   splash: -15,
   foreground: -14,
+  frontScenery: -13.5,
   shipFront: -13,
   flyer: -12.5,
   slotMarkers: -12,
@@ -50,7 +53,9 @@ export class Ship {
     this.createSlotZones();
   }
 
-  // Clickable areas over each usable slot; emit 'slot-clicked' with the index.
+  // Clickable areas over each usable slot; emit 'slot-clicked' with the
+  // index (between waves), or 'slot-tapped' during a wave (it breaks the ice
+  // on a frozen crewmate).
   createSlotZones() {
     for (const z of this.slotZones) z.destroy();
     this.slotZones = [];
@@ -60,7 +65,7 @@ export class Ship {
         .setDepth(3).setInteractive({ useHandCursor: true });
       zone.on('pointerover', () => { zone.hovered = true; this.paintSlotZones(); });
       zone.on('pointerout', () => { zone.hovered = false; this.paintSlotZones(); });
-      zone.on('pointerdown', () => this.slotsEnabled && this.scene.events.emit('slot-clicked', s));
+      zone.on('pointerdown', () => this.scene.events.emit(this.slotsEnabled ? 'slot-clicked' : 'slot-tapped', s));
       this.slotZones.push(zone);
     }
     this.setSlotsEnabled(this.slotsEnabled);
@@ -133,6 +138,11 @@ export class Ship {
       x: slots.reduce((sum, s) => sum + s.x, 0) / slots.length,
       feetY: Math.max(...slots.map((s) => s.feetY)),
     };
+  }
+
+  // The crewmate standing closest to the bow (furthest right), or null.
+  crewNearestBow(heroes) {
+    return heroes.reduce((a, h) => (!a || h.x > a.x ? h : a), null);
   }
 
   // enemy: who hit it, for the Captain's Log (only the HP actually lost counts).

@@ -1,4 +1,6 @@
-import { ASHFALL, ENEMIES, FX, ISLANDS, MAP, SHIP, SPRITES, STORM } from './config.js';
+import {
+  ASHFALL, ENEMIES, FX, ISLANDS, MAP, SHIP, SNOWFALL, SPRITES, STORM,
+} from './config.js';
 import { initLayout, LAYOUT } from './layout.js';
 import { preloadUi } from './ui/kit.js';
 import { versioned } from './version.js';
@@ -7,17 +9,22 @@ export const SHIP_SLOTS_KEY = 'ship_slots';
 // Character sheets and their animations (key: the JSON's cache key, dir: the
 // folder of it and its sheets): crew in animations.json, enemies in
 // animations_new_enemies.json (which also has the Ghost Galleon's gunPorts)
-// and Ember Isle's in ember/animations_ember.json (with the Molten
-// Leviathan's mouth and position).
+// Ember Isle's in ember/animations_ember.json (with the Molten Leviathan's
+// mouth and position) and Frostbite Reef's in frost/animations_frost.json
+// (with the Yeti Raider's handOnRelease, the Frost Wyrm's mouth and perchPos
+// and the Frost Giant's feet and slamPoint).
 const ANIMATION_FILES = [
   { key: 'animations', dir: '' },
   { key: 'animations_new_enemies', dir: '' },
   { key: 'animations_ember', dir: 'ember/' },
+  { key: 'animations_frost', dir: 'frost/' },
 ];
-// Effect sheet lists: fx/fx.json, and Ember Isle's ember/fx/fx_ember.json.
+// Effect sheet lists: fx/fx.json, Ember Isle's ember/fx/fx_ember.json and
+// Frostbite Reef's frost/fx/fx_frost.json.
 const FX_FILES = [
   { key: 'fx_list', dir: FX.path, file: 'fx.json' },
   { key: 'fx_ember', dir: 'ember/fx/', file: 'fx_ember.json' },
+  { key: 'fx_frost', dir: 'frost/fx/', file: 'fx_frost.json' },
 ];
 const LAYOUT_KEY = 'layout';
 const BACKGROUND_KEY = 'bg_tall';  // bg.png's picture with more sky and sea (see SCENERY)
@@ -26,15 +33,17 @@ export const SPLASH_ANIM = 'kraken_splash';
 
 // The battle backdrop of an island (ISLANDS entry): its own scenery, or
 // Skull Cove's. bg: the tall background's texture key; fg: the foreground
-// sheet's; anim: the foreground loop.
+// sheet's; anim: the foreground loop; front: the still layer over it (or null).
 export function sceneryKeys(island) {
   const id = island?.scenery ? island.id : null;
   return id
-    ? { bg: `bg_${id}`, fg: `fg_${id}`, anim: `fg_loop_${id}` }
-    : { bg: BACKGROUND_KEY, fg: FOREGROUND_KEY, anim: 'fg_loop' };
+    ? { bg: `bg_${id}`, fg: `fg_${id}`, anim: `fg_loop_${id}`, front: island.scenery.front ? `front_${id}` : null }
+    : { bg: BACKGROUND_KEY, fg: FOREGROUND_KEY, anim: 'fg_loop', front: null };
 }
-// Ember Isle's falling ash sheet (ASHFALL).
-export const ASH_KEY = 'ash';
+// Weather sheets (ASHFALL, SNOWFALL): the light one, and its heavy one when
+// that has a file of its own.
+export const WEATHER = [ASHFALL, SNOWFALL];
+export const weatherKey = (spec, heavy = false) => `weather_${spec.flag}${heavy ? '_heavy' : ''}`;
 
 export const shipStageKey = (decks) => `ship_stage${decks}`;
 export const shipFrontKey = (decks) => `ship_stage${decks}_front`;
@@ -96,13 +105,20 @@ export function preloadSprites(scene) {
   load.json(SHIP_SLOTS_KEY, `${SHIP_SLOTS_KEY}.json`);
   for (const { key } of Object.values(SPRITES.heroes)) load.image(key, `${key}.png`);
   for (const def of Object.values(ENEMIES)) {
-    if (def.sprite && !def.sheetOnly) load.image(def.sprite, `${def.sprite}.png`);
+    if (def.sprite && !def.sheetOnly) load.image(def.sprite, `${def.dir ?? ''}${def.sprite}.png`);
   }
   load.image(BACKGROUND_KEY, `${BACKGROUND_KEY}.png`);
   for (const island of ISLANDS) {
-    if (island.scenery) load.image(sceneryKeys(island).bg, `${island.scenery.path}${island.scenery.bg}.png`);
+    if (!island.scenery) continue;
+    const { path, bg, front } = island.scenery;
+    load.image(sceneryKeys(island).bg, `${path}${bg}.png`);
+    if (front) load.image(sceneryKeys(island).front, `${path}${front}.png`);
   }
-  load.spritesheet(ASH_KEY, `${ASHFALL.path}${ASHFALL.file}`, { frameWidth: ASHFALL.frameWidth, frameHeight: ASHFALL.frameHeight });
+  for (const spec of WEATHER) {
+    const frame = { frameWidth: spec.frameWidth, frameHeight: spec.frameHeight };
+    load.spritesheet(weatherKey(spec), `${spec.path}${spec.file}`, frame);
+    if (spec.heavy.file) load.spritesheet(weatherKey(spec, true), `${spec.path}${spec.heavy.file}`, frame);
+  }
   const splash = SPRITES.krakenSplash;
   load.spritesheet(splash.key, `${splash.key}.png`, { frameWidth: splash.frameWidth, frameHeight: splash.frameHeight });
   // The foreground sheets' frames are each the size of the scene.
@@ -177,7 +193,7 @@ export function createAnimations(scene) {
   for (const [name, { frameWidth, frameHeight, ...anims }] of sheets) {
     for (const [anim, spec] of Object.entries(anims)) {
       const key = animKey(name, anim);
-      // Skip extra data (gunPorts, mouth, position) and animations already made.
+      // Skip extra data (gunPorts, mouth, position, feet...) and animations already made.
       if (!spec?.frames || scene.anims.exists(key)) continue;
       const { frames, fps, repeat } = spec;
       scene.anims.create({

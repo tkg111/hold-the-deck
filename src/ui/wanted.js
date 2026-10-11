@@ -12,7 +12,7 @@ const TRAITS = [
   { key: 'armoured', label: 'ARMOURED', has: (def) => def.armor },
   { key: 'shielded', label: 'SHIELDED', has: (def) => def.shield },
   { key: 'explodes', label: 'EXPLODES', has: (def) => def.blast },
-  { key: 'support', label: 'SUPPORT', has: (def) => def.song },
+  { key: 'support', label: 'SUPPORT', has: (def) => def.song || def.witch },
 ];
 
 export const traitsOf = (def) => TRAITS.filter((t) => t.has(def));
@@ -30,17 +30,18 @@ export function wantedLayout(scene) {
   return { width: w, height: h, enemyX: ex, enemyY: ey, boxW: bw, boxH: bh, stampX: sx, stampY: sy, selectX: ox, selectY: oy };
 }
 
-// Frame 0 of the enemy's sheet as two extra frames on its texture: 'wanted_face'
-// (32x32: the whole frame, or for bigger sprites the crop at def.face) and
+// Frame 0 of the enemy's sheet (or, with def.portrait, its single
+// <sprite>.png) as two extra frames on its texture: 'wanted_face' (32x32:
+// the whole frame, or for bigger sprites the crop at def.face) and
 // 'wanted_poster' (the poster's box, the face's bottom rows so feet show).
 function portraitFrames(scene, id) {
   const def = ENEMIES[id];
-  const key = sheetKey(def.sprite);
+  const key = def.portrait ? def.sprite : sheetKey(def.sprite);
   if (!scene.textures.exists(key)) return null;
   const texture = scene.textures.get(key);
   if (!texture.has('wanted_face')) {
     const { boxW, boxH } = wantedLayout(scene);
-    const base = texture.get(0);
+    const base = texture.get(def.portrait ? '__BASE' : 0);
     const fx = base.cutX + (def.face?.x ?? 0);
     const fy = base.cutY + (def.face?.y ?? 0);
     const first = texture.firstFrame;

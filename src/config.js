@@ -31,13 +31,18 @@ export const SCENERY = {
   skyShare: 0.6,
 };
 
-// Ember Isle's falling ash (public/sprites/ember/ash_sheet.png, frames of
-// frameWidth x frameHeight), tiled over the whole game area under the HUD
-// while the ship is at an island with `ash`, at fps (real time). The finale's
-// eruption fades in a red tint over the battle and heavier ash: extra layers
-// of the same sheet, each offset by a fraction of a tile and drifting down at
-// drift px/s. Changes fade over fadeMs.
+// Weather tiled over the whole game area under the HUD (src/weather.js), at
+// fps (real time), while the ship is at an island with its `flag` (`ash`,
+// `snow`): frames of frameWidth x frameHeight from `file` (under path).
+// Changes fade over fadeMs. `heavy` is the weather getting worse (Ember
+// Isle's eruption, Frostbite Reef's blizzard): a tint over the battle and
+// extra layers, of the same sheet or of heavy.file, each offset by a
+// fraction of a tile and drifting at drift px/s (x, y; layer i drifts i x as
+// fast), fading in and out over heavy.fadeMs.
+// Ember Isle's falling ash. The finale's eruption: a red tint and two more
+// layers of ash drifting down.
 export const ASHFALL = {
+  flag: 'ash',
   path: 'ember/',       // under SPRITES.path
   file: 'ash_sheet.png',
   frameWidth: 64,
@@ -45,7 +50,24 @@ export const ASHFALL = {
   frames: 4,
   fps: 6,
   fadeMs: 1200,
-  eruption: { tint: 0xd8380c, tintAlpha: 0.22, layers: 2, drift: 14 },
+  heavy: { tint: 0xd8380c, tintAlpha: 0.22, layers: 2, drift: { x: 0, y: 14 }, fadeMs: 1200 },
+};
+// Frostbite Reef's snow, always falling. A blizzard (the island's hazard, and
+// the whole finale) adds a pale tint and blizzard_sheet.png, scrolling
+// diagonally, over the snow with a quick fade.
+export const SNOWFALL = {
+  flag: 'snow',
+  path: 'frost/',
+  file: 'snow_sheet.png',
+  frameWidth: 64,
+  frameHeight: 64,
+  frames: 4,
+  fps: 6,
+  fadeMs: 1200,
+  heavy: {
+    file: 'blizzard_sheet.png', frames: 4, fps: 10,
+    tint: 0xdcecff, tintAlpha: 0.16, layers: 1, drift: { x: -90, y: 60 }, fadeMs: 400,
+  },
 };
 
 // Pixel art, drawn with Phaser's pixelArt setting. Scene positions come from
@@ -82,7 +104,17 @@ export const SPRITES = {
   krakenSplash: { key: 'splash_sheet', frameWidth: 64, frameHeight: 24, frames: 3, fps: 8, aboveWater: 23 },
   // Clickable area over each ship slot (standing on the slot);
   // narrower where a deck's slots are closer together than maxWidth.
+  // During a wave, tapping one breaks the ice on a frozen crewmate.
   slotZone: { maxWidth: 20, height: 30 },
+};
+
+// A frozen crewmate (Frostbite Reef's blizzard, the Frost Wyrm's breath, the
+// Frost Giant's smash): can't attack, with `sprite` (an fx sheet) drawn over
+// them, standing on their slot. Tapping them breaks the ice early, playing
+// `breakFx` on them.
+export const FREEZE = {
+  sprite: 'ice_block',
+  breakFx: 'frost_hit',
 };
 
 // The UI kit (public/sprites/ui/): panels, buttons, bar, icons and ui.json
@@ -516,10 +548,12 @@ export const ABILITY_BAR = {
 };
 
 // Every enemy is 32x32 (The Kraken 64x64, the Siren 48x48, the Ghost Galleon
-// and the Molten Leviathan 96x80) with its feet on the bottom row; width and
-// height are its visible body, used for hits and where it stops. sprite: the
-// <sprite>_sheet.png animations (animations.json, animations_new_enemies.json,
-// ember/animations_ember.json); sheetOnly: no single <sprite>.png is loaded
+// and the Molten Leviathan 96x80, the Frost Wyrm 112x96, the Frost Giant
+// 144x144) with its feet on the bottom row; width and height are its visible
+// body, used for hits and where it stops. sprite: the <sprite>_sheet.png
+// animations (animations.json, animations_new_enemies.json,
+// ember/animations_ember.json, frost/animations_frost.json); sheetOnly: no
+// single <sprite>.png is loaded
 // (there is none, or it isn't used). walkAnim / idleAnim rename the
 // "walk" / "idle" animation. Numbers scale per wave (see WAVES): hp,
 // shield.hp and blast.enemyDamage with the HP multiplier, damage with the
@@ -543,6 +577,17 @@ export const ABILITY_BAR = {
 //              `spread` px apart, scaled like it (never Elite)
 //   leviathan: the Molten Leviathan's rise, spits and roars (see below)
 //   falls + hazard: a lava bomb (see below); not part of the wave's count
+//   dir:       the folder of its art (under SPRITES.path); with portrait, its
+//              single <sprite>.png is loaded and is its Wanted Board portrait
+//   origin:    [x, y] share of its frame that stands on its feet, where that
+//              isn't the bottom middle (the Sled Penguin's sled, the Frost Giant)
+//   rams:      on reaching the ship, hits it once for mult x its damage
+//              (`impact` there) and is gone
+//   ranged:    stops at stopX and lobs `shot` at the hull (see below)
+//   witch:     stops at stopX and shields the front enemy (see below)
+//   wyrm / giant: Frostbite Reef's bosses (see below)
+//   bannerOnEntrance: a boss whose banner shows when it arrives, not when
+//              the wave sets sail
 // Wanted Board: description is the one-line text on its poster's page,
 // weakTo the crew (HEROES keys) shown as good against it, and face (for
 // sprites bigger than 32x32) where the 32x32 portrait is cropped from.
@@ -903,6 +948,179 @@ export const ENEMIES = {
       shake: { duration: 150, intensity: 0.004 },
     },
   },
+
+  // Frostbite Reef (art in public/sprites/frost/, all facing left; base
+  // stats relative to the Cinder Skeleton's).
+  frozenCorsair: {
+    name: 'Frozen Corsair',
+    description: "Went overboard in the wrong sea. Still hasn't thawed.",
+    weakTo: ['stormCaller', 'harpooner', 'cannoneer'],
+    color: 0x9fc4d8,
+    sprite: 'frozen_corsair',
+    dir: 'frost/',
+    portrait: true,
+    width: 14,
+    height: 29,
+    hp: 20,
+    speed: 22.5,
+    damage: 5,
+    attackInterval: 1000,
+    gold: 2,
+  },
+  sledPenguin: {
+    name: 'Sled Penguin',
+    description: 'No brakes. No regrets.',
+    weakTo: ['netThrower', 'harpooner', 'stormCaller'],
+    color: 0x2a3a4a,
+    sprite: 'sled_penguin',
+    dir: 'frost/',
+    portrait: true,
+    walkAnim: 'slide',
+    origin: [0.5, 28 / 32],   // the sled's runners are on row 27
+    width: 24,
+    height: 13,
+    hp: 10,
+    speed: 49.5,
+    damage: 5,          // its contact damage; the ram is mult x this
+    attackInterval: 1000,
+    gold: 2,
+    rams: { mult: 2, impact: 'frost_hit' },
+  },
+  yetiRaider: {
+    name: 'Yeti Raider',
+    description: 'Throws snowballs. The snowballs have rocks in them.',
+    weakTo: ['sharpshooter', 'duelist', 'cannoneer'],
+    color: 0xd8e4ec,
+    sprite: 'yeti_raider',
+    dir: 'frost/',
+    portrait: true,
+    width: 20,
+    height: 30,
+    hp: 44,
+    speed: 13.5,
+    damage: 5,
+    attackInterval: 3000,   // a throw every
+    gold: 5,
+    // Stops at stopX and plays "throw" every attackInterval ms; on its
+    // releaseFrame a `shot` (fx sheet) arcs from handOnRelease (in its
+    // sheet's entry, frame-relative) to a random spot on the hull over
+    // flightTime ms, hitting for damageMult x its damage with `impact`.
+    ranged: {
+      stopX: 300, anim: 'throw', releaseFrame: 5, firstAt: 600,
+      shot: 'snowball', impact: 'frost_hit', flightTime: 1100, arcHeight: 45, damageMult: 1.2,
+    },
+  },
+  iceWitch: {
+    name: 'Ice Witch',
+    description: 'Never hurts you herself. Makes sure nothing else gets hurt.',
+    weakTo: ['sharpshooter', 'stormCaller', 'grogBrewer'],
+    color: 0x7ab0e0,
+    sprite: 'ice_witch',
+    dir: 'frost/',
+    portrait: true,
+    walkAnim: 'glide',
+    width: 14,
+    height: 29,
+    hp: 24,
+    speed: 18,
+    damage: 0,
+    attackInterval: 1000,
+    gold: 6,
+    maxOnScreen: 2,     // more wait their turn in the wave
+    // Stops at stopX; every `every` ms (the first firstAt ms after stopping)
+    // she plays "cast" and gives the front enemy without one an ice shield
+    // (`fx`, looping over it) that absorbs share x its max HP of damage
+    // (every hit but poison) before it can be hurt. breakFx plays when it
+    // breaks; barColor is its bar over the HP bar. Bosses only with
+    // shieldsBosses.
+    witch: {
+      stopX: 340, anim: 'cast', every: 5000, firstAt: 800,
+      share: 0.4, fx: 'ice_shield', breakFx: 'frost_hit', barColor: 0x9fe0ff,
+      shieldsBosses: false,
+    },
+  },
+  frostWyrm: {
+    name: 'Frost Wyrm',
+    description: 'Nests on the iceberg. Its breath freezes the sea and anyone on the bow.',
+    weakTo: ['duelist', 'sharpshooter', 'voodooPriestess'],
+    boss: true,
+    color: 0x6a9ac8,
+    sprite: 'frost_wyrm',      // 112x96; its sheet's perchPos is the frame's top-left
+    dir: 'frost/',
+    portrait: true,
+    face: { x: 8, y: 22 },     // Wanted Board: 32x32 crop of its head
+    idleAnim: 'perch',
+    width: 80,
+    height: 70,
+    hp: 450,
+    speed: 0,
+    damage: 15,         // per breath on the hull
+    attackInterval: 1000,
+    gold: 50,
+    statusResist: 0.5,
+    banner: 'FROST WYRM',
+    bannerOnEntrance: true,
+    // Swoops in playing "fly" from `from` (its frame's top-left) to its perch
+    // over flyInMs (can't be hit meanwhile), then loops "perch". Every
+    // breathEvery ms (the first firstBreathAt after landing) it plays
+    // "breath": breathAt ms in, frost_breath plays with its right edge at
+    // the `mouth` (in its sheet's entry), the hull takes its damage and the
+    // crewmate nearest the bow freezes for freezeMs. Below liftAt of its HP
+    // (once) it lifts liftPx off the iceberg ("fly") for airMs, out of reach,
+    // then lands and breathes twice, gapMs apart. Beaten, it plays "fall",
+    // drops sinkPx into the sea over fallMs and splashes there.
+    wyrm: {
+      from: { x: 500, y: -110 }, flyInMs: 1500,
+      firstBreathAt: 1200, breathEvery: 4000, breathAt: 250, breath: 'frost_breath', freezeMs: 2000,
+      liftAt: 0.5, liftPx: 34, liftMs: 400, airMs: 3000, gapMs: 900,
+      fallMs: 1000, sinkPx: 80, aboveWater: 23,
+      shake: { duration: 200, intensity: 0.003 },
+    },
+  },
+  frostGiant: {
+    name: 'Frost Giant',
+    description: 'Uproots a pine, shakes off the snow, and uses it on your hull.',
+    weakTo: ['duelist', 'voodooPriestess', 'grogBrewer'],
+    boss: true,
+    color: 0x7aa8c8,
+    sprite: 'frost_giant',     // 144x144, feet at its sheet's `feet`
+    dir: 'frost/',
+    portrait: true,
+    face: { x: 62, y: 32 },    // Wanted Board: 32x32 crop of its head
+    origin: [88 / 144, 136 / 144],
+    width: 56,
+    height: 105,
+    hp: 520,
+    speed: 8.1,         // 60% of the Yeti Raider's
+    damage: 18,         // per smash on the hull
+    attackInterval: 2500,   // a smash every
+    gold: 50,
+    statusResist: 0.5,
+    banner: 'FROST GIANT',
+    bannerOnEntrance: true,
+    // Comes in at spawnX behind the front pines, walking at entranceSpeed and
+    // out of reach; while in the trees (x > treesX) the pines jump 1px every
+    // shakeEvery ms and snow puffs every puffEvery ms. At roarX it plays "roar" for roarMs
+    // (a shake and its banner), then walks on at its speed, a tiny shake on
+    // each footstep (walk frames `steps`). At the ship it plays "smash" every
+    // attackInterval ms: on impactFrame (smashAt ms in) the hull takes its
+    // damage, the camera shakes hard and ground_quake plays on its slamPoint;
+    // every freezeEvery-th smash freezes the crewmate nearest the bow for
+    // freezeMs. Beaten, it plays "shatter" and is gone.
+    // Finale only (boulders): every boulderEvery ms while walking it stops,
+    // raises its club ("roar") for throwMs and hurls an ice_boulder from
+    // throwFrom (frame-relative) to the hull, spinning at spin rad/s, for
+    // boulderMult x its damage.
+    giant: {
+      spawnX: 530, entranceSpeed: 24, treesX: 420, shakeEvery: 100, puffEvery: 300, roarX: 410, roarMs: 1000,
+      steps: [1, 3], smashAt: 400, freezeEvery: 3, freezeMs: 1500,
+      roarShake: { duration: 400, intensity: 0.004 },
+      stepShake: { duration: 60, intensity: 0.0012 },
+      smashShake: { duration: 260, intensity: 0.01 },
+      boulderEvery: 6000, throwMs: 500, throwFrom: [76, 18], boulder: 'ice_boulder', boulderMult: 0.6,
+      flightTime: 1300, arcHeight: 55, spin: 9, impact: 'frost_hit',
+    },
+  },
 };
 
 // From fromWave, any enemy but the boss can spawn as an Elite: gold tint,
@@ -1045,6 +1263,22 @@ export const EMBER_FORMATIONS = [
   { from: 18, weight: 1.5, escort: true, members: ['obsidianGolem', 'barnacleKnight', 'cinderSkeleton', 'cinderSkeleton'] },
 ];
 
+// Frostbite Reef's formations: Frozen Corsairs throughout, Sled Penguins in
+// packs from 8 (pack: [min, max] of its one member, sized by the wave's
+// seeded generator), Yeti Raiders from 12 and Ice Witches (always alone) from
+// 15, with bigger mixed groups later on.
+export const FROST_FORMATIONS = [
+  { from: 1, weight: 4, members: ['frozenCorsair'] },
+  { from: 2, weight: 3, members: ['frozenCorsair', 'frozenCorsair', 'frozenCorsair'] },
+  { from: 8, weight: 2, pack: [3, 5], members: ['sledPenguin'] },
+  { from: 12, weight: 2, escort: true, members: ['yetiRaider', 'frozenCorsair', 'frozenCorsair'] },
+  { from: 15, weight: 1.5, members: ['iceWitch'] },
+  { from: 18, weight: 1.5, escort: true, members: ['frozenCorsair', 'frozenCorsair', 'yetiRaider', 'yetiRaider'] },
+  { from: 22, weight: 1.5, escort: true, members: ['yetiRaider', 'sledPenguin', 'sledPenguin', 'sledPenguin'] },
+  { from: 26, weight: 1.5, members: ['frozenCorsair', 'frozenCorsair', 'frozenCorsair', 'frozenCorsair', 'frozenCorsair'] },
+  { from: 30, weight: 1.5, escort: true, members: ['yetiRaider', 'yetiRaider', 'frozenCorsair', 'frozenCorsair', 'frozenCorsair'] },
+];
+
 // The voyage is split into islands of `waves` waves each, in map.json's
 // order (public/sprites/map/). Ship, crew, upgrades and Pearls carry over;
 // each island keeps its own wave counter and best wave. Later islands are
@@ -1052,29 +1286,41 @@ export const EMBER_FORMATIONS = [
 // (wave + waveOffset), while new enemies still arrive on the usual waves.
 // Each island opens on the map once the one before is cleared; only
 // `available` ones (with content) can be sailed to, the rest say "coming
-// soon". hazard / boss: the map card's lines.
+// soon". hazard / boss: the map card's lines; shortName: its name where
+// room is tight (the Wanted Board's "first wave" label).
 // Clearing an island's finale wave opens Endless mode there: its waves go on
 // past `waves` as before.
 // What an island fights, where it differs from Skull Cove's (the defaults):
 //   formations: its FORMATIONS list; bosses: its WAVES.bosses (taking turns);
 //   sirenFromWave: its first Siren wave
-//   scenery: { path, bg, fg } its own tall background and foreground sheet
-//            (same sizes and layout positions as bg_tall.png / fg_sheet.png)
-//   ash: ASHFALL over the scene while the ship is there
+//   scenery: { path, bg, fg, front } its own tall background and foreground
+//            sheet (same sizes and layout positions as bg_tall.png /
+//            fg_sheet.png), and optionally a still `front` layer (480x270)
+//            over the foreground, enemies and bosses but under the ship's
+//            railings
+//   ash: ASHFALL over the scene while the ship is there; snow: SNOWFALL
+//   spawnPuff: { fx, x: [min, max], y: [min, max] } an fx sheet played at a
+//            random point in that box as each enemy of a wave comes in
 //   lavaBombs: during every wave a lava bomb (ENEMIES.lavaBomb) every
 //            min-max ms: bomb_warning shows on a random built deck while the
 //            bomb falls onto it from fromY (battlefield y) over warnMs.
 //            Several at once go to different decks while there are enough,
 //            then up to jitter px apart on the same one.
+//   blizzard: from wave `from`, every every-th wave a blizzard (SNOWFALL's
+//            heavy weather) rolls in `at` ms into the wave for `ms`: every
+//            freezeEvery ms a random crewmate (not frozen yet) freezes for
+//            freezeMs (see FREEZE), and enemies walk chill x as fast.
 // finale: the island's last wave (`wave`): its banner (title, detail),
-// weather ('storm': STORM; 'eruption': ASHFALL's eruption), its bosses
-// ({ key, at: ms into the wave }, each with hpFactor x its usual HP), and a
-// trickle of regular enemies (trickle x the usual count, a group every
-// trickleInterval ms from trickleFrom). enrage 'onBossDown': when one boss
-// dies the other enrages; 'fromStart': they arrive enraged. Enraged bosses
+// weather ('storm': STORM; 'eruption': ASHFALL's heavy weather; 'blizzard':
+// a blizzard the whole wave, without its freezes), its bosses ({ key, at: ms
+// into the wave }, each with hpFactor x its usual HP), and a trickle of
+// regular enemies (trickle x the usual count, a group every trickleInterval
+// ms from trickleFrom). enrage 'onBossDown': when one boss dies the other
+// enrages; 'fromStart': they arrive enraged; none: neither. Enraged bosses
 // are tinted rageTint and attack (fire, launch boats, spit) rage x as fast.
-// bombs overrides lavaBombs' min / max for the wave. Winning pays `pearls`
-// and legendaryChests free Legendary chests, and its banner says clearedTitle
+// bombs overrides lavaBombs' min / max for the wave; boulders: the Frost
+// Giant throws ice boulders while walking. Winning pays `pearls` and
+// legendaryChests free Legendary chests, and its banner says clearedTitle
 // and `unlocks`.
 export const ISLANDS = [
   {
@@ -1124,8 +1370,38 @@ export const ISLANDS = [
       unlocks: 'FROSTBITE REEF UNLOCKED',
     },
   },
-  { id: 'frostbite_reef', name: 'Frostbite Reef', waves: 50, waveOffset: 60, available: false, hazard: '???', boss: '???' },
-  { id: 'fogbound_isle', name: 'Fogbound Isle', waves: 50, waveOffset: 90, available: false, hazard: '???', boss: '???' },
+  {
+    // Frostbite Reef's wave 1 is as hard as Ember Isle's wave 50.
+    id: 'frostbite_reef', name: 'Frostbite Reef', shortName: 'Frostbite', waves: 50, waveOffset: 98, available: true,
+    hazard: 'Blizzards', boss: 'Wyrm & Giant',
+    scenery: { path: 'frost/', bg: 'bg_frost_tall', fg: 'fg_frost_sheet', front: 'fg_pines' },
+    snow: true,
+    // Enemies step out from between the pines.
+    spawnPuff: { fx: 'snow_puff', x: [420, 470], y: [150, 220] },
+    formations: FROST_FORMATIONS,
+    bosses: ['frostWyrm', 'frostGiant'],
+    sirenFromWave: Infinity,   // no Sirens here
+    blizzard: { from: 6, every: 4, at: 8000, ms: 10000, freezeEvery: 3000, freezeMs: 2000, chill: 0.85 },
+    // Wave 50: "Wrath of the Reef". A blizzard the whole wave; the Frost Wyrm
+    // swoops in (landing 5s in), and the Frost Giant comes out of the trees
+    // 8s after it lands (it spends ~5.4s behind the pines, slowed by the
+    // blizzard like every walker), each at 70% HP, with small trickles
+    // of regular enemies. Unlocks Fogbound Isle on the map.
+    finale: {
+      wave: 50,
+      title: 'WRATH OF THE REEF',
+      detail: 'WAVE 50 - FINAL BATTLE',
+      weather: 'blizzard',
+      bosses: [{ key: 'frostWyrm', at: 3500 }, { key: 'frostGiant', at: 7600 }],
+      hpFactor: 0.7,
+      trickle: 0.6, trickleFrom: 6000, trickleInterval: 3500,
+      boulders: true,
+      pearls: 60, legendaryChests: 2,
+      clearedTitle: 'FROSTBITE REEF CLEARED!',
+      unlocks: 'FOGBOUND ISLE UNLOCKED',
+    },
+  },
+  { id: 'fogbound_isle', name: 'Fogbound Isle', waves: 50, waveOffset: 147, available: false, hazard: '???', boss: '???' },
 ];
 
 // The finale's storm (public/sprites/storm/, storm.json gives the tint,

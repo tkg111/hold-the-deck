@@ -488,3 +488,164 @@ Expected crits and the Cabin Boy's level speed are included; deck buffs are not.
 | Grog Brewer (+poison) | 5.6 | 11.1 | 15.6 | 31.1 | 32.2 | 64.4 |
 | Harpooner (pierces) | 4.7 | 9.4 | 13.2 | 26.4 | 27.3 | 54.6 |
 | The Captain (aura) | +40% | +65% | +58% | +83% | +88% | +100% |
+
+---
+
+## 7. Frostbite Reef (Island 3), first look
+
+Measured right after Frostbite Reef was added, **before any tuning**: every
+Frostbite Reef number below is a first guess in `src/config.js`, and nothing
+was rebalanced. Reproduce with `npm run sim:frost -- 5 3`
+(`scripts/sim/frost.mjs`).
+
+**How the numbers were made**
+
+1. For each of 5 seeds (1000–1004), the greedy bot from section 4 sails the
+   voyage from a fresh save through Skull Cove and Ember Isle (both finales).
+   It may try each wave up to 100 times so every run gets through, and it
+   stops as soon as it reaches Frostbite Reef. What it has then (crew,
+   levels, stars, hull, decks) is the "crew like Ember Isle wave 50 would have".
+2. That crew, **with no further upgrades or chests**, plays each listed
+   Frostbite Reef wave 3 times with different luck: 15 attempts per wave.
+   Auto abilities are on. The bot never taps frozen crewmates free, so every
+   freeze runs its full length.
+3. Boss time-to-kill runs from the moment the boss can first be hit (after the
+   Wyrm's swoop, after the Giant's roar) to its death, and includes the Wyrm's
+   3s in the air. "Wave beaten" counts the enemies dealt with (killed, or
+   spent, like a penguin that rammed) out of the whole wave.
+
+### Starting numbers
+
+- **Scaling:** `waveOffset` 98, so Frostbite Reef's wave 1 scales like Ember
+  Isle's wave 50 (the same rule as Ember Isle's 49 after Skull Cove). Enemy HP
+  is ×165 at wave 1, ×224 at 20 and ×334 at 50; enemy damage ×47, ×98 and ×319.
+- **Enemies** (relative to the Cinder Skeleton: 20 HP, speed 22.5, 5 damage):
+  - Frozen Corsair: 1.0 HP, 1.0 speed.
+  - Sled Penguin: 0.5 HP, 2.2 speed; rams once for 2× its 5 damage.
+  - Yeti Raider: 2.2 HP, 0.6 speed; a snowball every 3s for 1.2× from x 300.
+  - Ice Witch: 1.2 HP, 0.8 speed; every 5s from x 340, a shield worth 40% of
+    the front enemy's max HP (2 witches on screen at most).
+- **Bosses:**
+  - Frost Wyrm: 450 HP; a breath for 15 every 4s, with a 2s freeze.
+  - Frost Giant: 520 HP, speed 8.1; a smash for 18 every 2.5s, with a 1.5s
+    freeze every 3rd smash.
+  - Finale: both at 70% HP; the Giant's boulders hit for 0.6× its smash,
+    every 6s.
+
+| Wave | Wyrm HP / breath | Giant HP / smash | Corsair HP / hit | Snowball | Penguin ram |
+|---:|---|---|---|---:|---:|
+| 1 | 74,362 / 700 | 85,929 / 841 | 3,305 / 233 | 280 | 467 |
+| 10 | 86,350 / 997 | – | 3,838 / 332 | 399 | 665 |
+| 20 | – | 116,359 / 1,771 | 4,475 / 492 | 590 | 984 |
+| 30 | 116,122 / 2,184 | – | 5,161 / 728 | 874 | 1,456 |
+| 40 | – | 153,259 / 3,880 | 5,895 / 1,078 | 1,293 | 2,156 |
+| 50 (finale, 70% HP) | 105,150 / 4,786 | 121,506 / 5,743 | 6,676 / 1,595 | 1,914 | 3,191 |
+
+### Crews used
+
+| Seed | Reached Frostbite Reef | Ember losses | Hull LV (max HP) | Decks | Crew (level, stars) |
+|---:|---|---:|---|---:|---|
+| 1000 | yes | 53 | 72 (15761) | 3 | Duelist 55 5★, Captain 55 1★, Storm 54 4★, Cannon 54 5★, Sharp 54 5★, Ghost 54 5★ |
+| 1001 | yes | 9 | 68 (12048) | 3 | Storm 53 5★, Captain 53 2★, Duelist 53 4★, Sharp 53 5★, Cannon 53 5★, Ghost 52 5★ |
+| 1002 | yes | 38 | 74 (18030) | 3 | Storm 56 5★, Captain 56 5★, Duelist 56 2★, Sharp 55 5★, Cannon 55 5★, Ghost 55 5★ |
+| 1003 | yes | 108 | 77 (22065) | 3 | Storm 58 3★, Captain 57 3★, Duelist 57 3★, Sharp 57 5★, Cannon 57 5★, Ghost 57 5★ |
+| 1004 | yes | 86 | 76 (20628) | 3 | Storm 57 3★, Captain 57 2★, Duelist 57 3★, Cannon 57 5★, Sharp 57 5★, Ghost 57 5★ |
+
+All five end up with the same six: Duelist, Captain, Storm Caller,
+Sharpshooter, Cannoneer and Ghost Pirate at level 52–58, with 3 decks and a
+hull of 12,048–22,065 HP. The Epics are all 5★; the Legendaries are at 1–5★.
+
+### Results (5 crews × 3 replays = 15 attempts per wave)
+
+❄ = a blizzard wave. Blizzards come every 4th wave from 6, so the Wyrm's
+waves 10 and 30 have one too. The finale has one the whole wave, without the
+blizzard's freezes.
+
+| Wave | Won | Clear time s (avg, range) | Ship HP left (avg, range) | Lost: sunk after s / wave beaten | Freezes per wave: blizzard / Wyrm / Giant | Boss time-to-kill s (avg, range) | Most hull damage from |
+|---:|---|---|---|---|---|---|---|
+| 1 | 15/15 | 10 (9–10) | 100% (100%–100%) | - | 0.0 / 0.0 / 0.0 | - | - |
+| 2 | 15/15 | 11 (11–12) | 100% (100%–100%) | - | 0.0 / 0.0 / 0.0 | - | - |
+| 3 | 15/15 | 12 (12–13) | 100% (100%–100%) | - | 0.0 / 0.0 / 0.0 | - | - |
+| 4 | 15/15 | 22 (20–24) | 100% (100%–100%) | - | 0.0 / 0.0 / 0.0 | - | - |
+| 5 | 15/15 | 23 (22–23) | 100% (100%–100%) | - | 0.0 / 0.0 / 0.0 | - | - |
+| 6 ❄ | 15/15 | 21 (20–23) | 100% (100%–100%) | - | 3.0 / 0.0 / 0.0 | - | - |
+| 7 | 15/15 | 30 (28–33) | 99% (96%–100%) | - | 0.0 / 0.0 / 0.0 | - | Frozen Corsair 100% |
+| 8 | 15/15 | 25 (24–26) | 96% (92%–100%) | - | 0.0 / 0.0 / 0.0 | - | Sled Penguin 100% |
+| 9 | 15/15 | 26 (25–26) | 100% (100%–100%) | - | 0.0 / 0.0 / 0.0 | - | - |
+| 10 ❄ | 14/15 | 43 (38–48) | 29% (0%–46%) | 44 / 95% | 3.0 / 10.1 / 0.0 | Frost Wyrm: 38 (33–43); alive 1x with 3% HP left | Frost Wyrm 83%, Sled Penguin 17% |
+| 18 ❄ | 15/15 | 52 (47–57) | 44% (20%–72%) | - | 3.0 / 0.0 / 0.0 | - | Yeti Raider 77%, Sled Penguin 23% |
+| 19 | 15/15 | 46 (45–47) | 80% (71%–90%) | - | 0.0 / 0.0 / 0.0 | - | Sled Penguin 78%, Yeti Raider 22% |
+| 20 | 15/15 | 70 (65–76) | 47% (28%–67%) | - | 0.0 / 0.0 / 0.0 | Frost Giant: 51 (41–58) | Yeti Raider 93%, Frost Giant 6% |
+| 21 | 12/15 | 75 (69–83) | 17% (0%–37%) | 48 / 62% | 0.0 / 0.0 / 0.0 | - | Yeti Raider 70%, Frozen Corsair 30% |
+| 22 ❄ | 12/15 | 57 (51–62) | 12% (0%–36%) | 48 / 86% | 3.0 / 0.0 / 0.0 | - | Yeti Raider 69%, Sled Penguin 31% |
+| 28 | 0/15 | - (-) | 0% (0%–0%) | 45 / 59% | 0.0 / 0.0 / 0.0 | - | Frozen Corsair 59%, Sled Penguin 24% |
+| 29 | 0/15 | - (-) | 0% (0%–0%) | 28 / 71% | 0.0 / 0.0 / 0.0 | - | Sled Penguin 66%, Yeti Raider 28% |
+| 30 ❄ | 0/15 | - (-) | 0% (0%–0%) | 24 / 42% | 3.0 / 4.1 / 0.0 | Frost Wyrm: never killed; alive 15x with 87% HP left | Frost Wyrm 46%, Sled Penguin 22% |
+| 31 | 0/15 | - (-) | 0% (0%–0%) | 27 / 58% | 0.0 / 0.0 / 0.0 | - | Yeti Raider 36%, Sled Penguin 32% |
+| 32 | 0/15 | - (-) | 0% (0%–0%) | 45 / 45% | 0.0 / 0.0 / 0.0 | - | Yeti Raider 61%, Sled Penguin 38% |
+| 38 ❄ | 0/15 | - (-) | 0% (0%–0%) | 27 / 66% | 3.0 / 0.0 / 0.0 | - | Sled Penguin 84%, Yeti Raider 15% |
+| 39 | 0/15 | - (-) | 0% (0%–0%) | 38 / 47% | 0.0 / 0.0 / 0.0 | - | Frozen Corsair 62%, Yeti Raider 38% |
+| 40 | 0/15 | - (-) | 0% (0%–0%) | 23 / 56% | 0.0 / 0.0 / 0.0 | Frost Giant: never killed; alive 15x with 98% HP left | Sled Penguin 81%, Yeti Raider 12% |
+| 41 | 0/15 | - (-) | 0% (0%–0%) | 22 / 65% | 0.0 / 0.0 / 0.0 | - | Sled Penguin 68%, Yeti Raider 32% |
+| 42 ❄ | 0/15 | - (-) | 0% (0%–0%) | 21 / 72% | 3.0 / 0.0 / 0.0 | - | Sled Penguin 77%, Frozen Corsair 16% |
+| 48 | 0/15 | - (-) | 0% (0%–0%) | 25 / 69% | 0.0 / 0.0 / 0.0 | - | Yeti Raider 54%, Sled Penguin 36% |
+| 49 | 0/15 | - (-) | 0% (0%–0%) | 18 / 77% | 0.0 / 0.0 / 0.0 | - | Sled Penguin 58%, Frozen Corsair 42% |
+| 50 ❄ | 0/15 | - (-) | 0% (0%–0%) | 17 / 88% | 0.0 / 3.6 / 0.0 | Frost Wyrm: never killed; alive 15x with 57% HP left; Frost Giant: never killed; alive 15x with 100% HP left | Frost Wyrm 85%, Sled Penguin 15% |
+
+### For context: the greedy bot carrying on
+
+This is the same bot playing on into Frostbite Reef as usual: it spends its
+gold after every wave and gets the normal 15 tries per wave. Only 1 of the 5
+runs gets past Ember Isle that way, and it stalls on the Reef at wave 30.
+
+| Seed | Stopped at | Losses on Frostbite Reef | Hull LV | Crew (level) |
+|---:|---|---:|---:|---|
+| 1000 | Skull Cove 49 (wall before Frostbite Reef) | 0 | 44 | Duelist 35, Captain 34, Storm 34, Cannon 34, Sharp 34, Ghost 34 |
+| 1001 | Frostbite 30 (wall) | 19 | 81 | Storm 61, Captain 61, Duelist 61, Sharp 61, Cannon 60, Ghost 60 |
+| 1002 | Ember Isle 50 (wall before Frostbite Reef) | 0 | 70 | Storm 53, Captain 53, Duelist 52, Sharp 52, Cannon 52, Ghost 52 |
+| 1003 | Ember Isle 32 (wall before Frostbite Reef) | 0 | 58 | Storm 45, Captain 45, Duelist 45, Sharp 44, Cannon 44, Ghost 44 |
+| 1004 | Skull Cove 30 (wall before Frostbite Reef) | 0 | 28 | Duelist 24, Cannon 24, Sharp 23, Ghost 23, Harpoon 23, Netter 23 |
+
+### What stands out (not acted on yet)
+
+- **The difficulty jumps around wave 20.** The end-of-Ember crew clears
+  waves 1–9 in 10–33s and loses at most 8% of the hull. From wave 18 it
+  struggles: it wins 12 of 15 on waves 21 and 22, and loses every attempt from
+  28 on, lasting 17–45s. Waves 1–9 bring only 5–25 enemies at Ember-50
+  strength, so they're easy. After that the wave size grows faster than a
+  fixed crew can keep up with. The one bot run that keeps upgrading stalls at
+  wave 30.
+- **Freezes:**
+  - A blizzard wave freezes exactly **3** crewmates (one every 3s for 10s,
+    2s each). The blizzard arrived before the end of every wave that had one.
+  - The Wyrm freezes the bow crewmate with every breath: about **10 per wave**
+    on wave 10 (a fight of about 40s), and about 4 on waves 30 and 50, where
+    the ship sinks first.
+  - The Giant froze nobody in any attempt. On wave 20 it dies after one or two
+    smashes at most (6% of that wave's hull damage). On waves 40 and 50 the
+    ship sinks before it reaches the hull.
+- **Frost Wyrm (wave 10):** it takes 38s to kill (33–43s), inside the
+  20–45s target from section 6. But its breath does **83%** of the hull
+  damage, 1 of 15 attempts is lost, and the ship ends that wave on 29% on
+  average. On wave 30 it's never killed: it still has 87% HP when the ship
+  sinks.
+- **Frost Giant (wave 20):** it takes 51s to kill (41–58s), above the 45s
+  target, but it does little harm in that time. The Yeti Raiders do 93% of
+  the hull damage on that wave.
+- **Yeti Raiders** are the main threat on waves 18–22, with 69–93% of the
+  hull damage. They start throwing as soon as they reach x 300, long before
+  the walkers reach the ship. **Sled Penguins** take over from wave 29, with
+  58–84% on most later waves: they come in packs of 3–5 at speed 49.5, and
+  each ram hits for twice a Corsair's hit.
+- **The finale** sinks the ship in about 17s. The Wyrm deals **85%** of the
+  damage (a 4,786 breath every 4s against a 12–22k hull) and still has 57%
+  of its HP at the end. The Giant is never even hit (100% HP). Enemy damage
+  is ×319 there (×1.04 per wave on top of the offset), so the Wyrm's breath
+  would need looking at before its HP.
+- **Ice Witches** barely show in the hull numbers because they deal no
+  damage; their effect shows up as longer clear times instead. A shield is 40%
+  of the front enemy's max HP: about 2,700 on a wave-50 Corsair.
+- **A bug the sim caught along the way:** while building this, a name clash in
+  the code stopped Ember Isle's lava bombs from hurting the ship. It's fixed,
+  and `npm run sim -- 3 50 voyage` gives exactly the same Skull Cove and Ember
+  Isle results as before Frostbite Reef was added.
