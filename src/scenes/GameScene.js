@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import {
-  ASHFALL, DEV, DISPLAY, ENEMIES, GAME_SPEEDS, HEROES, SCENERY, SIM, SNOWFALL, UI_KIT,
+  ASHFALL, DISPLAY, ENEMIES, GAME_SPEEDS, HEROES, SCENERY, SIM, SNOWFALL, UI_KIT,
 } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
 import { DEV_TOOLS } from '../devFlag.js';
@@ -26,6 +26,7 @@ import { ConfirmDialog } from '../ui/ConfirmDialog.js';
 import { fmtNumber, pearlsLabel } from '../ui/format.js';
 import { HeroPicker } from '../ui/HeroPicker.js';
 import { Notices } from '../ui/Notices.js';
+import { AutoContinue } from '../ui/AutoContinue.js';
 import { Shipwright } from '../ui/Shipwright.js';
 import { Bar, icon, light, panel, text, UI, wantedKey } from '../ui/kit.js';
 
@@ -206,6 +207,8 @@ export class GameScene extends Phaser.Scene {
     );
     // NEW ENEMY! alert and bounty toasts.
     this.notices = new Notices(this, this.progress);
+    // Auto-continue toggle (bottom-left).
+    this.autoContinue = new AutoContinue(this);
 
     this.layoutUi(this.view);
   }
@@ -226,6 +229,7 @@ export class GameScene extends Phaser.Scene {
     this.bottomBar.setPosition(right, Math.round(view.bottom - DISPLAY.height));
     this.abilityBar.layout(view);
     this.notices.layout(view);
+    this.autoContinue.layout(view);
   }
 
   refreshUi() {
@@ -570,9 +574,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   cycleSpeed() {
-    const speeds = DEV_TOOLS ? [...GAME_SPEEDS, DEV.extraSpeed] : GAME_SPEEDS;
-    const i = speeds.indexOf(this.speed);
-    this.speed = speeds[(i + 1) % speeds.length];
+    const i = GAME_SPEEDS.indexOf(this.speed);
+    this.speed = GAME_SPEEDS[(i + 1) % GAME_SPEEDS.length];
     sfx.click();
     this.applySpeed();
     this.refreshUi();

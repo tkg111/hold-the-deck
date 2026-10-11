@@ -1190,7 +1190,12 @@ export const BATTLE_LOG = {
 
 // Battle speeds the x-button cycles through during a wave (1 = normal).
 // Session only: it isn't saved, and between waves everything runs at 1x.
-export const GAME_SPEEDS = [1, 2];
+export const GAME_SPEEDS = [1, 2, 4];
+
+// Auto-continue (src/ui/AutoContinue.js): its toggle's centre and width in
+// the view's bottom-left corner (base pixels), and the pause before it
+// starts the next wave or retries a lost one.
+export const AUTO_CONTINUE = { x: 76, y: 229, width: 148, delayMs: 2000 };
 
 // The battle runs in fixed steps of stepMs of game time, however many fit in
 // each frame's time (x the battle speed), so a wave plays out the same at any
@@ -1201,11 +1206,6 @@ export const SIM = {
   maxFrameMs: 100,
 };
 
-// Dev tools only (dev builds, or ?dev on the live site; see src/devFlag.js).
-export const DEV = {
-  extraSpeed: 4,          // added to the speed button's cycle
-  autoContinueMs: 2000,   // auto-continue: pause before the next wave / retry
-};
 
 export const WAVES = {
   // Enemies per wave (at least): baseCount + (wave - 1) * countPerWave.
