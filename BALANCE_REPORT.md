@@ -986,3 +986,260 @@ Scaled at the waves they fight on:
 | 30 | 116,122 / 434 (was 2,184) | – | 248 | 310 |
 | 40 | – | 153,259 / 1,116 (was 3,880) | 248 | 310 |
 | 50 (finale, 120% HP) | 180,256 / 434 (was 4,786) | 208,296 / 1,116 (was 5,743) | 248 | 310 |
+
+---
+
+## 9. Frostbite Reef: early waves and the Frost Giant
+
+From a playtest to wave 50: waves 1–15 were too easy, and the Frost Giant was
+too slow to threaten anyone and was hard-countered by the Ghost Pirate. The
+brief was to change waves 1–15 and the Giant, and nothing else that affects
+waves 16–50. Branch `frostbite-reef`. Reproduce with `npm run sim:frost -- 5 3`.
+
+### 9.1 Sim changes first
+
+- **Per-attempt seeds** in the upgraded profile: each attempt (crew, run,
+  wave, try) has its own seed. Before, one seed ran through the whole island,
+  so any change to wave 3 reshuffled the luck of wave 45.
+- **The Giant's fights are tracked:**
+  - how long he can be hit;
+  - the share of that time he's afraid (Haunt), pushed (Tidal Wave), stunned
+    or slowed;
+  - how far he's driven back;
+  - whether he reaches the ship, and his smashes.
+- **Waves 20 and 40 are also played without the Ghost Pirate**, with the same
+  luck. He's swapped for the best benched crewmate (always the Voodoo
+  Priestess), raised to the Ghost Pirate's level, stars and Bonus Levels, so
+  only the kit differs.
+- **The summary covers every wave 1–50**, with the upgraded profile's hull
+  loss.
+
+"Before" below is the section 8 numbers measured this way.
+
+### 9.2 What the Ghost Pirate was doing to the Giant
+
+It's his ability, **Haunt**, not his attack (the cutlass only passes Barnacle
+Knight shields).
+- **What Haunt does:** every walker on screen flees back toward the island.
+  At the Ghost Pirate's level and stars it lasts 6s, halved to **3s** on the
+  Giant by boss status resist. With Auto it fires as soon as it's ready, every
+  24s.
+- **Ground lost:** the Giant walked back at his own speed for those 3s, then
+  had to walk the ground again at 8.1 px/s. While scared he doesn't smash.
+- **On top of that,** the Storm Caller's Tidal Wave pushed him another 55px
+  each time it landed.
+
+Before, upgraded profile (15 fights each; "no Ghost" is the same attempts
+with the swap):
+
+| Wave | Team | Won | Reached the ship | Smashes | In reach s | Afraid | Pushed | Driven back px |
+|---:|---|---|---|---:|---:|---|---|---:|
+| 20 | with Ghost Pirate | 15/15 | 3/15 | 0.1 | 51 | 12% | 1% | 147 |
+| 20 | no Ghost Pirate | 15/15 | 13/15 | 1.9 | 42 | 0% | 1% | 73 |
+| 40 | with Ghost Pirate | 15/15 | 15/15 | 3.4 | 72 | 12% | 1% | 202 |
+| 40 | no Ghost Pirate | 0/15 | 8/15 | 1.4 | 41 | 0% | 1% | 66 |
+
+So on the Giant himself:
+- **Afraid** about 12% of the time he could be hit.
+- **Driven back** about 75px more per fight than without the Ghost Pirate
+  (147 vs 73 on wave 20). That's about 9s of walking lost, on top of the
+  Tidal Wave's share.
+- **Reached the ship** in 3 of 15 fights on wave 20, against 13 of 15 without
+  the Ghost Pirate.
+
+But the bigger effect is on the **escort**: on wave 40, the team without the
+Ghost Pirate lost all 15 times. It sank in about 41s to Corsairs (62%) and
+Penguins (24%) while the Giant still had 46% HP. Haunt sends the whole wave
+running every 24s, and that's what holds wave 40 together.
+
+### 9.3 What changed
+
+**Waves 1–15** (Frostbite Reef only):
+- **Enemies arrive earlier:** Sled Penguins from wave 3 (was 8), Yeti
+  Raiders from 6 (was 12), Ice Witches from 11 (was 15). The formation pool
+  from wave 15 on is the same as before, so waves 16–50 meet the same line-ups.
+- **`earlyBoost`:** wave 1 brings **2×** the usual number of enemies with
+  **2.6×** their HP, fading evenly to ×1 at wave 16 (wave 8: ×1.53 and
+  ×1.85; wave 15: ×1.07 and ×1.11), so there's no jump between 15 and 16.
+- **Wave-10 Frost Wyrm** (`bossBoost[10]`): **1.35×** HP and **1.4×**
+  breath damage. Wave 30 and the finale are unchanged.
+
+**The Frost Giant:**
+- **Speed** 11.3 (was 8.1, +40%). His walk animation now plays at
+  speed ÷ 8.1, so his feet keep step, including when angry.
+- **Boss resistance**, a generic `resist` on the enemy definition, only on
+  the Giant for now:
+  - **immovable:** Tidal Wave can't push him, and Haunt scares him in place.
+    He stops, and stops smashing, for the halved time, but doesn't flee back.
+  - **stuns and slows last half as long** (the existing `statusResist`).
+  - **stun guard:** after a stun he can't be stunned again until 4s after
+    it ends.
+- **Angry at 50% HP:** a quick roar (0.6s), his tint flashing red and white,
+  and a shake. Then he walks 25% faster (14.1) and smashes every **1.8s**
+  (was 2.5s).
+- **Boulders on every Giant wave:** every **8s** while walking he stops and
+  throws an ice boulder (0.6× his smash) at the ship; every 6s in the finale,
+  as before.
+- **Per wave:**
+  - **Wave 20:** his smash hits **1.2×** as hard.
+  - **Wave 40:** **0.7×** HP and **0.5×** damage.
+  - **Finale:** **0.9×** the finale's HP (the Wyrm keeps 1.2×) and **0.6×**
+    damage.
+  - Why per wave: his HP grows with the wave (×224 on 20, ×295 on 40) while
+    damage is capped at ×62 for both. Before this change, wave 20 cost the
+    upgraded crew only 6% of the hull but wave 40 already cost 60% (mostly to
+    the escort). So one set of stats either left wave 20 easy or made wave 40
+    unwinnable; I tried both.
+
+**Tuning rounds** (upgraded profile, wins out of 15):
+
+| Early boost (count / HP) | Wave-10 Wyrm (HP / damage) | Giant | Wave 10 | Wave 20 | Wave 40 | Finale |
+|---|---|---|---:|---:|---:|---:|
+| 1.6 / 1.6 | 1.6 / 2.0 | 520 HP, smash 18 | 3 | 15 | 0 | 0 |
+| 2.0 / 1.8 | 1.3 / 1.5 | smash 12 | 15 | 15 | 5 | 3 |
+| 2.2 / 2.0 | 1.4 / 1.3 | smash 10 | 11 | 15 | 5 | 8 |
+| 2.0 / 2.6 | 1.35 / 1.4 | 380 HP, smash 24 | 12 | 15 | 0 | 3 |
+| 2.0 / 2.6 | 1.35 / 1.4 | wave 20 ×1.6; wave 40 ×0.7 HP / ×0.5 damage; finale ×0.9 / ×0.6 | 12 | 7 | 11 | 13 |
+| 2.0 / 2.6 | 1.35 / 1.4 | wave 20 ×1.25; rest the same | 12 | 11 | 10 | 14 |
+| **2.0 / 2.6** | **1.35 / 1.4** | **wave 20 ×1.2; rest the same** | **12** | **14** | **10** | **14** |
+
+### 9.4 After
+
+**Targets (upgraded profile, 15 runs):**
+
+| | Target | Before | After |
+|---|---|---|---|
+| Waves 1–9 | all won, 15–30% hull lost | all won; 0–3% lost | all won; 2, 27, 35, 22, 23, 15, 34, 20, 27% lost |
+| Wave 10 | 12–14 won | 15 | **12** ✓ (81% lost) |
+| Waves 11–15 | all won, 20–40% lost | all won; 1–3% lost | all won; 15, 33, 34, 57, 17% lost |
+| Wave 20 | 12–14 won, he reaches the ship and smashes | 15; reached 3/15, 0.1 smashes | **14** ✓; reached **15/15**, 10.2 smashes |
+| Wave 40 | 10–13 won | 15 | **10** ✓ |
+| Wave 20, with vs without Ghost Pirate | within ~2 wins | 15 vs 15 | 14 vs 9 ✗ |
+| Wave 40, with vs without Ghost Pirate | within ~2 wins | 15 vs 0 | 10 vs 0 ✗ |
+
+The Giant's fights, after:
+
+| Wave | Profile | Won | Reached the ship | Smashes | In reach s | Afraid (Haunt) | Pushed (Tidal Wave) | Stunned | Slowed | Driven back px |
+|---:|---|---|---|---:|---:|---|---|---|---|---:|
+| 20 | none | 3/15 | 15/15 | 10.1 | 49 | 12% | 0% | 0% | 0% | 0 |
+| 20 | upgraded | 14/15 | 15/15 | 10.2 | 49 | 12% | 0% | 0% | 0% | 0 |
+| 20 | noGhost | 9/15 | 15/15 | 8.9 | 40 | 0% | 0% | 0% | 0% | 0 |
+| 40 | none | 0/15 | 15/15 | 3.0 | 33 | 9% | 0% | 0% | 0% | 0 |
+| 40 | upgraded | 10/15 | 15/15 | 10.1 | 48 | 12% | 0% | 0% | 0% | 0 |
+| 40 | noGhost | 0/15 | 15/15 | 6.6 | 36 | 0% | 0% | 0% | 0% | 0 |
+
+(`noGhost` is the upgraded attempts without the Ghost Pirate.) Afraid is
+still 12% of the fight, but he's driven back **0px**, reaches the ship every
+time, and smashes about 10 times per fight. Hull damage on wave 20 is now
+88% the Giant (was 16%), and wave 40's split is Corsairs 55%, Giant 22%.
+
+**What still misses, and why:**
+
+- **The Ghost Pirate gap.** On the Giant himself the counter is gone: same
+  reach, same smashes with or without him. The gap left is Haunt on the
+  **escort**:
+  - On wave 40, the no-Ghost team sinks to Corsairs and Penguins whatever the
+    Giant does (0/15 before the change too).
+  - On wave 20, the gap of 5 (14 vs 9) is the same effect on a smaller escort.
+  - Closing it means changing Haunt or the escort, and both affect waves
+    16–50 beyond the Giant, so I left them. A boss can't be made to fear less
+    than it does now without making Haunt useless on him.
+- **Early-wave hull loss misses:**
+  - **Wave 1** loses only 2% of the hull. Its 10 Corsairs die before they
+    reach the ship; only a much bigger HP boost on wave 1 alone would change
+    that.
+  - **Waves 3 and 7** come out at 35% and 34%, when the new Penguin and Yeti
+    formations arrive.
+  - **Waves 11, 13 and 15** come out at 15%, 34% and 17%: the boost has
+    faded to ×1.07–1.33 enemies there.
+  - **Wave 14** is a blizzard wave with an Ice Witch and loses 57%.
+  - Raising the boost brings 11–15 up but pushes 3, 7 and 14 higher, and
+    wave 10 drops to 11 wins.
+- **Wyrm freezes** rose to 6.5–7.5 per Wyrm wave (was 5.3–6.1), because the
+  boosted wave-10 Wyrm lives longer (60s, was 37s).
+
+### 9.5 Waves 16–50: what moved
+
+The brief allowed only the Giant's waves and the finale to change.
+
+- **No upgrades:** every wave outside 1–15 and 20, 40 is **identical** to
+  before (wave 20: 15 → 3 with the new Giant; wave 40 stays 0). This crew
+  plays each wave on its own from the same end-of-Ember save, so only the
+  wave itself matters.
+- **Upgraded:** this crew plays on through the island, so everything it earned
+  on waves 1–15, 20 and 40 carries into the later waves. Changes outside 20,
+  40 and 50:
+
+  | Wave | Before | After |
+  |---:|---:|---:|
+  | 32 | 14 | 13 |
+  | 42 | 11 | **14** |
+  | 44 | 14 | 15 |
+  | 46 | 13 | **15** |
+  | 47 | 14 | 15 |
+  | 48 | 14 | 15 |
+  | 49 | 2 | 1 |
+
+  Wave 42 moved by **3** and 46 by 2, both easier. The finale went from 12 to
+  14. I haven't changed anything to counter these; see the note to the user.
+
+- **Skull Cove and Ember Isle:** `npm run sim -- 3 50 voyage` matches `main`
+  before Frostbite Reef wave for wave.
+
+### 9.6 Summary tables
+
+Wins out of 15 per wave; the last column is the upgraded profile's average
+hull lost.
+
+**Before**
+
+| Waves | No upgrades | Upgraded | Upgraded hull lost (avg) |
+|---|---|---|---|
+| 1–9 | 1: 15, 2: 15, 3: 15, 4: 15, 5: 15, 6: 15, 7: 15, 8: 15, 9: 15 | 1: 15, 2: 15, 3: 15, 4: 15, 5: 15, 6: 15, 7: 15, 8: 15, 9: 15 | 0%, 0%, 0%, 0%, 0%, 0%, 1%, 3%, 0% |
+| 10 | 10: 15 | 10: 15 | 33% |
+| 11–15 | 11: 15, 12: 15, 13: 15, 14: 15, 15: 15 | 11: 15, 12: 15, 13: 15, 14: 15, 15: 15 | 3%, 1%, 1%, 2%, 2% |
+| 16–19 | 16: 15, 17: 15, 18: 15, 19: 15 | 16: 15, 17: 15, 18: 15, 19: 15 | 3%, 7%, 11%, 8% |
+| 20 | 20: 15 | 20: 15 | 6% |
+| 21–29 | 21: 15, 22: 15, 23: 12, 24: 15, 25: 15, 26: 2, 27: 15, 28: 15, 29: 15 | 21: 15, 22: 15, 23: 15, 24: 15, 25: 15, 26: 15, 27: 15, 28: 15, 29: 15 | 26%, 17%, 61%, 12%, 43%, 81%, 16%, 45%, 39% |
+| 30 | 30: 3 | 30: 15 | 68% |
+| 31–39 | 31: 1, 32: 0, 33: 5, 34: 15, 35: 3, 36: 14, 37: 1, 38: 0, 39: 6 | 31: 15, 32: 14, 33: 15, 34: 15, 35: 14, 36: 15, 37: 15, 38: 15, 39: 15 | 73%, 78%, 64%, 31%, 68%, 33%, 62%, 75%, 37% |
+| 40 | 40: 0 | 40: 15 | 60% |
+| 41–49 | 41: 2, 42: 0, 43: 0, 44: 0, 45: 0, 46: 0, 47: 0, 48: 0, 49: 0 | 41: 15, 42: 11, 43: 15, 44: 14, 45: 0, 46: 13, 47: 14, 48: 14, 49: 2 | 49%, 89%, 61%, 62%, 100%, 70%, 52%, 60%, 99% |
+| 50 | 50: 0 | 50: 12 | 85% |
+
+**After**
+
+| Waves | No upgrades | Upgraded | Upgraded hull lost (avg) |
+|---|---|---|---|
+| 1–9 | 1: 15, 2: 15, 3: 15, 4: 15, 5: 15, 6: 15, 7: 15, 8: 15, 9: 15 | 1: 15, 2: 15, 3: 15, 4: 15, 5: 15, 6: 15, 7: 15, 8: 15, 9: 15 | 2%, 27%, 35%, 22%, 23%, 15%, 34%, 20%, 27% |
+| 10 | 10: 12 | 10: 12 | 81% |
+| 11–15 | 11: 15, 12: 15, 13: 15, 14: 13, 15: 15 | 11: 15, 12: 15, 13: 15, 14: 15, 15: 15 | 15%, 33%, 34%, 57%, 17% |
+| 16–19 | 16: 15, 17: 15, 18: 15, 19: 15 | 16: 15, 17: 15, 18: 15, 19: 15 | 2%, 7%, 10%, 9% |
+| 20 | 20: 3 | 20: 14 | 82% |
+| 21–29 | 21: 15, 22: 15, 23: 12, 24: 15, 25: 15, 26: 2, 27: 15, 28: 15, 29: 15 | 21: 15, 22: 15, 23: 15, 24: 15, 25: 15, 26: 15, 27: 15, 28: 15, 29: 15 | 24%, 16%, 59%, 12%, 42%, 77%, 15%, 42%, 37% |
+| 30 | 30: 3 | 30: 15 | 71% |
+| 31–39 | 31: 1, 32: 0, 33: 5, 34: 15, 35: 3, 36: 14, 37: 1, 38: 0, 39: 6 | 31: 15, 32: 13, 33: 15, 34: 15, 35: 14, 36: 15, 37: 15, 38: 15, 39: 15 | 70%, 76%, 62%, 29%, 60%, 33%, 59%, 73%, 36% |
+| 40 | 40: 0 | 40: 10 | 90% |
+| 41–49 | 41: 2, 42: 0, 43: 0, 44: 0, 45: 0, 46: 0, 47: 0, 48: 0, 49: 0 | 41: 15, 42: 14, 43: 15, 44: 15, 45: 0, 46: 15, 47: 15, 48: 15, 49: 1 | 47%, 84%, 56%, 59%, 100%, 68%, 47%, 55%, 99% |
+| 50 | 50: 0 | 50: 14 | 85% |
+
+### 9.7 Final numbers
+
+| What | Before | Now |
+|---|---|---|
+| Sled Penguins / Yeti Raiders / Ice Witches from wave | 8 / 12 / 15 | 3 / 6 / 11 |
+| Waves 1–15 | as waves 16+ | ×2 enemies and ×2.6 HP on wave 1, fading evenly to ×1 by wave 16 |
+| Wave-10 Frost Wyrm | 450 HP, breath 7 | ×1.35 HP, ×1.4 breath (wave 30 and the finale unchanged) |
+| Frost Giant speed | 8.1 | 11.3 (14.1 angry), walk animation in step |
+| Frost Giant smash | 18 every 2.5s | 18 every 2.5s, every 1.8s below 50% HP |
+| Frost Giant boulders | finale only, every 6s | every 8s on his own waves, every 6s in the finale; 0.6× smash |
+| Frost Giant resistance | half-length stuns, slows, fear and push | half-length stuns and slows; immovable (Haunt scares him in place, Tidal Wave can't push him); 4s stun guard after each stun |
+| Frost Giant per wave | – | wave 20: ×1.2 damage; wave 40: ×0.7 HP, ×0.5 damage; finale: ×0.9 HP (of the base, the Wyrm keeps ×1.2), ×0.6 damage |
+
+Scaled at the waves he fights on:
+
+| Wave | Giant HP | Smash | Boulder |
+|---:|---:|---:|---:|
+| 20 | 116,359 | 1,339 | 803 |
+| 40 | 107,281 | 558 | 335 |
+| 50 (finale) | 156,222 | 670 | 402 |

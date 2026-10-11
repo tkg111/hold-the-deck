@@ -22,7 +22,7 @@
 //    (blizzard / Wyrm / Giant), what hurt the hull most, and for lost waves
 //    how long the ship lasted and how much of the wave it beat.
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { ENEMIES, HEROES } from '../../src/config.js';
+import { ENEMIES, HEROES, RARITY } from '../../src/config.js';
 import { Hero } from '../../src/entities/Hero.js';
 import { Progress } from '../../src/systems/Progress.js';
 import { isBlizzardWave } from '../../src/systems/Blizzard.js';
@@ -36,11 +36,11 @@ const REPLAYS = Number(process.argv[3] ?? 3);
 const MAX_TRIES = 100;
 const UPGRADED_TRIES = 5;
 const ISLAND = 'frostbite_reef';
-const WAVES = [
-  ...range(1, 10), ...range(18, 22), ...range(28, 32), ...range(38, 42), ...range(48, 50),
-];
-// The brief's target bands: [first, last, label].
-const BANDS = [[1, 9], [10, 10], [18, 22], [28, 32], [38, 42], [50, 50]];
+const WAVES = range(1, 50);
+// Bands for the summary: [first, last].
+const BANDS = [[1, 9], [10, 10], [11, 15], [16, 19], [20, 20], [21, 29], [30, 30], [31, 39], [40, 40], [41, 49], [50, 50]];
+// The Frost Giant's waves, also played without the Ghost Pirate (upgraded).
+const GIANT_WAVES = [20, 40];
 
 function range(a, b) { return Array.from({ length: b - a + 1 }, (_, i) => a + i); }
 
@@ -93,15 +93,38 @@ function attempt(p) {
     takeDamage(amount, enemy);
   };
   // Bosses: when each can first be hit, when it dies, and the HP it has left.
+  // The Frost Giant also: ms it could be hit, and of those, afraid
+  // (Haunt), pushed (Tidal Wave), stunned and slowed; px it was driven back;
+  // whether it reached the ship, and its smashes.
   const bosses = new Map();
+  let last = 0;
   const onStep = (time) => {
+    const dt = time - last;
+    last = time;
     for (const e of scene.waves.spawned) {
       if (!e?.def.boss) continue;
-      if (!bosses.has(e)) bosses.set(e, { key: e.key, from: null, to: null });
+      if (!bosses.has(e)) {
+        bosses.set(e, {
+          key: e.key, from: null, to: null, x: e.x,
+          giant: e.def.giant ? { up: 0, afraid: 0, pushed: 0, stunned: 0, slowed: 0, back: 0, reached: false, smashes: 0 } : null,
+        });
+      }
       const b = bosses.get(e);
       if (b.from == null && e.targetable) b.from = time;
       if (b.to == null && !e.alive) b.to = time;
       b.hpLeft = Math.max(0, e.hp) / e.maxHp;
+      const g = b.giant;
+      if (g && e.alive && e.targetable) {
+        g.up += dt;
+        if (e.isAfraid) g.afraid += dt;
+        if (e.pushLeft > 0) g.pushed += dt;
+        if (e.isStunned) g.stunned += dt;
+        if (e.isSlowed) g.slowed += dt;
+        if (e.x > b.x) g.back += e.x - b.x;
+        if (e.phase === 'smash') g.reached = true;
+        g.smashes = e.smashes;
+      }
+      b.x = e.x;
     }
   };
   for (const k of Object.keys(freezes)) freezes[k] = 0;
@@ -123,9 +146,30 @@ function attempt(p) {
 
 // --- 3. The profiles ---
 
-const results = { none: new Map(), upgraded: new Map() };   // wave -> [attempt]
+// A copy of the progress with the Ghost Pirate's slot given to the best
+// crewmate not on the ship (rarity, then damage), brought up to the Ghost
+// Pirate's level, stars and Bonus Levels so only the kit differs.
+const RANK = Object.keys(RARITY);
+function withoutGhost(p) {
+  const q = Progress.fromSave(p.toSave());
+  const slot = q.slots.indexOf('ghostPirate');
+  if (slot === -1) return q;
+  const bench = q.ownedHeroes.filter((id) => !q.slots.includes(id) && !HEROES[id].aura)
+    .sort((a, b) => RANK.indexOf(HEROES[b].rarity) - RANK.indexOf(HEROES[a].rarity) || q.heroDamage(b) - q.heroDamage(a));
+  const sub = bench[0];
+  if (!sub) return q;
+  q.slots[slot] = sub;
+  q.heroLevels[sub] = q.heroLevel('ghostPirate');
+  q.heroStars[sub] = q.heroStarCount('ghostPirate');
+  q.heroBonus[sub] = q.heroBonusLevels('ghostPirate');
+  q.subFor = sub;
+  return q;
+}
+
+const results = { none: new Map(), upgraded: new Map(), noGhost: new Map() };   // wave -> [attempt]
 const record = (profile, a) => {
   if (!WAVES.includes(a.wave)) return;
+  results[profile] ??= new Map();
   const list = results[profile].get(a.wave) ?? [];
   list.push(a);
   results[profile].set(a.wave, list);
@@ -143,8 +187,9 @@ for (const crew of crews) {
       p.wave = wave;
       record('none', attempt(p));
     }
-    // Upgraded: on through the island, spending after every attempt.
-    seedRandom(crew.seed * 1000 + 500 + r);
+    // Upgraded: on through the island, spending after every attempt. Each
+    // attempt has its own seed, so a change to one wave doesn't reshuffle
+    // the luck of the waves after it.
     const p = Progress.fromSave(crew.save);
     p.sailTo(ISLAND);
     let skipped = 0;
@@ -152,6 +197,14 @@ for (const crew of crews) {
       const wave = p.wave;
       let won = false;
       for (let t = 0; t < UPGRADED_TRIES && !won; t++) {
+        const seed = crew.seed * 100000 + r * 1000 + wave * 10 + t + 7;
+        if (t === 0 && GIANT_WAVES.includes(wave)) {
+          // The same attempt (same luck) without the Ghost Pirate.
+          seedRandom(seed);
+          const q = withoutGhost(p);
+          record('noGhost', { ...attempt(q), sub: q.subFor });
+        }
+        seedRandom(seed);
         const a = attempt(p);
         if (t === 0) record('upgraded', a);   // retries aren't reported
         won = a.won;
@@ -188,6 +241,7 @@ function waveTable(profile) {
   console.log('|---:|---|---|---|---|---|---|---|');
   for (const wave of WAVES) {
     const list = results[profile].get(wave) ?? [];
+    if (!list.length) continue;
     const won = list.filter((a) => a.won);
     const clear = won.map((a) => a.time);
     const hp = list.map((a) => a.hullLeft);
@@ -212,7 +266,7 @@ function waveTable(profile) {
   }
 }
 
-for (const profile of ['none', 'upgraded']) {
+for (const profile of ['none', 'upgraded', 'noGhost']) {
   const runs = [...results[profile].values()][0]?.length ?? 0;
   console.log(`\n### Waves, profile "${profile}" (${runs} attempts per wave)\n`);
   waveTable(profile);
@@ -220,15 +274,36 @@ for (const profile of ['none', 'upgraded']) {
 
 // Side by side against the target bands.
 console.log('\n### Summary by band (wins out of attempts)\n');
-console.log('| Waves | No upgrades | Upgraded |');
-console.log('|---|---|---|');
+console.log('| Waves | No upgrades | Upgraded | Upgraded hull lost (avg) |');
+console.log('|---|---|---|---|');
 for (const [a, b] of BANDS) {
   const cell = (profile) => range(a, b).map((w) => {
     const list = results[profile].get(w) ?? [];
-    return `${w}: ${list.filter((x) => x.won).length}/${list.length}`;
+    return `${w}: ${list.filter((x) => x.won).length}`;
   }).join(', ');
-  console.log(`| ${a === b ? a : `${a}–${b}`} | ${cell('none')} | ${cell('upgraded')} |`);
+  const lost = range(a, b).map((w) => pct(1 - avg((results.upgraded.get(w) ?? []).map((x) => x.hullLeft)))).join(', ');
+  console.log(`| ${a === b ? a : `${a}–${b}`} | ${cell('none')} | ${cell('upgraded')} | ${lost} |`);
 }
+
+// The Frost Giant's fights.
+console.log('\n### Frost Giant fights\n');
+console.log('| Wave | Profile | Won | Reached the ship | Smashes | In reach s | Afraid (Haunt) | Pushed (Tidal Wave) | Stunned | Slowed | Driven back px |');
+console.log('|---:|---|---|---|---:|---:|---|---|---|---|---:|');
+const subs = {};
+for (const a of [...results.noGhost.values()].flat()) subs[a.sub] = (subs[a.sub] ?? 0) + 1;
+for (const w of GIANT_WAVES) {
+  for (const profile of ['none', 'upgraded', 'noGhost']) {
+    const list = results[profile].get(w) ?? [];
+    const gs = list.flatMap((a) => a.bosses.filter((b) => b.giant).map((b) => b.giant));
+    if (!gs.length) continue;
+    const share = (k) => pct(avg(gs.map((g) => (g.up ? g[k] / g.up : 0))));
+    console.log(`| ${w} | ${profile} | ${list.filter((x) => x.won).length}/${list.length} | ${gs.filter((g) => g.reached).length}/${gs.length} | `
+      + `${avg(gs.map((g) => g.smashes)).toFixed(1)} | ${sec(avg(gs.map((g) => g.up)))} | ${share('afraid')} | ${share('pushed')} | `
+      + `${share('stunned')} | ${share('slowed')} | ${Math.round(avg(gs.map((g) => g.back)))} |`);
+  }
+}
+
+console.log('\nnoGhost: the upgraded crew with the Ghost Pirate swapped for', Object.entries(subs).map(([k, n]) => `${HEROES[k]?.name ?? k} (${n}x)`).join(', '), 'at his level and stars, same luck.');
 
 // Freezes per wave: blizzard waves (not the finale) and the Wyrm's waves.
 console.log('\n### Freezes per wave (all causes, tapped ones included)\n');

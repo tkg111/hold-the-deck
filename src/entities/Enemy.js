@@ -105,6 +105,7 @@ export class Enemy {
     this.boostMult = 1;
     // A boss that enrages (the finale) attacks this much faster.
     this.rage = 1;
+    this.stunGuard = 0;       // resist.stunGuardMs: ms before it can be stunned again
     // An Ice Witch's shield over it: HP left of it, and its size.
     this.iceShieldHp = 0;
     this.iceShieldMax = 0;
@@ -267,7 +268,9 @@ export class Enemy {
       this.smashes = 0;
       this.throwDue = 0;
       this.boulders = boulders;
-      this.boulderTimer = g.boulderEvery;
+      this.boulderTimer = boulders ? g.finaleBoulderEvery : g.boulderEvery;
+      this.angry = false;        // below angry.at of its HP: faster, smashing more often
+      this.angerDue = false;     // gets angry as soon as what it's doing is done
       this.roarAnim = findAnim(scene, def.sprite, 'roar');
       this.smashAnim = findAnim(scene, def.sprite, 'smash');
       this.shatterAnim = findAnim(scene, def.sprite, 'shatter');
@@ -386,9 +389,17 @@ export class Enemy {
 
   // --- Status effects ---
 
+  // With resist.stunGuardMs, a stun can't land again until that long after
+  // the last one ends (and doesn't stack or extend meanwhile).
   applyStun(duration) {
+    const guard = this.def.resist?.stunGuardMs;
+    if (guard && this.stunGuard > 0) return;
     this.stunTime = Math.max(this.stunTime, duration * (this.def.statusResist ?? 1));
+    if (guard) this.stunGuard = this.stunTime + guard;
   }
+
+  // Can't be driven back by Haunt or Tidal Wave (resist.immovable).
+  get immovable() { return !!this.def.resist?.immovable; }
 
   // Only nets slow, so a slowed flyer is netted: it drops to the lane for
   // as long as the slow lasts.
@@ -406,7 +417,7 @@ export class Enemy {
 
   // Tidal Wave: carried distance px back toward the island at speed.
   pushBack(distance, speed) {
-    if (!this.canBeMoved) return;
+    if (!this.canBeMoved || this.immovable) return;
     this.pushLeft = Math.max(this.pushLeft, distance * (this.def.statusResist ?? 1));
     this.pushSpeed = speed;
   }
@@ -450,6 +461,7 @@ export class Enemy {
       if (!this.alive) return;
     }
     this.stunTime = Math.max(0, this.stunTime - dt);
+    this.stunGuard = Math.max(0, this.stunGuard - dt);
     this.slowTime = Math.max(0, this.slowTime - dt);
     this.groundTime = Math.max(0, this.groundTime - dt);
     this.curseTime = Math.max(0, this.curseTime - dt);
@@ -539,6 +551,7 @@ export class Enemy {
 
   // Haunt: runs back toward the island at its own pace. Returns whether it moved.
   flee(sdt) {
+    if (this.immovable) return false;   // scared, but it stands its ground
     const x = Math.min(this.retreatX, this.x + this.speed * this.moveBoost * sdt / 1000);
     const moved = x > this.x;
     this.x = x;
@@ -957,8 +970,9 @@ export class Enemy {
   }
 
   // The Frost Giant: its entrance through the pines and roar, then down the
-  // lane (stopping now and then in the finale to hurl a boulder), and at the
-  // ship a smash every attackInterval. Returns whether it moved.
+  // lane (stopping now and then to hurl a boulder, more often in the
+  // finale), and at the ship a smash every attackInterval (smashEvery once
+  // angry). Returns whether it moved.
   stride(sdt, ship) {
     const { scene } = this;
     const g = this.def.giant;
@@ -992,6 +1006,14 @@ export class Enemy {
       if (this.actionTime <= 0) this.phase = 'walk';
       return false;
     }
+    if (this.angerDue && this.actionTime <= 0) {
+      this.getAngry();
+      return false;
+    }
+    if (this.phase === 'rage') {
+      if (this.actionTime <= 0) this.phase = 'walk';
+      return false;
+    }
     if (this.phase === 'throw') {
       if (this.throwDue > 0) {
         this.throwDue -= sdt;
@@ -1004,15 +1026,13 @@ export class Enemy {
     if (this.x > this.stopX) {
       // Walking (again, if a Tidal Wave pushed it back from the ship).
       this.phase = 'walk';
-      if (this.boulders) {
-        this.boulderTimer -= sdt * this.rage;
-        if (this.boulderTimer <= 0) {
-          this.boulderTimer += g.boulderEvery;
-          this.phase = 'throw';
-          this.playAction(this.roarAnim, g.throwMs);
-          this.throwDue = g.throwMs;
-          return false;
-        }
+      this.boulderTimer -= sdt * this.rage;
+      if (this.boulderTimer <= 0) {
+        this.boulderTimer += this.boulders ? g.finaleBoulderEvery : g.boulderEvery;
+        this.phase = 'throw';
+        this.playAction(this.roarAnim, g.throwMs);
+        this.throwDue = g.throwMs;
+        return false;
       }
       return this.walk(sdt);
     }
@@ -1023,11 +1043,29 @@ export class Enemy {
     }
     this.attackCooldown -= sdt * this.rage;
     if (this.attackCooldown <= 0) {
-      this.attackCooldown += this.def.attackInterval;
+      this.attackCooldown += this.angry ? g.angry.smashEvery : this.def.attackInterval;
       this.playAction(this.smashAnim, this.smashTiming.ms);
       this.smashDue = Math.max(1, this.smashTiming.at);
     }
     return false;
+  }
+
+  // Below angry.at of its HP: a quick roar, its tint flashing red and white
+  // and a shake, then it walks faster and smashes more often.
+  getAngry() {
+    const { scene } = this;
+    const a = this.def.giant.angry;
+    this.angerDue = false;
+    this.angry = true;
+    this.speed = this.def.speed * a.speed;
+    this.phase = 'rage';
+    this.playAction(this.roarAnim, a.roarMs);
+    scene.cameras.main.shake(a.shake.duration, a.shake.intensity);
+    sfx.roar();
+    for (let i = 0; i < a.flashes; i++) {
+      scene.time.delayedCall(i * a.flashMs, () => this.alive && this.body.setTintFill?.(a.flash[i % a.flash.length]));
+    }
+    scene.time.delayedCall(a.flashes * a.flashMs, () => this.alive && this.setFlash(false));
   }
 
   // Where a frame-relative point of the Giant's sheet is now.
@@ -1113,7 +1151,9 @@ export class Enemy {
   animate(moving) {
     const anims = this.body.anims;
     if (!anims) return;
-    anims.timeScale = this.pace * this.rage * this.moveBoost;
+    // A walker with animSpeed walks its animation at its own speed's pace.
+    const stride = moving && this.def.animSpeed ? this.walkingSpeed / this.def.animSpeed : 1;
+    anims.timeScale = this.pace * this.rage * this.moveBoost * stride;
     this.body.setFlipX?.(this.isAfraid);   // fleeing: facing the island
     if (this.actionTime > 0) {
       if (this.isStunned) anims.pause();
@@ -1128,6 +1168,10 @@ export class Enemy {
       anims.resume();
     }
   }
+
+  // How fast it walks right now: the Frost Giant's entrance through the pines
+  // is faster than its walk.
+  get walkingSpeed() { return this.def.giant && this.phase === 'enter' ? this.def.giant.entranceSpeed : this.speed; }
 
   // Standing still on the first frame of its walk.
   rest() {
@@ -1228,6 +1272,9 @@ export class Enemy {
     // The Frost Wyrm takes to the air once, at liftAt of its HP.
     const w = this.def.wyrm;
     if (w && !this.lifted && this.hp <= this.maxHp * w.liftAt) this.liftOff();
+    // The Frost Giant gets angry once, at angry.at of its HP.
+    const g = this.def.giant;
+    if (g && !this.angry && !this.angerDue && this.hp <= this.maxHp * g.angry.at) this.angerDue = true;
     this.drawHpBar();
   }
 

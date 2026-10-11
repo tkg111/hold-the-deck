@@ -113,12 +113,22 @@ function pickFormations(wave, count, formations, random) {
   return groups;
 }
 
+// An island's earlyBoost on a wave: { count, hp } multipliers, full on wave
+// 1 and fading evenly to x1 on wave `until` (x1 after it, or without one).
+export function earlyBoost(wave, island) {
+  const b = island?.earlyBoost;
+  if (!b || wave >= b.until) return { count: 1, hp: 1 };
+  const t = (b.until - wave) / (b.until - 1);
+  return { count: 1 + (b.count - 1) * t, hp: 1 + (b.hp - 1) * t };
+}
+
 const enemyCount = (wave) => Math.round(WAVES.baseCount + (wave - 1) * WAVES.countPerWave);
 
-// The wave's spawn plan, in order: [{ key, def, elite, delay, follow, hpFactor }].
-// delay: ms after the previous spawn; follow: index (in the plan) of the
-// leader this one keeps behind, or null; hpFactor: multiplies its HP (the
-// finale's bosses). Built from the island's formations, with a Siren on Siren
+// The wave's spawn plan, in order: [{ key, def, elite, delay, follow,
+// hpFactor, damageFactor }]. delay: ms after the previous spawn; follow:
+// index (in the plan) of the leader this one keeps behind, or null;
+// hpFactor / damageFactor: multiply its HP / damage (the finale's bosses, an
+// island's earlyBoost and bossBoost). Built from the island's formations, with a Siren on Siren
 // waves and the boss on boss waves. island: its ISLANDS entry. offset: its
 // waveOffset (Elites come as on wave + offset, which also seeds the
 // line-up). finale: the island's finale config when this wave is it (see
@@ -131,7 +141,9 @@ export function composeWave(wave, {
   const { formations } = islandContent(island);
   if (finale) return finalePlan(wave, offset, finale, formations, random);
   const n = wave - 1;
-  let count = Math.round(enemyCount(wave) * countFactor);
+  const early = earlyBoost(wave, island);
+  const boost = island.bossBoost?.[wave] ?? { hp: 1, damage: 1 };
+  let count = Math.round(enemyCount(wave) * countFactor * early.count);
   if (isBossWave(wave)) count = Math.round(count * WAVES.bossEscortFactor);
 
   const groups = pickFormations(wave, count, formations, random);
@@ -152,7 +164,8 @@ export function composeWave(wave, {
         elite: !def.boss && random() < elites,
         delay: plan.length === 0 ? 0 : i === 0 ? interval : WAVES.formationSpacing,
         follow: g.escort && i > 0 ? leader : null,
-        hpFactor: 1,
+        hpFactor: def.boss ? boost.hp : early.hp,
+        damageFactor: def.boss ? boost.damage : 1,
       });
     });
   }
@@ -160,21 +173,25 @@ export function composeWave(wave, {
 }
 
 // An island's finale: each of its bosses at its time (with hpFactor x its
-// HP), and a trickle of regular formations (trickle x the usual count) every
-// trickleInterval ms from trickleFrom.
+// HP, its own hpFactor / damageFactor if it has them), and a trickle of
+// regular formations (trickle x the usual count) every trickleInterval ms
+// from trickleFrom.
 function finalePlan(wave, offset, finale, formations, random) {
   const groups = pickFormations(wave, Math.round(enemyCount(wave) * finale.trickle), formations, random);
   const elites = eliteChance(wave + offset);
   const timed = [];   // { time, entry, leader }
-  for (const { key, at } of finale.bosses) {
-    timed.push({ time: at, entry: { key, def: ENEMIES[key], elite: false, hpFactor: finale.hpFactor } });
+  for (const { key, at, hpFactor, damageFactor } of finale.bosses) {
+    timed.push({
+      time: at,
+      entry: { key, def: ENEMIES[key], elite: false, hpFactor: hpFactor ?? finale.hpFactor, damageFactor: damageFactor ?? 1 },
+    });
   }
   groups.forEach((g, gi) => {
     const start = finale.trickleFrom + gi * finale.trickleInterval;
     const leader = { key: g.members[0] };
     g.members.forEach((key, i) => {
       const def = ENEMIES[key];
-      const entry = { key, def, elite: random() < elites, hpFactor: 1 };
+      const entry = { key, def, elite: random() < elites, hpFactor: 1, damageFactor: 1 };
       if (i === 0) Object.assign(leader, { entry });
       timed.push({ time: start + i * WAVES.formationSpacing, entry, leader: g.escort && i > 0 ? leader : null });
     });
@@ -258,12 +275,12 @@ export class WaveManager {
       }
       if (ready > 0) this.queue.unshift(...this.queue.splice(ready, 1));
       const {
-        key, def, elite, follow, hpFactor, index,
+        key, def, elite, follow, hpFactor, damageFactor, index,
       } = this.queue.shift();
       const { hp, damage, gold } = this.scaling;
       const enemy = new Enemy(this.scene, def, {
         hpMultiplier: hp * (hpFactor ?? 1),
-        damageMultiplier: damage,
+        damageMultiplier: damage * (damageFactor ?? 1),
         gold: Math.round(def.gold * gold * (elite ? ELITE.goldMultiplier : 1)),
         elite,
         key,

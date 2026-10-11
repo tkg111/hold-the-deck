@@ -586,6 +586,13 @@ export const ABILITY_BAR = {
 //   ranged:    stops at stopX and lobs `shot` at the hull (see below)
 //   witch:     stops at stopX and shields the front enemy (see below)
 //   wyrm / giant: Frostbite Reef's bosses (see below)
+//   resist:    boss resistance on top of statusResist (which halves stun,
+//              slow, fear and push-back): immovable — Haunt and Tidal Wave
+//              can't move it (scared, it stands its ground instead of
+//              fleeing); stunGuardMs — after a stun it can't be stunned
+//              again until this long after that stun ends
+//   animSpeed: the walking speed its walk animation's fps is drawn for, so
+//              the animation keeps step when it walks faster
 //   bannerOnEntrance: a boss whose banner shows when it arrives, not when
 //              the wave sets sail
 // Wanted Board: description is the one-line text on its poster's page,
@@ -1094,11 +1101,13 @@ export const ENEMIES = {
     width: 56,
     height: 105,
     hp: 520,
-    speed: 8.1,         // 60% of the Yeti Raider's
+    speed: 11.3,        // 84% of the Yeti Raider's
+    animSpeed: 8.1,     // the speed its walk animation's fps is drawn for
     damage: 18,         // per smash on the hull
     attackInterval: 2500,   // a smash every
     gold: 50,
     statusResist: 0.5,
+    resist: { immovable: true, stunGuardMs: 4000 },
     banner: 'FROST GIANT',
     bannerOnEntrance: true,
     // Comes in at spawnX behind the front pines, walking at entranceSpeed and
@@ -1110,18 +1119,27 @@ export const ENEMIES = {
     // damage, the camera shakes hard and ground_quake plays on its slamPoint;
     // every freezeEvery-th smash freezes the crewmate nearest the bow for
     // freezeMs. Beaten, it plays "shatter" and is gone.
-    // Finale only (boulders): every boulderEvery ms while walking it stops,
-    // raises its club ("roar") for throwMs and hurls an ice_boulder from
-    // throwFrom (frame-relative) to the hull, spinning at spin rad/s, for
-    // boulderMult x its damage.
+    // Every boulderEvery ms while walking (finaleBoulderEvery in the finale)
+    // it stops, raises its club ("roar") for throwMs and hurls an ice_boulder
+    // from throwFrom (frame-relative) to the hull, spinning at spin rad/s,
+    // for boulderMult x its damage.
+    // Below angry.at of its HP (once) it gets angry: a quick "roar" for
+    // roarMs, its tint flashing between angry.flash colours flashes times
+    // (flashMs each), a shake; then it walks speed x as fast and smashes
+    // every smashEvery ms.
     giant: {
       spawnX: 530, entranceSpeed: 24, treesX: 420, shakeEvery: 100, puffEvery: 300, roarX: 410, roarMs: 1000,
       steps: [1, 3], smashAt: 400, freezeEvery: 3, freezeMs: 1500,
       roarShake: { duration: 400, intensity: 0.004 },
       stepShake: { duration: 60, intensity: 0.0012 },
       smashShake: { duration: 260, intensity: 0.01 },
-      boulderEvery: 6000, throwMs: 500, throwFrom: [76, 18], boulder: 'ice_boulder', boulderMult: 0.6,
+      boulderEvery: 8000, finaleBoulderEvery: 6000, throwMs: 500, throwFrom: [76, 18], boulder: 'ice_boulder', boulderMult: 0.6,
       flightTime: 1300, arcHeight: 55, spin: 9, impact: 'frost_hit',
+      angry: {
+        at: 0.5, speed: 1.25, smashEvery: 1800, roarMs: 600,
+        flash: [0xff4a4a, 0xffffff], flashes: 4, flashMs: 80,
+        shake: { duration: 350, intensity: 0.006 },
+      },
     },
   },
 };
@@ -1273,15 +1291,15 @@ export const EMBER_FORMATIONS = [
 ];
 
 // Frostbite Reef's formations: Frozen Corsairs throughout, Sled Penguins in
-// packs from 8 (pack: [min, max] of its one member, sized by the wave's
-// seeded generator), Yeti Raiders from 12 and Ice Witches (always alone) from
-// 15, with bigger mixed groups later on.
+// packs from 3 (pack: [min, max] of its one member, sized by the wave's
+// seeded generator), Yeti Raiders from 6 and Ice Witches (always alone) from
+// 11, with bigger mixed groups later on.
 export const FROST_FORMATIONS = [
   { from: 1, weight: 4, members: ['frozenCorsair'] },
   { from: 2, weight: 3, members: ['frozenCorsair', 'frozenCorsair', 'frozenCorsair'] },
-  { from: 8, weight: 2, pack: [3, 5], members: ['sledPenguin'] },
-  { from: 12, weight: 2, escort: true, members: ['yetiRaider', 'frozenCorsair', 'frozenCorsair'] },
-  { from: 15, weight: 1.5, members: ['iceWitch'] },
+  { from: 3, weight: 2, pack: [3, 5], members: ['sledPenguin'] },
+  { from: 6, weight: 2, escort: true, members: ['yetiRaider', 'frozenCorsair', 'frozenCorsair'] },
+  { from: 11, weight: 1.5, members: ['iceWitch'] },
   { from: 18, weight: 1.5, escort: true, members: ['frozenCorsair', 'frozenCorsair', 'yetiRaider', 'yetiRaider'] },
   { from: 22, weight: 1.5, escort: true, members: ['yetiRaider', 'sledPenguin', 'sledPenguin', 'sledPenguin'] },
   { from: 26, weight: 1.5, members: ['frozenCorsair', 'frozenCorsair', 'frozenCorsair', 'frozenCorsair', 'frozenCorsair'] },
@@ -1310,6 +1328,11 @@ export const FROST_FORMATIONS = [
 //   ash: ASHFALL over the scene while the ship is there; snow: SNOWFALL
 //   spawnPuff: { fx, x: [min, max], y: [min, max] } an fx sheet played at a
 //            random point in that box as each enemy of a wave comes in
+//   earlyBoost: { until, count, hp } its first waves bring count x as many
+//            enemies with hp x their HP on wave 1, fading evenly to x1 on
+//            wave `until` (and after)
+//   bossBoost: { [wave]: { hp, damage } } that boss wave's boss gets hp x
+//            its HP and damage x its damage (not the finale)
 //   lavaBombs: during every wave a lava bomb (ENEMIES.lavaBomb) every
 //            min-max ms: bomb_warning shows on a random built deck while the
 //            bomb falls onto it from fromY (battlefield y) over warnMs.
@@ -1323,7 +1346,8 @@ export const FROST_FORMATIONS = [
 // finale: the island's last wave (`wave`): its banner (title, detail),
 // weather ('storm': STORM; 'eruption': ASHFALL's heavy weather; 'blizzard':
 // a blizzard the whole wave, without its freezes), its bosses ({ key, at: ms
-// into the wave }, each with hpFactor x its usual HP), and a trickle of
+// into the wave }, each with hpFactor x its usual HP, or its own hpFactor and
+// damageFactor), and a trickle of
 // regular enemies (trickle x the usual count, a group every trickleInterval
 // ms from trickleFrom). enrage 'onBossDown': when one boss dies the other
 // enrages; 'fromStart': they arrive enraged; none: neither. Enraged bosses
@@ -1391,18 +1415,30 @@ export const ISLANDS = [
     formations: FROST_FORMATIONS,
     bosses: ['frostWyrm', 'frostGiant'],
     sirenFromWave: Infinity,   // no Sirens here
+    // Waves 1-15 bring count x as many enemies with hp x their HP, fading
+    // evenly back to x1 by wave `until` (see Progress.earlyBoost).
+    earlyBoost: { until: 16, count: 2, hp: 2.6 },
+    // Per boss wave: its boss with hp x its HP and damage x its damage. The
+    // Frost Giant's damage is capped like everyone's while his HP keeps
+    // growing, so wave 40 has him tougher but softer-hitting than wave 20.
+    bossBoost: {
+      10: { hp: 1.35, damage: 1.4 },
+      20: { hp: 1, damage: 1.2 },
+      40: { hp: 0.7, damage: 0.5 },
+    },
     blizzard: { from: 6, every: 4, skipBossWaves: true, at: 8000, ms: 10000, freezeEvery: 3000, freezeMs: 2000, chill: 0.85 },
     // Wave 50: "Wrath of the Reef". A blizzard the whole wave; the Frost Wyrm
     // swoops in (landing 5s in), and the Frost Giant comes out of the trees
     // 5s after it lands (it spends ~5.4s behind the pines, slowed by the
-    // blizzard like every walker), each at 120% HP, with small trickles
+    // blizzard like every walker), the Wyrm at 120% HP and the Giant at 90%
+    // with 60% of his damage, with small trickles
     // of regular enemies. Unlocks Fogbound Isle on the map.
     finale: {
       wave: 50,
       title: 'WRATH OF THE REEF',
       detail: 'WAVE 50 - FINAL BATTLE',
       weather: 'blizzard',
-      bosses: [{ key: 'frostWyrm', at: 3500 }, { key: 'frostGiant', at: 4600 }],
+      bosses: [{ key: 'frostWyrm', at: 3500 }, { key: 'frostGiant', at: 4600, hpFactor: 0.9, damageFactor: 0.6 }],
       hpFactor: 1.2,
       trickle: 0.6, trickleFrom: 6000, trickleInterval: 3500,
       boulders: true,
