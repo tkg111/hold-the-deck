@@ -4,106 +4,165 @@
 //    fresh save through Skull Cove and Ember Isle (finales included), with
 //    up to MAX_TRIES tries a wave, and stops as it reaches Frostbite Reef:
 //    the crew, decks and hull it has then are "a crew like Ember Isle wave
-//    50 would have".
-// 2. That crew (no further upgrades or chests) plays each wave in WAVES,
-//    `replays` times per seed with different luck. Per wave it reports wins,
-//    clear time, ship HP left, boss time-to-kill (from when it can first be
-//    hit to its death, or the HP it had left), freezes (blizzard / Wyrm /
-//    Giant) and blizzards, what hurt the hull most, and for lost waves how
-//    long the ship lasted and how much of the wave it beat.
-// 3. For context, the greedy bot also carries on into Frostbite Reef as
-//    usual (spending gold after every wave, up to 15 tries a wave).
+//    50 would have". Set FROST_CACHE to a file to keep these between runs
+//    (they don't depend on Frostbite Reef's numbers).
+// 2. Two profiles play Frostbite Reef from there, `replays` times per seed
+//    with different luck. Both tap frozen crew free like a player (see TAP
+//    in simulate.mjs).
+//    - none:     that crew, with no further upgrades or chests, plays each
+//                wave in WAVES on its own.
+//    - upgraded: that crew sails on through waves 1-50 in order, spending
+//                after every attempt like the greedy bot (chests with its
+//                Pearls; with its gold, a deck if one's left, then always the
+//                cheapest of hull and crew levels). A wave lost
+//                UPGRADED_TRIES times in a row is skipped. Each wave in
+//                WAVES reports its first attempt.
+//    Per wave: wins, clear time, ship HP left, boss time-to-kill (from when
+//    it can first be hit to its death, or the HP it had left), freezes
+//    (blizzard / Wyrm / Giant), what hurt the hull most, and for lost waves
+//    how long the ship lasted and how much of the wave it beat.
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { ENEMIES, HEROES } from '../../src/config.js';
 import { Hero } from '../../src/entities/Hero.js';
 import { Progress } from '../../src/systems/Progress.js';
 import { isBlizzardWave } from '../../src/systems/Blizzard.js';
+import { isBossWave } from '../../src/systems/WaveManager.js';
 import {
-  makeBattle, playWave, run, seedRandom,
+  between, makeBattle, playWave, run, seedRandom,
 } from './simulate.mjs';
 
 const SEEDS = Number(process.argv[2] ?? 5);
 const REPLAYS = Number(process.argv[3] ?? 3);
 const MAX_TRIES = 100;
+const UPGRADED_TRIES = 5;
 const ISLAND = 'frostbite_reef';
 const WAVES = [
   ...range(1, 10), ...range(18, 22), ...range(28, 32), ...range(38, 42), ...range(48, 50),
 ];
+// The brief's target bands: [first, last, label].
+const BANDS = [[1, 9], [10, 10], [18, 22], [28, 32], [38, 42], [50, 50]];
 
 function range(a, b) { return Array.from({ length: b - a + 1 }, (_, i) => a + i); }
 
-// Freezes by cause, counted as they happen.
+// Freezes by cause, counted as they happen (tapped ones too).
 const freezes = { blizzard: 0, wyrm: 0, giant: 0 };
 const freeze = Hero.prototype.freeze;
 Hero.prototype.freeze = function countedFreeze(ms, cause) {
-  if (cause in freezes) freezes[cause]++;
+  if (!this.isFrozen && cause in freezes) freezes[cause]++;
   return freeze.call(this, ms, cause);
 };
 
 // --- 1. Crews at the end of Ember Isle ---
 
-const crews = [];
-for (let s = 0; s < SEEDS; s++) {
-  const seed = 1000 + s;
+function endOfEmber(seed) {
   const res = run(seed, 'greedy', {
     maxWave: 50, voyage: true, maxTries: MAX_TRIES, stopAt: (p) => p.islandId === ISLAND,
   });
   const p = res.progress;
-  const reached = p.islandId === ISLAND;
-  const losses = res.log.filter((l) => !l.won && l.island === 'ember_isle').length;
-  crews.push({ seed, save: p.toSave(), reached, losses, crew: res.crew, p });
-  console.error(`seed ${seed}: ${reached ? 'reached Frostbite Reef' : `stuck at ${p.islandId} ${p.wave}`}, `
-    + `${losses} Ember losses; hull LV ${p.hullHpLevel} (${p.hullMaxHp} HP), crew: ${res.crew}`);
+  return {
+    seed,
+    save: p.toSave(),
+    reached: p.islandId === ISLAND,
+    losses: res.log.filter((l) => !l.won && l.island === 'ember_isle').length,
+  };
 }
 
-// --- 2. Each wave with each crew ---
+const cachePath = process.env.FROST_CACHE;
+const cached = cachePath && existsSync(cachePath) ? JSON.parse(readFileSync(cachePath, 'utf8')) : {};
+const crews = [];
+for (let s = 0; s < SEEDS; s++) {
+  const seed = 1000 + s;
+  const crew = cached[seed] ?? endOfEmber(seed);
+  cached[seed] = crew;
+  crew.p = Progress.fromSave(crew.save);
+  crews.push(crew);
+}
+if (cachePath) writeFileSync(cachePath, JSON.stringify(cached, (k, v) => (k === 'p' ? undefined : v)));
 
-const results = new Map();   // wave -> [attempt]
-for (const { seed, save, reached } of crews) {
-  if (!reached) continue;
-  for (const wave of WAVES) {
-    for (let r = 0; r < REPLAYS; r++) {
-      seedRandom(seed * 1000 + wave * 10 + r);
-      const p = Progress.fromSave(save);
+// --- 2. One measured attempt at the current wave ---
+
+function attempt(p) {
+  const wave = p.wave;
+  const scene = makeBattle(p);
+  // Hull damage by enemy type.
+  const hurt = {};
+  const takeDamage = scene.ship.takeDamage.bind(scene.ship);
+  scene.ship.takeDamage = (amount, enemy) => {
+    const key = enemy?.key ?? enemy?.def?.name ?? '?';
+    hurt[key] = (hurt[key] ?? 0) + Math.min(amount, scene.ship.hp);
+    takeDamage(amount, enemy);
+  };
+  // Bosses: when each can first be hit, when it dies, and the HP it has left.
+  const bosses = new Map();
+  const onStep = (time) => {
+    for (const e of scene.waves.spawned) {
+      if (!e?.def.boss) continue;
+      if (!bosses.has(e)) bosses.set(e, { key: e.key, from: null, to: null });
+      const b = bosses.get(e);
+      if (b.from == null && e.targetable) b.from = time;
+      if (b.to == null && !e.alive) b.to = time;
+      b.hpLeft = Math.max(0, e.hp) / e.maxHp;
+    }
+  };
+  for (const k of Object.keys(freezes)) freezes[k] = 0;
+  const finale = p.isFinaleWave;
+  const out = playWave(scene, p, onStep);
+  // Share of the wave beaten: enemies dealt with (rams count) out of all it had.
+  const left = scene.waves.queue.length + scene.enemies.filter((e) => e.alive && !e.def.hazard).length;
+  const total = scene.waves.total;
+  return {
+    ...out,
+    wave,
+    beaten: total ? (total - left) / total : 1,
+    freezes: { ...freezes },
+    blizzard: finale || isBlizzardWave(wave, p.island),
+    bosses: [...bosses.values()].map((b) => ({ ...b, ttk: b.from != null && b.to != null ? b.to - b.from : null })),
+    hurt,
+  };
+}
+
+// --- 3. The profiles ---
+
+const results = { none: new Map(), upgraded: new Map() };   // wave -> [attempt]
+const record = (profile, a) => {
+  if (!WAVES.includes(a.wave)) return;
+  const list = results[profile].get(a.wave) ?? [];
+  list.push(a);
+  results[profile].set(a.wave, list);
+};
+const upgradedEnd = [];
+
+for (const crew of crews) {
+  if (!crew.reached) continue;
+  for (let r = 0; r < REPLAYS; r++) {
+    // No upgrades: each wave on its own.
+    for (const wave of WAVES) {
+      seedRandom(crew.seed * 1000 + wave * 10 + r);
+      const p = Progress.fromSave(crew.save);
       p.sailTo(ISLAND);
       p.wave = wave;
-      const scene = makeBattle(p);
-      // Hull damage by enemy type.
-      const hurt = {};
-      const takeDamage = scene.ship.takeDamage.bind(scene.ship);
-      scene.ship.takeDamage = (amount, enemy) => {
-        const key = enemy?.key ?? enemy?.def?.name ?? '?';
-        hurt[key] = (hurt[key] ?? 0) + Math.min(amount, scene.ship.hp);
-        takeDamage(amount, enemy);
-      };
-      // Bosses: when each can first be hit, and when it dies.
-      const bosses = new Map();   // enemy -> { key, from, to, hpLeft }
-      const onStep = (time) => {
-        for (const e of scene.waves.spawned) {
-          if (!e?.def.boss) continue;
-          if (!bosses.has(e)) bosses.set(e, { key: e.key, from: null, to: null });
-          const b = bosses.get(e);
-          if (b.from == null && e.targetable) b.from = time;
-          if (b.to == null && !e.alive) b.to = time;
-          b.hpLeft = Math.max(0, e.hp) / e.maxHp;
-        }
-      };
-      for (const k of Object.keys(freezes)) freezes[k] = 0;
-      const out = playWave(scene, p, onStep);
-      // Share of the wave beaten: enemies that came in and were dealt with,
-      // out of all it had (rams and kegs on the hull count as dealt with).
-      const left = scene.waves.queue.length + scene.enemies.filter((e) => e.alive && !e.def.hazard).length;
-      const total = scene.waves.total;
-      const list = results.get(wave) ?? [];
-      list.push({
-        ...out,
-        beaten: total ? (total - left) / total : 1,
-        freezes: { ...freezes },
-        blizzard: isBlizzardWave(wave, p.island) || !!p.island.finale && wave === p.island.finale.wave,
-        bosses: [...bosses.values()].map((b) => ({ ...b, ttk: b.from != null && b.to != null ? b.to - b.from : null })),
-        hurt,
-      });
-      results.set(wave, list);
+      record('none', attempt(p));
     }
+    // Upgraded: on through the island, spending after every attempt.
+    seedRandom(crew.seed * 1000 + 500 + r);
+    const p = Progress.fromSave(crew.save);
+    p.sailTo(ISLAND);
+    let skipped = 0;
+    while (p.wave <= 50) {
+      const wave = p.wave;
+      let won = false;
+      for (let t = 0; t < UPGRADED_TRIES && !won; t++) {
+        const a = attempt(p);
+        if (t === 0) record('upgraded', a);   // retries aren't reported
+        won = a.won;
+        between(p, true);
+      }
+      if (won) continue;   // winning moved it on
+      if (wave === 50) break;
+      skipped++;
+      p.advanceWave();
+    }
+    upgradedEnd.push({ seed: crew.seed, r, p, skipped });
   }
 }
 
@@ -114,56 +173,88 @@ const sec = (ms) => (Number.isFinite(ms) ? `${Math.round(ms / 1000)}` : '-');
 const pct = (x) => (Number.isFinite(x) ? `${Math.round(x * 100)}%` : '-');
 const span = (xs, f) => (xs.length ? `${f(Math.min(...xs))}–${f(Math.max(...xs))}` : '-');
 const name = (key) => ENEMIES[key]?.name ?? key;
-
-console.log('### Crews used (greedy bot, end of Ember Isle)\n');
-// A crew line: short name, level and stars.
 const crewLine = (p) => p.activeHeroes
   .map(({ id }) => `${HEROES[id].shortName} ${p.heroLevel(id)} ${p.heroStarCount(id)}★`).join(', ');
+
+console.log('### Crews used (greedy bot, end of Ember Isle)\n');
 console.log('| Seed | Reached Frostbite Reef | Ember losses | Hull LV (max HP) | Decks | Crew (level, stars) |');
 console.log('|---:|---|---:|---|---:|---|');
 for (const c of crews) {
   console.log(`| ${c.seed} | ${c.reached ? 'yes' : 'no'} | ${c.losses} | ${c.p.hullHpLevel} (${c.p.hullMaxHp}) | ${c.p.decks} | ${crewLine(c.p)} |`);
 }
 
-console.log(`\n### Waves (${crews.filter((c) => c.reached).length} crews x ${REPLAYS} replays each)\n`);
-console.log('| Wave | Won | Clear time s (avg, range) | Ship HP left (avg, range) | Lost: sunk after s / wave beaten | Freezes per wave: blizzard / Wyrm / Giant | Boss time-to-kill s (avg, range) | Most hull damage from |');
-console.log('|---:|---|---|---|---|---|---|---|');
-for (const wave of WAVES) {
-  const list = results.get(wave) ?? [];
-  const won = list.filter((a) => a.won);
-  const clear = won.map((a) => a.time);
-  const hp = list.map((a) => a.hullLeft);
-  const lost = list.filter((a) => !a.won);
-  const lostCell = lost.length ? `${sec(avg(lost.map((a) => a.time)))} / ${pct(avg(lost.map((a) => a.beaten)))}` : '-';
-  const fz = (k) => avg(list.map((a) => a.freezes[k])).toFixed(1);
-  const bossKeys = [...new Set(list.flatMap((a) => a.bosses.map((b) => b.key)))];
-  const bossCell = bossKeys.map((k) => {
-    const ttks = list.flatMap((a) => a.bosses.filter((b) => b.key === k && b.ttk != null).map((b) => b.ttk));
-    const survived = list.flatMap((a) => a.bosses.filter((b) => b.key === k && b.ttk == null).map((b) => b.hpLeft));
-    const killed = ttks.length ? `${sec(avg(ttks))} (${span(ttks, sec)})` : 'never killed';
-    return `${name(k)}: ${killed}${survived.length ? `; alive ${survived.length}x with ${pct(avg(survived))} HP left` : ''}`;
-  }).join('; ') || '-';
-  const hurt = {};
-  for (const a of list) for (const [k, v] of Object.entries(a.hurt)) hurt[k] = (hurt[k] ?? 0) + v;
-  const total = Object.values(hurt).reduce((a, b) => a + b, 0);
-  const top = Object.entries(hurt).sort((a, b) => b[1] - a[1]).slice(0, 2)
-    .map(([k, v]) => `${name(k)} ${Math.round(100 * v / total)}%`).join(', ') || '-';
-  const blizzard = list[0]?.blizzard ? ' ❄' : '';
-  console.log(`| ${wave}${blizzard} | ${won.length}/${list.length} | ${sec(avg(clear))} (${span(clear, sec)}) | `
-    + `${pct(avg(hp))} (${span(hp, pct)}) | ${lostCell} | ${fz('blizzard')} / ${fz('wyrm')} / ${fz('giant')} | ${bossCell} | ${top} |`);
+function waveTable(profile) {
+  console.log('| Wave | Won | Clear time s (avg, range) | Ship HP left (avg, range) | Lost: sunk after s / wave beaten | Freezes: blizzard / Wyrm / Giant | Boss time-to-kill s (avg, range) | Most hull damage from |');
+  console.log('|---:|---|---|---|---|---|---|---|');
+  for (const wave of WAVES) {
+    const list = results[profile].get(wave) ?? [];
+    const won = list.filter((a) => a.won);
+    const clear = won.map((a) => a.time);
+    const hp = list.map((a) => a.hullLeft);
+    const lost = list.filter((a) => !a.won);
+    const lostCell = lost.length ? `${sec(avg(lost.map((a) => a.time)))} / ${pct(avg(lost.map((a) => a.beaten)))}` : '-';
+    const fz = (k) => avg(list.map((a) => a.freezes[k])).toFixed(1);
+    const bossKeys = [...new Set(list.flatMap((a) => a.bosses.map((b) => b.key)))];
+    const bossCell = bossKeys.map((k) => {
+      const ttks = list.flatMap((a) => a.bosses.filter((b) => b.key === k && b.ttk != null).map((b) => b.ttk));
+      const survived = list.flatMap((a) => a.bosses.filter((b) => b.key === k && b.ttk == null).map((b) => b.hpLeft));
+      const killed = ttks.length ? `${sec(avg(ttks))} (${span(ttks, sec)})` : 'never killed';
+      return `${name(k)}: ${killed}${survived.length ? `; alive ${survived.length}x with ${pct(avg(survived))} HP left` : ''}`;
+    }).join('; ') || '-';
+    const hurt = {};
+    for (const a of list) for (const [k, v] of Object.entries(a.hurt)) hurt[k] = (hurt[k] ?? 0) + v;
+    const total = Object.values(hurt).reduce((a, b) => a + b, 0);
+    const top = Object.entries(hurt).sort((a, b) => b[1] - a[1]).slice(0, 2)
+      .map(([k, v]) => `${name(k)} ${Math.round(100 * v / total)}%`).join(', ') || '-';
+    const blizzard = list[0]?.blizzard ? ' ❄' : '';
+    console.log(`| ${wave}${blizzard} | ${won.length}/${list.length} | ${sec(avg(clear))} (${span(clear, sec)}) | `
+      + `${pct(avg(hp))} (${span(hp, pct)}) | ${lostCell} | ${fz('blizzard')} / ${fz('wyrm')} / ${fz('giant')} | ${bossCell} | ${top} |`);
+  }
 }
 
-// --- 3. For context: the greedy bot carrying on into Frostbite Reef ---
+for (const profile of ['none', 'upgraded']) {
+  const runs = [...results[profile].values()][0]?.length ?? 0;
+  console.log(`\n### Waves, profile "${profile}" (${runs} attempts per wave)\n`);
+  waveTable(profile);
+}
 
-console.log('\n### For context: the greedy bot carrying on (upgrading between waves)\n');
-console.log('| Seed | Stopped at | Losses on Frostbite Reef | Hull LV | Crew (level) |');
-console.log('|---:|---|---:|---:|---|');
-for (let s = 0; s < SEEDS; s++) {
-  const seed = 1000 + s;
-  const res = run(seed, 'greedy', { maxWave: 50, voyage: true, maxTries: 15 });
-  const p = res.progress;
-  const frost = p.islandId === ISLAND;
-  const losses = res.log.filter((l) => !l.won && l.island === ISLAND).length;
-  const at = frost ? `Frostbite ${p.wave}${res.wall ? ' (wall)' : ''}` : `${p.island.name} ${p.wave} (wall before Frostbite Reef)`;
-  console.log(`| ${seed} | ${at} | ${losses} | ${p.hullHpLevel} | ${res.crew} |`);
+// Side by side against the target bands.
+console.log('\n### Summary by band (wins out of attempts)\n');
+console.log('| Waves | No upgrades | Upgraded |');
+console.log('|---|---|---|');
+for (const [a, b] of BANDS) {
+  const cell = (profile) => range(a, b).map((w) => {
+    const list = results[profile].get(w) ?? [];
+    return `${w}: ${list.filter((x) => x.won).length}/${list.length}`;
+  }).join(', ');
+  console.log(`| ${a === b ? a : `${a}–${b}`} | ${cell('none')} | ${cell('upgraded')} |`);
+}
+
+// Freezes per wave: blizzard waves (not the finale) and the Wyrm's waves.
+console.log('\n### Freezes per wave (all causes, tapped ones included)\n');
+console.log('| | No upgrades | Upgraded |');
+console.log('|---|---|---|');
+const freezeAvg = (profile, pick) => {
+  const list = [...results[profile].values()].flat().filter(pick);
+  return avg(list.map((a) => a.freezes.blizzard + a.freezes.wyrm + a.freezes.giant)).toFixed(1);
+};
+const blizzardWave = (a) => a.blizzard && a.wave !== 50;
+const wyrmWave = (a) => isBossWave(a.wave) && a.bosses.some((b) => b.key === 'frostWyrm') && a.wave !== 50;
+console.log(`| Blizzard waves | ${freezeAvg('none', blizzardWave)} | ${freezeAvg('upgraded', blizzardWave)} |`);
+console.log(`| Wyrm waves (10, 30) | ${freezeAvg('none', wyrmWave)} | ${freezeAvg('upgraded', wyrmWave)} |`);
+
+// The finale: did both bosses take damage?
+console.log('\n### Finale bosses\n');
+for (const profile of ['none', 'upgraded']) {
+  const list = results[profile].get(50) ?? [];
+  const both = list.filter((a) => a.bosses.length === 2 && a.bosses.every((b) => b.ttk != null || b.hpLeft < 1)).length;
+  const hp = (k) => pct(avg(list.flatMap((a) => a.bosses.filter((b) => b.key === k).map((b) => (b.ttk != null ? 0 : b.hpLeft)))));
+  console.log(`- ${profile}: both bosses hurt in ${both}/${list.length}; HP left on average: Wyrm ${hp('frostWyrm')}, Giant ${hp('frostGiant')}`);
+}
+
+console.log('\n### Upgraded runs at the end of Frostbite Reef\n');
+console.log('| Seed | Run | Waves skipped (lost 5x) | Hull LV (max HP) | Crew (level, stars) |');
+console.log('|---:|---:|---:|---|---|');
+for (const u of upgradedEnd) {
+  console.log(`| ${u.seed} | ${u.r + 1} | ${u.skipped} | ${u.p.hullHpLevel} (${u.p.hullMaxHp}) | ${crewLine(u.p)} |`);
 }

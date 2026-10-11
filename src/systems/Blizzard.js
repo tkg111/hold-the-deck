@@ -1,10 +1,13 @@
 import { sfx } from '../audio/Sfx.js';
+import { isBossWave } from './WaveManager.js';
 
 // Whether a wave on an island has a blizzard (its `blizzard`: every
-// every-th wave from `from`). The finale's is separate (see Blizzard.start).
+// every-th wave from `from`, skipping boss waves with skipBossWaves). The
+// finale's is separate (see Blizzard.start).
 export function isBlizzardWave(wave, island) {
   const b = island?.blizzard;
-  return !!b && wave >= b.from && (wave - b.from) % b.every === 0;
+  if (!b || wave < b.from || (wave - b.from) % b.every !== 0) return false;
+  return !(b.skipBossWaves && isBossWave(wave));
 }
 
 // Frostbite Reef's blizzards during a wave (the island's `blizzard`): one

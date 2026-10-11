@@ -235,6 +235,7 @@ export class Enemy {
       this.riseTime = w.flyInMs;
       this.breathTimer = w.firstBreathAt;
       this.breathDue = 0;      // ms until the breath under way lands
+      this.breaths = 0;        // breaths landed (every freezeEvery-th freezes)
       this.extraBreaths = 0;   // quick breaths still to come (after landing)
       this.airTime = 0;        // lifted off the iceberg, out of reach
       this.lifted = false;
@@ -338,9 +339,9 @@ export class Enemy {
 
   get isRising() { return this.riseTime > 0; }
   // Out of reach for now: the Frost Wyrm in the air, the Frost Giant until
-  // it has roared.
+  // it roars.
   get isHidden() {
-    return this.airTime > 0 || (!!this.def.giant && (this.phase === 'enter' || this.phase === 'roar'));
+    return this.airTime > 0 || (!!this.def.giant && this.phase === 'enter');
   }
   // Drawn centred on its body rather than standing in a 32x32 box (status
   // and target marks): The Kraken, the Ghost Galleon, the Molten Leviathan
@@ -921,7 +922,8 @@ export class Enemy {
   }
 
   // The breath lands: frost_breath with its right edge at the mouth, the
-  // hull takes the Wyrm's damage and the crewmate nearest the bow freezes.
+  // hull takes the Wyrm's damage, and every freezeEvery-th breath freezes the
+  // crewmate nearest the bow.
   breathe(ship) {
     const { scene } = this;
     const w = this.def.wyrm;
@@ -931,7 +933,7 @@ export class Enemy {
     playFx(scene, w.breath, left + mx, top + my).setOrigin(1, 0.5);
     ship.takeDamage(this.damage, this);
     scene.cameras.main.shake(w.shake.duration, w.shake.intensity);
-    ship.crewNearestBow(scene.heroes)?.freeze(w.freezeMs, 'wyrm');
+    if (++this.breaths % w.freezeEvery === 0) ship.crewNearestBow(scene.heroes)?.freeze(w.freezeMs, 'wyrm');
     sfx.frostHit();
   }
 

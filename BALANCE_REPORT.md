@@ -496,7 +496,8 @@ Expected crits and the Cabin Boy's level speed are included; deck buffs are not.
 Measured right after Frostbite Reef was added, **before any tuning**: every
 Frostbite Reef number below is a first guess in `src/config.js`, and nothing
 was rebalanced. Reproduce with `npm run sim:frost -- 5 3`
-(`scripts/sim/frost.mjs`).
+(`scripts/sim/frost.mjs`). Section 8 has the rebalance that followed (and
+changed how the sim plays), so these numbers are out of date.
 
 **How the numbers were made**
 
@@ -649,3 +650,339 @@ runs gets past Ember Isle that way, and it stalls on the Reef at wave 30.
   the code stopped Ember Isle's lava bombs from hurting the ship. It's fixed,
   and `npm run sim -- 3 50 voyage` gives exactly the same Skull Cove and Ember
   Isle results as before Frostbite Reef was added.
+
+---
+
+## 8. Frostbite Reef rebalance
+
+Based on section 7. Branch `frostbite-reef`. Every number lives in
+`src/config.js`. Reproduce with `npm run sim:frost -- 5 3` (set
+`FROST_CACHE=<file>` to reuse the end-of-Ember crews between runs).
+
+### 8.1 A sim closer to a real player
+
+I changed the sim before touching any numbers:
+
+- **Tapping frozen crew:** the bot taps a frozen crewmate free 0.8s after it
+  freezes, 60% of the time; otherwise the ice lasts its full time (`TAP` in
+  `scripts/sim/simulate.mjs`). This applies to every sim run, but only
+  Frostbite Reef freezes anyone, so other islands are unaffected.
+- **Two profiles**, reported side by side from now on:
+  - **No upgrades:** section 7's method. The end-of-Ember crew plays each
+    listed wave on its own, 3 replays × 5 crews = 15 attempts per wave.
+  - **Upgraded:** the same crew sails on through waves 1–50 in order. After
+    every attempt it spends like the greedy bot: it opens chests with its
+    Pearls, then with its gold builds a deck if one is left, then always buys
+    the cheapest of hull and crew levels. A wave lost 5 times running is
+    skipped. Each listed wave reports its first attempt, again 15 per wave.
+  - In this game the Shipwright's upgrades (hull, crew levels) cost **gold**,
+    not Pearls; Pearls only buy chests (stars and Bonus Levels). So the
+    profile spends both, each on what it buys.
+
+### 8.2 Section 7 rerun with both profiles, before any balance change
+
+"Before" from here on means the section 7 numbers with the new sim (tapping
+on). Summary by band:
+
+| Waves | No upgrades | Upgraded |
+|---|---|---|
+| 1–9 | all 15/15 | all 15/15 |
+| 10 (Wyrm) | 14/15 | 15/15 |
+| 18–22 | 15, 15, 15, 12, 12 | all 15/15 |
+| 28–32 | all 0/15 | 1, 3, 0, 0, 0 |
+| 38–42 | all 0/15 | all 0/15 |
+| 50 finale | 0/15 | 0/15 |
+
+Freezes per wave: about 5 on blizzard waves (that average includes waves 10
+and 30, where the Wyrm adds its own), 9–10 on Wyrm waves.
+
+**How much was the sim, and how much the numbers?** Tapping changed little:
+wave 10 still loses about 1 in 15. Upgrades changed little too: over 50 Reef
+waves the upgraded crews gained only about 2 crew levels and 5 hull levels,
+and skipped 19–25 of the 50 waves after losing them 5 times. At the old
+damage curve they rarely win, so they earn little gold, and at level ~58 a
+crew level costs 1.3–1.9M gold. **The problem was the numbers**: the damage
+curve, more than the sim.
+
+Full tables, before:
+
+**No upgrades**
+
+| Wave | Won | Clear time s (avg, range) | Ship HP left (avg, range) | Lost: sunk after s / wave beaten | Freezes: blizzard / Wyrm / Giant | Boss time-to-kill s (avg, range) | Most hull damage from |
+|---:|---|---|---|---|---|---|---|
+| 1 | 15/15 | 10 (9–10) | 100% (100%–100%) | - | 0.0 / 0.0 / 0.0 | - | - |
+| 2 | 15/15 | 11 (11–12) | 100% (100%–100%) | - | 0.0 / 0.0 / 0.0 | - | - |
+| 3 | 15/15 | 12 (12–13) | 100% (100%–100%) | - | 0.0 / 0.0 / 0.0 | - | - |
+| 4 | 15/15 | 22 (20–24) | 100% (100%–100%) | - | 0.0 / 0.0 / 0.0 | - | - |
+| 5 | 15/15 | 23 (22–23) | 100% (100%–100%) | - | 0.0 / 0.0 / 0.0 | - | - |
+| 6 ❄ | 15/15 | 21 (20–23) | 100% (100%–100%) | - | 3.0 / 0.0 / 0.0 | - | - |
+| 7 | 15/15 | 30 (28–33) | 99% (96%–100%) | - | 0.0 / 0.0 / 0.0 | - | Frozen Corsair 100% |
+| 8 | 15/15 | 25 (24–26) | 96% (92%–100%) | - | 0.0 / 0.0 / 0.0 | - | Sled Penguin 100% |
+| 9 | 15/15 | 26 (25–26) | 100% (100%–100%) | - | 0.0 / 0.0 / 0.0 | - | - |
+| 10 ❄ | 14/15 | 43 (38–47) | 31% (0%–46%) | 44 / 95% | 3.0 / 8.8 / 0.0 | Frost Wyrm: 37 (33–42); alive 1x with 1% HP left | Frost Wyrm 84%, Sled Penguin 16% |
+| 18 ❄ | 15/15 | 53 (48–57) | 45% (27%–74%) | - | 3.0 / 0.0 / 0.0 | - | Yeti Raider 77%, Sled Penguin 23% |
+| 19 | 15/15 | 46 (45–47) | 80% (71%–90%) | - | 0.0 / 0.0 / 0.0 | - | Sled Penguin 78%, Yeti Raider 22% |
+| 20 | 15/15 | 70 (65–76) | 47% (28%–67%) | - | 0.0 / 0.0 / 0.0 | Frost Giant: 51 (41–58) | Yeti Raider 93%, Frost Giant 6% |
+| 21 | 12/15 | 75 (69–83) | 17% (0%–37%) | 48 / 62% | 0.0 / 0.0 / 0.0 | - | Yeti Raider 70%, Frozen Corsair 30% |
+| 22 ❄ | 12/15 | 59 (52–64) | 16% (0%–42%) | 48 / 87% | 3.0 / 0.0 / 0.0 | - | Yeti Raider 70%, Sled Penguin 30% |
+| 28 | 0/15 | - (-) | 0% (0%–0%) | 45 / 59% | 0.0 / 0.0 / 0.0 | - | Frozen Corsair 59%, Sled Penguin 24% |
+| 29 | 0/15 | - (-) | 0% (0%–0%) | 28 / 71% | 0.0 / 0.0 / 0.0 | - | Sled Penguin 66%, Yeti Raider 28% |
+| 30 ❄ | 0/15 | - (-) | 0% (0%–0%) | 24 / 43% | 3.0 / 3.8 / 0.0 | Frost Wyrm: never killed; alive 15x with 87% HP left | Frost Wyrm 47%, Frozen Corsair 23% |
+| 31 | 0/15 | - (-) | 0% (0%–0%) | 27 / 58% | 0.0 / 0.0 / 0.0 | - | Yeti Raider 36%, Sled Penguin 32% |
+| 32 | 0/15 | - (-) | 0% (0%–0%) | 45 / 45% | 0.0 / 0.0 / 0.0 | - | Yeti Raider 61%, Sled Penguin 38% |
+| 38 ❄ | 0/15 | - (-) | 0% (0%–0%) | 27 / 67% | 3.0 / 0.0 / 0.0 | - | Sled Penguin 84%, Yeti Raider 16% |
+| 39 | 0/15 | - (-) | 0% (0%–0%) | 38 / 47% | 0.0 / 0.0 / 0.0 | - | Frozen Corsair 62%, Yeti Raider 38% |
+| 40 | 0/15 | - (-) | 0% (0%–0%) | 23 / 56% | 0.0 / 0.0 / 0.0 | Frost Giant: never killed; alive 15x with 98% HP left | Sled Penguin 81%, Yeti Raider 12% |
+| 41 | 0/15 | - (-) | 0% (0%–0%) | 22 / 65% | 0.0 / 0.0 / 0.0 | - | Sled Penguin 68%, Yeti Raider 32% |
+| 42 ❄ | 0/15 | - (-) | 0% (0%–0%) | 21 / 72% | 3.0 / 0.0 / 0.0 | - | Sled Penguin 76%, Frozen Corsair 16% |
+| 48 | 0/15 | - (-) | 0% (0%–0%) | 25 / 69% | 0.0 / 0.0 / 0.0 | - | Yeti Raider 54%, Sled Penguin 36% |
+| 49 | 0/15 | - (-) | 0% (0%–0%) | 18 / 77% | 0.0 / 0.0 / 0.0 | - | Sled Penguin 58%, Frozen Corsair 42% |
+| 50 ❄ | 0/15 | - (-) | 0% (0%–0%) | 17 / 88% | 0.0 / 3.5 / 0.0 | Frost Wyrm: never killed; alive 15x with 57% HP left; Frost Giant: never killed; alive 15x with 100% HP left | Frost Wyrm 83%, Sled Penguin 17% |
+
+**Upgraded**
+
+| Wave | Won | Clear time s (avg, range) | Ship HP left (avg, range) | Lost: sunk after s / wave beaten | Freezes: blizzard / Wyrm / Giant | Boss time-to-kill s (avg, range) | Most hull damage from |
+|---:|---|---|---|---|---|---|---|
+| 1 | 15/15 | 10 (9–10) | 100% (100%–100%) | - | 0.0 / 0.0 / 0.0 | - | - |
+| 2 | 15/15 | 11 (11–12) | 100% (100%–100%) | - | 0.0 / 0.0 / 0.0 | - | - |
+| 3 | 15/15 | 12 (11–13) | 100% (100%–100%) | - | 0.0 / 0.0 / 0.0 | - | - |
+| 4 | 15/15 | 22 (20–24) | 100% (100%–100%) | - | 0.0 / 0.0 / 0.0 | - | - |
+| 5 | 15/15 | 23 (22–23) | 100% (100%–100%) | - | 0.0 / 0.0 / 0.0 | - | - |
+| 6 ❄ | 15/15 | 21 (19–23) | 100% (100%–100%) | - | 3.0 / 0.0 / 0.0 | - | - |
+| 7 | 15/15 | 30 (27–33) | 100% (98%–100%) | - | 0.0 / 0.0 / 0.0 | - | Frozen Corsair 100% |
+| 8 | 15/15 | 25 (23–26) | 97% (96%–100%) | - | 0.0 / 0.0 / 0.0 | - | Sled Penguin 100% |
+| 9 | 15/15 | 26 (24–27) | 100% (100%–100%) | - | 0.0 / 0.0 / 0.0 | - | - |
+| 10 ❄ | 15/15 | 43 (39–47) | 38% (19%–47%) | - | 3.0 / 9.3 / 0.0 | Frost Wyrm: 38 (34–41) | Frost Wyrm 84%, Sled Penguin 16% |
+| 18 ❄ | 15/15 | 50 (45–55) | 65% (47%–91%) | - | 3.0 / 0.0 / 0.0 | - | Yeti Raider 79%, Sled Penguin 21% |
+| 19 | 15/15 | 45 (40–47) | 86% (74%–91%) | - | 0.0 / 0.0 / 0.0 | - | Sled Penguin 81%, Yeti Raider 19% |
+| 20 | 15/15 | 67 (60–73) | 65% (54%–79%) | - | 0.0 / 0.0 / 0.0 | Frost Giant: 49 (41–56) | Yeti Raider 100% |
+| 21 | 15/15 | 70 (61–82) | 45% (27%–76%) | - | 0.0 / 0.0 / 0.0 | - | Yeti Raider 77%, Frozen Corsair 23% |
+| 22 ❄ | 15/15 | 55 (50–63) | 43% (17%–70%) | - | 3.0 / 0.0 / 0.0 | - | Yeti Raider 75%, Sled Penguin 25% |
+| 28 | 1/15 | 69 (69–69) | 1% (0%–10%) | 46 / 63% | 0.0 / 0.0 / 0.0 | - | Frozen Corsair 53%, Yeti Raider 32% |
+| 29 | 3/15 | 71 (69–72) | 10% (0%–70%) | 44 / 66% | 0.0 / 0.0 / 0.0 | - | Sled Penguin 46%, Yeti Raider 33% |
+| 30 ❄ | 0/15 | - (-) | 0% (0%–0%) | 30 / 45% | 3.0 / 5.5 / 0.0 | Frost Wyrm: never killed; alive 15x with 70% HP left | Frost Wyrm 52%, Frozen Corsair 22% |
+| 31 | 0/15 | - (-) | 0% (0%–0%) | 38 / 56% | 0.0 / 0.0 / 0.0 | - | Yeti Raider 51%, Frozen Corsair 29% |
+| 32 | 0/15 | - (-) | 0% (0%–0%) | 46 / 50% | 0.0 / 0.0 / 0.0 | - | Yeti Raider 60%, Sled Penguin 37% |
+| 38 ❄ | 0/15 | - (-) | 0% (0%–0%) | 44 / 54% | 3.0 / 0.0 / 0.0 | - | Sled Penguin 66%, Yeti Raider 33% |
+| 39 | 0/15 | - (-) | 0% (0%–0%) | 46 / 42% | 0.0 / 0.0 / 0.0 | - | Yeti Raider 63%, Frozen Corsair 37% |
+| 40 | 0/15 | - (-) | 0% (0%–0%) | 33 / 63% | 0.0 / 0.0 / 0.0 | Frost Giant: never killed; alive 15x with 88% HP left | Sled Penguin 71%, Frozen Corsair 17% |
+| 41 | 0/15 | - (-) | 0% (0%–0%) | 31 / 58% | 0.0 / 0.0 / 0.0 | - | Sled Penguin 58%, Yeti Raider 42% |
+| 42 ❄ | 0/15 | - (-) | 0% (0%–0%) | 22 / 73% | 3.0 / 0.0 / 0.0 | - | Sled Penguin 69%, Frozen Corsair 26% |
+| 48 | 0/15 | - (-) | 0% (0%–0%) | 38 / 60% | 0.0 / 0.0 / 0.0 | - | Yeti Raider 64%, Sled Penguin 21% |
+| 49 | 0/15 | - (-) | 0% (0%–0%) | 19 / 77% | 0.0 / 0.0 / 0.0 | - | Sled Penguin 50%, Frozen Corsair 50% |
+| 50 ❄ | 0/15 | - (-) | 0% (0%–0%) | 21 / 88% | 0.0 / 4.1 / 0.0 | Frost Wyrm: never killed; alive 15x with 49% HP left; Frost Giant: never killed; alive 15x with 99% HP left | Frost Wyrm 83%, Sled Penguin 12% |
+
+### 8.3 The damage curve
+
+**Chosen:** up to effective wave 100, enemy damage grows ×1.04 per wave as
+before. After that it grows **×1.03 per wave, capped at ×62**
+(`WAVES.lateDamage = { from: 100, growth: 0.03, cap: 62 }`). Effective
+wave means wave + island offset, so Frostbite Reef's wave n is 98 + n. HP
+growth is unchanged.
+
+| Reef wave | Effective wave | Damage before | Damage now |
+|---:|---:|---:|---:|
+| 1 | 99 | ×47 | ×47 |
+| 2 | 100 | ×49 | ×49 |
+| 5 | 103 | ×55 | ×53 |
+| 10 | 108 | ×66 | ×62 |
+| 20 | 118 | ×98 | ×62 |
+| 30 | 128 | ×146 | ×62 |
+| 40 | 138 | ×216 | ×62 |
+| 50 | 148 | ×319 | ×62 |
+
+It's a cap per island in effect: the Reef's damage rises for its first 10
+waves and then holds, while HP keeps growing (×192 at wave 10, ×334 at 50)
+and so does the wave size (5 + 2.5 per wave).
+
+**Why this shape:** a plain softer exponent made early Frostbite Reef too easy
+and late Frostbite Reef a wall at the same time, because the wall comes from
+HP and enemy count as much as from damage. I tried, with the fixes below
+applied:
+
+| Curve after wave 100 | Wyrm breath | Finale HP | No upgrades 28–32 / 38–42 / 50 | Upgraded 28–32 / 38–42 / 50 |
+|---|---:|---:|---|---|
+| ×1.01 per wave, no cap | 15 | 0.7 | 15,15,0,0,0 / 0,2,0,0,0 / 0 | 15,15,6,15,14 / 10,15,14,15,5 / 15 |
+| flat (×1.00) | 15 | 0.7 | 15,15,2,10,9 / 2,9,4,9,0 / 5 | 15,15,15,15,14 / 13,15,15,15,13 / 15 |
+| ×1.03, cap ×72 | 10 | 0.85 | 11,15,0,0,0 / 0,2,0,0,0 / 0 | 15,15,11,11,10 / 9,14,13,14,4 / 13 |
+| ×1.03, cap ×65 | 10 | 0.85 | 14,15,0,0,0 / 0,5,0,2,0 / 0 | 15,15,15,15,12 / 13,15,15,15,9 / 15 |
+| ×1.04, cap ×70 | 10 | 0.85 | 11,15,0,0,0 / 0,2,0,0,0 / 0 | 15,15,11,15,11 / 13,15,15,15,4 / 15 |
+| ×1.03, cap ×65 | 7 | 1.2 | 14,15,3,0,0 / 0,5,0,2,0 / 0 | 15,15,15,15,12 / 13,15,15,15,9 / 9 |
+| **×1.03, cap ×62** | **7** | **1.2** | **15,15,3,1,0 / 0,6,0,2,0 / 0** | **15,15,15,15,12 / 14,15,15,15,11 / 10** |
+
+The flat curve came closest for the no-upgrades crew, but it let the upgraded
+crew win nearly everything, the finale included. The ×62 cap sits between
+them: upgraded lands in its target bands, and no upgrades walls where a crew
+that stops upgrading should.
+
+Skull Cove and Ember Isle are untouched: their effective waves are 1–99.
+`npm run sim -- 3 50 voyage` gives the same result for every Skull Cove and
+Ember Isle wave as on `main` before Frostbite Reef. The one run that clears
+Ember Isle now also clears Frostbite Reef.
+
+### 8.4 The specific fixes
+
+- **Yeti Raiders:** snowballs hit for 0.8× (was 1.2×), every 4s (was 3s),
+  and at most **3 on screen** (more wait in the queue, like Ice Witches). The
+  stop point stays at **x 300**, because every crewmate reaches it from every
+  slot: the farthest pair is slot 5 (16,150) to a Yeti at (300,227), 294px,
+  and the shortest range is 300 (Net Thrower). Their share of hull damage is now
+  42–44% on wave 18 and 66–79% on wave 20 (was 77–100% on 18–20), on far less
+  total damage: the ship ends waves 18–20 on 84–94% hull.
+- **Frost Wyrm:** only **every 2nd breath** freezes, and a breath hits for
+  **7** (was 15). Wave 10 now has 4.8 Wyrm freezes. Its share of the hull
+  damage there is 67–68% (was 84%), 30–38% on wave 30 and 36–45% in the
+  finale.
+- **Blizzards skip boss waves** (`skipBossWaves`): waves 6, 14, 18, 22, 26,
+  34, 38, 42 and 46. The finale keeps its permanent blizzard without freezes.
+  Blizzard waves average **3.0** freezes, with tapping cutting their length.
+- **Finale:** the Giant comes in behind the pines at 4.6s and steps out of the
+  trees **5s** after the Wyrm lands (was 8s). He can be hit **as soon as he
+  roars**, on every Giant wave, not just the finale. Both bosses now have
+  **120%** of their usual HP for the wave (was 70%): with the cap the
+  upgraded crew otherwise won the finale 14–15 times in 15. Both bosses take
+  damage in every finale attempt, both profiles.
+
+### 8.5 After
+
+| Waves | Target: no upgrades | No upgrades | Target: upgraded | Upgraded |
+|---|---|---|---|---|
+| 1–9 | 15/15 | all 15/15 ✓ | 15/15 | all 15/15 ✓ |
+| 10 (Wyrm) | 11–14 | 15/15 ✗ | 15/15 | 15/15 ✓ |
+| 18–22 | 10–15; 21–22 end on 20–50% | all 15/15 ✓; 21–22 end on 61% / 73% ✗ | 15/15 | all 15/15 ✓ |
+| 28–32 | 5–10 | 15, 15, 3, 1, 0 (6.8 a wave) | 13–15 | 15, 15, 15, 15, 12 (14.4 a wave) |
+| 38–42 | 2–6 | 0, 6, 0, 2, 0 (1.6 a wave) | 11–14 | 14, 15, 15, 15, 11 (14.0 a wave) |
+| 50 finale | 0–2 | 0/15 ✓ | 8–12, both bosses hurt | 10/15, both hurt in 15/15 ✓ |
+| Freezes | blizzard 2–3, Wyrm 4–5 | blizzard 3.0 ✓; Wyrm 4.8 on wave 10, 5.7 on 30 | | blizzard 3.0 ✓; Wyrm 4.8 on wave 10, 7.3 on 30 |
+
+**What still misses, and why:**
+
+- **Wave 10 is too easy without upgrades** (15/15, target 11–14). The two
+  Wyrm targets pull against each other. Losses on wave 10 came almost entirely
+  from the breath, so cutting its share of hull damage toward 50% also
+  removes the losses. Its escort (Corsairs and the first penguin packs) can't
+  sink a 12–22k hull at that wave. Getting both would need a harder wave-10
+  escort, or a longer Wyrm fight (more HP) at the same low breath.
+- **Waves 21–22 without upgrades** end on 61% and 73% hull (target 20–50%).
+  The capped curve is flat by then, and making those waves harder would also
+  harden 28–42, which are already at or under target for that crew.
+- **28–32 and 38–42 without upgrades** hit the band averages but not every
+  wave. The crew is fixed, so it walls between 29 and 30, where the Wyrm and
+  the two-Yeti formation arrive; after that only line-up luck gives wins (wave
+  39: 6/15, 41: 2/15). A fixed crew can't show an even spread over 10 waves
+  of growing HP.
+- **Wyrm waves have 4.8 freezes on wave 10** (on target) but 5.7–7.3 on wave
+  30. The fight there lasts 60–100s, so the breaths that freeze add up even at
+  every 2nd breath.
+- **Upgraded 38–42** comes to 14.0 a wave against 11–14, at the top of the band.
+
+Full tables, after:
+
+**No upgrades**
+
+| Wave | Won | Clear time s (avg, range) | Ship HP left (avg, range) | Lost: sunk after s / wave beaten | Freezes: blizzard / Wyrm / Giant | Boss time-to-kill s (avg, range) | Most hull damage from |
+|---:|---|---|---|---|---|---|---|
+| 1 | 15/15 | 10 (9–10) | 100% (100%–100%) | - | 0.0 / 0.0 / 0.0 | - | - |
+| 2 | 15/15 | 11 (11–12) | 100% (100%–100%) | - | 0.0 / 0.0 / 0.0 | - | - |
+| 3 | 15/15 | 12 (12–13) | 100% (100%–100%) | - | 0.0 / 0.0 / 0.0 | - | - |
+| 4 | 15/15 | 22 (20–24) | 100% (100%–100%) | - | 0.0 / 0.0 / 0.0 | - | - |
+| 5 | 15/15 | 23 (22–23) | 100% (100%–100%) | - | 0.0 / 0.0 / 0.0 | - | - |
+| 6 ❄ | 15/15 | 21 (20–23) | 100% (100%–100%) | - | 3.0 / 0.0 / 0.0 | - | - |
+| 7 | 15/15 | 30 (28–33) | 99% (96%–100%) | - | 0.0 / 0.0 / 0.0 | - | Frozen Corsair 100% |
+| 8 | 15/15 | 25 (24–26) | 97% (93%–100%) | - | 0.0 / 0.0 / 0.0 | - | Sled Penguin 100% |
+| 9 | 15/15 | 26 (25–26) | 100% (100%–100%) | - | 0.0 / 0.0 / 0.0 | - | - |
+| 10 | 15/15 | 43 (38–47) | 62% (49%–68%) | - | 0.0 / 4.8 / 0.0 | Frost Wyrm: 38 (33–42) | Frost Wyrm 67%, Sled Penguin 33% |
+| 18 ❄ | 15/15 | 69 (64–73) | 84% (74%–92%) | - | 3.0 / 0.0 / 0.0 | - | Sled Penguin 52%, Yeti Raider 42% |
+| 19 | 15/15 | 54 (48–63) | 89% (84%–93%) | - | 0.0 / 0.0 / 0.0 | - | Sled Penguin 99%, Yeti Raider 1% |
+| 20 | 15/15 | 78 (69–86) | 90% (85%–96%) | - | 0.0 / 0.0 / 0.0 | Frost Giant: 54 (45–60) | Yeti Raider 66%, Frost Giant 25% |
+| 21 | 15/15 | 85 (76–93) | 61% (41%–72%) | - | 0.0 / 0.0 / 0.0 | - | Frozen Corsair 79%, Yeti Raider 21% |
+| 22 ❄ | 15/15 | 80 (70–89) | 73% (64%–85%) | - | 3.0 / 0.0 / 0.0 | - | Sled Penguin 60%, Yeti Raider 33% |
+| 28 | 15/15 | 99 (91–118) | 22% (3%–40%) | - | 0.0 / 0.0 / 0.0 | - | Frozen Corsair 88%, Yeti Raider 12% |
+| 29 | 15/15 | 91 (84–98) | 41% (21%–64%) | - | 0.0 / 0.0 / 0.0 | - | Sled Penguin 45%, Frozen Corsair 30% |
+| 30 | 3/15 | 118 (118–118) | 3% (0%–16%) | 50 / 82% | 0.0 / 5.7 / 0.0 | Frost Wyrm: 67 (67–67); alive 12x with 39% HP left | Frozen Corsair 45%, Frost Wyrm 30% |
+| 31 | 1/15 | 114 (114–114) | 0% (0%–1%) | 46 / 78% | 0.0 / 0.0 / 0.0 | - | Frozen Corsair 67%, Sled Penguin 21% |
+| 32 | 0/15 | - (-) | 0% (0%–0%) | 47 / 73% | 0.0 / 0.0 / 0.0 | - | Frozen Corsair 71%, Sled Penguin 21% |
+| 38 ❄ | 0/15 | - (-) | 0% (0%–0%) | 46 / 62% | 3.0 / 0.0 / 0.0 | - | Frozen Corsair 57%, Sled Penguin 37% |
+| 39 | 6/15 | 161 (151–178) | 4% (0%–17%) | 74 / 79% | 0.0 / 0.0 / 0.0 | - | Frozen Corsair 63%, Sled Penguin 26% |
+| 40 | 0/15 | - (-) | 0% (0%–0%) | 58 / 80% | 0.0 / 0.0 / 0.1 | Frost Giant: never killed; alive 15x with 59% HP left | Frozen Corsair 60%, Sled Penguin 29% |
+| 41 | 2/15 | 173 (168–177) | 1% (0%–9%) | 58 / 76% | 0.0 / 0.0 / 0.0 | - | Frozen Corsair 43%, Sled Penguin 42% |
+| 42 ❄ | 0/15 | - (-) | 0% (0%–0%) | 41 / 69% | 3.0 / 0.0 / 0.0 | - | Frozen Corsair 56%, Sled Penguin 41% |
+| 48 | 0/15 | - (-) | 0% (0%–0%) | 47 / 75% | 0.0 / 0.0 / 0.0 | - | Frozen Corsair 50%, Sled Penguin 41% |
+| 49 | 0/15 | - (-) | 0% (0%–0%) | 23 / 64% | 0.0 / 0.0 / 0.0 | - | Frozen Corsair 80%, Sled Penguin 20% |
+| 50 ❄ | 0/15 | - (-) | 0% (0%–0%) | 75 / 79% | 0.0 / 8.9 / 0.0 | Frost Wyrm: never killed; alive 15x with 31% HP left; Frost Giant: never killed; alive 15x with 57% HP left | Frost Wyrm 45%, Frost Giant 34% |
+
+**Upgraded**
+
+| Wave | Won | Clear time s (avg, range) | Ship HP left (avg, range) | Lost: sunk after s / wave beaten | Freezes: blizzard / Wyrm / Giant | Boss time-to-kill s (avg, range) | Most hull damage from |
+|---:|---|---|---|---|---|---|---|
+| 1 | 15/15 | 10 (9–10) | 100% (100%–100%) | - | 0.0 / 0.0 / 0.0 | - | - |
+| 2 | 15/15 | 11 (11–12) | 100% (100%–100%) | - | 0.0 / 0.0 / 0.0 | - | - |
+| 3 | 15/15 | 12 (11–13) | 100% (100%–100%) | - | 0.0 / 0.0 / 0.0 | - | - |
+| 4 | 15/15 | 22 (20–24) | 100% (100%–100%) | - | 0.0 / 0.0 / 0.0 | - | - |
+| 5 | 15/15 | 23 (22–23) | 100% (100%–100%) | - | 0.0 / 0.0 / 0.0 | - | - |
+| 6 ❄ | 15/15 | 21 (19–23) | 100% (100%–100%) | - | 3.0 / 0.0 / 0.0 | - | - |
+| 7 | 15/15 | 30 (27–33) | 100% (98%–100%) | - | 0.0 / 0.0 / 0.0 | - | Frozen Corsair 100% |
+| 8 | 15/15 | 25 (23–26) | 97% (96%–100%) | - | 0.0 / 0.0 / 0.0 | - | Sled Penguin 100% |
+| 9 | 15/15 | 26 (24–27) | 100% (100%–100%) | - | 0.0 / 0.0 / 0.0 | - | - |
+| 10 | 15/15 | 43 (38–46) | 67% (58%–72%) | - | 0.0 / 4.8 / 0.0 | Frost Wyrm: 38 (33–41) | Frost Wyrm 68%, Sled Penguin 32% |
+| 18 ❄ | 15/15 | 65 (57–73) | 88% (76%–96%) | - | 3.0 / 0.0 / 0.0 | - | Sled Penguin 50%, Yeti Raider 44% |
+| 19 | 15/15 | 51 (45–61) | 92% (89%–94%) | - | 0.0 / 0.0 / 0.0 | - | Sled Penguin 100% |
+| 20 | 15/15 | 75 (67–89) | 94% (89%–97%) | - | 0.0 / 0.0 / 0.0 | Frost Giant: 51 (43–58) | Yeti Raider 79%, Frost Giant 11% |
+| 21 | 15/15 | 77 (68–89) | 75% (67%–91%) | - | 0.0 / 0.0 / 0.0 | - | Frozen Corsair 78%, Yeti Raider 22% |
+| 22 ❄ | 15/15 | 77 (67–89) | 84% (78%–90%) | - | 3.0 / 0.0 / 0.0 | - | Sled Penguin 57%, Yeti Raider 43% |
+| 28 | 15/15 | 96 (89–119) | 58% (42%–85%) | - | 0.0 / 0.0 / 0.0 | - | Frozen Corsair 84%, Yeti Raider 16% |
+| 29 | 15/15 | 79 (69–92) | 63% (39%–93%) | - | 0.0 / 0.0 / 0.0 | - | Sled Penguin 47%, Frozen Corsair 34% |
+| 30 | 15/15 | 101 (91–120) | 31% (20%–48%) | - | 0.0 / 7.3 / 0.0 | Frost Wyrm: 59 (45–67) | Frozen Corsair 38%, Frost Wyrm 38% |
+| 31 | 15/15 | 117 (104–133) | 29% (11%–58%) | - | 0.0 / 0.0 / 0.0 | - | Frozen Corsair 66%, Sled Penguin 18% |
+| 32 | 12/15 | 109 (95–132) | 24% (0%–50%) | 48 / 74% | 0.0 / 0.0 / 0.0 | - | Frozen Corsair 76%, Sled Penguin 15% |
+| 38 ❄ | 14/15 | 128 (115–144) | 26% (0%–43%) | 47 / 57% | 3.0 / 0.0 / 0.0 | - | Frozen Corsair 74%, Sled Penguin 17% |
+| 39 | 15/15 | 145 (128–184) | 59% (9%–76%) | - | 0.0 / 0.0 / 0.0 | - | Frozen Corsair 48%, Sled Penguin 34% |
+| 40 | 15/15 | 116 (97–133) | 39% (4%–57%) | - | 0.0 / 0.0 / 0.8 | Frost Giant: 73 (61–84) | Frozen Corsair 46%, Sled Penguin 23% |
+| 41 | 15/15 | 172 (156–202) | 52% (12%–72%) | - | 0.0 / 0.0 / 0.0 | - | Frozen Corsair 46%, Sled Penguin 33% |
+| 42 ❄ | 11/15 | 141 (133–155) | 9% (0%–38%) | 70 / 83% | 3.0 / 0.0 / 0.0 | - | Frozen Corsair 63%, Sled Penguin 31% |
+| 48 | 14/15 | 182 (159–203) | 42% (0%–66%) | 69 / 76% | 0.0 / 0.0 / 0.0 | - | Frozen Corsair 51%, Sled Penguin 37% |
+| 49 | 2/15 | 152 (151–154) | 3% (0%–19%) | 53 / 66% | 0.0 / 0.0 / 0.0 | - | Frozen Corsair 84%, Sled Penguin 14% |
+| 50 ❄ | 10/15 | 183 (167–203) | 18% (0%–42%) | 141 / 88% | 0.0 / 13.9 / 1.2 | Frost Wyrm: 99 (51–144); alive 5x with 7% HP left; Frost Giant: 99 (81–119); alive 1x with 2% HP left | Frost Wyrm 36%, Frost Giant 35% |
+
+Upgraded crews at the end of Frostbite Reef, after (before: hull LV 75–79,
+crew level 57–60, 19–25 waves skipped):
+
+| Seed | Run | Waves skipped (lost 5x) | Hull LV (max HP) | Crew (level, stars) |
+|---:|---:|---:|---|---|
+| 1000 | 1 | 0 | 87 (43309) | Storm 66 5★, Captain 66 4★, Duelist 66 5★, Cannon 66 5★, Sharp 66 5★, Ghost 65 5★ |
+| 1000 | 2 | 2 | 87 (43309) | Duelist 66 5★, Captain 65 1★, Storm 65 5★, Cannon 65 5★, Sharp 65 5★, Ghost 65 5★ |
+| 1000 | 3 | 0 | 87 (43309) | Storm 66 5★, Captain 66 1★, Duelist 66 5★, Cannon 66 5★, Sharp 66 5★, Ghost 65 5★ |
+| 1001 | 1 | 2 | 86 (40482) | Storm 65 5★, Captain 65 2★, Duelist 65 5★, Sharp 65 5★, Cannon 65 5★, Ghost 65 5★ |
+| 1001 | 2 | 2 | 86 (40482) | Storm 65 5★, Captain 65 4★, Duelist 65 5★, Sharp 65 5★, Cannon 65 5★, Ghost 65 5★ |
+| 1001 | 3 | 2 | 86 (40482) | Storm 65 5★, Captain 65 4★, Duelist 65 5★, Sharp 65 5★, Cannon 65 5★, Ghost 65 5★ |
+| 1002 | 1 | 0 | 87 (43309) | Storm 66 5★, Captain 66 5★, Duelist 66 2★, Cannon 66 5★, Sharp 66 5★, Ghost 66 5★ |
+| 1002 | 2 | 2 | 87 (43309) | Storm 66 5★, Captain 66 5★, Duelist 65 2★, Sharp 65 5★, Cannon 65 5★, Ghost 65 5★ |
+| 1002 | 3 | 2 | 87 (43309) | Storm 66 5★, Captain 66 5★, Duelist 65 4★, Sharp 65 5★, Cannon 65 5★, Ghost 65 5★ |
+| 1003 | 1 | 2 | 87 (43309) | Storm 66 3★, Captain 65 4★, Duelist 65 3★, Sharp 65 5★, Cannon 65 5★, Ghost 65 5★ |
+| 1003 | 2 | 2 | 87 (43309) | Storm 66 3★, Captain 66 5★, Duelist 66 3★, Sharp 66 5★, Cannon 65 5★, Ghost 65 5★ |
+| 1003 | 3 | 2 | 87 (43309) | Storm 66 4★, Captain 66 3★, Duelist 66 5★, Sharp 66 5★, Cannon 65 5★, Ghost 65 5★ |
+| 1004 | 1 | 2 | 87 (43309) | Storm 66 3★, Captain 65 2★, Duelist 65 3★, Cannon 65 5★, Sharp 65 5★, Ghost 65 5★ |
+| 1004 | 2 | 2 | 87 (43309) | Storm 66 3★, Captain 65 2★, Duelist 65 3★, Cannon 65 5★, Sharp 65 5★, Ghost 65 5★ |
+| 1004 | 3 | 8 | 85 (37840) | Duelist 64 4★, Captain 64 2★, Storm 64 3★, Cannon 63 5★, Sharp 63 5★, Ghost 63 5★ |
+
+### 8.6 Final numbers
+
+| What | Before | Now |
+|---|---|---|
+| Enemy damage past effective wave 100 | ×1.04 per wave (×319 at Reef 50) | ×1.03 per wave, capped at ×62 (reached at Reef 10) |
+| Yeti Raider | snowball 1.2×, every 3s, no cap, stops at x 300 | snowball 0.8×, every 4s, at most 3 on screen, stops at x 300 |
+| Frost Wyrm breath | 15 every 4s, every breath freezes (2s) | 7 every 4s, every 2nd breath freezes (2s) |
+| Frost Wyrm HP | 450 | 450 |
+| Frost Giant | 520 HP, smash 18 every 2.5s, hittable after its roar | 520 HP, smash 18 every 2.5s, hittable from its roar |
+| Blizzards | every 4th wave from 6 | every 4th wave from 6, skipping boss waves |
+| Finale | Giant out of the trees 8s after the Wyrm lands; bosses at 70% HP | 5s after; bosses at 120% HP |
+
+Scaled at the waves they fight on:
+
+| Reef wave | Wyrm HP / breath | Giant HP / smash | Snowball | Corsair hit |
+|---:|---|---|---:|---:|
+| 10 | 86,350 / 430 (was 997) | – | 246 | 307 |
+| 20 | – | 116,359 / 1,116 (was 1,771) | 248 | 310 |
+| 30 | 116,122 / 434 (was 2,184) | – | 248 | 310 |
+| 40 | – | 153,259 / 1,116 (was 3,880) | 248 | 310 |
+| 50 (finale, 120% HP) | 180,256 / 434 (was 4,786) | 208,296 / 1,116 (was 5,743) | 248 | 310 |

@@ -9,6 +9,7 @@
 //           wait for a slot), so it only loses where the curve outpaces it
 //   lazy:   only spends after losing a wave, so its waves between losses
 //           show how often upgrades are needed
+// Frozen crewmates (Frostbite Reef) are tapped free like a player would (TAP).
 // Each run plays Skull Cove and stops at maxWave, or when one wave has been
 // lost MAX_TRIES times in a row (a wall). With "voyage", a cleared island is
 // followed by the next one the ship can sail to (Ember Isle after Skull
@@ -35,11 +36,18 @@ const VOYAGE = process.argv[4] === 'voyage';
 const MAX_TRIES = 15;
 const DT = 50;                   // ms per step (the game clamps to 100)
 const WAVE_TIMEOUT = 10 * 60e3;  // a wave this long counts as lost
+// The player taps frozen crewmates free (Frostbite Reef): `chance` of the
+// time, afterMs after one freezes; otherwise the ice lasts its full time.
+const TAP = { chance: 0.6, afterMs: 800 };
 
 // Deep-merge overrides into the (mutable) config objects.
+// An array patches the config's array of objects item by item (e.g.
+// {"ISLANDS":[{},{},{"finale":{"hpFactor":0.9}}]}); any other array replaces it.
 function override(target, patch) {
   for (const [key, value] of Object.entries(patch)) {
-    if (value && typeof value === 'object' && !Array.isArray(value)) override(target[key], value);
+    const mergeable = value && typeof value === 'object' && target[key] && typeof target[key] === 'object'
+      && Array.isArray(value) === Array.isArray(target[key]) && (!Array.isArray(value) || typeof target[key][0] === 'object');
+    if (mergeable) override(target[key], value);
     else target[key] = value;
   }
 }
@@ -127,6 +135,16 @@ function seedRandom(seed) {
 
 // --- One battle ---
 
+// Taps still to come this wave: { hero, at (wave ms) }, and the wave's clock.
+let taps = [];
+let waveClock = 0;
+const freeze = Hero.prototype.freeze;
+Hero.prototype.freeze = function freezeAndMaybeTap(ms, cause) {
+  const fresh = !this.isFrozen;
+  freeze.call(this, ms, cause);
+  if (fresh && Math.random() < TAP.chance) taps.push({ hero: this, at: waveClock + TAP.afterMs });
+};
+
 export function playWave(scene, progress, onStep = null) {
   const { ship, waves, volcano, blizzard, abilities } = scene;
   ship.sync(progress);
@@ -139,8 +157,10 @@ export function playWave(scene, progress, onStep = null) {
   abilities.resetCooldowns();
   let time = 0;
   let won = false;
+  taps = [];
   for (;;) {
     time += DT;
+    waveClock = time;
     scene.enemies.push(...waves.update(DT));
     for (const e of scene.enemies) e.update(DT, ship);
     volcano.update(DT);
@@ -151,6 +171,11 @@ export function playWave(scene, progress, onStep = null) {
       if (shot) scene.projectiles.push(shot);
     }
     for (const p of scene.projectiles) p.update(DT);
+    taps = taps.filter((t) => {
+      if (t.at > time) return true;
+      if (t.hero.isFrozen) t.hero.thaw();
+      return false;
+    });
     scene.enemies = scene.enemies.filter((e) => e.alive);
     scene.projectiles = scene.projectiles.filter((p) => !p.done);
     onStep?.(time);
@@ -286,7 +311,7 @@ export function run(seed, policy, { maxWave = MAX_WAVE, voyage = VOYAGE, maxTrie
   return { progress, log, attempts, playTime, crew, wall: tries >= maxTries };
 }
 
-export { seedRandom };
+export { seedRandom, between };
 
 const mins = (ms) => `${Math.round(ms / 60000)}m`;
 const bandOf = (wave) => Math.floor((wave - 1) / 10);

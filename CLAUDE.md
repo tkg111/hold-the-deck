@@ -13,6 +13,10 @@ Game title: `GAME_TITLE` in `src/config.js` and `<title>` in `index.html`.
 - All balance and presentation numbers live in `src/config.js`. Don't hardcode
   tunable values elsewhere. Numbers quoted in DESIGN.md should match config.
 - The localStorage key stays `kampung-defense/save` so existing saves keep loading.
+- When you add a new island or boss, rerun the earlier islands' sims
+  (`npm run sim -- 3 50 voyage`) and compare them with the same run before
+  the change: they should match wave for wave. (This is what caught the
+  Frost Wyrm's `land()` overriding the lava bomb's.)
 - Changing the saved shape (`Progress.toSave()`) means bumping `SAVE_VERSION`
   in `src/systems/Save.js` and adding a migration from the previous version.
 

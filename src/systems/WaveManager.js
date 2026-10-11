@@ -46,12 +46,21 @@ export function enemyDebut(key) {
   return null;
 }
 
+// Enemy damage multiplier of a wave (island offset included): see
+// WAVES.damageGrowth and lateDamage.
+function damageMultiplier(wave) {
+  const { from, growth, cap = Infinity } = WAVES.lateDamage;
+  const atFrom = (1 + WAVES.damageGrowth) ** (Math.min(wave, from) - 1);
+  if (wave <= from) return atFrom;
+  return Math.max(atFrom, Math.min(cap, atFrom * (1 + growth) ** (wave - from)));
+}
+
 // Per-wave multipliers for enemy HP, damage and kill gold.
 export function waveScaling(wave) {
   const n = wave - 1;
   return {
     hp: 1 + n * WAVES.hpPerWave + n * n * WAVES.hpPerWaveSquared,
-    damage: (1 + WAVES.damageGrowth) ** n,
+    damage: damageMultiplier(wave),
     gold: (1 + ECONOMY.killGoldGrowth) ** n,
   };
 }

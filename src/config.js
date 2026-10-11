@@ -999,15 +999,17 @@ export const ENEMIES = {
     hp: 44,
     speed: 13.5,
     damage: 5,
-    attackInterval: 3000,   // a throw every
+    attackInterval: 4000,   // a throw every
     gold: 5,
-    // Stops at stopX and plays "throw" every attackInterval ms; on its
+    maxOnScreen: 3,     // more wait their turn in the wave
+    // Stops at stopX (in reach of every crewmate from every slot) and plays
+    // "throw" every attackInterval ms; on its
     // releaseFrame a `shot` (fx sheet) arcs from handOnRelease (in its
     // sheet's entry, frame-relative) to a random spot on the hull over
     // flightTime ms, hitting for damageMult x its damage with `impact`.
     ranged: {
       stopX: 300, anim: 'throw', releaseFrame: 5, firstAt: 600,
-      shot: 'snowball', impact: 'frost_hit', flightTime: 1100, arcHeight: 45, damageMult: 1.2,
+      shot: 'snowball', impact: 'frost_hit', flightTime: 1100, arcHeight: 45, damageMult: 0.8,
     },
   },
   iceWitch: {
@@ -1054,7 +1056,7 @@ export const ENEMIES = {
     height: 70,
     hp: 450,
     speed: 0,
-    damage: 15,         // per breath on the hull
+    damage: 7,          // per breath on the hull
     attackInterval: 1000,
     gold: 50,
     statusResist: 0.5,
@@ -1064,14 +1066,15 @@ export const ENEMIES = {
     // over flyInMs (can't be hit meanwhile), then loops "perch". Every
     // breathEvery ms (the first firstBreathAt after landing) it plays
     // "breath": breathAt ms in, frost_breath plays with its right edge at
-    // the `mouth` (in its sheet's entry), the hull takes its damage and the
-    // crewmate nearest the bow freezes for freezeMs. Below liftAt of its HP
+    // the `mouth` (in its sheet's entry), the hull takes its damage, and on
+    // every freezeEvery-th breath the crewmate nearest the bow freezes for
+    // freezeMs. Below liftAt of its HP
     // (once) it lifts liftPx off the iceberg ("fly") for airMs, out of reach,
     // then lands and breathes twice, gapMs apart. Beaten, it plays "fall",
     // drops sinkPx into the sea over fallMs and splashes there.
     wyrm: {
       from: { x: 500, y: -110 }, flyInMs: 1500,
-      firstBreathAt: 1200, breathEvery: 4000, breathAt: 250, breath: 'frost_breath', freezeMs: 2000,
+      firstBreathAt: 1200, breathEvery: 4000, breathAt: 250, breath: 'frost_breath', freezeEvery: 2, freezeMs: 2000,
       liftAt: 0.5, liftPx: 34, liftMs: 400, airMs: 3000, gapMs: 900,
       fallMs: 1000, sinkPx: 80, aboveWater: 23,
       shake: { duration: 200, intensity: 0.003 },
@@ -1099,7 +1102,7 @@ export const ENEMIES = {
     banner: 'FROST GIANT',
     bannerOnEntrance: true,
     // Comes in at spawnX behind the front pines, walking at entranceSpeed and
-    // out of reach; while in the trees (x > treesX) the pines jump 1px every
+    // out of reach until it roars; while in the trees (x > treesX) the pines jump 1px every
     // shakeEvery ms and snow puffs every puffEvery ms. At roarX it plays "roar" for roarMs
     // (a shake and its banner), then walks on at its speed, a tiny shake on
     // each footstep (walk frames `steps`). At the ship it plays "smash" every
@@ -1212,8 +1215,14 @@ export const WAVES = {
   // Enemy HP multiplier: 1 + n * hpPerWave + n^2 * hpPerWaveSquared, n = wave - 1
   hpPerWave: 0.5,
   hpPerWaveSquared: 0.012,
-  // Enemy damage multiplier: (1 + damageGrowth) ^ (wave - 1)
+  // Enemy damage multiplier: (1 + damageGrowth) ^ (wave - 1) up to wave
+  // lateDamage.from (the wave whose scaling it is, island offset included),
+  // then (1 + lateDamage.growth) more per wave after it, but never above
+  // lateDamage.cap: Frostbite Reef (from effective wave 99) levels off at
+  // x62 from its wave 10 instead of reaching x319, so its damage doesn't
+  // outgrow the hull. Skull Cove and Ember Isle's 50 waves all come before it.
   damageGrowth: 0.04,
+  lateDamage: { from: 100, growth: 0.03, cap: 62 },
   // Time between formations shrinks each wave down to a minimum; members of
   // a formation enter formationSpacing ms apart.
   spawnInterval: 1400,
@@ -1306,8 +1315,9 @@ export const FROST_FORMATIONS = [
 //            bomb falls onto it from fromY (battlefield y) over warnMs.
 //            Several at once go to different decks while there are enough,
 //            then up to jitter px apart on the same one.
-//   blizzard: from wave `from`, every every-th wave a blizzard (SNOWFALL's
-//            heavy weather) rolls in `at` ms into the wave for `ms`: every
+//   blizzard: from wave `from`, every every-th wave (but not boss waves
+//            with skipBossWaves) a blizzard (SNOWFALL's heavy weather) rolls
+//            in `at` ms into the wave for `ms`: every
 //            freezeEvery ms a random crewmate (not frozen yet) freezes for
 //            freezeMs (see FREEZE), and enemies walk chill x as fast.
 // finale: the island's last wave (`wave`): its banner (title, detail),
@@ -1381,19 +1391,19 @@ export const ISLANDS = [
     formations: FROST_FORMATIONS,
     bosses: ['frostWyrm', 'frostGiant'],
     sirenFromWave: Infinity,   // no Sirens here
-    blizzard: { from: 6, every: 4, at: 8000, ms: 10000, freezeEvery: 3000, freezeMs: 2000, chill: 0.85 },
+    blizzard: { from: 6, every: 4, skipBossWaves: true, at: 8000, ms: 10000, freezeEvery: 3000, freezeMs: 2000, chill: 0.85 },
     // Wave 50: "Wrath of the Reef". A blizzard the whole wave; the Frost Wyrm
     // swoops in (landing 5s in), and the Frost Giant comes out of the trees
-    // 8s after it lands (it spends ~5.4s behind the pines, slowed by the
-    // blizzard like every walker), each at 70% HP, with small trickles
+    // 5s after it lands (it spends ~5.4s behind the pines, slowed by the
+    // blizzard like every walker), each at 120% HP, with small trickles
     // of regular enemies. Unlocks Fogbound Isle on the map.
     finale: {
       wave: 50,
       title: 'WRATH OF THE REEF',
       detail: 'WAVE 50 - FINAL BATTLE',
       weather: 'blizzard',
-      bosses: [{ key: 'frostWyrm', at: 3500 }, { key: 'frostGiant', at: 7600 }],
-      hpFactor: 0.7,
+      bosses: [{ key: 'frostWyrm', at: 3500 }, { key: 'frostGiant', at: 4600 }],
+      hpFactor: 1.2,
       trickle: 0.6, trickleFrom: 6000, trickleInterval: 3500,
       boulders: true,
       pearls: 60, legendaryChests: 2,
