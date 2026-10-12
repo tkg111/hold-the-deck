@@ -91,11 +91,14 @@ export function nineSlice(scene, x, y, w, h, name) {
 export const panel = (scene, x, y, w, h, kind = 'wood') => nineSlice(scene, x, y, w, h, `panel_${kind}`);
 
 // A hero's face, cropped from their single sprite (SPRITES.face, faceTop).
-// Falls back to a small square in their colour if they have no sprite.
+// Falls back to a small square in their colour if they have no sprite, or
+// it isn't loaded: textures.get() on a missing key returns Phaser's
+// __MISSING texture (black with a green line), and the face frame would be
+// cut from that.
 export function face(scene, x, y, heroId) {
   const sprite = SPRITES.heroes[heroId];
   const { x: fx, width, height } = SPRITES.face;
-  if (!sprite) {
+  if (!sprite || !scene.textures.exists(sprite.key)) {
     return scene.add.rectangle(x, y, width - 4, height - 2, HEROES[heroId].color).setOrigin(0.5);
   }
   const texture = scene.textures.get(sprite.key);
@@ -165,6 +168,20 @@ export class PixelText extends Phaser.GameObjects.BitmapText {
     super.setText(value);
     if (this.anchorX !== undefined) this.snap();
     return this;
+  }
+
+  // Switch to another bitmap font (e.g. main_dark -> main_light), keeping
+  // the position and origin.
+  setFontKey(key) {
+    if (this.font === key) return this;
+    // At the new font's own size: setFont() would keep the old one's.
+    const entry = this.scene.sys.cache.bitmapFont.get(key);
+    if (!entry) return this;
+    super.setFont(key, entry.data.size);
+    const cap = this.fontData.chars[65];
+    this.capTop = cap ? cap.yOffset : 0;
+    this.capHeight = cap ? cap.height : this.fontData.lineHeight;
+    return this.snap();
   }
 
   setMaxWidth(value, wordWrapCharCode) {
@@ -268,6 +285,34 @@ export function antiAirIcon(scene, x, y) {
 
 // Whether a hero can hit flyers (the Net Thrower nets them, which counts).
 export const hitsFlyers = (def) => !!(def.antiAir || def.netsFlyers);
+
+// --- Pixel glyphs (the fonts are plain ASCII) ---
+
+const GLYPHS = {
+  arrow: ['...#..', '....#.', '######', '....#.', '...#..'],   // →
+  up: ['..#..', '.###.', '#####'],                             // ▲
+  down: ['#####', '.###.', '..#..'],                           // ▼
+  right: ['#..', '##.', '###', '##.', '#..'],                  // ▶
+  left: ['..#', '.##', '###', '.##', '..#'],                   // ◀
+  dot: ['##', '##'],                                           // ·
+};
+
+// A small glyph centred on (x, y) in a CSS colour (a Graphics: setX() after
+// places its left edge); its width in pixels is glyphWidth(name).
+export function glyph(scene, x, y, name, color) {
+  const rows = GLYPHS[name];
+  const g = scene.add.graphics({
+    x: Math.round(x) - Math.floor(rows[0].length / 2),
+    y: Math.round(y) - Math.floor(rows.length / 2),
+  });
+  g.fillStyle(hexColor(color));
+  rows.forEach((row, r) => [...row].forEach((c, col) => {
+    if (c === '#') g.fillRect(col, r, 1, 1);
+  }));
+  return g;
+}
+
+export const glyphWidth = (name) => GLYPHS[name][0].length;
 
 // --- Pixel stars (the fonts have no star glyph) ---
 

@@ -1,6 +1,6 @@
 import { HEROES, PACKS, RARITY, SPRITES, UI_KIT } from '../config.js';
 import { traitOf } from '../systems/Expeditions.js';
-import { cssColor } from './format.js';
+import { cssColor, formatNum } from './format.js';
 import { describeHero } from './HeroPicker.js';
 import {
   antiAirIcon, dark, expeditionKey, hitsFlyers, icon, light, panel, starRow, subText, text, traitIcon, UI,
@@ -58,8 +58,10 @@ export function createHeroCard(scene, x, y, id, {
   }
 
   let ty = feetY + 1;
-  card.add(text(scene, 0, ty, silhouette ? '???' : def.name, silhouette ? light() : dark())
-    .setOrigin(0.5, 0));
+  const name = text(scene, 0, ty, silhouette ? '???' : def.name, silhouette ? light() : dark()).setOrigin(0.5, 0);
+  // Too wide for the card (Voodoo Priestess): the short name.
+  if (!silhouette && name.inkWidth > w - 6) name.setText(def.shortName);
+  card.add(name);
   ty += 15;
   if (silhouette) {
     card.add(text(scene, 0, ty + 2, 'NOT FOUND YET', light({ font: 'small' })).setOrigin(0.5, 0));
@@ -74,7 +76,7 @@ export function createHeroCard(scene, x, y, id, {
     ty += 8;
   }
   if (level != null) {
-    card.add(text(scene, 0, ty, `LV ${level}`, subText()).setOrigin(0.5, 0));
+    card.add(text(scene, 0, ty, `LV ${formatNum(level)}`, subText()).setOrigin(0.5, 0));
     ty += 10;
   }
   if (S.effect) {

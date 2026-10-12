@@ -11,19 +11,32 @@ export const starLabel = (stars, bonus = 0) => (stars > 0
   ? `${stars} STAR${stars === 1 ? '' : 'S'}${bonus > 0 ? ` +${bonus}` : ''}`
   : '');
 
-// 12450 -> "12,450"
-export const fmtNumber = (n) => Math.floor(n).toLocaleString('en-US');
+// Every number the player sees (gold, Pearls, HP, costs, damage, rewards,
+// stats) goes through this. Whole numbers only: below 10,000 in full with
+// commas (9,876); from 10,000 three significant digits and a suffix: K, M,
+// B, T, then aa, ab ... az, ba ... (12.3K, 353M, 1.07B), cut (not rounded)
+// to those digits, so 999,999 reads 999K rather than 1000K.
+const SUFFIXES = ['', 'K', 'M', 'B', 'T'];
+const suffix = (tier) => {
+  if (tier < SUFFIXES.length) return SUFFIXES[tier];
+  const i = tier - SUFFIXES.length;
+  const letter = (n) => String.fromCharCode(97 + n);
+  return letter(Math.floor(i / 26) % 26) + letter(i % 26);
+};
 
-// Short amounts: 950 -> "950", 12450 -> "12.4K", 3.2e6 -> "3.2M", then B, T.
-export function fmtShort(n) {
-  const units = [[1e12, 'T'], [1e9, 'B'], [1e6, 'M'], [1e3, 'K']];
-  for (const [size, unit] of units) {
-    if (n >= size) {
-      const v = n / size;
-      return `${v >= 100 ? Math.floor(v) : Math.floor(v * 10) / 10}${unit}`;
-    }
-  }
-  return `${Math.floor(n)}`;
+export function formatNum(value) {
+  if (!Number.isFinite(value)) return '0';
+  const n = Math.round(Math.abs(value));
+  const sign = value < 0 && n > 0 ? '-' : '';
+  if (n < 10000) return sign + n.toLocaleString('en-US');
+  let exp = Math.floor(Math.log10(n));
+  if (10 ** exp > n) exp--;          // log10 rounding near powers of ten
+  if (10 ** (exp + 1) <= n) exp++;
+  const tier = Math.floor(exp / 3);
+  const whole = exp - tier * 3 + 1;  // digits before the point: 1-3
+  const digits = `${Math.min(999, Math.floor(n / 10 ** (exp - 2)))}`.padStart(3, '0');
+  const shown = whole === 3 ? digits : `${digits.slice(0, whole)}.${digits.slice(whole)}`;
+  return sign + shown + suffix(tier);
 }
 
 // A time left: "7:59:58" (hours), "29:58", or "0:05".
@@ -45,7 +58,7 @@ export function fmtShortTime(ms) {
 }
 
 // "1 Pearl" / "5 Pearls".
-export const pearlsLabel = (n) => `${n} Pearl${n === 1 ? '' : 's'}`;
+export const pearlsLabel = (n) => `${formatNum(n)} Pearl${n === 1 ? '' : 's'}`;
 
 // Rarity colour for text on parchment: Common's light grey would be too faint,
 // so it uses the brown sub-text colour.

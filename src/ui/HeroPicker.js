@@ -1,7 +1,7 @@
 import { ABILITIES, HEROES, RARITY, UI_KIT } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
 import * as Expeditions from '../systems/Expeditions.js';
-import { fmtClock, rarityTextColor, starLabel } from './format.js';
+import { fmtClock, formatNum, rarityTextColor, starLabel } from './format.js';
 import {
   antiAirIcon, expeditionKey, face, hexColor, hitsFlyers, dark, icon, subText, text, traitIcon, UI,
 } from './kit.js';
@@ -61,7 +61,8 @@ export const cooldownLabel = (id) => `${secs(ABILITIES[id].cooldown).toUpperCase
 export const abilityTitle = (id) => `${ABILITIES[id].name.toUpperCase()}  ${cooldownLabel(id)}`;
 
 // Popup listing owned heroes for one slot, on the same scrolling parchment as
-// the Shipwright (which it replaces while open). Picking calls onPick(heroId | null).
+// the Shipwright (which it replaces while open). Picking (a tap on a row, not
+// a drag) calls onPick(heroId | null).
 // Crew away on an expedition are listed last, dimmed with an hourglass and
 // their time left, and can't be picked.
 export class HeroPicker extends ScrollPanel {
@@ -105,7 +106,7 @@ export class HeroPicker extends ScrollPanel {
       row.add([
         portrait,
         name,
-        text(scene, 16, 11, `${rarity.label}  LV ${progress.heroLevel(id)}${stars ? `  ${stars}` : ''}${note}`,
+        text(scene, 16, 11, `${rarity.label}  LV ${formatNum(progress.heroLevel(id))}${stars ? `  ${stars}` : ''}${note}`,
           subText({ color: rarityTextColor(def.rarity) })),
       ]);
       if (entry) {
@@ -140,7 +141,12 @@ export class HeroPicker extends ScrollPanel {
 
     bg.on('pointerover', () => bg.setFillAlpha(current ? 0.35 : 0.15));
     bg.on('pointerout', () => bg.setFillAlpha(current ? 0.25 : 0));
-    bg.on('pointerdown', () => this.onPick(id));
+    // On release, and not at the end of a drag (that scrolls the list).
+    bg.on('pointerdown', () => { this.pressedId = id; });
+    bg.on('pointerup', () => {
+      if (this.pressedId === id && !this.dragged) this.onPick(id);
+      this.pressedId = undefined;
+    });
     return row;
   }
 

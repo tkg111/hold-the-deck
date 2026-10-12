@@ -9,7 +9,7 @@ import { Progress } from '../systems/Progress.js';
 import { saveProgress } from '../systems/Save.js';
 import { Button } from '../ui/Button.js';
 import { createHeroCard, HERO_CARD_SIZE } from '../ui/HeroCard.js';
-import { cssColor, pearlsLabel } from '../ui/format.js';
+import { cssColor, formatNum, pearlsLabel } from '../ui/format.js';
 import {
   face, icon, dark, light, panel, subText, text, traitIcon, UI,
 } from '../ui/kit.js';
@@ -85,7 +85,7 @@ export class PackScene extends Phaser.Scene {
       onClick: () => this.openPack(),
     });
     this.bulkButton = new Button(this, CARD_X, 257, {
-      width: 90, height: 22, style: 'gold', icon: 'pearl', label: `Buy ${PACKS.bulkCount}  ${PACKS.bulkCost}`,
+      width: 90, height: 22, style: 'gold', icon: 'pearl', label: `Buy ${PACKS.bulkCount}  ${formatNum(PACKS.bulkCost)}`,
       onClick: () => this.openBulk(),
     });
     this.closeButton = new Button(this, CARD_X + 100, 257, {
@@ -98,10 +98,10 @@ export class PackScene extends Phaser.Scene {
   refresh() {
     const { pearls, freeChestCount: free, nextFreeChest: next, freeLegendaryChests: legendary } = this.progress;
     const cost = this.progress.packCost;
-    this.walletText.setText(`YOU HAVE ${pearlsLabel(pearls).toUpperCase()}  -  A CHEST COSTS ${cost}`);
+    this.walletText.setText(`YOU HAVE ${pearlsLabel(pearls).toUpperCase()}  -  A CHEST COSTS ${formatNum(cost)}`);
     // Free chests (an island's Legendary ones, expeditions' finds) open
     // first, the best tier first, at no cost.
-    this.openButton.setIcon(free ? null : 'pearl').setLabel(free ? 'Open FREE' : `Open ${cost}`);
+    this.openButton.setIcon(free ? null : 'pearl').setLabel(free ? 'Open FREE' : `Open ${formatNum(cost)}`);
     // Hold the pity line while a chest is opening: the counter resets the
     // moment a Legendary is rolled, which would spoil the reveal.
     if (!this.busy) {

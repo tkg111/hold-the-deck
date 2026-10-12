@@ -5,7 +5,7 @@ import { applyRenderScale, fillView } from '../display.js';
 import { MAP_JSON_KEY, mapKey } from '../sprites.js';
 import * as Expeditions from '../systems/Expeditions.js';
 import { Button } from '../ui/Button.js';
-import { fmtNumber } from '../ui/format.js';
+import { formatNum } from '../ui/format.js';
 import {
   dark, expeditionKey, hexColor, light, panel, subText, text, UI,
 } from '../ui/kit.js';
@@ -198,8 +198,8 @@ export class MapScene extends Phaser.Scene {
     const rows = [
       ['HAZARD', def.hazard.toUpperCase()],
       ['BOSS', def.boss.toUpperCase()],
-      ['BEST WAVE', record?.best ? fmtNumber(record.best) : '-'],
-      ['NOW AT', record ? `WAVE ${fmtNumber(record.wave)}` : '-'],
+      ['BEST WAVE', record?.best ? formatNum(record.best) : '-'],
+      ['NOW AT', record ? `WAVE ${formatNum(record.wave)}` : '-'],
     ];
     rows.forEach(([label, value], i) => {
       const ry = y + 40 + i * 11;

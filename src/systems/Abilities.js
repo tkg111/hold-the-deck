@@ -6,7 +6,7 @@ import { LobProjectile, nearestLiving, Projectile } from '../entities/Projectile
 import { DEPTH } from '../entities/Ship.js';
 import { FX_DEPTH, fxDuration, fxSize, fxSprite, playFx } from '../fx.js';
 import { fxKey } from '../sprites.js';
-import { cssColor, fmtNumber } from '../ui/format.js';
+import { cssColor, formatNum } from '../ui/format.js';
 
 // Active abilities for the crew on the ship: one per crewmate (ABILITIES in
 // config), each on its own cooldown. Used from the ability bar or keys 1-6,
@@ -227,7 +227,7 @@ const ACTIONS = {
     sys.scene.stats?.add(hero.id, 'healed', healed);
     sys.effects.push(new HealRise(sys.scene, def));
     const at = ship.hullTarget();
-    sys.scene.floatText(at.x, at.y - def.rise, `+${fmtNumber(Math.round(healed))} HP`, cssColor(def.color));
+    sys.scene.floatText(at.x, at.y - def.rise, `+${formatNum(Math.round(healed))} HP`, cssColor(def.color));
   },
 
   // Deadeye: marks the toughest enemy, then one huge shot at it.

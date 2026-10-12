@@ -1,9 +1,12 @@
 import {
   ABILITY_SCALING, BATTLE_LOG, ECONOMY, ENEMIES, EXPEDITIONS, HEROES, ISLANDS, SHIP, PACKS, RARITY, STARTING_HEROES,
-  UPGRADES, WANTED, WAVES,
+  UI_KIT, UPGRADES, WANTED, WAVES,
 } from '../config.js';
 import { waveScaling } from './WaveManager.js';
 import { entryFromSave, maxSlots } from './Expeditions.js';
+
+// A guard on MAX buys (costs grow far faster than this matters).
+const MAX_BULK = 10000;
 
 const islandDef = (id) => ISLANDS.find((i) => i.id === id);
 // A fresh island's record: its wave counter, best wave cleared, whether its
@@ -57,6 +60,10 @@ export class Progress {
 
     this.muted = false;             // sound effects off
     this.autoAbilities = false;     // ability bar's Auto toggle
+    // The Shipwright: how many levels a buy button buys (UI_KIT.buyAmounts:
+    // '1', '10' or 'max'), and whether the panel is out (or slid away).
+    this.buyAmount = UI_KIT.buyAmounts[0];
+    this.shipwrightOpen = true;
 
     // Dev-only: treat every hero as owned. Not part of saved progress.
     this.devUnlockAll = false;
@@ -86,6 +93,8 @@ export class Progress {
       slots: this.slots.map((id) => (id && owned.includes(id) ? id : null)),
       muted: this.muted,
       autoAbilities: this.autoAbilities,
+      buyAmount: this.buyAmount,
+      shipwrightOpen: this.shipwrightOpen,
       packsSinceLegendary: this.packsSinceLegendary,
       discovered: [...this.discovered],
       seenPosters: [...this.seenPosters],
@@ -127,6 +136,8 @@ export class Progress {
     p.decks = int(data.decks, SHIP.startingDecks, SHIP.maxDecks);
     p.muted = data.muted === true;
     p.autoAbilities = data.autoAbilities === true;
+    if (UI_KIT.buyAmounts.includes(data.buyAmount)) p.buyAmount = data.buyAmount;
+    p.shipwrightOpen = data.shipwrightOpen !== false;
     p.packsSinceLegendary = int(data.packsSinceLegendary, 0, PACKS.legendaryPity - 1);
 
     const owned = Array.isArray(data.owned) ? data.owned.filter((id) => id in HEROES) : [];
@@ -483,9 +494,31 @@ export class Progress {
 
   // --- Costs ---
 
-  hullHpCost() { return scaledCost(UPGRADES.hullHp, this.hullHpLevel); }
-  deckCost() { return this.canBuildDeck ? UPGRADES.deck.costs[this.decks - 1] : null; }
-  heroLevelCost(id) { return scaledCost(UPGRADES.heroLevel, this.heroLevel(id) - 1); }
+  hullHpCost(level = this.hullHpLevel) { return scaledCost(UPGRADES.hullHp, level); }
+  // Deck n + 1's cost (n decks built), or null past the last.
+  deckCost(decks = this.decks) { return decks < SHIP.maxDecks ? UPGRADES.deck.costs[decks - 1] : null; }
+  heroLevelCost(id, level = this.heroLevel(id)) { return scaledCost(UPGRADES.heroLevel, level - 1); }
+
+  // What a Shipwright buy button buys at buyAmount: { count, cost } levels
+  // and their total. costAt(k): the k-th next level's cost (0 = the next),
+  // null past the upgrade's cap. '10' buys 10 (or up to the cap) only if all
+  // of them are affordable; 'max' as many as gold allows. When nothing can
+  // be bought, it's the next level alone ({ count: 1 }), for the price tag;
+  // count 0 means the upgrade is maxed.
+  bulkPlan(costAt, amount = this.buyAmount) {
+    let count = 0;
+    let cost = 0;
+    const want = amount === 'max' ? MAX_BULK : Number(amount);
+    while (count < want) {
+      const next = costAt(count);
+      if (next == null) break;
+      if (amount === 'max' && cost + next > this.gold) break;
+      cost += next;
+      count++;
+    }
+    if (count === 0 && costAt(0) != null) return { count: 1, cost: costAt(0) };
+    return { count, cost };
+  }
 
   // --- Purchases (return true on success) ---
 

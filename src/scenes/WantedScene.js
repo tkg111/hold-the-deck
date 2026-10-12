@@ -4,7 +4,7 @@ import { sfx } from '../audio/Sfx.js';
 import { applyRenderScale, fillView } from '../display.js';
 import { enemyDebut, waveScaling } from '../systems/WaveManager.js';
 import { Button } from '../ui/Button.js';
-import { fmtNumber } from '../ui/format.js';
+import { formatNum } from '../ui/format.js';
 import {
   Bar, dark, face, hexColor, icon, light, panel, subText, text, UI, wantedKey,
 } from '../ui/kit.js';
@@ -129,9 +129,9 @@ export class WantedScene extends Phaser.Scene {
     WANTED.bounties.forEach((b, i) => {
       const x = left + 8 + i * Math.floor((width - 16) / 3);
       this.add.image(x, top + 20, wantedKey(`stamp_${b.tier}`)).setOrigin(0);
-      text(this, x + 17, top + 21, `x${b.defeats}`, light({ font: 'small' }));
+      text(this, x + 17, top + 21, `x${formatNum(b.defeats)}`, light({ font: 'small' }));
       icon(this, x + 23, top + 34, 'pearl');
-      text(this, x + 31, top + 31, `+${b.pearls}`, light({ font: 'small' }));
+      text(this, x + 31, top + 31, `+${formatNum(b.pearls)}`, light({ font: 'small' }));
     });
   }
 
@@ -193,14 +193,14 @@ export class WantedScene extends Phaser.Scene {
     // Stats at the current wave (on this island, which may start harder).
     const scaling = waveScaling(p.scalingWave, p.island);
     const statsY = traitsOf(def).length ? chipY + 18 : py;
-    const dash = (n) => (n > 0 ? fmtNumber(Math.round(n)) : '-');
+    const dash = (n) => (n > 0 ? formatNum(Math.round(n)) : '-');
     const stats = [
-      ['HP', fmtNumber(Math.round(def.hp * scaling.hp))],
+      ['HP', formatNum(Math.round(def.hp * scaling.hp))],
       ['SPEED', dash(def.speed)],
       ['DAMAGE', def.hullShare ? `${Math.round(def.hullShare.normal * 100)}% HULL` : dash(def.damage * scaling.damage)],
       firstWave(id),
     ];
-    add(text(this, right, statsY, `AT WAVE ${p.wave}`, subText()));
+    add(text(this, right, statsY, `AT WAVE ${formatNum(p.wave)}`, subText()));
     stats.forEach(([label, value], i) => {
       const sx = right + (i % 2) * 70;
       const sy = statsY + 10 + Math.floor(i / 2) * 18;
@@ -228,19 +228,19 @@ export class WantedScene extends Phaser.Scene {
     const count = p.defeatCount(id);
     const tier = p.bountyTier(id);
     add(text(this, left + 10, bountyY, 'BOUNTY', dark()),
-      text(this, left + w - 10, bountyY + 3, `${fmtNumber(count)} DEFEATED`, subText()).setOrigin(1, 0));
+      text(this, left + w - 10, bountyY + 3, `${formatNum(count)} DEFEATED`, subText()).setOrigin(1, 0));
     WANTED.bounties.forEach((b, i) => {
       const bx = left + 10 + i * 78;
       const by = bountyY + 16;
       add(this.add.image(bx, by, wantedKey(`stamp_${b.tier}`)).setOrigin(0).setAlpha(i < tier ? 1 : 0.3),
-        text(this, bx + 17, by + 1, `x${b.defeats}`, subText()),
+        text(this, bx + 17, by + 1, `x${formatNum(b.defeats)}`, subText()),
         icon(this, bx + 23, by + 14, 'pearl').setAlpha(i < tier ? 1 : 0.5),
-        text(this, bx + 31, by + 11, i < tier ? 'PAID' : `+${b.pearls}`, subText()));
+        text(this, bx + 31, by + 11, i < tier ? 'PAID' : `+${formatNum(b.pearls)}`, subText()));
     });
     const next = WANTED.bounties[tier];
     const barY = bountyY + 40;
     const bar = new Bar(this, left + 10, barY, w - 20, 10, UI.colors.progress);
-    if (next) bar.setValue(count / next.defeats, `${fmtNumber(count)} / ${next.defeats} FOR ${next.tier.toUpperCase()}`);
+    if (next) bar.setValue(count / next.defeats, `${formatNum(count)} / ${formatNum(next.defeats)} FOR ${next.tier.toUpperCase()}`);
     else bar.setValue(1, 'EVERY BOUNTY PAID');
     add(bar);
   }

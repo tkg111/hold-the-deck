@@ -9,7 +9,7 @@ import * as X from '../systems/Expeditions.js';
 import { saveProgress } from '../systems/Save.js';
 import { Button } from '../ui/Button.js';
 import {
-  cssColor, fmtClock, fmtNumber, fmtShort, fmtShortTime, starLabel,
+  cssColor, fmtClock, fmtShortTime, formatNum, starLabel,
 } from '../ui/format.js';
 import {
   Bar, dark, expeditionKey, face, hexColor, icon, light, panel, subText, text, traitIcon, UI,
@@ -260,7 +260,7 @@ export class ExpeditionScene extends Phaser.Scene {
         const sil = this.add.image(cx, cy - 6, mapKey(dest.island)).setOrigin(0).setTintFill(0x000000).setAlpha(0.7);
         sil.setCrop(0, 6, cellW, cellH);
         this.add2(sil);
-        this.add2(text(this, cx + cellW / 2, cy + 11, `WAVE ${X.destinationWave(dest)}`, light({ font: 'small' })).setOrigin(0.5, 0));
+        this.add2(text(this, cx + cellW / 2, cy + 11, `WAVE ${formatNum(X.destinationWave(dest))}`, light({ font: 'small' })).setOrigin(0.5, 0));
         const island = X.destinationIslandName(dest, { short: true }).toUpperCase();
         this.add2(text(this, cx + cellW / 2, cy + 22, island, light({ font: 'small' })).setOrigin(0.5, 0));
       }
@@ -417,7 +417,7 @@ export class ExpeditionScene extends Phaser.Scene {
     const slot = p.slotOf(id);
     this.add2(text(this, x, y, HEROES[id].name, dark()));
     const stars = starLabel(p.heroStarCount(id), p.heroBonusLevels(id)) || '0 STARS';
-    this.add2(text(this, x, y + 16, `LV ${p.heroLevel(id)}  ${stars}`, subText()));
+    this.add2(text(this, x, y + 16, `LV ${formatNum(p.heroLevel(id))}  ${stars}`, subText()));
     this.add2(traitIcon(this, x + 5, y + 30, X.traitOf(id)));
     this.add2(text(this, x + 14, y + 27, X.traitLabel(X.traitOf(id)).toUpperCase(), subText({ color: UI.colors.textOnParchment })));
     let where = slot >= 0 ? `ON DECK, SLOT ${slot + 1}` : 'ON THE BENCH';
@@ -470,9 +470,9 @@ export class ExpeditionScene extends Phaser.Scene {
       this.add2(text(this, tx, B.y + 34, X.destinationOf(dest).name.toUpperCase(), subText()));
     } else {
       const v = X.preview(p, dest, party, duration);
-      this.add2(text(this, tx, B.y + 7, `~${fmtShort(v.gold[0])}-${fmtShort(v.gold[1])} gold`, dark()));
+      this.add2(text(this, tx, B.y + 7, `~${formatNum(v.gold[0])}-${formatNum(v.gold[1])} gold`, dark()));
       const extras = [];
-      if (v.pearls[1]) extras.push(`${v.pearls[0]}-${v.pearls[1]} PEARLS`);
+      if (v.pearls[1]) extras.push(`${formatNum(v.pearls[0])}-${formatNum(v.pearls[1])} PEARLS`);
       if (v.chests) extras.push(`${v.chests} CHEST${v.betterChests ? ', MAYBE RARE+' : ''}`);
       if (v.chestChance) extras.push(v.chestChance >= 1 ? 'A CHEST' : `${Math.round(v.chestChance * 100)}% CHANCE OF A CHEST`);
       this.add2(text(this, tx, B.y + 24, extras.join(', ') || 'GOLD ONLY', subText()));
@@ -610,10 +610,10 @@ export class ExpeditionScene extends Phaser.Scene {
     let amount;
     let label;
     if (r.kind === 'gold') {
-      amount = `+${fmtShort(r.amount)}`;
+      amount = `+${formatNum(r.amount)}`;
       label = 'GOLD';
     } else if (r.kind === 'pearls') {
-      amount = `+${fmtNumber(r.amount)}`;
+      amount = `+${formatNum(r.amount)}`;
       label = r.bonus ? 'PEARLS X2' : 'PEARLS';
     } else {
       amount = '+1';

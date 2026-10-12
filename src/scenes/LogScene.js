@@ -4,7 +4,7 @@ import { sfx } from '../audio/Sfx.js';
 import { applyRenderScale, fillView } from '../display.js';
 import { KINDS, sumCrew, sumHull, totalDamage } from '../systems/BattleStats.js';
 import { Button } from '../ui/Button.js';
-import { fmtNumber } from '../ui/format.js';
+import { formatNum } from '../ui/format.js';
 import {
   dark, face, hexColor, icon, light, nineSlice, panel, subText, text, UI,
 } from '../ui/kit.js';
@@ -19,13 +19,13 @@ const LEGEND = { attack: 'ATTACKS', ability: 'ABILITIES', effect: 'EFFECTS' };
 
 // A support crewmate's extra stat (BattleStats.SUPPORT) as a line of text.
 const SUPPORT_LABEL = {
-  captain: (n) => `AURA ADDED ${fmtNumber(n)} DMG`,
-  shipsDoctor: (n) => `REPAIRED ${fmtNumber(n)} HULL`,
-  netThrower: (n) => `SLOWED ${fmtNumber(n)} ${n === 1 ? 'ENEMY' : 'ENEMIES'}`,
-  shipsCook: (n) => `${fmtNumber(n)} ${n === 1 ? 'STUN' : 'STUNS'} APPLIED`,
+  captain: (n) => `AURA ADDED ${formatNum(n)} DMG`,
+  shipsDoctor: (n) => `REPAIRED ${formatNum(n)} HULL`,
+  netThrower: (n) => `SLOWED ${formatNum(n)} ${n === 1 ? 'ENEMY' : 'ENEMIES'}`,
+  shipsCook: (n) => `${formatNum(n)} ${n === 1 ? 'STUN' : 'STUNS'} APPLIED`,
 };
 
-const plural = (n, word) => `${fmtNumber(n)} ${word}${n === 1 ? '' : 'S'}`;
+const plural = (n, word) => `${formatNum(n)} ${word}${n === 1 ? '' : 'S'}`;
 const percent = (part, whole) => `${whole > 0 ? Math.round(100 * part / whole) : 0}%`;
 
 // The Captain's Log (battle stats): a parchment panel with three tabs. Last
@@ -149,7 +149,7 @@ export class LogScene extends Phaser.Scene {
   drawCrew(records) {
     const won = records.filter((r) => r.won).length;
     this.summary.setText(records.length === 1
-      ? `WAVE ${records[0].wave} ${records[0].won ? 'CLEARED' : 'SUNK'}`
+      ? `WAVE ${formatNum(records[0].wave)} ${records[0].won ? 'CLEARED' : 'SUNK'}`
       : `${records.length} WAVES: ${won} WON, ${records.length - won} LOST`);
     const crew = sumCrew(records).map((c) => ({ ...c, total: totalDamage(c) }))
       .sort((a, b) => b.total - a.total);
@@ -173,7 +173,7 @@ export class LogScene extends Phaser.Scene {
     row.add([face(this, 8, 9, c.id), name]);
     row.add(this.damageBar(barX, 3, barWidth, top, KINDS.map((k) => ({ value: c[k], color: BATTLE_LOG.colors[k] }))));
     row.add([
-      text(this, barX + barWidth + 6, 4, fmtNumber(c.total), dark()),
+      text(this, barX + barWidth + 6, 4, formatNum(c.total), dark()),
       text(this, this.innerWidth, 4, percent(c.total, all), dark()).setOrigin(1, 0),
       text(this, barX + barWidth + 6, 19, `${plural(c.kills, 'KILL')}  ${plural(c.uses, 'USE')}`, subText()),
     ]);
@@ -193,7 +193,7 @@ export class LogScene extends Phaser.Scene {
   drawTaken(records) {
     const hull = Object.entries(sumHull(records)).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
     const all = hull.reduce((sum, [, v]) => sum + v, 0);
-    this.summary.setText(`HULL LOST: ${fmtNumber(all)}`);
+    this.summary.setText(`HULL LOST: ${formatNum(all)}`);
     if (!hull.length) {
       this.message('NOTHING HAS HIT THE HULL. YET.');
       return;
@@ -206,7 +206,7 @@ export class LogScene extends Phaser.Scene {
         enemyThumb(this, 0, 1, id),
         text(this, 40, 3, name, dark()),
         this.damageBar(40, 17, barX + barWidth - 40, top, [{ value: damage, color: UI.colors.hull }]),
-        text(this, barX + barWidth + 6, 11, fmtNumber(damage), dark()),
+        text(this, barX + barWidth + 6, 11, formatNum(damage), dark()),
         text(this, this.innerWidth, 11, percent(damage, all), dark()).setOrigin(1, 0),
       ]);
     });

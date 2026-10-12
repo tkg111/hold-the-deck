@@ -102,21 +102,22 @@ export const SPRITES = {
   // Visible height of each hero sprite in sprite pixels (feet on the bottom
   // row), so shots and labels come from the body rather than empty space.
   heroes: {
-    // faceTop: first row of the head; the UI crops a FACE-sized face from there.
+    // faceTop: top row of the UI's FACE-sized face crop: the head, with tall
+    // hats cut off so the eyes sit about halfway down.
     cabinBoy: { key: 'cabin_boy', height: 29, faceTop: 3 },
-    shipsCook: { key: 'ships_cook', height: 32, faceTop: 0 },
+    shipsCook: { key: 'ships_cook', height: 32, faceTop: 3 },
     netThrower: { key: 'net_thrower', height: 29, faceTop: 3 },
-    voodooPriestess: { key: 'voodoo_priestess', height: 32, faceTop: 0 },
+    voodooPriestess: { key: 'voodoo_priestess', height: 32, faceTop: 3 },
     grogBrewer: { key: 'grog_brewer', height: 28, faceTop: 4 },
     harpooner: { key: 'harpooner', height: 28, faceTop: 4 },
     cannoneer: { key: 'cannoneer', height: 27, faceTop: 5 },
-    duelist: { key: 'the_duelist', height: 32, faceTop: 0 },
-    captain: { key: 'the_captain', height: 31, faceTop: 1 },
+    duelist: { key: 'the_duelist', height: 32, faceTop: 3 },
+    captain: { key: 'the_captain', height: 31, faceTop: 4 },
     parrotKeeper: { key: 'parrot_keeper', height: 27, faceTop: 5 },
     shipsDoctor: { key: 'ships_doctor', height: 25, faceTop: 7 },
     sharpshooter: { key: 'sharpshooter', height: 28, faceTop: 4 },
     ghostPirate: { key: 'ghost_pirate', height: 28, faceTop: 4 },
-    stormCaller: { key: 'storm_caller', height: 32, faceTop: 1 },
+    stormCaller: { key: 'storm_caller', height: 32, faceTop: 4 },
   },
   // Crew faces in the UI: this box of each hero's 32x32 sprite (x, width and
   // height in art pixels; y comes from faceTop).
@@ -158,10 +159,37 @@ export const UI_KIT = {
   starEmptyColor: '#c9b48a',
   dividerColor: '#d9c39a', // lines between parchment rows
   dotRadius: 3,           // red "something to do" dot on buttons
-  badgeRadius: 5,         // red badge with a count on buttons
+  // Red badge with a count inside a button's top-right corner (small font,
+  // in textColor): padding round the digits, and its inset from the corner.
+  badge: { textColor: '#ffffff', padX: 1, padY: 1, inset: 1 },
   antiAirColor: '#2f6db5', // anti-air mark on crew cards and picker rows
-  shipwrightRows: 5,      // rows visible at once; more scroll
+  affordColor: '#3fae3f',  // green ▲: a Shipwright upgrade you can afford
+  dragThreshold: 4,       // px a press moves before it scrolls a list instead
+  // The Shipwright: its width, rows visible at most (fewer if the view is
+  // short; more scroll), row height, the buy button, the header strip with
+  // the Ship / Crew tabs and the buy amount toggle, and the handle on its
+  // left edge that slides it off the right of the view (slideMs) and back.
+  shipwrightWidth: 236,
+  shipwrightRows: 7,
   rowHeight: 28,
+  buyButton: { width: 66, height: 19 },
+  shipwrightHeader: { height: 17, buttonHeight: 14, tabWidth: 38, amountWidths: [22, 26, 30] },
+  buyAmounts: ['1', '10', 'max'],   // labels: x1, x10, MAX
+  maxedRowAlpha: 0.55,              // rows with nothing left to buy
+  shipwrightHandle: { width: 13, height: 32, y: 14, slideMs: 180 },
+  // Top HUD plaques (art pixels): the wave plaque ("FOGBOUND · WAVE 15",
+  // between minWidth and maxWidth wide; past that the island's map art,
+  // scaled to islandIcon px wide, stands in for the skull and its name), the
+  // hull HP plaque under it (its bar at least barMin wide, wider if a
+  // formatted HP needs it), and the gold and Pearls plaques top right.
+  hud: {
+    wave: { minWidth: 110, maxWidth: 166, islandIcon: 16 },
+    hull: { y: 32, height: 18, barMin: 92 },
+    goldWidth: 82,
+    pearlsWidth: 74,
+    plaqueGap: 3,
+  },
+  bottomButtonHeight: 30,   // the between-waves button bar (room for badges)
   // The hero picker: wider than the Shipwright (it extends left over the
   // sea) with taller rows that also show each crewmate's ability.
   pickerWidth: 260,

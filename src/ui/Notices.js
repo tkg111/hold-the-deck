@@ -1,5 +1,5 @@
 import { BATTLE_LOG, DISPLAY, ENEMIES, HEROES, WANTED } from '../config.js';
-import { fmtNumber } from './format.js';
+import { formatNum } from './format.js';
 import {
   face, light, panel, text, UI, wantedKey,
 } from './kit.js';
@@ -76,7 +76,7 @@ export class Notices {
   bounty(id, { tier, defeats, pearls }) {
     const { scene } = this;
     const line1 = text(scene, 22, 4, `${ENEMIES[id].name.toUpperCase()} x${defeats}`, light({ font: 'small' }));
-    const line2 = text(scene, 22, 13, `BOUNTY +${pearls} PEARLS`, light({ font: 'small' }));
+    const line2 = text(scene, 22, 13, `BOUNTY +${formatNum(pearls)} PEARLS`, light({ font: 'small' }));
     const width = Math.max(line1.inkWidth, line2.inkWidth) + 30;
     const height = 24;
     const box = scene.add.container(0, 0, [
@@ -93,7 +93,7 @@ export class Notices {
   mvp(heroId, damage) {
     const { scene } = this;
     this.mvpNote?.box.destroy();
-    const label = text(scene, 26, 6, `MVP: ${HEROES[heroId].name} - ${fmtNumber(damage)} dmg`, light());
+    const label = text(scene, 26, 6, `MVP: ${HEROES[heroId].name} - ${formatNum(damage)} dmg`, light());
     const width = 26 + label.inkWidth + 8;
     const box = scene.add.container(0, 0, [
       panel(scene, 0, 0, width, 22, 'wood'),

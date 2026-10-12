@@ -25,13 +25,14 @@ import { BattleStats, mvpOf } from '../systems/BattleStats.js';
 import { AbilityBar } from '../ui/AbilityBar.js';
 import { Button } from '../ui/Button.js';
 import { ConfirmDialog } from '../ui/ConfirmDialog.js';
-import { fmtNumber, pearlsLabel } from '../ui/format.js';
+import { formatNum, pearlsLabel } from '../ui/format.js';
 import { HeroPicker } from '../ui/HeroPicker.js';
 import { Notices } from '../ui/Notices.js';
 import { AutoContinue } from '../ui/AutoContinue.js';
+import { ScrollPanel } from '../ui/ScrollPanel.js';
 import { Shipwright } from '../ui/Shipwright.js';
 import {
-  Bar, EXPEDITION_JSON_KEY, expeditionKey, icon, light, panel, text, UI, wantedKey,
+  Bar, EXPEDITION_JSON_KEY, expeditionKey, glyph, glyphWidth, icon, light, panel, text, UI, wantedKey,
 } from '../ui/kit.js';
 import * as Expeditions from '../systems/Expeditions.js';
 
@@ -39,6 +40,9 @@ const STATE = { IDLE: 'idle', RUNNING: 'running' };
 
 // Enemies that count toward the wave (not hazards such as lava bombs).
 const isFoe = (e) => !e.def.hazard;
+
+// The between-waves button bar's centre line (base layout).
+const BOTTOM_BAR_Y = 251;
 
 // Gold amounts floating up from kills.
 const GOLD_TEXT = '#ffd86a';
@@ -137,25 +141,46 @@ export class GameScene extends Phaser.Scene {
   // ui_mock_between_waves.png: wave and hull top-left, gold and Pearls
   // top-right with settings, sound and fullscreen under them, the
   // enemies-left bar top-centre during waves, and between waves the
-  // Shipwright on the right and SET SAIL! / Chests / Crew along the
-  // bottom (plus Wanted, where Voyage used to be). Positions are in the base
+  // Shipwright on the right and the button bar along the bottom (Log, Map,
+  // Voyage, SET SAIL!, Chests, Crew, Wanted). Positions are in the base
   // 480x270 layout; each group is a container that layoutUi() moves to its
   // corner or edge of the view.
   createUi() {
     const group = (...items) => this.add.container(0, 0, items);
 
+    // Wave plaque: "FOGBOUND · WAVE 15" (see layoutWavePlaque).
+    this.wavePlaque = panel(this, 6, 6, UI_KIT.hud.wave.minWidth, 24, 'wood');
+    this.waveIcon = icon(this, 19, 18, 'wave');
+    this.waveIsland = this.add.image(21, 18, mapKey(this.progress.islandId)).setVisible(false);
+    this.islandText = text(this, 29, 18, '', light()).setOrigin(0, 0.5);
+    this.waveDot = glyph(this, 0, 18, 'dot', UI.colors.text);
     this.waveText = text(this, 29, 18, '', light()).setOrigin(0, 0.5);
-    this.hullBar = new Bar(this, 24, 36, 92, 10, UI.colors.hull);
+    // Hull HP on its own plaque under it, the bar wide enough for the widest
+    // formatted HP ("88.8aa / 88.8aa").
+    const hull = UI_KIT.hud.hull;
+    const widest = Math.max(...['8,888', '88.8M', '88.8aa'].map((n) => {
+      const t = text(this, 0, 0, `${n} / ${n}`, light({ font: 'small' }));
+      const w = t.inkWidth;
+      t.destroy();
+      return w;
+    }));
+    const barW = Math.max(hull.barMin, widest + 8);
+    this.hullBar = new Bar(this, 24, hull.y + 4, barW, 10, UI.colors.hull);
     this.topLeft = group(
-      panel(this, 6, 6, 110, 24, 'wood'), icon(this, 19, 18, 'wave'), this.waveText,
-      icon(this, 16, 41, 'hull'), this.hullBar,
+      this.wavePlaque, this.waveIcon, this.waveIsland, this.islandText, this.waveDot, this.waveText,
+      panel(this, 6, hull.y, 24 + barW + 5 - 6, hull.height, 'wood'), icon(this, 16, hull.y + 9, 'hull'), this.hullBar,
     );
 
     this.enemiesBar = new Bar(this, 172, 12, 136, 12, UI.colors.progress);
     this.topCenter = group(this.enemiesBar);
 
-    this.goldText = text(this, 352, 18, '', light()).setOrigin(0, 0.5);
-    this.pearlsText = text(this, 428, 18, '', light()).setOrigin(0, 0.5);
+    // Gold and Pearls on two plaques, gold (the wider) on the left, each
+    // fitting a 6-character number ("88.8aa").
+    const { goldWidth, pearlsWidth, plaqueGap } = UI_KIT.hud;
+    const pearlsX = 474 - pearlsWidth;
+    const goldX = pearlsX - plaqueGap - goldWidth;
+    this.goldText = text(this, goldX + 21, 18, '', light()).setOrigin(0, 0.5);
+    this.pearlsText = text(this, pearlsX + 21, 18, '', light()).setOrigin(0, 0.5);
     // Settings: currently just Reset progress (with a confirmation).
     this.settingsButton = new Button(this, 421, 43, {
       width: 18, height: 18, icon: 'gear', onClick: () => this.confirmReset(),
@@ -167,15 +192,18 @@ export class GameScene extends Phaser.Scene {
       width: 18, height: 18, icon: 'fullscreen', onRelease: true, onClick: () => this.toggleFullscreen(),
     }).setVisible(fullscreenSupported());
     this.topRight = group(
-      panel(this, 330, 6, 144, 24, 'wood'), icon(this, 344, 18, 'gold'), this.goldText,
-      icon(this, 421, 18, 'pearl'), this.pearlsText,
+      panel(this, goldX, 6, goldWidth, 24, 'wood'), icon(this, goldX + 12, 18, 'gold'), this.goldText,
+      panel(this, pearlsX, 6, pearlsWidth, 24, 'wood'), icon(this, pearlsX + 12, 18, 'pearl'), this.pearlsText,
       this.settingsButton, this.muteButton, this.fullscreenButton,
     );
 
     // Over the sky between the ship and the Shipwright.
     this.banner = this.add.container(0, 0).setDepth(10).setAlpha(0);
 
-    this.shipwright = new Shipwright(this, 0, 0, 200, this.progress, () => this.onUpgradePurchased());
+    this.shipwright = new Shipwright(this, 0, 0, this.progress, {
+      onPurchase: () => this.onUpgradePurchased(),
+      onSettingChange: () => this.save(),
+    });
     this.heroPicker = new HeroPicker(this, 0, 0, UI_KIT.pickerWidth, (id) => this.onHeroPicked(id));
     this.heroPicker.on('closed', () => {
       this.ship.selectSlot(-1);
@@ -184,32 +212,37 @@ export class GameScene extends Phaser.Scene {
 
     if (DEV_TOOLS) import('../dev/devTools.js').then((m) => m.installDevTools(this));
 
-    this.startButton = new Button(this, 211, 246, {
-      width: 120, height: 28, style: 'gold', font: 'big', label: 'SET SAIL!', onClick: () => this.startWave(),
+    // The bottom bar, left to right: Log, Map, Voyage, SET SAIL!, Chests,
+    // Crew, Wanted. Count badges sit in the top-right corners above the
+    // labels (hence the height).
+    const barY = BOTTOM_BAR_Y;
+    const barH = UI_KIT.bottomButtonHeight;
+    this.startButton = new Button(this, 226, barY, {
+      width: 108, height: barH, style: 'gold', font: 'big', label: 'SET SAIL!', onClick: () => this.startWave(),
     });
-    this.packButton = new Button(this, 304, 248, {
-      width: 64, height: 24, icon: 'chest', label: 'Chests', onClick: () => this.openPacks(),
+    // Chests (badge: chests you can open, free or with Pearls).
+    this.packButton = new Button(this, 314, barY, {
+      width: 64, height: barH, icon: 'chest', label: 'Chests', onClick: () => this.openPacks(),
     });
-    this.collectionButton = new Button(this, 370, 248, {
-      width: 60, height: 24, icon: 'book', label: 'Crew', onClick: () => this.openCollection(),
+    this.collectionButton = new Button(this, 376, barY, {
+      width: 56, height: barH, icon: 'book', label: 'Crew', onClick: () => this.openCollection(),
     });
-    // The Wanted Board (red dot: a poster not opened yet).
-    this.wantedButton = new Button(this, 439, 248, {
-      width: 70, height: 24, icon: wantedKey('icon_wanted'), label: 'Wanted', onClick: () => this.openWanted(),
+    // The Wanted Board (badge: posters not opened yet).
+    this.wantedButton = new Button(this, 441, barY, {
+      width: 70, height: barH, icon: wantedKey('icon_wanted'), label: 'Wanted', onClick: () => this.openWanted(),
     });
-    // The world map, left of SET SAIL! once an island is cleared (red dot:
-    // not opened since).
-    this.mapButton = new Button(this, 81, 248, {
-      width: 46, height: 24, icon: mapKey('ship_token'), label: 'Map', onClick: () => this.openMap(),
+    // The world map, once an island is cleared (red dot: not opened since).
+    this.mapButton = new Button(this, 74, barY, {
+      width: 48, height: barH, icon: mapKey('ship_token'), label: 'Map', onClick: () => this.openMap(),
     });
     // The Captain's Log (battle stats of the last waves), left of Map.
-    this.logButton = new Button(this, 33, 248, {
-      width: 46, height: 24, icon: 'book', label: 'Log', onClick: () => this.openLog(),
+    this.logButton = new Button(this, 26, barY, {
+      width: 44, height: barH, icon: 'book', label: 'Log', onClick: () => this.openLog(),
     });
-    // Expeditions, left of SET SAIL! (a badge counts the ones back). Greyed
-    // out until unlocked; tapping it then says how to unlock it.
-    this.expeditionButton = new Button(this, 128, 248, {
-      width: 40, height: 24, icon: expeditionKey('icon_expedition'), onClick: () => this.openExpeditions(),
+    // Expeditions ("Voyage"), left of SET SAIL! (badge: the ones back).
+    // Greyed out until unlocked; tapping it then says how to unlock it.
+    this.expeditionButton = new Button(this, 135, barY, {
+      width: 70, height: barH, icon: expeditionKey('icon_expedition'), label: 'Voyage', onClick: () => this.openExpeditions(),
     });
     this.expeditionButton.bg.on('pointerdown', () => {
       if (this.expeditionButton.enabled) return;
@@ -248,7 +281,14 @@ export class GameScene extends Phaser.Scene {
     this.topCenter.setPosition(center, view.top);
     this.topRight.setPosition(right, view.top);
     this.banner.setPosition(center + 188, view.top + 80);
-    this.shipwright.setPosition(right + 273, view.top + 64);
+    // The Shipwright shows as many rows as fit above the button bar, and
+    // slides away to the view's right edge.
+    const swTop = view.top + 64;
+    const barTop = Math.round(view.bottom - DISPLAY.height) + BOTTOM_BAR_Y - UI_KIT.bottomButtonHeight / 2;
+    const fit = ScrollPanel.heightFor(0, UI_KIT.shipwrightHeader.height);
+    const rows = Math.floor((barTop - 2 - swTop - fit) / UI_KIT.rowHeight);
+    this.shipwright.setVisibleRows(Math.min(UI_KIT.shipwrightRows, rows));
+    this.shipwright.setAnchor(right + 473 - UI_KIT.shipwrightWidth, view.right - 3, swTop);
     this.heroPicker.setPosition(right + 473 - UI_KIT.pickerWidth, view.top + 64);
     this.bottomBar.setPosition(right, Math.round(view.bottom - DISPLAY.height));
     this.abilityBar.layout(view);
@@ -260,13 +300,13 @@ export class GameScene extends Phaser.Scene {
     const idle = this.state === STATE.IDLE;
     const p = this.progress;
     const boss = isBossWave(p.wave);
-    this.waveText.setText(`WAVE ${p.wave}${boss ? ' BOSS' : ''}`);
+    this.layoutWavePlaque(p.island, `WAVE ${formatNum(p.wave)}${boss ? ' BOSS' : ''}`);
     const waveColor = boss ? UI.colors.warn : UI.colors.text;
     if (this.waveText.color !== waveColor) this.waveText.setColor(waveColor);
-    this.goldText.setText(fmtNumber(p.gold));
-    this.pearlsText.setText(fmtNumber(p.pearls));
+    this.goldText.setText(formatNum(p.gold));
+    this.pearlsText.setText(formatNum(p.pearls));
     this.hullBar.setValue(this.ship.hp / this.ship.maxHp,
-      `${fmtNumber(Math.ceil(this.ship.hp))} / ${fmtNumber(this.ship.maxHp)}`);
+      `${formatNum(Math.ceil(this.ship.hp))} / ${formatNum(this.ship.maxHp)}`);
 
     this.enemiesBar.setVisible(!idle);
     if (!idle) {
@@ -283,15 +323,44 @@ export class GameScene extends Phaser.Scene {
     if (this.expeditionButton.enabled !== expeditionsOpen) this.expeditionButton.setEnabled(expeditionsOpen);
     this.speedButton.setVisible(!idle).setLabel(`x${this.speed}`);
     this.abilityBar.setVisible(!idle);
-    // Red dot: a chest is affordable.
-    this.packButton.setDot(p.canOpenPack);
-    this.wantedButton.setDot(p.hasUnseenPoster);
+    // Badges: chests you can open (free ones, and with Pearls), posters
+    // not opened yet.
+    this.packButton.setBadge(p.freeChestCount + Math.floor(p.pearls / p.packCost));
+    this.wantedButton.setBadge(p.discovered.filter((id) => !p.isPosterSeen(id)).length);
     if (this.settingsButton.enabled !== idle) this.settingsButton.setEnabled(idle);
     this.muteButton.setIcon(p.muted ? 'sound_off' : 'sound_on');
     this.fullscreenButton.setIcon(isFullscreen() ? 'windowed' : 'fullscreen');
     this.shipwright.setVisible(idle && !this.heroPicker.visible);
     this.devTools?.refresh(idle);
     if (idle) this.shipwright.refresh();
+  }
+
+  // The wave plaque: "FOGBOUND · WAVE 15" after the skull, sized to fit; if
+  // that's wider than UI_KIT.hud.wave.maxWidth, the island's map art (scaled
+  // down) in place of the skull and its name.
+  layoutWavePlaque(island, waveLabel) {
+    const key = `${island.id}|${waveLabel}`;
+    if (this.wavePlaqueKey === key) return;
+    this.wavePlaqueKey = key;
+    const spec = UI_KIT.hud.wave;
+    this.islandText.setText((island.shortName ?? island.name).toUpperCase());
+    this.waveText.setText(waveLabel);
+    const dotX = 29 + this.islandText.inkWidth + 4;
+    const waveX = dotX + glyphWidth('dot') + 4;
+    const full = waveX + this.waveText.inkWidth + 7 - 6 <= spec.maxWidth;
+    this.waveIcon.setVisible(full);
+    this.islandText.setVisible(full);
+    this.waveDot.setVisible(full).setX(dotX);
+    this.waveIsland.setVisible(!full);
+    if (full) {
+      this.waveText.setX(waveX);
+    } else {
+      this.waveIsland.setTexture(mapKey(island.id));
+      this.waveIsland.setScale(spec.islandIcon / this.waveIsland.frame.width);
+      this.waveText.setX(31);
+    }
+    const right = this.waveText.x + this.waveText.inkWidth + 7;
+    this.wavePlaque.setSize(Phaser.Math.Clamp(right - 6, spec.minWidth, spec.maxWidth), 24);
   }
 
   // A wood plaque with a short headline in the big font (and an optional
@@ -326,7 +395,7 @@ export class GameScene extends Phaser.Scene {
     const gold = this.progress.earnGold(enemy.gold);
     this.waveGold += gold;
     const top = enemy.y - enemy.def.height / 2;
-    this.floatText(enemy.x, top - 6, `+${gold}`, GOLD_TEXT);
+    this.floatText(enemy.x, top - 6, `+${formatNum(gold)}`, GOLD_TEXT);
     if (enemy.def.boss) {
       const pearls = this.progress.claimBossPearls();
       if (pearls) this.floatText(enemy.x, top - 16, `+${pearlsLabel(pearls)}`);
@@ -340,7 +409,7 @@ export class GameScene extends Phaser.Scene {
   onEnemyStole(enemy) {
     const amount = Math.min(this.progress.gold, Math.ceil(this.progress.gold * enemy.def.stealPercent));
     this.progress.gold -= amount;
-    this.floatText(enemy.x, enemy.y - 12, amount > 0 ? `-${amount} gold` : 'nothing to steal!', UI.colors.warn);
+    this.floatText(enemy.x, enemy.y - 12, amount > 0 ? `-${formatNum(amount)} gold` : 'nothing to steal!', UI.colors.warn);
   }
 
   save() {
@@ -609,8 +678,8 @@ export class GameScene extends Phaser.Scene {
           hold: 4500,
         });
       } else {
-        this.showBanner(`WAVE ${wave} CLEARED!`, {
-          detail: `+${fmtNumber(gold)} GOLD${pearls ? `  +${pearlsLabel(pearls).toUpperCase()}` : ''}`,
+        this.showBanner(`WAVE ${formatNum(wave)} CLEARED!`, {
+          detail: `+${formatNum(gold)} GOLD${pearls ? `  +${pearlsLabel(pearls).toUpperCase()}` : ''}`,
         });
       }
     } else {
