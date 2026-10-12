@@ -1,0 +1,102 @@
+{
+  "grapeshot": {
+    "file": "grapeshot.png",
+    "frameWidth": 10,
+    "frameHeight": 8,
+    "frames": 1,
+    "fps": 0,
+    "repeat": 0,
+    "kind": "projectile",
+    "use": "Cursed Cannoneer shot, fired flat at the hull"
+  },
+  "soul_wisp": {
+    "file": "soul_wisp.png",
+    "frameWidth": 10,
+    "frameHeight": 10,
+    "frames": 2,
+    "fps": 6,
+    "repeat": -1,
+    "kind": "projectile",
+    "use": "Lantern Ghoul: floats from the lantern to a fallen Bone Deckhand, which then plays rise"
+  },
+  "fog_puff": {
+    "file": "fog_puff.png",
+    "frameWidth": 48,
+    "frameHeight": 32,
+    "frames": 4,
+    "fps": 10,
+    "repeat": 0,
+    "kind": "impact",
+    "use": "Blackbones sinking into / stepping out of the fog; Fog Wraith fading"
+  },
+  "ghost_hit": {
+    "file": "ghost_hit.png",
+    "frameWidth": 16,
+    "frameHeight": 16,
+    "frames": 3,
+    "fps": 16,
+    "repeat": 0,
+    "kind": "impact",
+    "use": "hits from ghostly enemies, grapeshot impact"
+  },
+  "charm_note": {
+    "file": "charm_note.png",
+    "frameWidth": 12,
+    "frameHeight": 12,
+    "frames": 2,
+    "fps": 6,
+    "repeat": -1,
+    "kind": "projectile",
+    "use": "Siren song: notes drift from her mouth to the charmed crewmate"
+  },
+  "charm_status": {
+    "file": "charm_status.png",
+    "frameWidth": 24,
+    "frameHeight": 12,
+    "frames": 4,
+    "fps": 8,
+    "repeat": -1,
+    "kind": "status",
+    "use": "above a charmed crewmate (it attacks its own ship)"
+  },
+  "siren_wave": {
+    "file": "siren_wave.png",
+    "frameWidth": 40,
+    "frameHeight": 28,
+    "frames": 3,
+    "fps": 8,
+    "repeat": -1,
+    "kind": "projectile",
+    "use": "Siren Queen wave: rolls left along the waterline into the hull"
+  },
+  "ghost_slash": {
+    "file": "ghost_slash.png",
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "frames": 3,
+    "fps": 14,
+    "repeat": 0,
+    "kind": "impact",
+    "use": "Blackbones cutlass hit"
+  },
+  "summon_circle": {
+    "file": "summon_circle.png",
+    "frameWidth": 32,
+    "frameHeight": 12,
+    "frames": 4,
+    "fps": 8,
+    "repeat": -1,
+    "kind": "status",
+    "use": "on the ground where a Bone Deckhand is about to rise"
+  },
+  "ghost_flame": {
+    "file": "ghost_flame.png",
+    "frameWidth": 12,
+    "frameHeight": 16,
+    "frames": 4,
+    "fps": 10,
+    "repeat": -1,
+    "kind": "status",
+    "use": "decor: Blackbones phase 2 / finale fires on the lane"
+  }
+}

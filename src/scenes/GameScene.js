@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import {
-  ASHFALL, DISPLAY, ENEMIES, GAME_SPEEDS, HEROES, SCENERY, SIM, SNOWFALL, UI_KIT,
+  ASHFALL, DISPLAY, ENDING, ENEMIES, GAME_SPEEDS, HEROES, SCENERY, SIM, SNOWFALL, UI_KIT,
 } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
 import { DEV_TOOLS } from '../devFlag.js';
@@ -11,6 +11,7 @@ import { Scenery } from '../scenery.js';
 import { createAnimations, mapKey, preloadSprites } from '../sprites.js';
 import { Storm } from '../storm.js';
 import { Weather } from '../weather.js';
+import { Fog } from '../fog.js';
 import { Ship } from '../entities/Ship.js';
 import { Hero } from '../entities/Hero.js';
 import { playSpawnPuff } from '../entities/Enemy.js';
@@ -19,6 +20,7 @@ import { bossOf, composeWave, isBossWave, isSirenWave, WaveManager } from '../sy
 import { AbilitySystem } from '../systems/Abilities.js';
 import { Volcano } from '../systems/Volcano.js';
 import { Blizzard } from '../systems/Blizzard.js';
+import { Mists } from '../systems/Mists.js';
 import { BattleStats, mvpOf } from '../systems/BattleStats.js';
 import { AbilityBar } from '../ui/AbilityBar.js';
 import { Button } from '../ui/Button.js';
@@ -66,7 +68,9 @@ export class GameScene extends Phaser.Scene {
     // Ember Isle's ash and Frostbite Reef's snow.
     this.ashfall = new Weather(this, ASHFALL);
     this.snowfall = new Weather(this, SNOWFALL);
-    for (const w of [this.ashfall, this.snowfall]) w.setIsland(this.progress.island, { instant: true });
+    // Fogbound Isle's mist (and its fog banks).
+    this.fog = new Fog(this);
+    for (const w of [this.ashfall, this.snowfall, this.fog]) w.setIsland(this.progress.island, { instant: true });
     this.storm = new Storm(this);
     this.ship = new Ship(this, this.progress);
     this.heroes = [];
@@ -77,6 +81,7 @@ export class GameScene extends Phaser.Scene {
     this.waves = new WaveManager(this);
     this.volcano = new Volcano(this);   // Ember Isle's lava bombs and fire puddles
     this.blizzard = new Blizzard(this); // Frostbite Reef's blizzards
+    this.mists = new Mists(this);       // Fogbound Isle's fog banks and graves
     // Scene events outlive a restart, so unhook on shutdown to avoid double handlers.
     const handlers = {
       'enemy-killed': this.onEnemyKilled,
@@ -110,12 +115,13 @@ export class GameScene extends Phaser.Scene {
     this.refreshUi();
   }
 
-  // The window changed size: re-cover the view with the storm, ash and snow
-  // and re-anchor the HUD (the battlefield and backdrop don't move).
+  // The window changed size: re-cover the view with the storm, ash, snow and
+  // fog and re-anchor the HUD (the battlefield and backdrop don't move).
   onViewResize(view) {
     this.storm.layout(view);
     this.ashfall.layout(view);
     this.snowfall.layout(view);
+    this.fog.layout(view);
     this.layoutUi(view);
   }
 
@@ -380,10 +386,11 @@ export class GameScene extends Phaser.Scene {
     this.shipwright.setVisible(false);  // the picker takes its place
   }
 
-  // A ship slot tapped during a wave: breaks the ice on a frozen crewmate there.
+  // A ship slot tapped during a wave: breaks the ice on a frozen crewmate
+  // there, and a charm.
   onSlotTapped(slot) {
     if (this.state !== STATE.RUNNING) return;
-    this.heroes.find((h) => h.slot === slot)?.thaw();
+    this.heroes.find((h) => h.slot === slot)?.tapFree();
   }
 
   onHeroPicked(id) {
@@ -470,6 +477,7 @@ export class GameScene extends Phaser.Scene {
     this.scenery.setIsland(island);
     this.ashfall.setIsland(island);
     this.snowfall.setIsland(island);
+    this.fog.setIsland(island);
     this.showBanner(`SAILING TO ${island.name.toUpperCase()}`);
   }
 
@@ -506,6 +514,7 @@ export class GameScene extends Phaser.Scene {
     this.waves.start(this.progress.wave, options);
     this.volcano.start(options);
     this.blizzard.start(this.progress.wave, options);   // the finale's blizzard rolls in here
+    this.mists.start(this.progress.wave, options);      // and its fog bank
     this.abilities.resetCooldowns();
     const { finale, island } = options;
     const boss = isBossWave(this.progress.wave) ? ENEMIES[bossOf(this.progress.wave, island)] : null;
@@ -534,6 +543,7 @@ export class GameScene extends Phaser.Scene {
     this.waves.stop();
     this.volcano.stop();
     this.blizzard.stop();
+    this.mists.stop();
     this.abilities.clear();
     for (const h of this.heroes) h.clearAbilities();
     for (const e of this.enemies) e.destroy();
@@ -547,6 +557,7 @@ export class GameScene extends Phaser.Scene {
     if (won) {
       const wave = this.progress.wave;
       const { gold, pearls, finale } = this.progress.winWave();
+      this.endingDue = !!finale?.ending;
       if (finale) {
         // The island is cleared: its reward, and what it unlocks (the world
         // map, the next island).
@@ -570,7 +581,20 @@ export class GameScene extends Phaser.Scene {
     this.ship.setSlotsEnabled(true);
     this.refreshUi();
     this.save();
+    if (this.endingDue) {
+      // The last island is cleared: the ending, once the banner has shown
+      // (auto-continue waits for the player).
+      this.autoContinue.pause();
+      this.time.delayedCall(ENDING.delayMs, () => this.playEnding());
+    }
     this.events.emit('wave-ended', won);
+  }
+
+  // The ending (after Fogbound Isle's finale): the voyage across the map.
+  playEnding() {
+    this.endingDue = false;
+    if (this.heroPicker.visible) this.heroPicker.close();
+    this.scene.launch('EndingScene', { progress: this.progress, onClose: () => this.refreshUi() });
   }
 
   cycleSpeed() {
@@ -595,6 +619,7 @@ export class GameScene extends Phaser.Scene {
     this.storm.update(Math.min(delta, 100));
     this.ashfall.update(Math.min(delta, 100));
     this.snowfall.update(Math.min(delta, 100));
+    this.fog.update(Math.min(delta, 100));
     if (this.state !== STATE.RUNNING) return;
     // Fixed steps of game time, so the wave plays out the same at any frame
     // rate (see SIM in config).
@@ -624,6 +649,7 @@ export class GameScene extends Phaser.Scene {
     for (const e of this.enemies) e.update(dt, this.ship);
     this.volcano.update(dt);
     this.blizzard.update(dt);
+    this.mists.update(dt);
     this.abilities.update(dt, this.progress.autoAbilities);
 
     for (const h of this.heroes) {

@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
-import { ELITE, ENEMIES, FX, SPRITES, WAVES } from '../config.js';
+import {
+  DISPLAY, ELITE, ENEMIES, FX, SHIP, SPRITES, WAVES,
+} from '../config.js';
 import { sfx } from '../audio/Sfx.js';
 import { fxSprite, playFx } from '../fx.js';
 import { LAYOUT, laneFeetY } from '../layout.js';
@@ -50,14 +52,17 @@ export class Enemy {
   // `position`. A boarding boat rows in from x (the Galleon launches it) on
   // the waterline; a lava bomb falls at x. The Frost Wyrm swoops in to its
   // perch on the iceberg; the Frost Giant comes in from behind the pines.
+  // The Siren Queen rises at her sheet's `pos`; Captain Blackbones steps out
+  // of the fog on the lane.
   //   elite:  3x HP (ELITE), gold tint; gold is already multiplied by the caller
   //   leader: in an escorted formation, the enemy this one keeps behind
   //   key:    its ENEMIES key (for the Wanted Board)
   //   fall:   a lava bomb's { deck, feetY (where it lands), fromY, ms }
   //   boulders: the Frost Giant throws ice boulders while walking (the finale)
+  //   rising: a `rises` enemy summoned or raised at x: it rises there first
   constructor(scene, def, {
     x = LAYOUT.enemySpawnX, hpMultiplier, damageMultiplier, gold, elite = false, leader = null, key = null, fall = null,
-    boulders = false,
+    boulders = false, rising = false,
   }) {
     this.scene = scene;
     this.def = def;
@@ -112,6 +117,10 @@ export class Enemy {
     // ms left of an action animation (a throw, cast, roar or smash), during
     // which walking animations leave the body alone.
     this.actionTime = 0;
+    // Out of sight and reach for this long: a Fog Wraith faded out, Captain
+    // Blackbones sunk into the fog.
+    this.fadeTime = 0;
+    this.hideTime = 0;
 
     // Sprites and rectangles alike stand with their feet at (x, feetY);
     // this.y is the middle of the body (def.width x def.height).
@@ -135,10 +144,11 @@ export class Enemy {
     }
     // The Ghost Galleon and the Molten Leviathan sit just behind The Kraken
     // (which can surface in front of them), under the near water.
-    // The Frost Wyrm perches in the background, behind the ship.
+    // The Frost Wyrm perches in the background, behind the ship, and the
+    // Siren Queen rises there.
     const depth = def.emerges ? DEPTH.kraken
       : def.galleon || def.leviathan ? DEPTH.kraken - 0.1
-        : def.wyrm ? DEPTH.perch
+        : def.wyrm || def.queen ? DEPTH.perch
           : def.flies || def.falls ? DEPTH.flyer : DEPTH.enemy;
     this.body.setOrigin(...(def.origin ?? [0.5, 1])).setDepth(depth);
     if (elite) this.setFlash(false);  // gold tint
@@ -280,6 +290,74 @@ export class Enemy {
           scene.cameras.main.shake(g.stepShake.duration, g.stepShake.intensity);
         }
       });
+    } else if (def.queen) {
+      // The Siren Queen: her frame's top-left at her sheet's `pos`, her
+      // waterline on the water. She rises there ("rise", out of reach
+      // meanwhile), then sings and sends tidal waves from where she is.
+      const q = def.queen;
+      const spec = sheetSpec(scene, def.sprite);
+      this.frameW = spec?.frameWidth ?? this.body.displayWidth;
+      this.frameH = spec?.frameHeight ?? this.body.displayHeight;
+      const pos = spec?.pos ?? { x: 196, y: 150 };
+      this.frameLeft = pos.x;
+      this.frameTop = pos.y;
+      this.mouth = spec?.mouth ?? [28, 32];
+      this.waveHand = spec?.waveHand ?? [4, 49];
+      this.x = pos.x + this.frameW / 2;
+      this.stopX = this.x;
+      this.setFeetY(pos.y + this.frameH * (def.origin?.[1] ?? 1));
+      this.riseTime = Math.max(1, animTiming(spec, 'rise').ms);
+      this.songTimer = q.firstSongAt;
+      this.waveTimer = q.firstWaveAt;
+      this.charmTarget = null;  // the crewmate her notes are flying at
+      this.notesLeft = 0;
+      this.noteTimer = 0;
+      this.waveDue = 0;         // ms until the wave under way leaves her hand
+      this.singTiming = animTiming(spec, 'sing');
+      this.waveTiming = animTiming(spec, 'wave');
+      this.riseAnim = findAnim(scene, def.sprite, 'rise');
+      this.singAnim = findAnim(scene, def.sprite, 'sing');
+      this.waveAnim = findAnim(scene, def.sprite, 'wave');
+      this.sinkAnim = findAnim(scene, def.sprite, 'sink');
+      if (this.riseAnim) this.body.play(this.riseAnim);
+      for (const anim of [this.singAnim, this.waveAnim]) {
+        if (anim) this.body.on(`animationcomplete-${anim}`, () => this.alive && this.body.play(this.idleAnim));
+      }
+    } else if (def.blackbones) {
+      // Captain Blackbones: steps out of the fog at spawnX (out of reach
+      // until he's out), then down the lane like a walker.
+      const b = def.blackbones;
+      const spec = sheetSpec(scene, def.sprite);
+      this.feet = spec?.feet ?? [32, 62];
+      this.muzzle = spec?.muzzle ?? [8, 24];
+      this.slashTiming = animTiming(spec, 'slash', spec?.slash?.impactFrame);
+      this.shootTiming = animTiming(spec, 'shoot', spec?.shoot?.fireFrame);
+      this.fogSinkMs = animTiming(spec, 'fogSink').ms;
+      this.fogRiseMs = animTiming(spec, 'fogRise').ms;
+      this.summonMs = animTiming(spec, 'summon').ms * (1 + (spec?.summon?.repeat ?? 0));
+      this.x = b.spawnX;
+      this.stopX = LAYOUT.shipContactX + def.width / 2;
+      this.setFeetY(laneFeetY(this.x));
+      this.phase = 'enter';    // then 'walk', 'shoot', 'sink', 'rise', 'summon', 'slash'
+      this.stepTimer = b.stepEvery;
+      this.shotTimer = b.firstShotAt;
+      this.shotDue = 0;        // ms until the flintlock under way fires
+      this.slashDue = 0;       // ms until the slash under way lands
+      this.raisesQueued = 0;   // raiseAt thresholds passed
+      this.crewCalls = 0;      // crew raisings still to do
+      this.circles = [];       // summon circles on the lane
+      this.raiseSpots = [];
+      this.fogRiseAnim = findAnim(scene, def.sprite, 'fogRise');
+      this.fogSinkAnim = findAnim(scene, def.sprite, 'fogSink');
+      this.shootAnim = findAnim(scene, def.sprite, 'shoot');
+      this.slashAnim = findAnim(scene, def.sprite, 'slash');
+      this.summonAnim = findAnim(scene, def.sprite, 'summon');
+      this.deathAnim = findAnim(scene, def.sprite, 'death');
+      this.playAction(this.fogRiseAnim, this.fogRiseMs);
+      this.fogPuff();
+      scene.cameras.main.shake(b.cackle.duration, b.cackle.intensity);
+      scene.showBanner?.(def.banner, { color: UI.colors.warn });
+      sfx.cackle();
     } else if (def.falls) {
       // A lava bomb: falls straight down from fall.fromY to land on its deck
       // (feet at fall.feetY) after fall.ms, over the warning shown there.
@@ -305,19 +383,40 @@ export class Enemy {
       this.setY(this.cruiseY);
     } else {
       this.x = x;
-      // Front edge at the ship; a Yeti Raider or Ice Witch stops further out.
-      this.stopX = def.ranged?.stopX ?? def.witch?.stopX ?? LAYOUT.shipContactX + def.width / 2;
-      this.setFeetY(def.floats ? LAYOUT.boatWaterY : laneFeetY(this.x));
-      const act = def.ranged ?? def.witch;
+      // Front edge at the ship; a Yeti Raider, Ice Witch, Cursed Cannoneer
+      // or Lantern Ghoul stops further out.
+      this.stopX = def.ranged?.stopX ?? def.witch?.stopX ?? def.lantern?.stopX ?? LAYOUT.shipContactX + def.width / 2;
+      this.setFeetY(def.floats ? LAYOUT.boatWaterY : this.groundY(this.x));
+      const act = def.ranged ?? def.witch ?? def.lantern;
       if (act) {
-        // Its throw or cast: the animation, how long it plays and (a throw)
-        // when the shot leaves.
+        // Its throw, shot, cast or raise: the animation, how long it plays
+        // and (a throw or shot) when the shot leaves.
         this.spec = sheetSpec(scene, def.sprite);
         this.actAnim = findAnim(scene, def.sprite, act.anim);
         this.actTiming = animTiming(this.spec, act.anim, def.ranged?.releaseFrame);
         this.attackCooldown = act.firstAt;
         this.releaseDue = 0;   // ms until the shot under way leaves the hand
+        this.raisesLeft = def.lantern?.raises ?? 0;
       }
+      if (def.wraith) {
+        // A Fog Wraith fades out every so often (see fade).
+        const spec = sheetSpec(scene, def.sprite);
+        this.fadeTimer = def.wraith.every;
+        this.fadeOutMs = animTiming(spec, 'fadeOut').ms;
+        this.fadeInMs = animTiming(spec, 'fadeIn').ms;
+        this.fadeOutAnim = findAnim(scene, def.sprite, 'fadeOut');
+        this.fadeInAnim = findAnim(scene, def.sprite, 'fadeIn');
+        if (this.fadeOutAnim) {
+          this.body.on(`animationcomplete-${this.fadeOutAnim}`, () => this.fadeTime > 0 && this.body.setAlpha(0));
+        }
+      }
+    }
+    // Summoned or raised: it rises where it stands first ("rise"), out of
+    // reach until it's up.
+    if (rising && def.rises) {
+      this.riseTime = Math.max(1, animTiming(sheetSpec(scene, def.sprite), def.rises.anim).ms);
+      const anim = findAnim(scene, def.sprite, def.rises.anim);
+      if (anim) this.body.play(anim);
     }
 
     this.statusSprites = {};  // STATUS key -> sprite, while that status lasts
@@ -340,20 +439,32 @@ export class Enemy {
     this.setFeetY(y + this.def.height / 2);
   }
 
+  // Feet y of a walker at x: on the lane, a Fog Wraith hovering over it.
+  groundY(x) { return laneFeetY(x) - (this.def.wraith?.hoverPx ?? 0); }
+
   get isRising() { return this.riseTime > 0; }
   // Out of reach for now: the Frost Wyrm in the air, the Frost Giant until
-  // it roars.
+  // it roars, a Fog Wraith faded out, Captain Blackbones until he's out of
+  // the fog and while he's sunk into it.
   get isHidden() {
-    return this.airTime > 0 || (!!this.def.giant && this.phase === 'enter');
+    return this.airTime > 0 || (!!this.def.giant && this.phase === 'enter') || this.vanished
+      || (!!this.def.blackbones && this.phase === 'enter');
   }
+  // Out of sight too: no HP bar or status marks.
+  get vanished() { return this.fadeTime > 0 || this.hideTime > 0; }
   // Drawn centred on its body rather than standing in a 32x32 box (status
   // and target marks): The Kraken, the Ghost Galleon, the Molten Leviathan
-  // and Frostbite Reef's bosses.
-  get large() { return !!(this.def.emerges || this.def.galleon || this.def.leviathan || this.def.wyrm || this.def.giant); }
+  // and the bosses since.
+  get large() {
+    const { def } = this;
+    return !!(def.emerges || def.galleon || def.leviathan || def.wyrm || def.giant || def.queen || def.blackbones);
+  }
   // Stays where it appeared (or falls straight down): the Siren, the Ghost
-  // Galleon, the Molten Leviathan, the Frost Wyrm and lava bombs.
+  // Galleon, the Molten Leviathan, the Frost Wyrm, the Siren Queen and lava
+  // bombs.
   get anchored() {
-    return !!(this.def.stationary || this.def.galleon || this.def.leviathan || this.def.wyrm || this.def.falls);
+    const { def } = this;
+    return !!(def.stationary || def.galleon || def.leviathan || def.wyrm || def.queen || def.falls);
   }
   // Walkers that Haunt can scare, Tidal Wave can push and fire puddles
   // hurry: not flyers or anything anchored.
@@ -487,6 +598,7 @@ export class Enemy {
       // Slow and haste affect both moving and attack rate.
       const sdt = dt * this.pace;
       this.actionTime = Math.max(0, this.actionTime - sdt);
+      if (this.def.wraith) this.fade(sdt);
       if (this.def.flies) {
         moving = this.fly(sdt, dt, ship);
       } else if (this.def.falls) {
@@ -499,6 +611,10 @@ export class Enemy {
         this.perch(sdt, ship);
       } else if (this.def.giant) {
         moving = this.stride(sdt, ship);
+      } else if (this.def.queen) {
+        this.reign(sdt, ship);
+      } else if (this.def.blackbones) {
+        moving = this.prowl(sdt, ship);
       } else if (this.def.stationary) {
         this.sing(sdt);
       } else if (this.isAfraid) {
@@ -521,6 +637,8 @@ export class Enemy {
         this.throwAt(sdt, ship);
       } else if (this.def.witch) {
         this.cast(sdt);
+      } else if (this.def.lantern) {
+        this.tendLantern(sdt);
       } else {
         this.attack(sdt, ship);
       }
@@ -528,17 +646,21 @@ export class Enemy {
     this.animate(moving);
 
     this.followGround();
-    this.nameTag?.setPosition(this.x, this.hpBarY - 2);
+    if (this.nameTag) {
+      // Kept on screen (a boss coming in at the right edge).
+      const half = Math.ceil(this.nameTag.inkWidth / 2) + 2;
+      this.nameTag.setPosition(Phaser.Math.Clamp(Math.round(this.x), half, DISPLAY.width - half), this.hpBarY - 2);
+    }
     this.drawHpBar();
     this.drawStatus();
   }
 
-  // Walkers stand on the lane, boats on the waterline; the rest keep their
-  // own height.
+  // Walkers stand on the lane (a Fog Wraith over it), boats on the
+  // waterline; the rest keep their own height.
   followGround() {
     const { def } = this;
     if (def.emerges || def.flies || this.anchored) this.setFeetY(this.feetY);
-    else this.setFeetY(def.floats ? LAYOUT.boatWaterY : laneFeetY(this.x));
+    else this.setFeetY(def.floats ? LAYOUT.boatWaterY : this.groundY(this.x));
   }
 
   // Tidal Wave: carried back toward the island (even while stunned).
@@ -708,8 +830,9 @@ export class Enemy {
   }
 
   // Another enemy joining the wave from this one (a boarding boat, a broken
-  // golem's crabs) at x, scaled like it (never Elite), counted in the wave.
-  spawnFrom(key, x) {
+  // golem's crabs, a raised Bone Deckhand) at x, scaled like it (never
+  // Elite), counted in the wave. rising: it rises there first.
+  spawnFrom(key, x, { rising = false } = {}) {
     const { scene } = this;
     const def = ENEMIES[key];
     const enemy = new Enemy(scene, def, {
@@ -718,6 +841,7 @@ export class Enemy {
       damageMultiplier: this.damageMultiplier,
       gold: Math.round(def.gold * (scene.waves?.scaling.gold ?? 1)),
       key: def.minion ? null : key,
+      rising,
     });
     scene.enemies.push(enemy);
     if (scene.waves) scene.waves.total++;
@@ -808,12 +932,12 @@ export class Enemy {
 
   // --- Frostbite Reef ---
 
-  // A Yeti Raider at its throwing spot: "throw" every attackInterval, the
-  // snowball leaving its hand on the release frame.
+  // A Yeti Raider (or Cursed Cannoneer) at its spot: "throw" ("fire") every
+  // attackInterval, the snowball (grapeshot) leaving on the release frame.
   throwAt(sdt, ship) {
     if (this.releaseDue > 0) {
       this.releaseDue -= sdt;
-      if (this.releaseDue <= 0) this.releaseSnowball(ship);
+      if (this.releaseDue <= 0) this.releaseShot(ship);
     }
     this.attackCooldown -= sdt * this.rage;
     if (this.attackCooldown > 0) return;
@@ -823,15 +947,38 @@ export class Enemy {
   }
 
   // The snowball arcs from the hand (handOnRelease, frame-relative) to a
-  // random spot on the hull.
-  releaseSnowball(ship) {
+  // random spot on the hull; grapeshot (flat) flies straight from the
+  // muzzle (ranged.from) to the hull at its height.
+  releaseShot(ship) {
     const r = this.def.ranged;
-    const [hx, hy] = this.spec?.handOnRelease ?? [4, 12];
-    this.lobAtHull(ship, {
+    const [hx, hy] = this.spec?.[r.from ?? 'handOnRelease'] ?? [4, 12];
+    const shot = {
       x: this.x - 16 + hx, y: this.feetY - 32 + hy,
-      sprite: r.shot, impact: r.impact, flightTime: r.flightTime, arcHeight: r.arcHeight,
-      damage: this.damage * r.damageMult,
-    });
+      sprite: r.shot, impact: r.impact, damage: this.damage * r.damageMult,
+    };
+    if (r.flat) this.fireAtHull(ship, { ...shot, speed: r.shotSpeed });
+    else this.lobAtHull(ship, { ...shot, flightTime: r.flightTime, arcHeight: r.arcHeight });
+  }
+
+  // A straight shot from (x, y) at the hull, level with it where the hull
+  // reaches that high, hitting for damage with `impact` (the Cursed
+  // Cannoneer's grapeshot).
+  fireAtHull(ship, {
+    x, y, sprite, impact, damage, speed,
+  }) {
+    const { scene } = this;
+    const { minAbove, maxAbove } = SHIP.hull;
+    const spot = ship.hullTarget();
+    const target = { alive: true, x: spot.x, y: Phaser.Math.Clamp(y, LAYOUT.waterY - maxAbove, LAYOUT.waterY - minAbove) };
+    scene.projectiles.push(new Projectile(scene, {
+      x, y, target, speed, sprite, rotate: true,
+      findTarget: () => null,
+      onHit: (_t, hx, hy) => {
+        ship.takeDamage(damage, this);
+        playFx(scene, impact, hx, hy);
+        sfx.musket();
+      },
+    }));
   }
 
   // A shot from (x, y) arcing to a random spot on the hull, hitting it for
@@ -1097,6 +1244,276 @@ export class Enemy {
     });
   }
 
+  // --- Fogbound Isle ---
+
+  // A Fog Wraith: every wraith.every ms it fades out ("fadeOut", a fog puff)
+  // and is out of sight and reach for hideMs, then fades back in.
+  fade(sdt) {
+    const w = this.def.wraith;
+    if (this.fadeTime > 0) {
+      this.fadeTime -= sdt;
+      if (this.fadeTime <= 0) {
+        this.fadeTime = 0;
+        this.body.setAlpha(1);
+        this.playAction(this.fadeInAnim, this.fadeInMs);
+      }
+    }
+    this.fadeTimer -= sdt;
+    if (this.fadeTimer > 0) return;
+    this.fadeTimer += w.every;
+    this.fadeTime = w.hideMs;
+    this.playAction(this.fadeOutAnim, this.fadeOutMs);
+    playFx(this.scene, w.puff, Math.round(this.x), Math.round(this.y), DEPTH.enemy + 0.1);
+    sfx.fogPuff();
+  }
+
+  // A Lantern Ghoul at its spot: from lantern.firstAt, every lantern.every it
+  // raises the latest Bone Deckhand fallen in the last graveMs (waiting for
+  // one if there's none): "raise", and a soul wisp from its lantern to where
+  // the deckhand fell. At most lantern.raises times.
+  tendLantern(sdt) {
+    const l = this.def.lantern;
+    if (this.raisesLeft <= 0) return;
+    this.attackCooldown -= sdt * this.rage;
+    if (this.attackCooldown > 0) return;
+    const grave = this.scene.mists?.claimGrave(l.graveMs);
+    if (!grave) return;
+    this.attackCooldown = l.every;
+    this.raisesLeft--;
+    this.playAction(this.actAnim, this.actTiming.ms);
+    sfx.wisp();
+    const [lx, ly] = this.spec?.lantern ?? [6, 13];
+    const target = { alive: true, x: grave.x, y: laneFeetY(grave.x) - 6 };
+    this.scene.projectiles.push(new Projectile(this.scene, {
+      x: this.x - 16 + lx, y: this.feetY - 32 + ly, target, speed: l.wispSpeed, sprite: l.wisp,
+      findTarget: () => null,
+      onHit: () => this.raiseDead(grave),
+    }));
+  }
+
+  // The wisp reaches the grave: the deckhand rises there with hpShare of its HP.
+  raiseDead(grave) {
+    const raised = this.spawnFrom(grave.enemy.key ?? 'boneDeckhand', grave.x, { rising: true });
+    raised.hp = Math.max(1, Math.round(raised.maxHp * this.def.lantern.hpShare));
+    raised.drawHpBar();
+  }
+
+  // The Siren Queen, once risen: a song every songEvery (angrySongEvery
+  // below angryAt of her HP) while nobody is charmed, and a tidal wave every
+  // waveEvery; whichever falls due during the other waits for it.
+  reign(sdt, ship) {
+    const q = this.def.queen;
+    if (this.notesLeft > 0) {
+      this.noteTimer -= sdt;
+      if (this.noteTimer <= 0) {
+        this.noteTimer += q.noteGap;
+        this.sendNote();
+      }
+    }
+    if (this.waveDue > 0) {
+      this.waveDue -= sdt;
+      if (this.waveDue <= 0) this.sendWave(ship);
+    }
+    this.songTimer -= sdt * this.rage;
+    this.waveTimer -= sdt * this.rage;
+    if (this.actionTime > 0 || this.waveDue > 0) return;
+    const charmed = this.charmTarget || this.scene.heroes.some((h) => h.isCharmed);
+    if (this.songTimer <= 0 && !charmed) {
+      this.singCharm();
+    } else if (this.waveTimer <= 0) {
+      this.waveTimer = q.waveEvery;
+      this.playAction(this.waveAnim, this.waveTiming.ms);
+      this.waveDue = Math.max(1, q.waveAt);
+    }
+  }
+
+  // "sing", and charm notes on their way to a random crewmate who attacks
+  // (not The Captain).
+  singCharm() {
+    const q = this.def.queen;
+    this.songTimer = this.hp <= this.maxHp * q.angryAt ? q.angrySongEvery : q.songEvery;
+    const crew = this.scene.heroes.filter((h) => !h.def.aura);
+    if (!crew.length) return;
+    this.charmTarget = crew[Math.floor(Math.random() * crew.length)];
+    this.notesLeft = q.notes;
+    this.noteTimer = 0;
+    this.playAction(this.singAnim, this.singTiming.ms);
+    sfx.sirenSong();
+  }
+
+  // A charm note from her mouth to the crewmate; the last one charms them.
+  sendNote() {
+    const { scene } = this;
+    const q = this.def.queen;
+    const hero = this.charmTarget;
+    const last = --this.notesLeft === 0;
+    const [mx, my] = this.mouth;
+    scene.projectiles.push(new Projectile(scene, {
+      x: this.frameLeft + mx, y: this.frameTop + my, target: { alive: true, x: hero.x, y: hero.y },
+      speed: q.noteSpeed, sprite: q.note,
+      findTarget: () => null,
+      onHit: () => {
+        if (!last) return;
+        this.charmTarget = null;
+        if (this.alive) hero.charm(q.charmMs, this);
+      },
+    }));
+  }
+
+  // A siren_wave rolls left from her hand along the water (its bottom on
+  // it) into the hull for her damage.
+  sendWave(ship) {
+    const { scene } = this;
+    const q = this.def.queen;
+    const y = LAYOUT.waterY;
+    const wave = new Projectile(scene, {
+      x: this.frameLeft + this.waveHand[0], y, target: { alive: true, x: LAYOUT.shipContactX - SHIP.hull.right, y },
+      speed: q.waveSpeed, sprite: q.wave,
+      findTarget: () => null,
+      onHit: () => {
+        ship.takeDamage(this.damage, this);
+        scene.cameras.main.shake(q.shake.duration, q.shake.intensity);
+        sfx.splash();
+      },
+    });
+    wave.sprite.setOrigin(0.5, 1);
+    scene.projectiles.push(wave);
+    sfx.wave();
+  }
+
+  // Captain Blackbones, out of the fog: down the lane, now and then sinking
+  // into the fog to step out further on or firing his flintlock; raising his
+  // crew when it's due; at the ship, a slash every attackInterval. Returns
+  // whether he moved.
+  prowl(sdt, ship) {
+    const b = this.def.blackbones;
+    if (this.shotDue > 0) {
+      this.shotDue -= sdt;
+      if (this.shotDue <= 0) this.fireFlintlock(ship);
+    }
+    if (this.slashDue > 0) {
+      this.slashDue -= sdt;
+      if (this.slashDue <= 0) this.slash(ship);
+    }
+    if (this.hideTime > 0) {
+      if (this.actionTime <= 0) this.body.setAlpha(0);   // sunk out of sight
+      this.hideTime -= sdt;
+      if (this.hideTime <= 0) this.stepOut();
+      return false;
+    }
+    if (this.actionTime > 0) return false;
+    if (this.phase === 'summon') this.raiseCrew();
+    if (this.phase === 'enter') this.phase = 'walk';
+    if (this.crewCalls > 0) {
+      this.summon();
+      return false;
+    }
+    if (this.isAfraid) return this.flee(sdt);   // immovable: he stands his ground
+    if (this.x > this.stopX) {
+      this.phase = 'walk';
+      this.stepTimer -= sdt * this.rage;
+      this.shotTimer -= sdt * this.rage;
+      if (this.stepTimer <= 0) {
+        this.stepTimer += b.stepEvery;
+        this.sinkIntoFog();
+        return false;
+      }
+      if (this.shotTimer <= 0) {
+        this.shotTimer += b.shootEvery;
+        this.phase = 'shoot';
+        this.playAction(this.shootAnim, this.shootTiming.ms);
+        this.shotDue = Math.max(1, this.shootTiming.at);
+        return false;
+      }
+      return this.walk(sdt);
+    }
+    this.phase = 'slash';
+    this.attackCooldown -= sdt * this.rage;
+    if (this.attackCooldown <= 0) {
+      this.attackCooldown += this.def.attackInterval;
+      this.playAction(this.slashAnim, this.slashTiming.ms);
+      this.slashDue = Math.max(1, this.slashTiming.at);
+    }
+    return false;
+  }
+
+  // The finale (when the Siren Queen falls), or a raiseAt of his HP: he
+  // raises his crew as soon as he's free.
+  callCrew() {
+    this.crewCalls++;
+  }
+
+  fogPuff() {
+    playFx(this.scene, this.def.blackbones.puff, Math.round(this.x), Math.round(this.feetY), DEPTH.enemy + 0.1)
+      .setOrigin(0.5, 1);
+  }
+
+  // "fogSink" and a puff: out of reach for hideMs (out of sight once sunk).
+  sinkIntoFog() {
+    this.phase = 'sink';
+    this.hideTime = this.def.blackbones.hideMs;
+    this.playAction(this.fogSinkAnim, this.fogSinkMs);
+    this.fogPuff();
+    sfx.fogPuff();
+  }
+
+  // He steps out of the fog stepPx further on (never past the ship).
+  stepOut() {
+    this.hideTime = 0;
+    this.x = Math.max(this.stopX, this.x - this.def.blackbones.stepPx);
+    this.setFeetY(laneFeetY(this.x));
+    this.body.setAlpha(1);
+    this.phase = 'rise';
+    this.playAction(this.fogRiseAnim, this.fogRiseMs);
+    this.fogPuff();
+    sfx.fogPuff();
+  }
+
+  // The flintlock goes off: a flash at the muzzle and a musket ball in the hull.
+  fireFlintlock(ship) {
+    const b = this.def.blackbones;
+    const m = this.framePoint(this.muzzle);
+    playFx(this.scene, b.flash, m.x, m.y).setOrigin(1, 0.5).setFlipX(true);
+    ship.takeDamage(this.damage * b.shotMult, this);
+    sfx.musket();
+  }
+
+  // The cutlass lands: the hull takes his damage, with a ghostly slash on it.
+  slash(ship) {
+    ship.takeDamage(this.damage, this);
+    playFx(this.scene, this.def.blackbones.slashFx, LAYOUT.shipContactX - 8, Math.round(this.feetY - this.def.height / 2));
+    sfx.slash();
+  }
+
+  // "summon" (twice through) with summon circles on the lane in front of
+  // him (behind him where there's no room); his crew rises from them when
+  // it's done (raiseCrew).
+  summon() {
+    const { scene } = this;
+    const b = this.def.blackbones;
+    this.crewCalls--;
+    this.phase = 'summon';
+    this.playAction(this.summonAnim, this.summonMs);
+    const minX = LAYOUT.shipContactX + ENEMIES[b.raise].width / 2;
+    this.raiseSpots = [];
+    for (let i = 0; i < b.raiseCount; i++) {
+      let x = this.x - b.raiseAhead - i * b.raiseSpread;
+      if (x < minX) x = this.x + b.raiseAhead + i * b.raiseSpread;
+      x = Math.min(x, LAYOUT.enemySpawnX);
+      this.raiseSpots.push(x);
+      this.circles.push(fxSprite(scene, b.circle, Math.round(x), Math.round(laneFeetY(x))).setDepth(DEPTH.enemy - 0.5));
+    }
+    sfx.cackle();
+  }
+
+  raiseCrew() {
+    for (const c of this.circles) c.destroy();
+    this.circles = [];
+    for (const x of this.raiseSpots) this.spawnFrom(this.def.blackbones.raise, x, { rising: true });
+    this.raiseSpots = [];
+    this.phase = 'walk';
+  }
+
   // A steam burst on the water where the Leviathan rises or sinks.
   steam() {
     const l = this.def.leviathan;
@@ -1104,6 +1521,16 @@ export class Enemy {
   }
 
   rise(dt) {
+    if (this.def.rises || this.def.queen) {
+      // Rising where it stands; the Siren Queen then shows her banner.
+      this.riseTime = Math.max(0, this.riseTime - dt);
+      if (!this.isRising && this.def.queen) {
+        if (this.idleAnim) this.body.play(this.idleAnim);
+        this.scene.showBanner?.(this.def.banner, { color: UI.colors.warn });
+        sfx.sirenSong();
+      }
+      return;
+    }
     if (this.def.wyrm) {
       // Swooping in from the top-right, slowing as it lands.
       const w = this.def.wyrm;
@@ -1151,6 +1578,11 @@ export class Enemy {
   animate(moving) {
     const anims = this.body.anims;
     if (!anims) return;
+    // Rising (a raised Bone Deckhand, the Siren Queen): "rise" plays out.
+    if (this.isRising && (this.def.rises || this.def.queen)) {
+      anims.timeScale = 1;
+      return;
+    }
     // A walker with animSpeed walks its animation at its own speed's pace.
     const stride = moving && this.def.animSpeed ? this.walkingSpeed / this.def.animSpeed : 1;
     anims.timeScale = this.pace * this.rage * this.moveBoost * stride;
@@ -1275,6 +1707,12 @@ export class Enemy {
     // The Frost Giant gets angry once, at angry.at of its HP.
     const g = this.def.giant;
     if (g && !this.angry && !this.angerDue && this.hp <= this.maxHp * g.angry.at) this.angerDue = true;
+    // Captain Blackbones raises his crew at each of raiseAt of his HP.
+    const b = this.def.blackbones;
+    while (b && this.raisesQueued < b.raiseAt.length && this.hp <= this.maxHp * b.raiseAt[this.raisesQueued]) {
+      this.raisesQueued++;
+      this.callCrew();
+    }
     this.drawHpBar();
   }
 
@@ -1347,6 +1785,16 @@ export class Enemy {
       this.shatter();
       return;
     }
+    if (this.def.queen) {
+      this.sinkQueen();
+      return;
+    }
+    if (this.def.blackbones) {
+      this.fallDead();
+      return;
+    }
+    // A Bone Deckhand's grave, for a Lantern Ghoul to raise.
+    if (this.def.rises) this.scene.mists?.bury(this);
     if (this.def.falls) {
       playFx(this.scene, this.def.falls.impact, this.x, this.y);
       this.body.destroy();
@@ -1417,6 +1865,43 @@ export class Enemy {
     sfx.iceBreak();
   }
 
+  // The Siren Queen goes down: "sink", with the Kraken's splash where she
+  // goes under.
+  sinkQueen() {
+    const { scene } = this;
+    this.body.clearTint?.();
+    const s = SPRITES.krakenSplash;
+    const splash = scene.add.sprite(Math.round(this.x), LAYOUT.waterY - this.def.queen.aboveWater, s.key)
+      .setOrigin(0.5, 0).setDepth(DEPTH.splash).play(SPLASH_ANIM);
+    scene.time.delayedCall(2 * s.frames * 1000 / s.fps, () => splash.destroy());
+    sfx.splash();
+    const done = () => this.body.destroy();
+    if (!this.sinkAnim) {
+      scene.tweens.add({ targets: this.body, alpha: 0, duration: 400, onComplete: done });
+      return;
+    }
+    this.body.play(this.sinkAnim);
+    this.body.once(`animationcomplete-${this.sinkAnim}`, done);
+  }
+
+  // Captain Blackbones goes down: "death", then his hat lies on the bones for
+  // deathHoldMs before they fade.
+  fallDead() {
+    const b = this.def.blackbones;
+    this.body.clearTint?.();
+    this.body.setAlpha(1);
+    const fade = () => this.scene.tweens.add({
+      targets: this.body, alpha: 0, delay: b.deathHoldMs, duration: b.fadeMs, onComplete: () => this.body.destroy(),
+    });
+    if (!this.deathAnim) {
+      fade();
+      return;
+    }
+    this.body.play(this.deathAnim);
+    this.body.once(`animationcomplete-${this.deathAnim}`, fade);
+    sfx.cackle();
+  }
+
   // A Keg Runner killed before reaching the ship: its keg goes off where it
   // fell, hitting every enemy on the lane within the blast radius (credited
   // to whoever killed it).
@@ -1446,6 +1931,8 @@ export class Enemy {
     this.iceSprite?.destroy();
     this.iceSprite = null;
     this.nameTag?.destroy();
+    for (const c of this.circles ?? []) c.destroy();
+    this.circles = [];
   }
 
   // --- Drawing ---
@@ -1453,6 +1940,12 @@ export class Enemy {
   // The HP bar, with a Barnacle Knight's shield bar just above it while it
   // lasts.
   drawHpBar() {
+    // Out of sight (a Fog Wraith faded out, Captain Blackbones in the fog).
+    this.nameTag?.setVisible(!this.vanished);
+    if (this.vanished) {
+      this.hpBar.clear();
+      return;
+    }
     const w = this.hpBarWidth;
     const x = Math.round(this.x - w / 2);
     const y = this.hpBarY;
@@ -1499,6 +1992,7 @@ export class Enemy {
       this.iceSprite.destroy();
       this.iceSprite = null;
     }
+    for (const sprite of [...Object.values(this.statusSprites), this.iceSprite]) sprite?.setVisible(!this.vanished);
     const { slow, poison, stun, fear, curse } = this.statusSprites;
     const x = Math.round(this.x);
     for (const over of [slow, this.iceSprite]) {

@@ -12,7 +12,7 @@ const TRAITS = [
   { key: 'armoured', label: 'ARMOURED', has: (def) => def.armor },
   { key: 'shielded', label: 'SHIELDED', has: (def) => def.shield },
   { key: 'explodes', label: 'EXPLODES', has: (def) => def.blast },
-  { key: 'support', label: 'SUPPORT', has: (def) => def.song || def.witch },
+  { key: 'support', label: 'SUPPORT', has: (def) => def.song || def.witch || def.lantern },
 ];
 
 export const traitsOf = (def) => TRAITS.filter((t) => t.has(def));

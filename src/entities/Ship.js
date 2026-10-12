@@ -145,8 +145,10 @@ export class Ship {
     return heroes.reduce((a, h) => (!a || h.x > a.x ? h : a), null);
   }
 
-  // enemy: who hit it, for the Captain's Log (only the HP actually lost counts).
-  takeDamage(amount, enemy = null) {
+  // enemy: who hit it, for the Captain's Log (only the HP actually lost
+  // counts). crewmate: a charmed crewmate whose own attack it was (the Log
+  // blames the enemy that charmed them; the balance sim tells them apart).
+  takeDamage(amount, enemy = null, crewmate = null) {
     if (enemy) this.scene.stats?.hullHit(enemy, Math.min(amount, this.hp));
     this.hp = Math.max(0, this.hp - amount);
     this.scene.cameras.main.shake(80, 0.003);

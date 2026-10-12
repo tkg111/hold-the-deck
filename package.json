@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "sim": "node --import ./scripts/sim/register.mjs scripts/sim/simulate.mjs",
-    "sim:frost": "node --import ./scripts/sim/register.mjs scripts/sim/frost.mjs"
+    "sim:frost": "node --import ./scripts/sim/register.mjs scripts/sim/frost.mjs",
+    "sim:fog": "node --import ./scripts/sim/register.mjs scripts/sim/fog.mjs"
   },
   "dependencies": {
     "phaser": "3.90.0"

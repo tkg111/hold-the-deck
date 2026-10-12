@@ -1,5 +1,5 @@
 import {
-  ASHFALL, ENEMIES, FX, ISLANDS, MAP, SHIP, SNOWFALL, SPRITES, STORM,
+  ASHFALL, ENEMIES, FX, ISLANDS, MAP, MIST, SHIP, SNOWFALL, SPRITES, STORM,
 } from './config.js';
 import { initLayout, LAYOUT } from './layout.js';
 import { preloadUi } from './ui/kit.js';
@@ -10,21 +10,27 @@ export const SHIP_SLOTS_KEY = 'ship_slots';
 // folder of it and its sheets): crew in animations.json, enemies in
 // animations_new_enemies.json (which also has the Ghost Galleon's gunPorts)
 // Ember Isle's in ember/animations_ember.json (with the Molten Leviathan's
-// mouth and position) and Frostbite Reef's in frost/animations_frost.json
+// mouth and position), Frostbite Reef's in frost/animations_frost.json
 // (with the Yeti Raider's handOnRelease, the Frost Wyrm's mouth and perchPos
-// and the Frost Giant's feet and slamPoint).
+// and the Frost Giant's feet and slamPoint) and Fogbound Isle's in
+// fog/animations_fog.json (with the Cursed Cannoneer's muzzle, the Lantern
+// Ghoul's lantern, the Siren Queen's pos, mouth and waveHand and Captain
+// Blackbones' feet and muzzle).
 const ANIMATION_FILES = [
   { key: 'animations', dir: '' },
   { key: 'animations_new_enemies', dir: '' },
   { key: 'animations_ember', dir: 'ember/' },
   { key: 'animations_frost', dir: 'frost/' },
+  { key: 'animations_fog', dir: 'fog/' },
 ];
-// Effect sheet lists: fx/fx.json, Ember Isle's ember/fx/fx_ember.json and
-// Frostbite Reef's frost/fx/fx_frost.json.
+// Effect sheet lists: fx/fx.json, Ember Isle's ember/fx/fx_ember.json,
+// Frostbite Reef's frost/fx/fx_frost.json and Fogbound Isle's
+// fog/fx/fx_fog.json.
 const FX_FILES = [
   { key: 'fx_list', dir: FX.path, file: 'fx.json' },
   { key: 'fx_ember', dir: 'ember/fx/', file: 'fx_ember.json' },
   { key: 'fx_frost', dir: 'frost/fx/', file: 'fx_frost.json' },
+  { key: 'fx_fog', dir: 'fog/fx/', file: 'fx_fog.json' },
 ];
 const LAYOUT_KEY = 'layout';
 const BACKGROUND_KEY = 'bg_tall';  // bg.png's picture with more sky and sea (see SCENERY)
@@ -44,6 +50,9 @@ export function sceneryKeys(island) {
 // that has a file of its own.
 export const WEATHER = [ASHFALL, SNOWFALL];
 export const weatherKey = (spec, heavy = false) => `weather_${spec.flag}${heavy ? '_heavy' : ''}`;
+// Fogbound Isle's mist strip and fog bank sheets (MIST; see src/fog.js).
+export const MIST_KEY = 'mist';
+export const FOG_BANK_KEY = 'fog_bank';
 
 export const shipStageKey = (decks) => `ship_stage${decks}`;
 export const shipFrontKey = (decks) => `ship_stage${decks}_front`;
@@ -119,6 +128,9 @@ export function preloadSprites(scene) {
     load.spritesheet(weatherKey(spec), `${spec.path}${spec.file}`, frame);
     if (spec.heavy.file) load.spritesheet(weatherKey(spec, true), `${spec.path}${spec.heavy.file}`, frame);
   }
+  load.spritesheet(MIST_KEY, `${MIST.path}${MIST.file}`, { frameWidth: MIST.frameWidth, frameHeight: MIST.frameHeight });
+  load.spritesheet(FOG_BANK_KEY, `${MIST.path}${MIST.bank.file}`,
+    { frameWidth: MIST.bank.frameWidth, frameHeight: MIST.bank.frameHeight });
   const splash = SPRITES.krakenSplash;
   load.spritesheet(splash.key, `${splash.key}.png`, { frameWidth: splash.frameWidth, frameHeight: splash.frameHeight });
   // The foreground sheets' frames are each the size of the scene.

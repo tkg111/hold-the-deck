@@ -9,7 +9,8 @@
 //           wait for a slot), so it only loses where the curve outpaces it
 //   lazy:   only spends after losing a wave, so its waves between losses
 //           show how often upgrades are needed
-// Frozen crewmates (Frostbite Reef) are tapped free like a player would (TAP).
+// Frozen crewmates (Frostbite Reef) and charmed ones (Fogbound Isle) are
+// tapped free like a player would (TAP).
 // Each run plays Skull Cove and stops at maxWave, or when one wave has been
 // lost MAX_TRIES times in a row (a wall). With "voyage", a cleared island is
 // followed by the next one the ship can sail to (Ember Isle after Skull
@@ -28,6 +29,7 @@ import { AbilitySystem } from '../../src/systems/Abilities.js';
 import { Progress } from '../../src/systems/Progress.js';
 import { Volcano } from '../../src/systems/Volcano.js';
 import { Blizzard } from '../../src/systems/Blizzard.js';
+import { Mists } from '../../src/systems/Mists.js';
 import { WaveManager } from '../../src/systems/WaveManager.js';
 
 const RUNS = Number(process.argv[2] ?? 5);
@@ -36,8 +38,9 @@ const VOYAGE = process.argv[4] === 'voyage';
 const MAX_TRIES = 15;
 const DT = 50;                   // ms per step (the game clamps to 100)
 const WAVE_TIMEOUT = 10 * 60e3;  // a wave this long counts as lost
-// The player taps frozen crewmates free (Frostbite Reef): `chance` of the
-// time, afterMs after one freezes; otherwise the ice lasts its full time.
+// The player taps frozen (Frostbite Reef) and charmed (Fogbound Isle)
+// crewmates free: `chance` of the time, afterMs after one freezes or is
+// charmed; otherwise it lasts its full time.
 const TAP = { chance: 0.6, afterMs: 800 };
 
 // Deep-merge overrides into the (mutable) config objects.
@@ -55,16 +58,20 @@ if (process.env.SIM_CONFIG) override(config, JSON.parse(process.env.SIM_CONFIG))
 
 const sprites = new URL('../../public/sprites/', import.meta.url);
 const readJson = (path) => JSON.parse(readFileSync(new URL(path, sprites), 'utf8'));
-const fxSheets = { ...readJson('fx/fx.json'), ...readJson('ember/fx/fx_ember.json'), ...readJson('frost/fx/fx_frost.json') };
+const fxSheets = {
+  ...readJson('fx/fx.json'), ...readJson('ember/fx/fx_ember.json'), ...readJson('frost/fx/fx_frost.json'),
+  ...readJson('fog/fx/fx_fog.json'),
+};
 initLayout(readJson('layout.json'));
 // The JSON files the battle code reads from the cache (ship slots; the
 // Ghost Galleon's gun ports, the Molten Leviathan's mouth and position, and
-// Frostbite Reef's animation timings, hand, mouth, perch and feet).
+// Frostbite Reef's and Fogbound Isle's animation timings and points).
 const jsonCache = {
   ship_slots: readJson('ship_slots.json'),
   animations_new_enemies: readJson('animations_new_enemies.json'),
   animations_ember: readJson('ember/animations_ember.json'),
   animations_frost: readJson('frost/animations_frost.json'),
+  animations_fog: readJson('fog/animations_fog.json'),
 };
 
 // --- A stand-in scene: game objects are inert stubs that keep x / y ---
@@ -144,9 +151,15 @@ Hero.prototype.freeze = function freezeAndMaybeTap(ms, cause) {
   freeze.call(this, ms, cause);
   if (fresh && Math.random() < TAP.chance) taps.push({ hero: this, at: waveClock + TAP.afterMs });
 };
+const charm = Hero.prototype.charm;
+Hero.prototype.charm = function charmAndMaybeTap(ms, charmer) {
+  const fresh = !this.isCharmed;
+  charm.call(this, ms, charmer);
+  if (fresh && Math.random() < TAP.chance) taps.push({ hero: this, at: waveClock + TAP.afterMs });
+};
 
 export function playWave(scene, progress, onStep = null) {
-  const { ship, waves, volcano, blizzard, abilities } = scene;
+  const { ship, waves, volcano, blizzard, mists, abilities } = scene;
   ship.sync(progress);
   rebuildHeroes(scene, progress);
   scene.enemies = [];
@@ -154,6 +167,7 @@ export function playWave(scene, progress, onStep = null) {
   waves.start(progress.wave, progress.waveOptions);
   volcano.start(progress.waveOptions);
   blizzard.start(progress.wave, progress.waveOptions);
+  mists.start(progress.wave, progress.waveOptions);
   abilities.resetCooldowns();
   let time = 0;
   let won = false;
@@ -165,6 +179,7 @@ export function playWave(scene, progress, onStep = null) {
     for (const e of scene.enemies) e.update(DT, ship);
     volcano.update(DT);
     blizzard.update(DT);
+    mists.update(DT);
     abilities.update(DT, true);
     for (const h of scene.heroes) {
       const shot = h.update(DT, scene.enemies);
@@ -173,7 +188,7 @@ export function playWave(scene, progress, onStep = null) {
     for (const p of scene.projectiles) p.update(DT);
     taps = taps.filter((t) => {
       if (t.at > time) return true;
-      if (t.hero.isFrozen) t.hero.thaw();
+      t.hero.tapFree();
       return false;
     });
     scene.enemies = scene.enemies.filter((e) => e.alive);
@@ -189,6 +204,7 @@ export function playWave(scene, progress, onStep = null) {
   waves.stop();
   volcano.stop();
   blizzard.stop();
+  mists.stop();
   abilities.clear();
   for (const h of scene.heroes) h.clearAbilities();
   if (won) progress.winWave();
@@ -263,6 +279,7 @@ export function makeBattle(progress) {
   scene.waves = new WaveManager(scene);
   scene.volcano = new Volcano(scene);
   scene.blizzard = new Blizzard(scene);
+  scene.mists = new Mists(scene);
   scene.abilities = new AbilitySystem(scene);
   return scene;
 }
@@ -315,8 +332,14 @@ export { seedRandom, between };
 
 const mins = (ms) => `${Math.round(ms / 60000)}m`;
 const bandOf = (wave) => Math.floor((wave - 1) / 10);
-// A wave on an island, e.g. "34" on Skull Cove and "E12" further on.
-const islandTag = (id) => (id === ISLANDS[0].id ? '' : ISLANDS.find((d) => d.id === id).name[0]);
+// A wave on an island, e.g. "34" on Skull Cove and "E12" further on: its
+// first letter, or two where an earlier island has it (Fogbound Isle "Fo").
+const TAGS = ISLANDS.reduce((tags, d, i) => {
+  const one = d.name[0];
+  tags[d.id] = i === 0 ? '' : Object.values(tags).includes(one) ? d.name.slice(0, 2) : one;
+  return tags;
+}, {});
+const islandTag = (id) => TAGS[id];
 const waveTag = ({ island, wave }) => `${islandTag(island)}${wave}`;
 
 // Run as `npm run sim` (not when imported by another script).

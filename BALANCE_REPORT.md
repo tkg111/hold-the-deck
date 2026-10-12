@@ -1243,3 +1243,199 @@ Scaled at the waves he fights on:
 | 20 | 116,359 | 1,339 | 803 |
 | 40 | 107,281 | 558 | 335 |
 | 50 (finale) | 156,222 | 670 | 402 |
+
+## 10. Fogbound Isle (Island 4)
+
+The last island, on branch `fogbound-isle`. Reproduce with
+`npm run sim:fog -- 5 3` (`scripts/sim/fog.mjs`; set `FROST_CACHE` to reuse
+`sim:frost`'s end-of-Ember crews and `FOG_CACHE` to keep the end-of-Frostbite
+crews between runs).
+
+### 10.1 How it's measured
+
+- **The crews:** for each of seeds 1000–1004, the greedy bot sails Skull Cove
+  and Ember Isle (as `sim:frost` does), then plays Frostbite Reef waves 1–50
+  like `sim:frost`'s upgraded profile (its first replay, with the same seeds,
+  so the end state matches the "Upgraded runs at the end of Frostbite Reef"
+  table row for row). All five won the Frostbite finale.
+
+  | Seed | Frostbite waves skipped | Hull LV (max HP) | Crew (level, stars) |
+  |---:|---:|---|---|
+  | 1000 | 0 | 87 (43,309) | Storm 66 5★, Captain 66 5★, Duelist 66 5★, Cannon 66 5★, Sharp 66 5★, Ghost 65 5★ |
+  | 1001 | 3 | 86 (40,482) | Storm 65 5★, Captain 65 3★, Duelist 65 5★, Sharp 65 5★, Cannon 65 5★, Ghost 65 5★ |
+  | 1002 | 2 | 87 (43,309) | Storm 66 5★, Captain 66 5★, Duelist 65 4★, Cannon 65 5★, Sharp 65 5★, Ghost 65 5★ |
+  | 1003 | 3 | 87 (43,309) | Storm 66 3★, Captain 66 5★, Duelist 66 3★, Sharp 65 5★, Cannon 65 5★, Ghost 65 5★ |
+  | 1004 | 3 | 87 (43,309) | Storm 66 4★, Captain 66 4★, Duelist 65 4★, Sharp 65 5★, Cannon 65 5★, Ghost 65 5★ |
+
+- **Profiles**, 5 crews × 3 replays = 15 attempts per wave, as in section 8:
+  - **No upgrades:** that crew plays each wave on its own.
+  - **Upgraded:** it sails on through waves 1–50, spending after every
+    attempt; a wave lost 5 times running is skipped.
+- **Tapping:** both profiles tap frozen *and charmed* crew free 0.8s after it
+  happens, 60% of the time (`TAP` in `simulate.mjs`).
+- **Hull damage by source** splits charmed crew from the Siren Queen's
+  waves, and Blackbones' slashes from his flintlock.
+
+### 10.2 The damage curve
+
+Same rule as Frostbite Reef past effective wave 100 (×1.03 a wave), with
+the island's own cap (`damageCap` on its `ISLANDS` entry; the other islands
+still use `WAVES.lateDamage.cap`, ×62). Fogbound starts at effective wave
+148, where the uncapped curve is already ×201, so its cap applies from wave 1:
+**×68** for the whole island. (Frostbite levels off at ×62 from its wave 10.)
+
+### 10.3 Tuning rounds
+
+Wins out of 15 (no upgrades / upgraded). Round 0 is the spec's numbers with
+only a cap set.
+
+| Round | Cap | Early boost (until / count / HP) | Wave-10 Siren (HP / dmg) | Wave-20 Blackbones (HP / dmg) | Finale trickle | 1–9 hull lost, no upgrades | 10 | 20 | 28–42 upgraded | 50 |
+|---|---:|---|---|---|---:|---|---|---|---|---|
+| 0 | 80 | – | – | – | 0.6 | 0–12% | 15 / 15 | 0 / 14 | 10–15 | 0 / 9 |
+| 1 | 80 | 16 / 2.0 / 2.6 | – | 0.65 / 1.2 | 0.6 | 29–100% (waves 3–9 lost) | 6 / 14 | 6 / 15 | 9–15 | 0 / 9 |
+| 2 | 80 | 12 / 1.5 / 1.6 | 1.6 / 1.5 | 0.5 / 1.9 | 0.6 | 4–24% | 8 / 15 | 6 / 15 | – | 0 / 9 |
+| 3 | 80 | 16 / 1.6 / 1.9 | 1.5 / 1.3 | 0.4 / 3.0 | 0.6 | 6–66% | 3 / 13 | 9 / 15 | 10–15 | 0 / 10 |
+| 4 | 80 | 12 / 1.8 / 2.1 | 1.4 / 1.3 | 0.4 / 3.0 | 0.6 | 13–50% | 12 / 15 | 9 / 15 | 9–15 | 0 / 10 |
+| 6 | 68 | 11 / 1.75 / 2.0 | 1.5 / 1.4 | 0.4 / 3.3 | 0.6 | 10–36% | 15 / 15 | 9 / 15 | 11–15 | 0 / 11 |
+| 7 | 68 | 12 / 1.75 / 2.0 | 1.6 / 1.4 | 0.4 / 3.3 | 0.6 | 10–38% | 12 / 15 | 9 / 15 | 12–15 | 0 / 12 |
+| **final** | **68** | **12 / 1.75 / 2.0** | **1.6 / 1.4** | **0.4 / 3.3** | **0.8** | **10–38%** | **12 / 15** | **9 / 15** | **12–15** | **0 / 11** |
+
+What moved what:
+- **Early waves have a cliff:** ×1.5 enemies with ×1.6 HP loses 5% of the
+  hull on wave 3; ×1.9 with ×2.4 loses 75% and waves start being lost. The
+  boost has to fade by wave 12, or waves 7–9 (where Cursed Cannoneers join)
+  overshoot.
+- **The cap barely moves waves 1–9** (few enemies reach the ship there), but
+  it decides the upgraded profile's waves 33–49, which are lost to Bone
+  Deckhands and Fog Wraiths walking in.
+- **Upgraded results downstream are sensitive to everything before them:** a
+  harder wave 10 (round 7) made the upgraded finale *easier* (11 → 12),
+  through the gold and levels earned on the way. A bigger finale trickle
+  (0.6 → 0.8 of a wave's count) brought it back to 11.
+
+### 10.4 Results against the targets
+
+| Waves | Target, no upgrades | No upgrades | Target, upgraded | Upgraded |
+|---|---|---|---|---|
+| 1–9 | 15/15 won, losing 15–30% hull | **all 15/15**; hull lost 10, 25, 23, 38, 20, 29, 37, 21, 16% | 15/15 | **all 15/15** ✓ |
+| 10 (Siren) | 10–14 | **12** ✓ | 13–15 | **15** ✓ |
+| 20 (Blackbones) | 8–13 | **9** ✓ | 12–14 | **15** ✗ |
+| 28–42 | falls off | **6, 6, 0, 8, 6, then 0 from wave 33** ✓ | 11–15 | **12–15** ✓ |
+| 50 finale | 0–2 | **0** ✓ | 7–11, both bosses take damage | **11** ✓; both hurt in 15/15 |
+
+Full summary (wins out of 15 per wave):
+
+| Waves | No upgrades | Upgraded | No upgrades hull lost (avg) | Upgraded hull lost (avg) |
+|---|---|---|---|---|
+| 1–9 | 1: 15, 2: 15, 3: 15, 4: 15, 5: 15, 6: 15, 7: 15, 8: 15, 9: 15 | 1: 15, 2: 15, 3: 15, 4: 15, 5: 15, 6: 15, 7: 15, 8: 15, 9: 15 | 10%, 25%, 23%, 38%, 20%, 29%, 37%, 21%, 16% | 10%, 24%, 19%, 32%, 14%, 23%, 27%, 15%, 11% |
+| 10 | 10: 12 | 10: 15 | 88% | 61% |
+| 11–19 | 11: 15, 12: 15, 13: 15, 14: 15, 15: 15, 16: 15, 17: 15, 18: 15, 19: 15 | 11: 15, 12: 15, 13: 15, 14: 15, 15: 15, 16: 15, 17: 15, 18: 15, 19: 15 | 7%, 14%, 17%, 39%, 32%, 29%, 39%, 35%, 51% | 4%, 7%, 9%, 19%, 15%, 13%, 15%, 13%, 22% |
+| 20 | 20: 9 | 20: 15 | 86% | 41% |
+| 21–27 | 21: 9, 22: 9, 23: 12, 24: 9, 25: 6, 26: 6, 27: 9 | 21: 15, 22: 15, 23: 15, 24: 15, 25: 15, 26: 15, 27: 15 | 75%, 76%, 60%, 84%, 89%, 88%, 74% | 30%, 30%, 20%, 32%, 36%, 36%, 19% |
+| 28–42 | 28: 6, 29: 6, 30: 0, 31: 8, 32: 6, 33–42: 0 | 28: 15, 29: 15, 30: 15, 31: 15, 32: 15, 33: 14, 34: 15, 35: 15, 36: 12, 37: 15, 38: 15, 39: 15, 40: 14, 41: 14, 42: 14 | 90%, 98%, 100%, 87%, 85%, then 100% | 37%, 38%, 52%, 24%, 26%, 57%, 40%, 49%, 69%, 41%, 57%, 40%, 68%, 64%, 66% |
+| 43–49 | all 0 | 43: 14, 44: 14, 45: 15, 46: 14, 47: 14, 48: 14, 49: 14 | 100% | 51%, 71%, 28%, 57%, 53%, 73%, 40% |
+| 50 | 50: 0 | 50: 11 | 100% | 75% |
+
+**What misses, and why:**
+- **Wave 20, upgraded: 15/15 (target 12–14).** I couldn't pull the two
+  profiles close enough here. By wave 20 the upgraded crew has spent 19 waves
+  of Fogbound gold (×1.07 per effective wave, so a lot) and has about twice
+  the hull. Every Blackbones that let the un-upgraded crew win 8 or more
+  times (×0.4–0.65 HP, ×1.2–3.3 damage) still lost to the upgraded crew every
+  time, and making him beat the upgraded crew sends the un-upgraded one back
+  to 0–6 wins. I kept the un-upgraded target. The upgraded crew still loses
+  41% of its hull there on average, and 67% at worst.
+- **Early hull loss:** waves 4 (38%) and 7 (37%) are over 30%: wave 4 is the
+  first with Fog Wraiths, and wave 7 has two pairs of them. Wave 1 (10%) is
+  under, like Frostbite's wave 1: its enemies die before most of them reach
+  the ship. The other six are 16–29%.
+- **Waves 21–27, no upgrades,** win 6–12 times out of 15: they climb steeply
+  after wave 20, but haven't fallen off yet. The target only covered 28–42.
+
+### 10.5 Boss fights
+
+Time-to-kill counts from when the boss can first be hit (after the Siren
+Queen's rise, and after Blackbones steps out of the fog) to its death.
+
+| Wave | Profile | Won | Time-to-kill s (avg, range) | Charms | Hull damage by source |
+|---:|---|---|---|---:|---|
+| 10 | none | 12/15 | Siren Queen: 86 (77–98); alive 3× with 9% HP left | 14.0 | Siren Queen (waves) 42%, charmed crew 39%, Cursed Cannoneer 10%, Bone Deckhand 9% |
+| 10 | upgraded | 15/15 | Siren Queen: 83 (71–95) | 13.4 | Siren Queen (waves) 43%, charmed crew 40%, Cursed Cannoneer 10%, Bone Deckhand 8% |
+| 20 | none | 9/15 | Blackbones: 29 (27–34); alive 4× with 7% HP left | 0 | Blackbones (slash) 60%, Bone Deckhand 17%, Blackbones (flintlock) 10%, Fog Wraith 9%, Cursed Cannoneer 4% |
+| 20 | upgraded | 15/15 | Blackbones: 29 (25–35) | 0 | Blackbones (slash) 53%, Bone Deckhand 21%, Fog Wraith 12%, Blackbones (flintlock) 10%, Cursed Cannoneer 4% |
+| 30 | none | 0/15 | Siren Queen: never killed; 66% HP left | 5.3 | Bone Deckhand 54%, charmed crew 14%, Fog Wraith 12%, Siren Queen (waves) 11%, Cursed Cannoneer 9% |
+| 30 | upgraded | 15/15 | Siren Queen: 75 (62–90) | 11.9 | Bone Deckhand 37%, charmed crew 25%, Siren Queen (waves) 16%, Fog Wraith 15%, Cursed Cannoneer 8% |
+| 40 | none | 0/15 | Blackbones: never killed; 69% HP left | 0 | Bone Deckhand 44%, Blackbones (slash) 25%, Fog Wraith 21%, Cursed Cannoneer 8%, Blackbones (flintlock) 3% |
+| 40 | upgraded | 14/15 | Blackbones: 83 (74–102) | 0 | Bone Deckhand 52%, Blackbones (slash) 25%, Fog Wraith 17%, Cursed Cannoneer 6%, Blackbones (flintlock) 1% |
+| 50 | none | 0/15 | neither killed; Siren Queen 72%, Blackbones 64% HP left | 7.8 | Blackbones (slash) 35%, Bone Deckhand 28%, charmed crew 18%, Siren Queen (waves) 16%, Blackbones (flintlock) 3% |
+| 50 | upgraded | 11/15 | Siren Queen: 168 (143–211), alive 3× with 18% left; Blackbones: 118 (97–149), alive 1× with 4% left | 27.8 | Bone Deckhand 40%, Blackbones (slash) 24%, charmed crew 23%, Siren Queen (waves) 13%, Blackbones (flintlock) 1% |
+
+- **The Siren Queen** is a long fight (75–90s on her own waves). She sits off
+  the lane and takes full damage, but a charmed crewmate both stops hitting
+  her and hits the hull. On her own waves, **charmed crew do about as much
+  hull damage as her tidal waves** (39–40% against 42–43% on wave 10).
+- **Blackbones on wave 20** is short and sharp: at ×0.4 HP he dies in about
+  29s, but his ×3.3 slash does 53–60% of the hull damage. On wave 40 (base
+  numbers) he's a long fight for the upgraded crew, and the deckhands he
+  raises are part of the 52% Bone Deckhand share.
+- **The finale:** both bosses took damage in all 30 attempts. The upgraded
+  crew usually kills Blackbones first (118s, against 168s for the Queen). Her
+  song comes every 5s below half HP, which adds up to 28 charms a wave.
+
+### 10.6 Charms per wave
+
+| | No upgrades | Upgraded |
+|---|---:|---:|
+| Siren Queen waves (10, 30) | 9.6 | 12.7 |
+| Finale (50) | 7.8 | 27.8 |
+
+The un-upgraded crew sees fewer because it sinks sooner.
+
+### 10.7 Ship damage by source, whole island
+
+- **No upgrades:** Bone Deckhand 65%, Fog Wraith 19%, Cursed Cannoneer 8%,
+  Blackbones (slash) 3%, charmed crew 2%, Siren Queen (waves) 2%,
+  Blackbones (flintlock) under 1%.
+- **Upgraded:** Bone Deckhand 60%, Fog Wraith 25%, Cursed Cannoneer 7%,
+  Blackbones (slash) 4%, charmed crew 3%, Siren Queen (waves) 2%,
+  Blackbones (flintlock) under 1%.
+
+Deckhands do most of the damage: they're most of every wave, Lantern Ghouls
+and Blackbones raise more of them, and they're the finale's whole trickle.
+Wraiths do more than their numbers suggest, because they're out of reach
+for 1.5s of every 5s.
+
+### 10.8 The other islands
+
+- `npm run sim:frost -- 5 3` gives **byte-identical** output before and after.
+- `npm run sim -- 3 50 voyage` matches wave for wave on Skull Cove, Ember
+  Isle and Frostbite Reef. The one difference: greedy run 2, which clears
+  Frostbite Reef, now sails on to Fogbound Isle instead of stopping at
+  Frostbite wave 51. It wins all 50 Fogbound waves first try, ending with
+  hull LV 116 and crew level 85–86.
+
+### 10.9 Final numbers
+
+| What | Value |
+|---|---|
+| Wave offset | 147 (Fogbound wave 1 = Frostbite wave 50) |
+| Damage cap | ×68, from wave 1 |
+| Early boost | ×1.75 enemies and ×2.0 HP on wave 1, fading evenly to ×1 by wave 12 |
+| Bone Deckhand / Fog Wraith / Cursed Cannoneer / Lantern Ghoul | 20 / 18 / 36 / 28 HP; speed 22.5 / 20.25 / 15.75 / 13.5; damage 5 (the ghoul 0) |
+| Fog bank | waves 6, 14, 18, 22, 26, 34, 38, 42, 46: 8s in, for 10s, crew range ×0.7; the whole finale at ×0.85 |
+| Siren Queen | 450 HP, tidal wave 10 damage every 5s; song every 7s (5s below half HP), charm 3s; wave 10: ×1.6 HP, ×1.4 damage |
+| Captain Blackbones | 520 HP, speed 22.5; slash 16 every 2s, flintlock 0.5× every 6s; fog step every 10s; 3 deckhands raised at 66% and 33% HP; wave 20: ×0.4 HP, ×3.3 damage |
+| Finale | both bosses at ×1.2 HP; the Queen 3.5s in, Blackbones 6s later; deckhand trickle 0.8 of a wave's count; 100 Pearls and 3 Legendary chests |
+
+Scaled at the waves they fight on:
+
+| Wave | Boss | HP | Hit |
+|---:|---|---:|---:|
+| 10 | Siren Queen | 267,143 | tidal wave 952 |
+| 20 | Captain Blackbones | 86,252 | slash 3,590, flintlock 1,795 |
+| 30 | Siren Queen | 207,320 | tidal wave 680 |
+| 40 | Captain Blackbones | 264,759 | slash 1,088, flintlock 544 |
+| 50 | Siren Queen / Blackbones | 302,396 / 349,435 | 680 / 1,088 |
+
+A Bone Deckhand has 6,676 HP on wave 1 (13,352 with the early boost) and
+8,748 on wave 25, and hits for 340.

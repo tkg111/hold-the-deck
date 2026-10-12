@@ -47,20 +47,22 @@ export function enemyDebut(key) {
 }
 
 // Enemy damage multiplier of a wave (island offset included): see
-// WAVES.damageGrowth and lateDamage.
-function damageMultiplier(wave) {
+// WAVES.damageGrowth and lateDamage, capped at the island's damageCap if it
+// has one.
+function damageMultiplier(wave, island) {
   const { from, growth, cap = Infinity } = WAVES.lateDamage;
   const atFrom = (1 + WAVES.damageGrowth) ** (Math.min(wave, from) - 1);
   if (wave <= from) return atFrom;
-  return Math.max(atFrom, Math.min(cap, atFrom * (1 + growth) ** (wave - from)));
+  return Math.max(atFrom, Math.min(island?.damageCap ?? cap, atFrom * (1 + growth) ** (wave - from)));
 }
 
-// Per-wave multipliers for enemy HP, damage and kill gold.
-export function waveScaling(wave) {
+// Per-wave multipliers for enemy HP, damage and kill gold (island: its
+// ISLANDS entry, for its damageCap).
+export function waveScaling(wave, island = null) {
   const n = wave - 1;
   return {
     hp: 1 + n * WAVES.hpPerWave + n * n * WAVES.hpPerWaveSquared,
-    damage: damageMultiplier(wave),
+    damage: damageMultiplier(wave, island),
     gold: (1 + ECONOMY.killGoldGrowth) ** n,
   };
 }
@@ -139,7 +141,7 @@ export function composeWave(wave, {
 } = {}) {
   const random = seededRandom(wave * 7919 + 17 + offset * 104729);
   const { formations } = islandContent(island);
-  if (finale) return finalePlan(wave, offset, finale, formations, random);
+  if (finale) return finalePlan(wave, offset, finale, finale.formations ?? formations, random);
   const n = wave - 1;
   const early = earlyBoost(wave, island);
   const boost = island.bossBoost?.[wave] ?? { hp: 1, damage: 1 };
@@ -220,6 +222,7 @@ export class WaveManager {
     this.scaling = waveScaling(1);
     this.finale = null;  // the island's finale config while it's the wave
     this.enraged = false;
+    this.crewCalls = 0;  // the finale: crew raisings owed to a boss not out yet
   }
 
   get doneSpawning() { return this.queue.length === 0; }
@@ -229,11 +232,12 @@ export class WaveManager {
     this.queue = composeWave(wave, options).map((entry, index) => ({ ...entry, index }));
     this.spawned = [];
     this.total = this.queue.length;  // for the enemies-left bar
-    this.scaling = waveScaling(wave + (options.offset ?? 0));
+    this.scaling = waveScaling(wave + (options.offset ?? 0), options.island);
     this.spawnTimer = this.queue[0]?.delay ?? 0;
     this.finale = options.finale ?? null;
     // A finale whose bosses arrive enraged.
     this.enraged = this.finale?.enrage === 'fromStart';
+    this.crewCalls = 0;
   }
 
   stop() {
@@ -242,9 +246,15 @@ export class WaveManager {
     this.finale = null;
   }
 
-  // The finale: a boss fell, so the other enrages (now, or as it arrives).
-  // Returns the bosses that enraged now.
+  // The finale: a boss fell, so the other enrages (now, or as it arrives),
+  // or (onBossDown 'summon') Captain Blackbones raises his crew. Returns the
+  // bosses that enraged now.
   bossDown() {
+    if (this.finale?.onBossDown === 'summon') {
+      const captain = this.spawned.find((e) => e?.alive && e.def.blackbones);
+      if (captain) captain.callCrew();
+      else if (this.queue.some((entry) => entry.def.blackbones)) this.crewCalls++;
+    }
     if (this.finale?.enrage !== 'onBossDown' || this.enraged) return [];
     this.enraged = true;
     const raging = this.spawned.filter((e) => e?.alive && e.def.boss);
@@ -288,6 +298,7 @@ export class WaveManager {
         boulders: !!this.finale?.boulders,
       });
       if (this.enraged && def.boss) enemy.enrage(this.finale.rage, this.finale.rageTint);
+      for (; this.crewCalls > 0 && def.blackbones; this.crewCalls--) enemy.callCrew();
       this.spawned[index] = enemy;
       spawned.push(enemy);
       if (this.queue.length) this.spawnTimer += this.queue[0].delay;

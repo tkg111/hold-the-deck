@@ -69,6 +69,28 @@ export const SNOWFALL = {
     tint: 0xdcecff, tintAlpha: 0.16, layers: 1, drift: { x: -90, y: 60 }, fadeMs: 400,
   },
 };
+// Fogbound Isle's mist, always there (src/fog.js): mist_sheet.png's frames
+// (at fps) tiled in a strip along the waterline, its top aboveWater px over
+// layout.waterY, scrolling left at drift px/s, over the enemies, crew and
+// ship but under status marks and enemy HP bars. It fades in and out over
+// fadeMs when sailing there or away (real time, like the ash). A fog bank
+// (the island's hazard, and the whole finale; see its fogBank) is
+// bank.file tiled over the whole view at bank.fps, drifting at bank.drift
+// px/s, at the same depth as the mist; it fades in and out with the bank
+// (game time).
+export const MIST = {
+  flag: 'mist',
+  path: 'fog/',
+  file: 'mist_sheet.png',
+  frameWidth: 128,
+  frameHeight: 48,
+  frames: 4,
+  fps: 5,
+  aboveWater: 34,
+  drift: 6,
+  fadeMs: 1200,
+  bank: { file: 'fogbank_sheet.png', frameWidth: 128, frameHeight: 128, frames: 4, fps: 6, drift: { x: -10, y: 0 } },
+};
 
 // Pixel art, drawn with Phaser's pixelArt setting. Scene positions come from
 // public/sprites/layout.json.
@@ -115,6 +137,17 @@ export const SPRITES = {
 export const FREEZE = {
   sprite: 'ice_block',
   breakFx: 'frost_hit',
+};
+
+// A charmed crewmate (the Siren Queen's song): its attacks go into its own
+// hull instead, selfDamage x its damage each, and it turns to face the ship,
+// with `status` (an fx sheet) looping over its head. Tapping them breaks the
+// charm early, playing `breakFx` on them. The Captain (who doesn't attack)
+// is never charmed.
+export const CHARM = {
+  status: 'charm_status',
+  breakFx: 'ghost_hit',
+  selfDamage: 1,
 };
 
 // The UI kit (public/sprites/ui/): panels, buttons, bar, icons and ui.json
@@ -549,10 +582,12 @@ export const ABILITY_BAR = {
 
 // Every enemy is 32x32 (The Kraken 64x64, the Siren 48x48, the Ghost Galleon
 // and the Molten Leviathan 96x80, the Frost Wyrm 112x96, the Frost Giant
-// 144x144) with its feet on the bottom row; width and height are its visible
+// 144x144, the Siren Queen 96x96, Captain Blackbones 64x64) with its feet on
+// the bottom row; width and height are its visible
 // body, used for hits and where it stops. sprite: the <sprite>_sheet.png
 // animations (animations.json, animations_new_enemies.json,
-// ember/animations_ember.json, frost/animations_frost.json); sheetOnly: no
+// ember/animations_ember.json, frost/animations_frost.json,
+// fog/animations_fog.json); sheetOnly: no
 // single <sprite>.png is loaded
 // (there is none, or it isn't used). walkAnim / idleAnim rename the
 // "walk" / "idle" animation. Numbers scale per wave (see WAVES): hp,
@@ -583,9 +618,15 @@ export const ABILITY_BAR = {
 //              isn't the bottom middle (the Sled Penguin's sled, the Frost Giant)
 //   rams:      on reaching the ship, hits it once for mult x its damage
 //              (`impact` there) and is gone
-//   ranged:    stops at stopX and lobs `shot` at the hull (see below)
+//   ranged:    stops at stopX and lobs `shot` at the hull, or fires it
+//              straight with flat (see below)
 //   witch:     stops at stopX and shields the front enemy (see below)
 //   wyrm / giant: Frostbite Reef's bosses (see below)
+//   rises:     summoned or raised, it plays `anim` where it stands first,
+//              out of reach until it's up; Lantern Ghouls raise where it fell
+//   wraith:    floats over the lane and fades out of reach now and then
+//   lantern:   stops at stopX and raises fallen `rises` enemies (see below)
+//   queen / blackbones: Fogbound Isle's bosses (see below)
 //   resist:    boss resistance on top of statusResist (which halves stun,
 //              slow, fear and push-back): immovable — Haunt and Tidal Wave
 //              can't move it (scared, it stands its ground instead of
@@ -1142,6 +1183,184 @@ export const ENEMIES = {
       },
     },
   },
+
+  // Fogbound Isle (art in public/sprites/fog/, all facing left; base stats
+  // relative to the Frozen Corsair's).
+  boneDeckhand: {
+    name: 'Bone Deckhand',
+    description: 'Signed on for life. Stayed on after.',
+    weakTo: ['stormCaller', 'harpooner', 'cannoneer'],
+    color: 0xd8d0b8,
+    sprite: 'bone_deckhand',
+    dir: 'fog/',
+    portrait: true,
+    width: 14,
+    height: 29,
+    hp: 20,
+    speed: 22.5,
+    damage: 5,
+    attackInterval: 1000,
+    gold: 2,
+    rises: { anim: 'rise' },
+  },
+  fogWraith: {
+    name: 'Fog Wraith',
+    description: "Now you see it. Mostly you don't.",
+    weakTo: ['stormCaller', 'sharpshooter', 'duelist'],
+    color: 0xb8c8c0,
+    sprite: 'fog_wraith',
+    dir: 'fog/',
+    portrait: true,
+    walkAnim: 'glide',
+    width: 18,
+    height: 25,
+    hp: 18,
+    speed: 20.25,
+    damage: 5,
+    attackInterval: 1000,
+    gold: 3,
+    // Glides hoverPx over the lane. Every `every` ms it plays "fadeOut" with
+    // `puff` and is invisible and out of reach for hideMs (shots already
+    // flying at it miss), then plays "fadeIn".
+    wraith: { hoverPx: 8, every: 5000, hideMs: 1500, puff: 'fog_puff' },
+  },
+  cursedCannoneer: {
+    name: 'Cursed Cannoneer',
+    description: 'Still firing at a ship that sank a hundred years ago. Close enough.',
+    weakTo: ['sharpshooter', 'duelist', 'cannoneer'],
+    color: 0x5a4a3a,
+    sprite: 'cursed_cannoneer',
+    dir: 'fog/',
+    portrait: true,
+    width: 18,
+    height: 31,
+    hp: 36,
+    speed: 15.75,
+    damage: 5,
+    attackInterval: 3500,   // a shot every
+    gold: 5,
+    maxOnScreen: 3,     // more wait their turn in the wave
+    // Like the Yeti Raider's throw, but "fire" fires `shot` flat from its
+    // `muzzle` (in its sheet's entry) at shotSpeed, at the hull at that
+    // height, on its releaseFrame.
+    ranged: {
+      stopX: 300, anim: 'fire', releaseFrame: 5, firstAt: 600, from: 'muzzle',
+      shot: 'grapeshot', impact: 'ghost_hit', flat: true, shotSpeed: 260, damageMult: 1,
+    },
+  },
+  lanternGhoul: {
+    name: 'Lantern Ghoul',
+    description: 'Where its lantern goes, the dead get back up.',
+    weakTo: ['sharpshooter', 'stormCaller', 'grogBrewer'],
+    color: 0x4a4a5a,
+    sprite: 'lantern_ghoul',
+    dir: 'fog/',
+    portrait: true,
+    width: 15,
+    height: 25,
+    hp: 28,
+    speed: 13.5,
+    damage: 0,
+    attackInterval: 1000,
+    gold: 6,
+    maxOnScreen: 2,     // more wait their turn in the wave
+    // Stops at stopX; from firstAt ms after stopping, every `every` ms it
+    // looks for a Bone Deckhand that died in the last graveMs (the latest):
+    // it plays "raise" and sends a `wisp` (at wispSpeed) from its `lantern`
+    // (in its sheet's entry) to where it fell, and the deckhand rises there
+    // with hpShare of its HP. At most `raises` times per ghoul.
+    lantern: {
+      stopX: 350, anim: 'raise', every: 6000, firstAt: 1000, graveMs: 8000,
+      raises: 2, hpShare: 0.5, wisp: 'soul_wisp', wispSpeed: 90,
+    },
+  },
+  sirenQueen: {
+    name: 'Siren Queen',
+    description: 'One song and your own crew turns on you.',
+    weakTo: ['duelist', 'sharpshooter', 'voodooPriestess'],
+    boss: true,
+    color: 0x2a9a8a,
+    sprite: 'siren_queen',     // 96x96; its sheet's `pos` is the frame's top-left
+    dir: 'fog/',
+    portrait: true,
+    face: { x: 22, y: 6 },     // Wanted Board: 32x32 crop of her head
+    origin: [0.5, 86 / 96],    // her waterline (frame row 86) on the water
+    width: 60,
+    height: 80,
+    hp: 450,
+    speed: 0,
+    damage: 10,         // per tidal wave on the hull
+    attackInterval: 1000,
+    gold: 50,
+    statusResist: 0.5,
+    resist: { immovable: true, stunGuardMs: 4000 },
+    banner: 'SIREN QUEEN',
+    bannerOnEntrance: true,
+    // She rises in place ("rise", out of reach meanwhile), then her banner
+    // shows and she loops "idle". From firstSongAt ms after rising, every
+    // songEvery ms (angrySongEvery below angryAt of her HP), while nobody is
+    // charmed, she plays "sing" and sends `notes` charm_notes, noteGap ms
+    // apart at noteSpeed, from her `mouth` to a random crewmate who attacks
+    // (not The Captain): when the last lands, they're charmed for charmMs
+    // (see CHARM). From firstWaveAt, every waveEvery ms she plays "wave" and
+    // (waveAt ms in) a siren_wave rolls left from her `waveHand` at waveSpeed
+    // with its bottom on the water, into the hull for her damage. A song or a
+    // wave that falls due during the other waits for it. Beaten, she plays
+    // "sink" with the Kraken's splash (its top aboveWater px over the water).
+    queen: {
+      firstSongAt: 2500, songEvery: 7000, angrySongEvery: 5000, angryAt: 0.5,
+      notes: 3, noteGap: 150, note: 'charm_note', noteSpeed: 120, charmMs: 3000,
+      firstWaveAt: 5000, waveEvery: 5000, waveAt: 200, wave: 'siren_wave', waveSpeed: 110,
+      shake: { duration: 200, intensity: 0.003 },   // as a wave hits
+      aboveWater: 23,
+    },
+  },
+  captainBlackbones: {
+    name: 'Captain Blackbones',
+    description: 'Lost his ship, his crew and his life. Wants yours.',
+    weakTo: ['duelist', 'voodooPriestess', 'cannoneer'],
+    boss: true,
+    color: 0x8a1a1a,
+    sprite: 'captain_blackbones',   // 64x64, feet at its sheet's `feet`
+    dir: 'fog/',
+    portrait: true,
+    face: { x: 10, y: 2 },     // Wanted Board: 32x32 crop of his head
+    origin: [32 / 64, 62 / 64],
+    width: 30,
+    height: 60,
+    hp: 520,
+    speed: 22.5,        // a Bone Deckhand's
+    damage: 16,         // per slash on the hull
+    attackInterval: 2000,   // a slash every
+    gold: 50,
+    statusResist: 0.5,
+    resist: { immovable: true, stunGuardMs: 4000 },
+    banner: 'CAPTAIN BLACKBONES',
+    bannerOnEntrance: true,
+    // Steps out of the fog at spawnX ("fogRise" with `puff`, out of reach
+    // until it's done) with a cackle (a short shake) and his banner, then
+    // walks the lane. While walking: every stepEvery ms he sinks into the fog
+    // ("fogSink" with `puff`), out of reach for hideMs, and rises ("fogRise",
+    // `puff`) stepPx further left (never past where he stops at the ship);
+    // every shootEvery ms (the first firstShotAt) he plays "shoot" and on its
+    // fireFrame muzzle_flash plays at his `muzzle` and the hull takes
+    // shotMult x his damage. At raiseAt of his HP (each once) he stops and
+    // plays "summon" (twice through): raiseCount `circle`s show on the lane
+    // raiseAhead px in front of him, raiseSpread apart (behind him where
+    // there's no room), and a `raise` (ENEMIES key) rises from each when it's
+    // done. At
+    // the ship he plays "slash" every attackInterval: on its impactFrame the
+    // hull takes his damage with `slashFx` there. Beaten, he plays "death"
+    // and his hat lies on the bones for deathHoldMs, then fades.
+    blackbones: {
+      spawnX: 430, puff: 'fog_puff', cackle: { duration: 300, intensity: 0.003 },
+      stepEvery: 10000, hideMs: 1500, stepPx: 60,
+      firstShotAt: 3000, shootEvery: 6000, shotMult: 0.5, flash: 'muzzle_flash',
+      raiseAt: [0.66, 0.33], raise: 'boneDeckhand', raiseCount: 3, raiseAhead: 26, raiseSpread: 18, circle: 'summon_circle',
+      slashFx: 'ghost_slash',
+      deathHoldMs: 2000, fadeMs: 400,
+    },
+  },
 };
 
 // From fromWave, any enemy but the boss can spawn as an Elite: gold tint,
@@ -1236,9 +1455,11 @@ export const WAVES = {
   // Enemy damage multiplier: (1 + damageGrowth) ^ (wave - 1) up to wave
   // lateDamage.from (the wave whose scaling it is, island offset included),
   // then (1 + lateDamage.growth) more per wave after it, but never above
-  // lateDamage.cap: Frostbite Reef (from effective wave 99) levels off at
-  // x62 from its wave 10 instead of reaching x319, so its damage doesn't
-  // outgrow the hull. Skull Cove and Ember Isle's 50 waves all come before it.
+  // lateDamage.cap (or the island's own damageCap): Frostbite Reef (from
+  // effective wave 99) levels off at x62 from its wave 10 instead of reaching
+  // x319, so its damage doesn't outgrow the hull. Skull Cove and Ember Isle's
+  // 50 waves all come before it. Fogbound Isle (from effective wave 148) is
+  // past its own cap from its first wave.
   damageGrowth: 0.04,
   lateDamage: { from: 100, growth: 0.03, cap: 62 },
   // Time between formations shrinks each wave down to a minimum; members of
@@ -1306,6 +1527,26 @@ export const FROST_FORMATIONS = [
   { from: 30, weight: 1.5, escort: true, members: ['yetiRaider', 'yetiRaider', 'frozenCorsair', 'frozenCorsair', 'frozenCorsair'] },
 ];
 
+// Fogbound Isle's formations: Bone Deckhands throughout, Fog Wraiths in
+// pairs from 4, Cursed Cannoneers (escorted by deckhands) from 8 and Lantern
+// Ghouls from 12, walking behind deckhands for it to raise, with bigger mixed
+// groups later on. The finale's trickle is deckhands only (FOG_FINALE_FORMATIONS).
+export const FOG_FORMATIONS = [
+  { from: 1, weight: 4, members: ['boneDeckhand'] },
+  { from: 2, weight: 3, members: ['boneDeckhand', 'boneDeckhand', 'boneDeckhand'] },
+  { from: 4, weight: 2, members: ['fogWraith', 'fogWraith'] },
+  { from: 8, weight: 2, escort: true, members: ['cursedCannoneer', 'boneDeckhand', 'boneDeckhand'] },
+  { from: 12, weight: 1.5, members: ['boneDeckhand', 'boneDeckhand', 'boneDeckhand', 'lanternGhoul'] },
+  { from: 16, weight: 1.5, members: ['fogWraith', 'fogWraith', 'fogWraith', 'boneDeckhand', 'boneDeckhand'] },
+  { from: 22, weight: 1.5, escort: true, members: ['cursedCannoneer', 'cursedCannoneer', 'fogWraith', 'fogWraith'] },
+  { from: 26, weight: 1.5, members: ['boneDeckhand', 'boneDeckhand', 'boneDeckhand', 'boneDeckhand', 'boneDeckhand'] },
+  { from: 32, weight: 1.5, members: ['boneDeckhand', 'boneDeckhand', 'cursedCannoneer', 'boneDeckhand', 'lanternGhoul'] },
+];
+export const FOG_FINALE_FORMATIONS = [
+  { from: 1, weight: 2, members: ['boneDeckhand'] },
+  { from: 1, weight: 1, members: ['boneDeckhand', 'boneDeckhand', 'boneDeckhand'] },
+];
+
 // The voyage is split into islands of `waves` waves each, in map.json's
 // order (public/sprites/map/). Ship, crew, upgrades and Pearls carry over;
 // each island keeps its own wave counter and best wave. Later islands are
@@ -1343,19 +1584,28 @@ export const FROST_FORMATIONS = [
 //            in `at` ms into the wave for `ms`: every
 //            freezeEvery ms a random crewmate (not frozen yet) freezes for
 //            freezeMs (see FREEZE), and enemies walk chill x as fast.
+//   mist: MIST along the waterline while the ship is there
+//   fogBank: like blizzard (from, every, skipBossWaves, at, ms), a fog bank
+//            (MIST.bank) that fades in and out over fadeMs; while it's in,
+//            the crew's attack range is `range` x as long
+//   damageCap: its own lateDamage.cap (see WAVES)
 // finale: the island's last wave (`wave`): its banner (title, detail),
 // weather ('storm': STORM; 'eruption': ASHFALL's heavy weather; 'blizzard':
-// a blizzard the whole wave, without its freezes), its bosses ({ key, at: ms
+// a blizzard the whole wave, without its freezes; 'fog': a fog bank the
+// whole wave, with fogRange in place of its range), its bosses ({ key, at: ms
 // into the wave }, each with hpFactor x its usual HP, or its own hpFactor and
 // damageFactor), and a trickle of
 // regular enemies (trickle x the usual count, a group every trickleInterval
 // ms from trickleFrom). enrage 'onBossDown': when one boss dies the other
 // enrages; 'fromStart': they arrive enraged; none: neither. Enraged bosses
 // are tinted rageTint and attack (fire, launch boats, spit) rage x as fast.
+// onBossDown 'summon': when one boss dies, Captain Blackbones raises his
+// crew at once (as soon as he's out, if he isn't yet). formations: the
+// trickle's own formations (the island's by default).
 // bombs overrides lavaBombs' min / max for the wave; boulders: the Frost
 // Giant throws ice boulders while walking. Winning pays `pearls` and
 // legendaryChests free Legendary chests, and its banner says clearedTitle
-// and `unlocks`.
+// and `unlocks`; with `ending`, the ending (EndingScene) plays after it.
 export const ISLANDS = [
   {
     id: 'skull_cove', name: 'Skull Cove', waves: 50, waveOffset: 0, available: true,
@@ -1447,8 +1697,69 @@ export const ISLANDS = [
       unlocks: 'FOGBOUND ISLE UNLOCKED',
     },
   },
-  { id: 'fogbound_isle', name: 'Fogbound Isle', waves: 50, waveOffset: 147, available: false, hazard: '???', boss: '???' },
+  {
+    // Fogbound Isle's wave 1 is as hard as Frostbite Reef's wave 50. The
+    // last island.
+    id: 'fogbound_isle', name: 'Fogbound Isle', shortName: 'Fogbound', waves: 50, waveOffset: 147, available: true,
+    hazard: 'Fog banks', boss: 'Siren & Blackbones',
+    scenery: { path: 'fog/', bg: 'bg_fog_tall', fg: 'fg_fog_sheet' },
+    mist: true,
+    // Enemy damage levels off at x68 (Frostbite Reef's x62 at its wave 10);
+    // the curve itself is already past that from wave 1 (x201).
+    damageCap: 68,
+    formations: FOG_FORMATIONS,
+    bosses: ['sirenQueen', 'captainBlackbones'],
+    sirenFromWave: Infinity,   // no Skull Cove Sirens here
+    // Waves 1-11 bring count x as many enemies with hp x their HP, fading
+    // evenly back to x1 by wave 12.
+    earlyBoost: { until: 12, count: 1.75, hp: 2 },
+    // The wave-10 Siren Queen is tougher; the wave-20 Blackbones has far less
+    // HP but hits much harder (his HP grows with the wave while his damage
+    // is capped, so at wave 20 the base numbers left him a wall the crew
+    // couldn't scratch without upgrades).
+    bossBoost: {
+      10: { hp: 1.6, damage: 1.4 },
+      20: { hp: 0.4, damage: 3.3 },
+    },
+    fogBank: { from: 6, every: 4, skipBossWaves: true, at: 8000, ms: 10000, fadeMs: 1000, range: 0.7 },
+    // Wave 50: "The Last Voyage". A fog bank the whole wave (at fogRange);
+    // the Siren Queen rises 3.5s in and Captain Blackbones steps out of the
+    // fog 6s later, each at hpFactor x its HP, with a trickle of Bone
+    // Deckhands. When the Queen dies Blackbones raises his crew. Then the
+    // ending.
+    finale: {
+      wave: 50,
+      title: 'THE LAST VOYAGE',
+      detail: 'WAVE 50 - FINAL BATTLE',
+      weather: 'fog',
+      fogRange: 0.85,
+      bosses: [{ key: 'sirenQueen', at: 3500 }, { key: 'captainBlackbones', at: 9500 }],
+      hpFactor: 1.2,
+      formations: FOG_FINALE_FORMATIONS,
+      trickle: 0.8, trickleFrom: 6000, trickleInterval: 3500,
+      onBossDown: 'summon',
+      pearls: 100, legendaryChests: 3,
+      clearedTitle: 'FOGBOUND ISLE CLEARED!',
+      unlocks: 'THE SEAS ARE YOURS',
+      ending: true,
+    },
+  },
 ];
+
+// The ending (EndingScene), delayMs after Fogbound Isle's finale is won: the
+// world map with every island's flag, and the ship token sailing the route
+// from the first island to the last over sailMs (then on off the map's right
+// edge over exitMs). textAt ms in, the title and line fade in over fadeMs,
+// with a Continue button.
+export const ENDING = {
+  sailMs: 9000,
+  exitMs: 1500,
+  delayMs: 2500,      // after the finale ends, so its CLEARED banner shows first
+  title: 'HOLD THE DECK',
+  line: 'THE SEAS ARE YOURS',
+  textAt: 1500,
+  fadeMs: 800,
+};
 
 // The finale's storm (public/sprites/storm/, storm.json gives the tint,
 // clouds, rain sheet and lightning sheet). Layers sit over the battle but

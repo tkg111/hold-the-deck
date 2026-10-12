@@ -338,6 +338,71 @@ class Sfx {
     this.noise({ start: t, duration: 1.6, volume: 0.25, filterFrom: 400, filterTo: 1400, q: 1.5 });
   }
 
+  // --- Fogbound Isle ---
+
+  // A fog bank rolling in: a low, two-note foghorn.
+  fogHorn() {
+    const t = this.ready();
+    if (t == null) return;
+    this.tone({ freq: 98, type: 'sawtooth', start: t, duration: 1.1, volume: 0.1, attack: 0.25 });
+    this.tone({ freq: 87.3, type: 'sawtooth', start: t + 1.2, duration: 1.4, volume: 0.1, attack: 0.25 });
+  }
+
+  // Something sinking into or stepping out of the fog: a soft whoosh.
+  fogPuff() {
+    const t = this.ready();
+    if (t == null) return;
+    this.noise({ start: t, duration: 0.3, volume: 0.15, filterFrom: 600, filterTo: 1500, q: 0.8 });
+  }
+
+  // A Cursed Cannoneer's grapeshot or Blackbones' flintlock: a sharp bang.
+  musket() {
+    const t = this.ready();
+    if (t == null) return;
+    this.noise({ start: t, duration: 0.12, volume: 0.4, filterFrom: 2500, filterTo: 700, q: 1 });
+    this.tone({ freq: 160, endFreq: 70, type: 'sine', start: t, duration: 0.15, volume: 0.25 });
+  }
+
+  // A Lantern Ghoul's soul wisp: a hollow rising whistle.
+  wisp() {
+    const t = this.ready();
+    if (t == null) return;
+    this.tone({ freq: 440, endFreq: 880, type: 'sine', start: t, duration: 0.6, volume: 0.07, attack: 0.15 });
+  }
+
+  // A crewmate charmed: a sweet falling phrase.
+  charm() {
+    const t = this.ready();
+    if (t == null) return;
+    [1318.5, 1174.7, 1046.5].forEach((f, i) => {
+      this.tone({ freq: f, type: 'sine', start: t + i * 0.12, duration: 0.25, volume: 0.08, attack: 0.03 });
+    });
+  }
+
+  // The Siren Queen's tidal wave setting off: rushing water.
+  wave() {
+    const t = this.ready();
+    if (t == null) return;
+    this.noise({ start: t, duration: 0.8, volume: 0.25, filterFrom: 500, filterTo: 1800, q: 0.7 });
+  }
+
+  // Captain Blackbones' cackle: three quick, falling, raspy notes.
+  cackle() {
+    const t = this.ready();
+    if (t == null) return;
+    [330, 300, 270].forEach((f, i) => {
+      this.tone({ freq: f, endFreq: f * 0.85, type: 'sawtooth', start: t + i * 0.13, duration: 0.11, volume: 0.07 });
+    });
+  }
+
+  // Blackbones' cutlass on the hull: a swish and a ring.
+  slash() {
+    const t = this.ready();
+    if (t == null) return;
+    this.noise({ start: t, duration: 0.15, volume: 0.3, filterFrom: 4000, filterTo: 1500, q: 1 });
+    this.tone({ freq: 900, endFreq: 700, type: 'triangle', start: t + 0.08, duration: 0.25, volume: 0.1 });
+  }
+
   // An ability that can't be used right now.
   denied() {
     const t = this.ready();

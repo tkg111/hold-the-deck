@@ -191,7 +191,7 @@ export class WantedScene extends Phaser.Scene {
     }
 
     // Stats at the current wave (on this island, which may start harder).
-    const scaling = waveScaling(p.scalingWave);
+    const scaling = waveScaling(p.scalingWave, p.island);
     const statsY = traitsOf(def).length ? chipY + 18 : py;
     const dash = (n) => (n > 0 ? fmtNumber(Math.round(n)) : '-');
     const stats = [

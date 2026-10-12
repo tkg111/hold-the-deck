@@ -1,6 +1,5 @@
-import { FREEZE, FX, HEROES, SHIP, SPRITES } from '../config.js';
+import { CHARM, FREEZE, FX, HEROES, SHIP, SPRITES } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
-import { laneFeetY } from '../layout.js';
 import { FX_DEPTH, fxSprite, playFx } from '../fx.js';
 import { findAnim, fxKey, sheetKey } from '../sprites.js';
 import { damageSource } from '../systems/BattleStats.js';
@@ -46,6 +45,11 @@ export class Hero {
     // no attacks either, in a block of ice until it melts or is tapped.
     this.freezeTime = 0;
     this.iceBlock = null;
+    // Charmed (the Siren Queen's song): attacks its own hull until it wears
+    // off or is tapped. charmer: the Siren Queen, blamed for that damage.
+    this.charmTime = 0;
+    this.charmer = null;
+    this.charmMark = null;
     // Anti-air crew can hit flyers in the air; the Net Thrower can aim at
     // them too (his net grounds them).
     this.antiAir = !!(this.def.antiAir || this.def.netsFlyers);
@@ -125,7 +129,7 @@ export class Hero {
     }
   }
 
-  // End of a wave: boosts, Lunge, stuns and ice end with it.
+  // End of a wave: boosts, Lunge, stuns, ice and charms end with it.
   clearAbilities() {
     this.boosts = [];
     this.lunge = null;
@@ -133,6 +137,7 @@ export class Hero {
     this.tickAbilities(0);
     this.tickStun(0);
     this.thaw({ quiet: true });
+    this.breakCharm({ quiet: true });
   }
 
   // The Siren's note or a lava bomb on this deck: no attacks for ms.
@@ -190,6 +195,78 @@ export class Hero {
 
   get isFrozen() { return this.freezeTime > 0; }
 
+  // Charmed for ms by `charmer` (the Siren Queen): it turns to face the ship
+  // and its attacks hit the hull (see attackOwnShip), with CHARM.status
+  // looping over its head.
+  charm(ms, charmer = null) {
+    this.charmTime = Math.max(this.charmTime, ms);
+    this.charmer = charmer;
+    if (!this.charmMark) {
+      this.charmMark = fxSprite(this.scene, CHARM.status, Math.round(this.x), Math.round(this.top) - FX.statusGap)
+        .setOrigin(0.5, 1).setDepth(DEPTH.slotMarkers);
+      this.body.setFlipX?.(true);
+      sfx.charm();
+    }
+  }
+
+  // The charm wears off or is tapped away (with CHARM.breakFx on them; quiet:
+  // just gone, at the end of a wave). Returns whether they were charmed.
+  breakCharm({ quiet = false } = {}) {
+    if (!this.charmMark) return false;
+    this.charmTime = 0;
+    this.charmer = null;
+    this.charmMark.destroy();
+    this.charmMark = null;
+    this.body.setFlipX?.(false);
+    if (!quiet) playFx(this.scene, CHARM.breakFx, Math.round(this.x), Math.round(this.y));
+    return true;
+  }
+
+  tickCharm(dt) {
+    this.charmTime = Math.max(0, this.charmTime - dt);
+    if (this.charmTime <= 0 && this.charmMark) this.breakCharm({ quiet: true });
+  }
+
+  get isCharmed() { return this.charmTime > 0; }
+
+  // A tap on this crewmate during a wave: breaks the ice and the charm.
+  // Returns whether it freed them from anything.
+  tapFree() {
+    const thawed = this.thaw();
+    return this.breakCharm() || thawed;
+  }
+
+  // Charmed: an attack into its own hull, at a random spot on it, for
+  // CHARM.selfDamage x its damage (lobbed, flying straight or, the Storm
+  // Caller's, a bolt at once). The Captain's Log blames the charmer.
+  attackOwnShip() {
+    const { scene, def } = this;
+    const { ship } = scene;
+    const spot = ship.hullTarget();
+    const charmer = this.charmer;
+    const damage = this.damage * CHARM.selfDamage;
+    const land = (x, y) => {
+      playFx(scene, def.chain ? def.chain.impact : def.projectile.impact, x, y);
+      ship.takeDamage(damage, charmer, this);
+    };
+    if (def.chain) {
+      land(spot.x, spot.y);
+      return null;
+    }
+    const common = {
+      ...this.muzzlePoint(), target: { alive: true, ...spot },
+      sprite: def.projectile.sprite, rotate: def.projectile.rotate,
+      onHit: (_t, x, y) => land(x, y),
+      findTarget: () => null,
+    };
+    if (def.lob) {
+      return new LobProjectile(scene, {
+        ...common, flightTime: def.lob.flightTime, arcHeight: def.lob.arcHeight, aimAt: (t) => ({ x: t.x, y: t.y }),
+      });
+    }
+    return new Projectile(scene, { ...common, speed: def.projectileSpeed });
+  }
+
   // Whether this crewmate can hit (or, the Net Thrower, net) the enemy.
   canHit(e) { return e.canBeHit(this.antiAir); }
 
@@ -227,9 +304,16 @@ export class Hero {
     this.tickAbilities(dt);
     this.tickStun(dt);
     this.tickFreeze(dt);
+    this.tickCharm(dt);
     if (this.def.aura || this.isStunned || this.isFrozen) return null;  // support hero: never attacks
     this.cooldown -= dt * this.speedMult;
     if (this.cooldown > 0) return null;
+
+    if (this.isCharmed) {
+      this.cooldown = this.attackInterval;
+      if (this.attackAnim) this.body.play(this.attackAnim);
+      return this.attackOwnShip();
+    }
 
     const lunging = this.lunge != null;
     const target = lunging ? this.toughest(enemies) : this.pickTarget(enemies);
@@ -325,7 +409,7 @@ export class Hero {
     const still = enemy.isStunned || enemy.isAfraid || enemy.pushLeft > 0;
     const lead = still ? 0 : enemy.speed * enemy.pace * enemy.moveBoost * msLeft / 1000;
     const x = Math.max(enemy.stopX, enemy.x - lead);
-    const y = def.emerges || def.floats ? enemy.y : laneFeetY(x) - def.height / 2;
+    const y = def.emerges || def.floats ? enemy.y : enemy.groundY(x) - def.height / 2;
     return { x, y };
   }
 
@@ -334,15 +418,16 @@ export class Hero {
   // Sharpshooter (targets: 'furthest'). The Voodoo Priestess prefers
   // enemies that aren't cursed yet, the Grog Brewer ones not yet poisoned,
   // so their effects spread across the wave, and the Net Thrower flyers still
-  // in the air, to ground them.
+  // in the air, to ground them. A fog bank (Fogbound Isle) shortens the range.
   pickTarget(enemies) {
     const { curse, poison, netsFlyers } = this.def;
     const furthest = this.def.targets === 'furthest';
+    const range = this.def.range * (this.scene.mists?.rangeMult ?? 1);
     let best = null;
     let bestFresh = null;
     for (const e of enemies) {
       if (!this.canHit(e)) continue;
-      if (Math.hypot(e.x - this.x, e.y - this.y) > this.def.range) continue;
+      if (Math.hypot(e.x - this.x, e.y - this.y) > range) continue;
       if (!best || (furthest ? e.x > best.x : e.x < best.x)) best = e;
       const fresh = (curse && !e.isCursed) || (poison && !e.isPoisoned) || (netsFlyers && e.airborne);
       if (fresh && (!bestFresh || e.x < bestFresh.x)) bestFresh = e;
@@ -396,6 +481,7 @@ export class Hero {
     this.buffRing?.destroy();
     this.stunStars?.destroy();
     this.iceBlock?.destroy();
+    this.charmMark?.destroy();
     for (const sprite of Object.values(this.boostSprites)) sprite.destroy();
     this.body.destroy();
   }

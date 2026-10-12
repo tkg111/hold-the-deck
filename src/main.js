@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { canvasSize, installScaling } from './display.js';
 import { CollectionScene } from './scenes/CollectionScene.js';
+import { EndingScene } from './scenes/EndingScene.js';
 import { GameScene } from './scenes/GameScene.js';
 import { LogScene } from './scenes/LogScene.js';
 import { MapScene } from './scenes/MapScene.js';
@@ -24,7 +25,7 @@ loadUiSpec().then(() => {
     // No automatic fitting: the canvas is sized to the game area (see
     // display.js), centered by the page's flex layout.
     scale: { mode: Phaser.Scale.NONE },
-    scene: [GameScene, PackScene, CollectionScene, WantedScene, MapScene, LogScene],
+    scene: [GameScene, PackScene, CollectionScene, WantedScene, MapScene, LogScene, EndingScene],
   });
 
   // Handy for poking at state from the browser console during development.
