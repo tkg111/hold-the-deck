@@ -575,10 +575,8 @@ export class ExpeditionScene extends Phaser.Scene {
     const h = R.cardHeight;
     const color = this.rewardColor(reward);
     const glow = this.add.rectangle(cx, cy, w + 8, h + 8, color, 0).setOrigin(0.5);
-    const back = this.add.container(cx, cy, [
-      panel(this, -w / 2, -h / 2, w, h, 'wood'),
-      text(this, 0, 0, '?', light({ font: 'big' })).setOrigin(0.5),
-    ]);
+    const mark = text(this, 0, 0, '?', light({ font: 'big' })).setOrigin(0.5);
+    const back = this.add.container(cx, cy, [panel(this, -w / 2, -h / 2, w, h, 'wood'), mark]);
     if (reward.bonus) back.add(this.add.rectangle(0, 0, w - 2, h - 2).setStrokeStyle(2, EXPEDITIONS.glowColor));
     const frontArt = this.add.container(cx, cy, [panel(this, -w / 2, -h / 2, w, h, 'parchment')]).setVisible(false);
     const art = this.rewardArt(reward);
@@ -588,7 +586,7 @@ export class ExpeditionScene extends Phaser.Scene {
     this.add2(back);
     this.add2(frontArt);
     this.add2(labels);
-    return { reward, glow, back, frontArt, labels, cx, cy, flipped: false };
+    return { reward, glow, back, mark, frontArt, labels, cx, cy, flipped: false };
   }
 
   rewardColor(r) {
@@ -638,10 +636,14 @@ export class ExpeditionScene extends Phaser.Scene {
     if (card.reward.bonus) this.bonusBanner();
     // A little rattle, then over it goes.
     const R = EXPEDITIONS.reveal;
+    // (Whole pixels for the rattle; the "?" goes before the squeeze, as
+    // bitmap text is only ever drawn at scale 1.)
     this.tweens.add({
       targets: card.back, x: card.cx + 2, duration: 40, yoyo: true, repeat: 2,
+      onUpdate: () => card.back.setX(Math.round(card.back.x)),
       onComplete: () => {
         card.back.x = card.cx;
+        card.mark.setVisible(false);
         this.tweens.add({
           targets: card.back, scaleX: 0, duration: R.flipMs, ease: 'Quad.easeIn',
           onComplete: () => this.showFront(card, true),
