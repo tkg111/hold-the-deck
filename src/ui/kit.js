@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
-import { HEROES, SPRITES, UI_KIT, WANTED } from '../config.js';
+import {
+  EXPEDITIONS, HEROES, SPRITES, UI_KIT, WANTED,
+} from '../config.js';
 import { versioned } from '../version.js';
 
 // The UI kit in public/sprites/ui/: 9-slice wood and parchment panels, gold and
@@ -23,6 +25,14 @@ const WANTED_IMAGES = [
 ];
 export const wantedKey = (name) => `wanted_${name}`;
 export const WANTED_JSON_KEY = 'wanted';
+
+// Expedition art (EXPEDITIONS.path): its icons, each destination's card
+// (expeditionKey(`dest_${id}`)), the trait icon sheet, and expedition.json
+// (destinations, crew traits, trait icon order) in the JSON cache.
+const EXPEDITION_IMAGES = ['icon_expedition', 'icon_hourglass'];
+export const expeditionKey = (name) => `expedition_${name}`;
+export const EXPEDITION_JSON_KEY = 'expedition';
+const TRAITS_KEY = expeditionKey('traits');
 
 // Bitmap fonts in public/sprites/ui/fonts/: <font>_<tone>.png + .xml.
 // main: 16px, small: 8px, big: 32px. light: cream with a dark outline (for wood,
@@ -53,6 +63,13 @@ export function preloadUi(scene) {
   load.spritesheet(ICONS_KEY, `${path}icons_sheet.png`, { frameWidth: UI.iconSize, frameHeight: UI.iconSize });
   for (const name of WANTED_IMAGES) load.image(wantedKey(name), `${WANTED.path}${name}.png`);
   load.json(WANTED_JSON_KEY, `${WANTED.path}wanted.json`);
+  for (const name of EXPEDITION_IMAGES) load.image(expeditionKey(name), `${EXPEDITIONS.path}${name}.png`);
+  load.json(EXPEDITION_JSON_KEY, `${EXPEDITIONS.path}expedition.json`);
+  load.once(`filecomplete-json-${EXPEDITION_JSON_KEY}`, (key, type, data) => {
+    for (const dest of data.destinations) load.image(expeditionKey(`dest_${dest.id}`), `${EXPEDITIONS.path}${dest.image}`);
+    const { sheet, size } = data.traitIcons;
+    load.spritesheet(TRAITS_KEY, `${EXPEDITIONS.path}${sheet}`, { frameWidth: size, frameHeight: size });
+  });
   for (const font of FONTS) load.bitmapFont(font, `${path}fonts/${font}.png`, `${path}fonts/${font}.xml`);
 }
 
@@ -96,6 +113,15 @@ export function icon(scene, x, y, name) {
   const frame = UI.icons.indexOf(name);
   if (frame < 0) return scene.add.image(x, y, name);
   return scene.add.image(x, y, ICONS_KEY, frame);
+}
+
+// A crewmate trait's 12px icon (expedition.json's trait sheet), or an empty
+// image if the trait is unknown.
+export function traitIcon(scene, x, y, trait) {
+  const order = scene.cache.json.get(EXPEDITION_JSON_KEY)?.traitIcons?.order ?? [];
+  const frame = order.indexOf(trait);
+  const img = scene.add.image(Math.round(x), Math.round(y), TRAITS_KEY, Math.max(0, frame));
+  return frame < 0 ? img.setVisible(false) : img;
 }
 
 // --- Text ---

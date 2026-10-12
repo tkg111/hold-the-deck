@@ -5,7 +5,11 @@ import { applyRenderScale, fillView } from '../display.js';
 import { Button } from '../ui/Button.js';
 import { createHeroCard, HERO_CARD_SIZE } from '../ui/HeroCard.js';
 import { cooldownLabel, describeAbility } from '../ui/HeroPicker.js';
-import { dark, light, panel, subText, text } from '../ui/kit.js';
+import {
+  dark, light, panel, subText, text, traitIcon,
+} from '../ui/kit.js';
+import * as Expeditions from '../systems/Expeditions.js';
+import { fmtClock } from '../ui/format.js';
 
 const MAX_PER_ROW = 5;
 const PER_PAGE = 10;   // two rows; more turn the page
@@ -15,7 +19,8 @@ const GRID_TOP = 28;
 // Overlay listing every hero (the "collection book"): owned ones as parchment
 // cards with level and stars, the rest as black silhouettes on wood, ten to
 // a page (arrows either side of the title plate turn it). Clicking an owned card shows it
-// large next to its ability.
+// large next to its ability and trait. Crew away on an expedition show an
+// hourglass and the time left.
 // Launched with { progress, onClose }.
 export class CollectionScene extends Phaser.Scene {
   constructor() {
@@ -62,6 +67,8 @@ export class CollectionScene extends Phaser.Scene {
       this.nextButton = arrow(cx + 82, 1, 90);
     }
     this.drawPage();
+    // Away crew's time left ticks down.
+    this.time.addEvent({ delay: 1000, loop: true, callback: () => this.updateAway() });
 
     new Button(this, DISPLAY.width - 30, 14, {
       width: 48, height: 20, label: 'Back', onClick: () => this.close(),
@@ -83,6 +90,7 @@ export class CollectionScene extends Phaser.Scene {
     const { width: w, height: h } = HERO_CARD_SIZE.small;
     const ids = this.ids.slice(this.page * PER_PAGE, (this.page + 1) * PER_PAGE);
     this.grid.removeAll(true);
+    this.awayCards = [];
     ids.forEach((id, i) => {
       const row = Math.floor(i / MAX_PER_ROW);
       const inRow = Math.min(MAX_PER_ROW, ids.length - row * MAX_PER_ROW);
@@ -90,9 +98,14 @@ export class CollectionScene extends Phaser.Scene {
       const rowWidth = inRow * w + (inRow - 1) * GAP;
       const x = cx - rowWidth / 2 + w / 2 + col * (w + GAP);
       const y = GRID_TOP + h / 2 + row * (h + GAP);
-      this.grid.add(createHeroCard(this, x, y, id, p.isOwned(id)
-        ? { size: 'small', stars: p.heroStarCount(id), bonus: p.heroBonusLevels(id), level: p.heroLevel(id) }
-        : { size: 'small', silhouette: true }));
+      const entry = Expeditions.entryOf(p, id);
+      const card = createHeroCard(this, x, y, id, p.isOwned(id)
+        ? {
+          size: 'small', stars: p.heroStarCount(id), bonus: p.heroBonusLevels(id), level: p.heroLevel(id), away: entry && awayLabel(entry),
+        }
+        : { size: 'small', silhouette: true });
+      this.grid.add(card);
+      if (entry) this.awayCards.push({ card, entry });
       if (p.isOwned(id)) {
         this.grid.add(this.add.zone(x, y, w, h).setInteractive({ useHandCursor: true })
           .on('pointerdown', () => this.showDetail(id)));
@@ -100,6 +113,11 @@ export class CollectionScene extends Phaser.Scene {
     });
     this.prevButton?.setEnabled(this.page > 0);
     this.nextButton?.setEnabled(this.page < this.pages - 1);
+  }
+
+  updateAway() {
+    Expeditions.tick(this.progress);
+    for (const { card, entry } of this.awayCards) card.awayText?.setText(awayLabel(entry));
   }
 
   // The hero's large card and a parchment panel with its ability; a click
@@ -110,8 +128,9 @@ export class CollectionScene extends Phaser.Scene {
     const cx = DISPLAY.width / 2;
     const cy = DISPLAY.height / 2;
     const backdrop = fillView(this, 0x0d1117, 0.85);
+    const entry = Expeditions.entryOf(p, id);
     const card = createHeroCard(this, cx - 76, cy, id, {
-      stars: p.heroStarCount(id), bonus: p.heroBonusLevels(id), level: p.heroLevel(id),
+      stars: p.heroStarCount(id), bonus: p.heroBonusLevels(id), level: p.heroLevel(id), away: entry && awayLabel(entry),
     });
     const w = 150;
     const h = 96;
@@ -127,6 +146,17 @@ export class CollectionScene extends Phaser.Scene {
         subText({ wrap: w - 20, lineSpacing: -2 })),
       text(this, left + 10, top + h - 22, 'KEYS 1-6 OR TAP ITS FACE IN BATTLE', subText({ wrap: w - 20 })),
     ]);
+    // The trait (for expeditions), on a wood tab under the panel.
+    const trait = Expeditions.traitOf(id);
+    if (trait) {
+      const label = text(this, left + 26, top + h + 9, `TRAIT: ${Expeditions.traitLabel(trait).toUpperCase()}`, light({ font: 'small' }))
+        .setOrigin(0, 0.5);
+      info.add([
+        panel(this, left, top + h - 2, label.inkWidth + 34, 20, 'wood'),
+        traitIcon(this, left + 16, top + h + 8, trait),
+        label,
+      ]);
+    }
     backdrop.once('pointerdown', () => {
       sfx.click();
       for (const o of [backdrop, card, info]) o.destroy();
@@ -139,3 +169,6 @@ export class CollectionScene extends Phaser.Scene {
     this.onClose?.();
   }
 }
+
+// An away crewmate's time left, or BACK once their expedition has returned.
+const awayLabel = (entry) => (Expeditions.isReturned(entry) ? 'BACK' : fmtClock(Expeditions.timeLeft(entry)));

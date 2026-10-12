@@ -3,10 +3,11 @@ import { DISPLAY, ISLANDS, MAP, UI_KIT } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
 import { applyRenderScale, fillView } from '../display.js';
 import { MAP_JSON_KEY, mapKey } from '../sprites.js';
+import * as Expeditions from '../systems/Expeditions.js';
 import { Button } from '../ui/Button.js';
 import { fmtNumber } from '../ui/format.js';
 import {
-  dark, hexColor, light, panel, subText, text, UI,
+  dark, expeditionKey, hexColor, light, panel, subText, text, UI,
 } from '../ui/kit.js';
 
 // The world map ("The Cursed Seas"), after ui_mock_world_map.png: map_bg.png
@@ -16,7 +17,10 @@ import {
 // locked ones are greyscale and faded with a "?" and "???" for a name.
 // Clicking an unlocked island shows its card (island number, waves, hazard,
 // boss, best wave, Endless once cleared) with SET SAIL!, which sails there
-// (or a disabled COMING SOON for an island with no content yet). Launched with { progress, onClose(sailed) }.
+// (or a disabled COMING SOON for an island with no content yet). The
+// Expeditions button (top right, with a badge counting the ones back) opens
+// the board over the map. Launched with { progress, openExpeditions(onClosed),
+// onClose(sailed) }.
 
 const GREY = (key) => `${key}_grey`;
 
@@ -46,9 +50,10 @@ export class MapScene extends Phaser.Scene {
     super('MapScene');
   }
 
-  init({ progress, onClose }) {
+  init({ progress, onClose, openExpeditions }) {
     this.progress = progress;
     this.onClose = onClose;
+    this.openExpeditions = openExpeditions;
     this.selected = progress.islandId;
   }
 
@@ -71,12 +76,37 @@ export class MapScene extends Phaser.Scene {
     const cx = DISPLAY.width / 2;
     panel(this, cx - 80, 16, 160, 22, 'wood');
     text(this, cx, 27, MAP.title, light()).setOrigin(0.5);
-    new Button(this, 26, 26, { width: 20, height: 20, label: 'X', onClick: () => this.close() });
+    new Button(this, 26, 26, { width: 24, height: 24, label: 'X', onClick: () => this.close() });
+    // Expeditions (greyed out until unlocked; tapping it then says how).
+    this.expeditionButton = new Button(this, 426, 26, {
+      width: 88, height: 24, icon: expeditionKey('icon_expedition'), label: 'Expeditions',
+      onClick: () => this.openExpeditions?.(() => this.refreshExpeditions()),
+    });
+    this.expeditionHint = text(this, 470, 42, Expeditions.unlockLabel().toUpperCase(), light({ font: 'small' }))
+      .setOrigin(1, 0).setVisible(false);
+    this.expeditionButton.bg.on('pointerdown', () => {
+      if (this.expeditionButton.enabled) return;
+      sfx.denied();
+      this.expeditionHint.setVisible(true);
+    });
+    this.refreshExpeditions();
 
     this.card = this.add.container(0, 0);
     this.select(this.selected, { quiet: true });
 
     if (!this.progress.mapSeen) this.progress.mapSeen = true;
+  }
+
+  // The Expeditions button: enabled once unlocked, with a badge counting the
+  // ones back (checked again each second while the map is open).
+  refreshExpeditions() {
+    const p = this.progress;
+    const open = Expeditions.isUnlocked(p);
+    Expeditions.tick(p);
+    this.expeditionButton.setEnabled(open).setBadge(open ? Expeditions.readyCount(p) : 0);
+    if (!this.expeditionTimer) {
+      this.expeditionTimer = this.time.addEvent({ delay: 1000, loop: true, callback: () => this.refreshExpeditions() });
+    }
   }
 
   // The route: map.json's points, legPoints to a leg (island n to n + 1).

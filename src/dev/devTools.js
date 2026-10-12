@@ -1,4 +1,5 @@
 import { DISPLAY, ISLANDS } from '../config.js';
+import { finishAll } from '../systems/Expeditions.js';
 import { isBossWave } from '../systems/WaveManager.js';
 import { Button } from '../ui/Button.js';
 
@@ -62,7 +63,17 @@ export function installDevTools(scene) {
     },
   });
 
-  const buttons = [devButton, pearlsButton, waveButton, islandButton, bossButton];
+  // Every running expedition comes back now.
+  const expeditionsButton = new Button(scene, 64, 164, {
+    ...small, width: 124, label: 'DEV END EXPEDITIONS',
+    onClick: () => {
+      finishAll(progress);
+      scene.watchExpeditions(1000);
+      scene.save();
+    },
+  });
+
+  const buttons = [devButton, pearlsButton, waveButton, islandButton, bossButton, expeditionsButton];
   const corner = scene.add.container(0, 0, buttons).setDepth(20);
   const layout = (view) => corner.setPosition(view.left, Math.round(view.bottom - DISPLAY.height));
   layout(scene.view);

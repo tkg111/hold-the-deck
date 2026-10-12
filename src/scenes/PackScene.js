@@ -1,5 +1,8 @@
 import Phaser from 'phaser';
-import { DISPLAY, HEROES, PACK_FX, PACKS, RARITY } from '../config.js';
+import {
+  DISPLAY, EXPEDITIONS, HEROES, PACK_FX, PACKS, RARITY,
+} from '../config.js';
+import { traitOf } from '../systems/Expeditions.js';
 import { sfx } from '../audio/Sfx.js';
 import { applyRenderScale, fillView } from '../display.js';
 import { Progress } from '../systems/Progress.js';
@@ -8,7 +11,7 @@ import { Button } from '../ui/Button.js';
 import { createHeroCard, HERO_CARD_SIZE } from '../ui/HeroCard.js';
 import { cssColor, pearlsLabel } from '../ui/format.js';
 import {
-  face, icon, dark, light, panel, subText, text, UI,
+  face, icon, dark, light, panel, subText, text, traitIcon, UI,
 } from '../ui/kit.js';
 
 const CARD_W = HERO_CARD_SIZE.large.width;
@@ -93,17 +96,21 @@ export class PackScene extends Phaser.Scene {
   }
 
   refresh() {
-    const { pearls, freeLegendaryChests: free } = this.progress;
+    const { pearls, freeChestCount: free, nextFreeChest: next, freeLegendaryChests: legendary } = this.progress;
     const cost = this.progress.packCost;
     this.walletText.setText(`YOU HAVE ${pearlsLabel(pearls).toUpperCase()}  -  A CHEST COSTS ${cost}`);
-    // A free Legendary chest (an island's reward) opens first, at no cost.
+    // Free chests (an island's Legendary ones, expeditions' finds) open
+    // first, the best tier first, at no cost.
     this.openButton.setIcon(free ? null : 'pearl').setLabel(free ? 'Open FREE' : `Open ${cost}`);
     // Hold the pity line while a chest is opening: the counter resets the
     // moment a Legendary is rolled, which would spoil the reveal.
     if (!this.busy) {
       const n = this.progress.packsUntilPity;
+      const plural = free > 1 ? 'S' : '';
       this.pityText.setText(free
-        ? `${free} FREE LEGENDARY CHEST${free > 1 ? 'S' : ''} TO OPEN!`
+        ? (legendary === free
+          ? `${free} FREE LEGENDARY CHEST${plural} TO OPEN!`
+          : `${free} FREE CHEST${plural} TO OPEN! NEXT: ${EXPEDITIONS.chests[next].label.toUpperCase()}`)
         : n <= 1
           ? 'NEXT CHEST IS A GUARANTEED LEGENDARY!'
           : `LEGENDARY GUARANTEED WITHIN ${n} CHESTS`);
@@ -341,6 +348,7 @@ export class PackScene extends Phaser.Scene {
       panel(this, 0, 0, TILE_W, TILE_H, 'parchment'),
       this.add.rectangle(3, 3, TILE_W - 6, 3, color).setOrigin(0),
       face(this, 14, 22, result.id),
+      traitIcon(this, TILE_W - 10, 12, traitOf(result.id)),
       text(this, 26, 12, def.shortName, dark({ font: 'small' })),
       text(this, 26, 22, RARITY[def.rarity].label.toUpperCase(), subText()),
       text(this, TILE_W / 2, 38, tag, subText({ color: result.isNew ? UI.colors.warn : UI.colors.subText })).setOrigin(0.5, 0),

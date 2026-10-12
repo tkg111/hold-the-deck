@@ -1,8 +1,9 @@
 import {
-  ABILITY_SCALING, BATTLE_LOG, ECONOMY, ENEMIES, HEROES, ISLANDS, SHIP, PACKS, RARITY, STARTING_HEROES, UPGRADES, WANTED,
-  WAVES,
+  ABILITY_SCALING, BATTLE_LOG, ECONOMY, ENEMIES, EXPEDITIONS, HEROES, ISLANDS, SHIP, PACKS, RARITY, STARTING_HEROES,
+  UPGRADES, WANTED, WAVES,
 } from '../config.js';
 import { waveScaling } from './WaveManager.js';
+import { entryFromSave, maxSlots } from './Expeditions.js';
 
 const islandDef = (id) => ISLANDS.find((i) => i.id === id);
 // A fresh island's record: its wave counter, best wave cleared, whether its
@@ -24,6 +25,9 @@ export class Progress {
     this.pearls = ECONOMY.startingPearls;
     this.packsSinceLegendary = 0;   // pity counter
     this.freeLegendaryChests = 0;   // finale rewards waiting in the chest screen
+    // Free chests from expeditions waiting there, by tier (Legendary ones
+    // join freeLegendaryChests).
+    this.freeChests = { common: 0, rare: 0 };
     this.hullHpLevel = 0;
     this.decks = SHIP.startingDecks;
     this.owned = [...STARTING_HEROES];
@@ -45,6 +49,12 @@ export class Progress {
     // oldest first.
     this.battleLog = [];
 
+    // Expeditions (see Expeditions.js): one entry or null per slot, and the
+    // last waves' gold and battle time ({ gold, ms }), oldest first, which
+    // their gold is based on.
+    this.expeditions = [];
+    this.goldLog = [];
+
     this.muted = false;             // sound effects off
     this.autoAbilities = false;     // ability bar's Auto toggle
 
@@ -64,6 +74,7 @@ export class Progress {
       islands: Object.fromEntries(Object.entries(this.islands).map(([id, r]) => [id, { ...r }])),
       mapSeen: this.mapSeen,
       freeLegendaryChests: this.freeLegendaryChests,
+      freeChests: { ...this.freeChests },
       gold: this.gold,
       pearls: this.pearls,
       hullHpLevel: this.hullHpLevel,
@@ -81,6 +92,8 @@ export class Progress {
       defeats: { ...this.defeats },
       bounties: { ...this.bounties },
       battleLog: this.battleLog,
+      expeditions: this.expeditions.map((e) => (e ? { ...e, party: [...e.party], from: { ...e.from } } : null)),
+      goldLog: this.goldLog.map((w) => ({ ...w })),
     };
   }
 
@@ -107,6 +120,7 @@ export class Progress {
     p.islands[p.islandId] ??= newIsland();
     p.mapSeen = data.mapSeen === true;
     p.freeLegendaryChests = int(data.freeLegendaryChests, 0);
+    for (const tier of Object.keys(p.freeChests)) p.freeChests[tier] = int(data.freeChests?.[tier], 0);
     p.gold = int(data.gold, 0);
     p.pearls = int(data.pearls, 0, Infinity, p.pearls);
     p.hullHpLevel = int(data.hullHpLevel, 0);
@@ -136,8 +150,23 @@ export class Progress {
       p.battleLog = data.battleLog.slice(-BATTLE_LOG.keep).map((r) => logRecordFromSave(r, int)).filter(Boolean);
     }
 
+    if (Array.isArray(data.goldLog)) {
+      p.goldLog = data.goldLog.slice(-EXPEDITIONS.recentWaves)
+        .filter((w) => w && typeof w === 'object')
+        .map((w) => ({ gold: int(w.gold, 0), ms: int(w.ms, 0) }));
+    }
+    // Expeditions: crew away on one aren't on the ship.
+    const away = new Set();
+    if (Array.isArray(data.expeditions)) {
+      p.expeditions = data.expeditions.slice(0, maxSlots()).map((r) => {
+        const entry = entryFromSave(r, p, away);
+        entry?.party.forEach((id) => away.add(id));
+        return entry;
+      });
+    }
+
     if (Array.isArray(data.slots)) {
-      const seen = new Set();
+      const seen = new Set(away);
       p.slots = p.slots.map((_, i) => {
         const id = data.slots[i];
         if (!id || !p.owned.includes(id) || seen.has(id)) return null;
@@ -256,11 +285,14 @@ export class Progress {
     return slot < this.slotCount ? slot : -1;
   }
 
+  // Whether a hero is away on an expedition (and can't go on the ship).
+  isAway(id) { return this.expeditions.some((e) => e?.party.includes(id)); }
+
   // Put a hero (or null) in a slot. A hero already placed elsewhere swaps with
-  // whatever is in the target slot.
+  // whatever is in the target slot. Not one away on an expedition.
   assignHero(slot, id) {
     if (slot < 0 || slot >= this.slotCount) return false;
-    if (id && !this.isOwned(id)) return false;
+    if (id && (!this.isOwned(id) || this.isAway(id))) return false;
     const from = id ? this.slots.indexOf(id) : -1;
     if (from !== -1) this.slots[from] = this.slots[slot];
     this.slots[slot] = id;
@@ -362,6 +394,13 @@ export class Progress {
   earnGold(amount) {
     this.gold += amount;
     return amount;
+  }
+
+  // A finished wave's gold (kills and clear bonus) and battle time (game
+  // ms), for expedition rewards; keeps the last few.
+  logGold(gold, ms) {
+    this.goldLog.push({ gold: Math.max(0, Math.round(gold)), ms: Math.max(0, Math.round(ms)) });
+    if (this.goldLog.length > EXPEDITIONS.recentWaves) this.goldLog.splice(0, this.goldLog.length - EXPEDITIONS.recentWaves);
   }
 
   // Move on to the next wave after a clear.
@@ -472,7 +511,22 @@ export class Progress {
 
   get packCost() { return PACKS.cost; }
 
-  get canOpenPack() { return this.freeLegendaryChests > 0 || this.pearls >= this.packCost; }
+  // Free chests waiting (a finale's Legendary ones and expeditions').
+  get freeChestCount() { return this.freeLegendaryChests + this.freeChests.common + this.freeChests.rare; }
+  // The tier of the free chest that opens next, best first, or null.
+  get nextFreeChest() {
+    if (this.freeLegendaryChests > 0) return 'legendary';
+    if (this.freeChests.rare > 0) return 'rare';
+    return this.freeChests.common > 0 ? 'common' : null;
+  }
+
+  // A free chest of this tier (EXPEDITIONS.chestTiers) for the chest screen.
+  addFreeChest(tier) {
+    if (tier === 'legendary') this.freeLegendaryChests++;
+    else if (tier in this.freeChests) this.freeChests[tier]++;
+  }
+
+  get canOpenPack() { return this.freeChestCount > 0 || this.pearls >= this.packCost; }
   // "Buy 10" (Pearls only; free chests open one at a time).
   get canOpenBulk() { return this.pearls >= PACKS.bulkCost; }
 
@@ -489,9 +543,16 @@ export class Progress {
   // number at the latest (1 = the next pack).
   get packsUntilPity() { return PACKS.legendaryPity - this.packsSinceLegendary; }
 
-  static rollHero(random = Math.random, forceRarity = null) {
+  // minRarity: only that rarity or rarer (renormalized), for Rare Chests.
+  static rollHero(random = Math.random, forceRarity = null, minRarity = null) {
     let roll = random();
-    const rates = Progress.packRates();
+    let rates = Progress.packRates();
+    if (minRarity) {
+      const order = Object.keys(RARITY);
+      const kept = rates.filter((r) => order.indexOf(r.rarity) >= order.indexOf(minRarity));
+      const total = kept.reduce((sum, r) => sum + r.chance, 0);
+      rates = kept.map((r) => ({ ...r, chance: r.chance / total }));
+    }
     let rarity = forceRarity ?? rates[rates.length - 1].rarity;
     if (!forceRarity) {
       for (const r of rates) {
@@ -503,14 +564,16 @@ export class Progress {
     return pool[Math.floor(random() * pool.length)];
   }
 
-  // Pull one hero: a free Legendary chest first if one is waiting, else
-  // spend Pearls. Returns what happened, or null if unaffordable.
+  // Pull one hero: a free chest first if one is waiting (the best tier
+  // first), else spend Pearls. Returns what happened (see pull, plus free:
+  // the free chest's tier or null), or null if unaffordable.
   openPack(random = Math.random) {
     if (!this.canOpenPack) return null;
-    const freeChest = this.freeLegendaryChests > 0;
-    if (freeChest) this.freeLegendaryChests--;
+    const free = this.nextFreeChest;
+    if (free === 'legendary') this.freeLegendaryChests--;
+    else if (free) this.freeChests[free]--;
     else this.pearls -= this.packCost;
-    return this.pull(random, freeChest);
+    return { ...this.pull(random, free), free };
   }
 
   // "Buy 10": PACKS.bulkCount paid chests for PACKS.bulkCost Pearls. Returns
@@ -518,16 +581,17 @@ export class Progress {
   openBulk(random = Math.random) {
     if (!this.canOpenBulk) return null;
     this.pearls -= PACKS.bulkCost;
-    return Array.from({ length: PACKS.bulkCount }, () => this.pull(random, false));
+    return Array.from({ length: PACKS.bulkCount }, () => this.pull(random));
   }
 
-  // One chest's hero: a Legendary from a free chest or at pity, else rolled.
-  // A new hero joins the crew, a duplicate adds a star, and one past max
-  // stars adds a Bonus Level. Returns { id, pity, isNew, stars, bonus,
-  // bonusLevel, slot }.
-  pull(random, freeChest) {
-    const pity = !freeChest && this.packsUntilPity <= 1;
-    const id = Progress.rollHero(random, freeChest || pity ? 'legendary' : null);
+  // One chest's hero: a Legendary from a free Legendary chest or at pity,
+  // else rolled (Rare or better from a Rare Chest). tier: a free chest's
+  // tier, or null for a bought one. A new hero joins the crew, a duplicate
+  // adds a star, and one past max stars adds a Bonus Level. Returns { id,
+  // pity, isNew, stars, bonus, bonusLevel, slot }.
+  pull(random, tier = null) {
+    const pity = tier !== 'legendary' && this.packsUntilPity <= 1;
+    const id = Progress.rollHero(random, tier === 'legendary' || pity ? 'legendary' : null, tier === 'rare' ? 'rare' : null);
     if (HEROES[id].rarity === 'legendary') this.packsSinceLegendary = 0;
     else this.packsSinceLegendary++;
 

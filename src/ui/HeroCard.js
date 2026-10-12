@@ -1,7 +1,10 @@
 import { HEROES, PACKS, RARITY, SPRITES, UI_KIT } from '../config.js';
+import { traitOf } from '../systems/Expeditions.js';
 import { cssColor } from './format.js';
 import { describeHero } from './HeroPicker.js';
-import { antiAirIcon, dark, hitsFlyers, light, panel, starRow, subText, text, UI } from './kit.js';
+import {
+  antiAirIcon, dark, expeditionKey, hitsFlyers, icon, light, panel, starRow, subText, text, traitIcon, UI,
+} from './kit.js';
 
 // Card sizes in art pixels. 'large' is the chest reveal and new-crewmate
 // splash; 'small' fits ten to a screen in the Crew Roster (no effect text).
@@ -18,8 +21,12 @@ const SIZES = {
 //   bonus:      Bonus Levels, shown as "+N" after the stars (0: nothing)
 //   level:      number to show "LV N", or null to hide it
 //   silhouette: an unknown, not-yet-collected hero: wood card, black sprite
+//   away:       a label (e.g. the time left) for a hero away on an
+//               expedition: an hourglass and the label over the sprite, in
+//               card.awayText so it can be updated
+// Every known hero's trait icon sits in the top-left corner under the plate.
 export function createHeroCard(scene, x, y, id, {
-  size = 'large', stars = null, bonus = 0, level = null, silhouette = false,
+  size = 'large', stars = null, bonus = 0, level = null, silhouette = false, away = null,
 } = {}) {
   const S = SIZES[size];
   const def = HEROES[id];
@@ -40,6 +47,15 @@ export function createHeroCard(scene, x, y, id, {
   card.add(heroPortrait(scene, id, feetY, S.spriteScale, silhouette));
   // Anti-air crew: a mark in the top-right corner under the plate.
   if (!silhouette && hitsFlyers(def)) card.add(antiAirIcon(scene, w / 2 - 8, top + S.plate + 7));
+  if (!silhouette) card.add(traitIcon(scene, -w / 2 + 9, top + S.plate + 8, traitOf(id)));
+  if (!silhouette && away != null) {
+    // Away on an expedition: a band over the sprite's feet.
+    const bandY = feetY - 14;
+    card.add(scene.add.rectangle(0, bandY, w - 10, 16, 0x000000, 0.6));
+    card.add(icon(scene, -18, bandY, expeditionKey('icon_hourglass')));
+    card.awayText = text(scene, -9, bandY, away, light({ font: 'small' })).setOrigin(0, 0.5);
+    card.add(card.awayText);
+  }
 
   let ty = feetY + 1;
   card.add(text(scene, 0, ty, silhouette ? '???' : def.name, silhouette ? light() : dark())

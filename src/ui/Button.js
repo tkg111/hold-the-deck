@@ -105,6 +105,25 @@ export class Button extends Phaser.GameObjects.Container {
     return this;
   }
 
+  // Red badge with a count in the top-right corner (hidden at 0): things
+  // waiting here, e.g. expeditions back.
+  setBadge(count) {
+    if (!this.badge) {
+      const r = UI_KIT.badgeRadius;
+      const x = this.dot.x + 1;
+      const y = this.dot.y;
+      this.badgeCircle = this.scene.add.circle(x, y, r, hexColor(UI.colors.warn))
+        .setStrokeStyle(1, hexColor(UI.colors.textOnParchment));
+      this.badgeText = text(this.scene, x, y, '', { font: 'small', tone: 'light' }).setOrigin(0.5);
+      this.badge = this.scene.add.container(0, 0, [this.badgeCircle, this.badgeText]);
+      this.add(this.badge);
+    }
+    const label = count > 9 ? '9+' : `${count}`;
+    if (this.badgeText.text !== label) this.badgeText.setText(label).setOrigin(0.5);
+    this.badge.setVisible(count > 0);
+    return this;
+  }
+
   paint() {
     let state = 'normal';
     if (!this.enabled) state = 'disabled';

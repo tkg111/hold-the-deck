@@ -30,7 +30,10 @@ import { HeroPicker } from '../ui/HeroPicker.js';
 import { Notices } from '../ui/Notices.js';
 import { AutoContinue } from '../ui/AutoContinue.js';
 import { Shipwright } from '../ui/Shipwright.js';
-import { Bar, icon, light, panel, text, UI, wantedKey } from '../ui/kit.js';
+import {
+  Bar, EXPEDITION_JSON_KEY, expeditionKey, icon, light, panel, text, UI, wantedKey,
+} from '../ui/kit.js';
+import * as Expeditions from '../systems/Expeditions.js';
 
 const STATE = { IDLE: 'idle', RUNNING: 'running' };
 
@@ -56,7 +59,12 @@ export class GameScene extends Phaser.Scene {
     // depends on the view's size.
     applyRenderScale(this, { y: SCENERY.skyShare });
     createAnimations(this);
+    // Expedition data first: the save's expeditions are checked against it.
+    Expeditions.initExpeditions(this.cache.json.get(EXPEDITION_JSON_KEY));
     this.progress = loadProgress();
+    Expeditions.tick(this.progress);
+    this.expeditionClock = 0;   // real ms since expeditions were last checked
+    this.expeditionsReady = Expeditions.readyCount(this.progress);
     sfx.init(this.game);
     sfx.setMuted(this.progress.muted);
     this.state = STATE.IDLE;
@@ -191,12 +199,22 @@ export class GameScene extends Phaser.Scene {
     });
     // The world map, left of SET SAIL! once an island is cleared (red dot:
     // not opened since).
-    this.mapButton = new Button(this, 125, 248, {
+    this.mapButton = new Button(this, 81, 248, {
       width: 46, height: 24, icon: mapKey('ship_token'), label: 'Map', onClick: () => this.openMap(),
     });
     // The Captain's Log (battle stats of the last waves), left of Map.
-    this.logButton = new Button(this, 77, 248, {
+    this.logButton = new Button(this, 33, 248, {
       width: 46, height: 24, icon: 'book', label: 'Log', onClick: () => this.openLog(),
+    });
+    // Expeditions, left of SET SAIL! (a badge counts the ones back). Greyed
+    // out until unlocked; tapping it then says how to unlock it.
+    this.expeditionButton = new Button(this, 128, 248, {
+      width: 40, height: 24, icon: expeditionKey('icon_expedition'), onClick: () => this.openExpeditions(),
+    });
+    this.expeditionButton.bg.on('pointerdown', () => {
+      if (this.expeditionButton.enabled) return;
+      sfx.denied();
+      this.showBanner('EXPEDITIONS', { detail: Expeditions.unlockLabel().toUpperCase() });
     });
     // Battle speed (bottom-right, during waves): shows the current speed.
     this.speedButton = new Button(this, 452, 250, {
@@ -209,7 +227,7 @@ export class GameScene extends Phaser.Scene {
     });
     this.abilityBar.setCrew(this.heroes.map((h) => h.id));
     this.bottomBar = group(
-      this.logButton, this.mapButton, this.startButton, this.packButton, this.collectionButton, this.wantedButton, this.speedButton,
+      this.logButton, this.mapButton, this.expeditionButton, this.startButton, this.packButton, this.collectionButton, this.wantedButton, this.speedButton,
     );
     // NEW ENEMY! alert and bounty toasts.
     this.notices = new Notices(this, this.progress);
@@ -260,6 +278,9 @@ export class GameScene extends Phaser.Scene {
       b.setVisible(idle);
     }
     this.mapButton.setVisible(idle && p.mapUnlocked).setDot(!p.mapSeen);
+    const expeditionsOpen = Expeditions.isUnlocked(p);
+    this.expeditionButton.setVisible(idle).setBadge(expeditionsOpen ? Expeditions.readyCount(p) : 0);
+    if (this.expeditionButton.enabled !== expeditionsOpen) this.expeditionButton.setEnabled(expeditionsOpen);
     this.speedButton.setVisible(!idle).setLabel(`x${this.speed}`);
     this.abilityBar.setVisible(!idle);
     // Red dot: a chest is affordable.
@@ -303,6 +324,7 @@ export class GameScene extends Phaser.Scene {
     if (!isFoe(enemy)) return;   // a lava bomb shot down
     for (const bounty of this.progress.recordDefeat(enemy.key)) this.notices.bounty(enemy.key, bounty);
     const gold = this.progress.earnGold(enemy.gold);
+    this.waveGold += gold;
     const top = enemy.y - enemy.def.height / 2;
     this.floatText(enemy.x, top - 6, `+${gold}`, GOLD_TEXT);
     if (enemy.def.boss) {
@@ -462,10 +484,28 @@ export class GameScene extends Phaser.Scene {
     sfx.click();
     this.scene.launch('MapScene', {
       progress: this.progress,
+      openExpeditions: (onClosed) => this.openExpeditions({ onClosed }),
       onClose: (sailed) => {
         if (sailed) this.arriveAtIsland();
         this.refreshUi();
         this.save();
+      },
+    });
+  }
+
+  // The Expeditions board. Sending crew empties their ship slots and
+  // collecting brings them back (and gold, Pearls, chests), so the ship and
+  // crew are rebuilt after. onClosed: also tell the opener (the world map).
+  openExpeditions({ onClosed = null } = {}) {
+    if (this.state !== STATE.IDLE || !Expeditions.isUnlocked(this.progress)) return;
+    if (this.heroPicker.visible) this.heroPicker.close();
+    sfx.click();
+    this.scene.launch('ExpeditionScene', {
+      progress: this.progress,
+      onClose: () => {
+        this.expeditionsReady = Expeditions.readyCount(this.progress);
+        this.onRosterChanged();
+        onClosed?.();
       },
     });
   }
@@ -530,6 +570,7 @@ export class GameScene extends Phaser.Scene {
     this.state = STATE.RUNNING;
     this.simCarry = 0;   // game time not yet simulated (under one step)
     this.waveTime = 0;   // game time simulated this wave
+    this.waveGold = 0;   // gold earned this wave (expedition rewards are based on it)
     this.applySpeed();
     this.refreshUi();
     this.events.emit('wave-started');
@@ -557,6 +598,7 @@ export class GameScene extends Phaser.Scene {
     if (won) {
       const wave = this.progress.wave;
       const { gold, pearls, finale } = this.progress.winWave();
+      this.waveGold += gold;
       this.endingDue = !!finale?.ending;
       if (finale) {
         // The island is cleared: its reward, and what it unlocks (the world
@@ -575,6 +617,8 @@ export class GameScene extends Phaser.Scene {
       // Kill gold earned this wave is kept; the wave just doesn't advance.
       this.showBanner('SHIP SUNK!', { detail: 'UPGRADE AND TRY AGAIN', color: UI.colors.warn });
     }
+    // Won or lost, the wave's gold per minute counts toward expeditions'.
+    this.progress.logGold(this.waveGold, this.waveTime);
     const mvp = record && mvpOf(record);
     if (mvp) this.notices.mvp(mvp.id, mvp.damage);
     this.ship.restore();
@@ -620,6 +664,7 @@ export class GameScene extends Phaser.Scene {
     this.ashfall.update(Math.min(delta, 100));
     this.snowfall.update(Math.min(delta, 100));
     this.fog.update(Math.min(delta, 100));
+    this.watchExpeditions(delta);
     if (this.state !== STATE.RUNNING) return;
     // Fixed steps of game time, so the wave plays out the same at any frame
     // rate (see SIM in config).
@@ -632,6 +677,19 @@ export class GameScene extends Phaser.Scene {
     }
     this.refreshUi();
     this.abilityBar.refresh(this.abilities, this.progress.autoAbilities);
+  }
+
+  // Once a second (real time), see whether an expedition has come back, for
+  // the button's badge.
+  watchExpeditions(delta) {
+    this.expeditionClock += delta;
+    if (this.expeditionClock < 1000) return;
+    this.expeditionClock = 0;
+    Expeditions.tick(this.progress);
+    const ready = Expeditions.readyCount(this.progress);
+    if (ready === this.expeditionsReady) return;
+    this.expeditionsReady = ready;
+    this.refreshUi();
   }
 
   // One step of the battle: dt ms of game time.

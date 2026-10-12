@@ -1,6 +1,10 @@
 import { ABILITIES, HEROES, RARITY, UI_KIT } from '../config.js';
-import { rarityTextColor, starLabel } from './format.js';
-import { antiAirIcon, face, hexColor, hitsFlyers, dark, subText, text, UI } from './kit.js';
+import { sfx } from '../audio/Sfx.js';
+import * as Expeditions from '../systems/Expeditions.js';
+import { fmtClock, rarityTextColor, starLabel } from './format.js';
+import {
+  antiAirIcon, expeditionKey, face, hexColor, hitsFlyers, dark, icon, subText, text, traitIcon, UI,
+} from './kit.js';
 import { ScrollPanel } from './ScrollPanel.js';
 
 const pct = (n) => `${Math.round(n * 100)}%`;
@@ -58,6 +62,8 @@ export const abilityTitle = (id) => `${ABILITIES[id].name.toUpperCase()}  ${cool
 
 // Popup listing owned heroes for one slot, on the same scrolling parchment as
 // the Shipwright (which it replaces while open). Picking calls onPick(heroId | null).
+// Crew away on an expedition are listed last, dimmed with an hourglass and
+// their time left, and can't be picked.
 export class HeroPicker extends ScrollPanel {
   constructor(scene, x, y, width, onPick) {
     super(scene, x, y, width, {
@@ -69,7 +75,9 @@ export class HeroPicker extends ScrollPanel {
   }
 
   open(slot, progress) {
-    const rows = [...progress.ownedHeroes, null];  // null = leave the slot empty
+    const away = (id) => (Expeditions.entryOf(progress, id) ? 1 : 0);
+    const heroes = [...progress.ownedHeroes].sort((a, b) => away(a) - away(b));
+    const rows = [...heroes, null];  // null = leave the slot empty
     this.setTitle(`SLOT ${slot + 1}`);
     this.offset = 0;
     this.setRows(rows.map((id) => this.createRow(id, slot, progress)));
@@ -92,16 +100,40 @@ export class HeroPicker extends ScrollPanel {
       const note = where === slot ? '  HERE' : where >= 0 ? `  SLOT ${where + 1}` : '';
       const stars = starLabel(progress.heroStarCount(id), progress.heroBonusLevels(id));
       const name = text(scene, 16, -1, def.name, dark());
+      const entry = Expeditions.entryOf(progress, id);
+      const portrait = face(scene, 6, 14, id);
       row.add([
-        face(scene, 6, 14, id),
+        portrait,
         name,
         text(scene, 16, 11, `${rarity.label}  LV ${progress.heroLevel(id)}${stars ? `  ${stars}` : ''}${note}`,
           subText({ color: rarityTextColor(def.rarity) })),
-        text(scene, 16, 19, abilityTitle(id), subText()),
-        text(scene, 16, 26, describeAbility(id, progress.abilityScale(id)), subText()),
       ]);
-      // Anti-air crew: the mark after their name.
-      if (hitsFlyers(def)) row.add(antiAirIcon(scene, 16 + name.inkWidth + 7, 4));
+      if (entry) {
+        const back = Expeditions.isReturned(entry) ? 'BACK - COLLECT IN EXPEDITIONS' : `BACK IN ${fmtClock(Expeditions.timeLeft(entry))}`;
+        portrait.setAlpha(0.4);
+        name.setAlpha(0.6);
+        row.add([
+          icon(scene, 6, 14, expeditionKey('icon_hourglass')),
+          text(scene, 16, 19, 'ON AN EXPEDITION', subText({ color: UI.colors.warn })),
+          text(scene, 16, 26, back, subText()),
+        ]);
+      } else {
+        row.add([
+          text(scene, 16, 19, abilityTitle(id), subText()),
+          text(scene, 16, 26, describeAbility(id, progress.abilityScale(id)), subText()),
+        ]);
+      }
+      // After the name: the trait icon, and the anti-air mark.
+      let markX = 16 + name.inkWidth + 8;
+      row.add(traitIcon(scene, markX, 4, Expeditions.traitOf(id)));
+      markX += 12;
+      if (hitsFlyers(def)) row.add(antiAirIcon(scene, markX, 4));
+      if (entry) {
+        bg.removeInteractive();
+        bg.setInteractive();   // no hand cursor
+        bg.on('pointerdown', () => sfx.denied());
+        return row;
+      }
     } else {
       row.add(text(scene, 16, 12, 'Leave empty', subText()));
     }

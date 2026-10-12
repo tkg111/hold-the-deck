@@ -14,6 +14,36 @@ export const starLabel = (stars, bonus = 0) => (stars > 0
 // 12450 -> "12,450"
 export const fmtNumber = (n) => Math.floor(n).toLocaleString('en-US');
 
+// Short amounts: 950 -> "950", 12450 -> "12.4K", 3.2e6 -> "3.2M", then B, T.
+export function fmtShort(n) {
+  const units = [[1e12, 'T'], [1e9, 'B'], [1e6, 'M'], [1e3, 'K']];
+  for (const [size, unit] of units) {
+    if (n >= size) {
+      const v = n / size;
+      return `${v >= 100 ? Math.floor(v) : Math.floor(v * 10) / 10}${unit}`;
+    }
+  }
+  return `${Math.floor(n)}`;
+}
+
+// A time left: "7:59:58" (hours), "29:58", or "0:05".
+export function fmtClock(ms) {
+  const total = Math.ceil(Math.max(0, ms) / 1000);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  const two = (v) => `${v}`.padStart(2, '0');
+  return h > 0 ? `${h}:${two(m)}:${two(s)}` : `${m}:${two(s)}`;
+}
+
+// A short time left for small spaces: "7H", "29M", "5S".
+export function fmtShortTime(ms) {
+  const s = Math.ceil(Math.max(0, ms) / 1000);
+  if (s >= 3600) return `${Math.ceil(s / 3600)}H`;
+  if (s >= 60) return `${Math.ceil(s / 60)}M`;
+  return `${s}S`;
+}
+
 // "1 Pearl" / "5 Pearls".
 export const pearlsLabel = (n) => `${n} Pearl${n === 1 ? '' : 's'}`;
 

@@ -1,0 +1,95 @@
+{
+  "destinations": [
+    {
+      "id": "coral_shallows",
+      "name": "Coral Shallows",
+      "island": "skull_cove",
+      "favouredTrait": "sailor",
+      "rewardFocus": "gold",
+      "image": "dest_coral_shallows.png"
+    },
+    {
+      "id": "smugglers_cave",
+      "name": "Smugglers' Cave",
+      "island": "skull_cove",
+      "favouredTrait": "scout",
+      "rewardFocus": "chest",
+      "image": "dest_smugglers_cave.png"
+    },
+    {
+      "id": "obsidian_mines",
+      "name": "Obsidian Mines",
+      "island": "ember_isle",
+      "favouredTrait": "fighter",
+      "rewardFocus": "gold",
+      "image": "dest_obsidian_mines.png"
+    },
+    {
+      "id": "hot_springs",
+      "name": "Hot Springs",
+      "island": "ember_isle",
+      "favouredTrait": "caretaker",
+      "rewardFocus": "pearls",
+      "image": "dest_hot_springs.png"
+    },
+    {
+      "id": "frozen_wreck",
+      "name": "Frozen Wreck",
+      "island": "frostbite_reef",
+      "favouredTrait": "scout",
+      "rewardFocus": "chest",
+      "image": "dest_frozen_wreck.png"
+    },
+    {
+      "id": "aurora_peak",
+      "name": "Aurora Peak",
+      "island": "frostbite_reef",
+      "favouredTrait": "mystic",
+      "rewardFocus": "pearls",
+      "image": "dest_aurora_peak.png"
+    },
+    {
+      "id": "ghost_market",
+      "name": "Ghost Market",
+      "island": "fogbound_isle",
+      "favouredTrait": "mystic",
+      "rewardFocus": "mixed",
+      "image": "dest_ghost_market.png"
+    },
+    {
+      "id": "blackbones_vault",
+      "name": "Blackbones' Vault",
+      "island": "fogbound_isle",
+      "favouredTrait": "fighter",
+      "rewardFocus": "chest",
+      "image": "dest_blackbones_vault.png"
+    }
+  ],
+  "traitIcons": {
+    "sheet": "trait_icons.png",
+    "size": 12,
+    "order": [
+      "fighter",
+      "sailor",
+      "scout",
+      "mystic",
+      "caretaker"
+    ]
+  },
+  "crewTraits": {
+    "cannoneer": "fighter",
+    "the_duelist": "fighter",
+    "the_captain": "fighter",
+    "cabin_boy": "sailor",
+    "net_thrower": "sailor",
+    "harpooner": "sailor",
+    "parrot_keeper": "scout",
+    "sharpshooter": "scout",
+    "voodoo_priestess": "mystic",
+    "ghost_pirate": "mystic",
+    "storm_caller": "mystic",
+    "ships_cook": "caretaker",
+    "ships_doctor": "caretaker",
+    "grog_brewer": "caretaker"
+  }
+}

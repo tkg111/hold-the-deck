@@ -158,6 +158,7 @@ export const UI_KIT = {
   starEmptyColor: '#c9b48a',
   dividerColor: '#d9c39a', // lines between parchment rows
   dotRadius: 3,           // red "something to do" dot on buttons
+  badgeRadius: 5,         // red badge with a count on buttons
   antiAirColor: '#2f6db5', // anti-air mark on crew cards and picker rows
   shipwrightRows: 5,      // rows visible at once; more scroll
   rowHeight: 28,
@@ -1866,6 +1867,139 @@ export const PACK_FX = {
   revealFlash: { common: 0, rare: 0, epic: 0, legendary: 450 },
   // Pause between the card reveal and the new-hero splash (ms).
   splashDelay: 700,
+};
+
+// Expeditions (src/systems/Expeditions.js, ExpeditionScene): crewmates sent
+// on timed voyages in real time (Date.now), which keep going while the game
+// is closed and come back with loot. Art and data in public/sprites/ui/
+// expedition/ (expedition.json: the destinations, each crewmate's trait and
+// the trait icons' order).
+export const EXPEDITIONS = {
+  path: 'ui/expedition/',   // under SPRITES.path
+  // The board opens once this wave of this island has been cleared.
+  unlock: { island: 'skull_cove', wave: 10 },
+  // An island's destinations open on reaching this wave there (its record's
+  // wave counter); the first island's open with the board.
+  destinationWave: 25,
+  destinationWaveByIsland: { skull_cove: 10 },
+  // Expedition slots: 1 at unlock, and one more as each of these islands
+  // unlocks on the map.
+  slotIslands: ['ember_isle', 'frostbite_reef'],
+  maxParty: 3,
+  // Longer runs pay more per run (mult) but less per hour. betterChests: a
+  // chest found may be a better tier (chestOdds).
+  durations: [
+    { id: '30m', label: '30M', ms: 30 * 60e3, mult: 1 },
+    { id: '2h', label: '2H', ms: 2 * 3600e3, mult: 3.2 },
+    { id: '8h', label: '8H', ms: 8 * 3600e3, mult: 10, betterChests: true },
+  ],
+  // Party bonus: +traitBonus for each crewmate with the destination's
+  // favoured trait, +starBonus for every star in the party. A full party
+  // (maxParty) all with the favoured trait always makes a bonus find.
+  traitBonus: 0.25,
+  starBonus: 0.05,
+  // Gold: the gold per minute of battle (game time) over the last
+  // recentWaves waves x goldMinutes x the duration's mult x the reward
+  // focus's gold x the party bonus, give or take spread. So a 30-minute run
+  // is worth goldMinutes minutes of battle gold before the party bonus.
+  // Until 3 waves are logged (an old save) the gold per minute is estimated
+  // from the current wave, as if it took fallbackWaveMs.
+  goldMinutes: 4,
+  recentWaves: 10,
+  minLoggedWaves: 3,
+  fallbackWaveMs: 60000,
+  spread: 0.2,
+  // Pearls on a 30-minute pearls run (x the duration's mult, the focus's
+  // pearls and the party bonus).
+  pearls: 3,
+  // What each reward focus brings: gold and pearls are factors on the bases
+  // above; chest: chests found; chestChance: the chance of one chest on a
+  // 30-minute run, x the duration's mult (up to certain).
+  focus: {
+    gold: { label: 'Mostly gold', gold: 1, pearls: 0 },
+    pearls: { label: 'Mostly Pearls', gold: 0.25, pearls: 1 },
+    chest: { label: 'A chest + some gold', gold: 0.25, pearls: 0, chest: 1 },
+    mixed: { label: 'A bit of everything', gold: 0.5, pearls: 0.5, chestChance: 0.15 },
+  },
+  // Chest tiers, waiting in the chest screen as free chests: a Chest rolls
+  // like a bought one, a Rare Chest is Rare or better, a Legendary Chest is
+  // a Legendary (the finales' free chests).
+  chestTiers: ['common', 'rare', 'legendary'],
+  chests: {
+    common: { label: 'Chest', color: 0xb0bec5 },
+    rare: { label: 'Rare Chest', color: 0x42a5f5 },
+    legendary: { label: 'Legendary Chest', color: 0xff9800 },
+  },
+  // On a betterChests run, the tier of each chest found.
+  chestOdds: { common: 0.7, rare: 0.25, legendary: 0.05 },
+  // Bonus find: one extra reward, revealed last. Pearls runs double their
+  // Pearls; the rest find a chest one tier above the best chest found (a
+  // Rare Chest if none).
+  bonusChance: 0.1,
+  // Trait names and the glow behind a favoured crewmate's trait icon.
+  traits: {
+    fighter: { label: 'Fighter' },
+    sailor: { label: 'Sailor' },
+    scout: { label: 'Scout' },
+    mystic: { label: 'Mystic' },
+    caretaker: { label: 'Caretaker' },
+  },
+  glowColor: 0xffd54f,
+  // The one-line story on the reveal screen: {name} is a crewmate in the party.
+  stories: {
+    coral_shallows: [
+      '{name} dove for sunken coins among the coral.',
+      '{name} hauled in something enormous.',
+      '{name} traded shells with a very polite crab.',
+      '{name} found a purse tangled in the kelp.',
+    ],
+    smugglers_cave: [
+      '{name} spotted a chest behind a loose rock.',
+      '{name} followed a smuggler\'s chalk marks to the loot.',
+      '{name} hid from the smugglers, then took their stash.',
+      '{name} counted every crate twice. One was ours.',
+    ],
+    obsidian_mines: [
+      '{name} chipped gold out of the black glass.',
+      '{name} fought off a magma crab for its nugget.',
+      '{name} came back covered in soot and grinning.',
+      '{name} kicked a cart of ore all the way to the boat.',
+    ],
+    hot_springs: [
+      '{name} found pearls at the bottom of the spring.',
+      '{name} soaked for hours and came back glowing.',
+      '{name} brewed tea from the spring and sold it.',
+      '{name} fished a shining clam out of the steam.',
+    ],
+    frozen_wreck: [
+      '{name} chipped a chest out of the ice.',
+      '{name} read the frozen captain\'s log and found the hold.',
+      '{name} slid down the hull straight into the loot.',
+      '{name} thawed the lock with a lot of patience.',
+    ],
+    aurora_peak: [
+      '{name} caught pearls falling from the lights.',
+      '{name} read the aurora like a map.',
+      '{name} climbed the peak and sang to the sky.',
+      '{name} came down with frost in the beard and pearls in hand.',
+    ],
+    ghost_market: [
+      '{name} haggled with a ghost and won.',
+      '{name} sold a spooky story for real gold.',
+      '{name} bought a lantern that keeps whispering.',
+      '{name} found the stall that only opens at midnight.',
+    ],
+    blackbones_vault: [
+      '{name} picked the lock while the skeletons slept.',
+      '{name} fought a bone guard for the vault key.',
+      '{name} found Blackbones\' spare treasure.',
+      '{name} left a note: "Thanks for the gold."',
+    ],
+  },
+  // The screens (base pixels; ExpeditionScene).
+  board: { cardWidth: 148, cardHeight: 204, gap: 8, top: 32 },
+  // Reveal: the party's story, then each reward flips in revealStepMs apart.
+  reveal: { storyMs: 500, stepMs: 650, flipMs: 160, cardWidth: 64, cardHeight: 78, gap: 8, bonusConfetti: 160 },
 };
 
 // Upgrade cost at level L: round(baseCost * costGrowth ^ L)

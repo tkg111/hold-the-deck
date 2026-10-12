@@ -124,6 +124,32 @@ class Sfx {
     }
   }
 
+  // --- Expeditions ---
+
+  // An expedition reward flipping over on the reveal screen (the hook for
+  // every reward): kind 'gold' (a coin jingle), 'pearls' (a bubbly
+  // shimmer), a chest tier (the chest's reveal chime: a Chest like a Rare
+  // pull, better tiers higher) or 'bonus' (the Legendary chime and sparkle).
+  loot(kind) {
+    const t = this.ready();
+    if (t == null) return;
+    this.flip();
+    if (kind === 'gold') {
+      [1318.5, 1568.0, 2093.0, 1568.0, 2637.0].forEach((freq, i) => {
+        this.tone({ freq, type: 'square', start: t + 0.06 + i * 0.05, duration: 0.12, volume: 0.06 });
+      });
+    } else if (kind === 'pearls') {
+      [880, 1108.7, 1318.5, 1760].forEach((freq, i) => {
+        this.tone({ freq, endFreq: freq * 1.5, type: 'sine', start: t + 0.06 + i * 0.07, duration: 0.18, volume: 0.16 });
+      });
+    } else if (kind === 'bonus') {
+      this.reveal('legendary', true);
+    } else {
+      const rarity = { common: 'rare', rare: 'epic', legendary: 'legendary' }[kind] ?? 'rare';
+      this.reveal(rarity, false);
+    }
+  }
+
   // --- Abilities ---
 
   // Activation sound for a crewmate's ability (hero id).
