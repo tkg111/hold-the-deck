@@ -1,4 +1,6 @@
-import { ECONOMY, ELITE, ENEMIES, FORMATIONS, ISLANDS, WAVES } from '../config.js';
+import {
+  ECONOMY, ELITE, ENEMIES, FORMATIONS, HUNTS, ISLANDS, WAVES,
+} from '../config.js';
 import { Enemy } from '../entities/Enemy.js';
 
 // What an island's waves are made of (its ISLANDS entry, Skull Cove by
@@ -65,6 +67,20 @@ export function waveScaling(wave, island = null) {
     damage: damageMultiplier(wave, island),
     gold: (1 + ECONOMY.killGoldGrowth) ** n,
   };
+}
+
+// The wave-clear bonus of a wave (island offset included): see ECONOMY.
+export function clearBonus(wave) {
+  return Math.round((ECONOMY.waveClearBase + (wave - 1) * ECONOMY.waveClearPerWave) * waveScaling(wave).gold);
+}
+
+// Gold a win of a wave pays (options: Progress.waveOptions' shape): every
+// enemy's kill gold plus the wave-clear bonus.
+export function waveGold(wave, options = {}) {
+  const scaled = wave + (options.offset ?? 0);
+  const plan = composeWave(wave, options);
+  const kills = plan.reduce((s, { def, elite }) => s + (def.gold ?? 0) * (elite ? ELITE.goldMultiplier : 1), 0);
+  return kills * waveScaling(scaled).gold + clearBonus(scaled);
 }
 
 // Chance for each (non-boss) enemy of the wave to be an Elite.
@@ -136,9 +152,12 @@ const enemyCount = (wave) => Math.round(WAVES.baseCount + (wave - 1) * WAVES.cou
 // line-up). finale: the island's finale config when this wave is it (see
 // finalePlan). countFactor: multiplies the enemy count and Elite chance
 // (Endless grace, see Progress.endlessGrace).
+// hunt: { boss, level } for a Boss Hunt (see huntPlan; `wave` is then the
+// boss's first wave on the island).
 export function composeWave(wave, {
-  island = ISLANDS[0], offset = 0, finale = null, countFactor = 1,
+  island = ISLANDS[0], offset = 0, finale = null, countFactor = 1, hunt = null,
 } = {}) {
+  if (hunt) return huntPlan(wave, island, offset, hunt);
   const random = seededRandom(wave * 7919 + 17 + offset * 104729);
   const { formations } = islandContent(island);
   if (finale) return finalePlan(wave, offset, finale, finale.formations ?? formations, random);
@@ -180,20 +199,48 @@ export function composeWave(wave, {
 // from trickleFrom.
 function finalePlan(wave, offset, finale, formations, random) {
   const groups = pickFormations(wave, Math.round(enemyCount(wave) * finale.trickle), formations, random);
-  const elites = eliteChance(wave + offset);
+  const bosses = finale.bosses.map(({ key, at, hpFactor, damageFactor }) => ({
+    key, at, hpFactor: hpFactor ?? finale.hpFactor, damageFactor: damageFactor ?? 1,
+  }));
+  return timedPlan(bosses, groups, finale, { elites: eliteChance(wave + offset), hpFactor: 1, damageFactor: 1 }, random);
+}
+
+// A Boss Hunt (HUNTS): the boss `hunt.boss` bossAt ms in, with its first
+// wave's bossBoost, and a trickle of the island's formations as on that
+// wave (its earlyBoost too), everyone's HP and damage x (1 + growth) ^
+// (level - 1). Seeded by the wave and the level, so a retry meets the same
+// line-up.
+function huntPlan(wave, island, offset, { boss, level }) {
+  const random = seededRandom(wave * 7919 + 17 + offset * 104729 + level * 7);
+  const { formations } = islandContent(island);
+  const harder = (1 + HUNTS.growth) ** (level - 1);
+  const boost = island.bossBoost?.[wave] ?? { hp: 1, damage: 1 };
+  const early = earlyBoost(wave, island);
+  const groups = pickFormations(wave, Math.round(enemyCount(wave) * HUNTS.trickle * early.count), formations, random);
+  const bosses = [{ key: boss, at: HUNTS.bossAt, hpFactor: boost.hp * harder, damageFactor: boost.damage * harder }];
+  return timedPlan(bosses, groups, HUNTS, {
+    elites: eliteChance(wave + offset), hpFactor: early.hp * harder, damageFactor: harder,
+  }, random);
+}
+
+// A plan on a clock: each boss ({ key, at, hpFactor, damageFactor }) at its
+// time, and the groups trickling in one every trickleInterval ms from
+// trickleFrom (their members Elite at `elites` chance, with hpFactor and
+// damageFactor).
+function timedPlan(bosses, groups, { trickleFrom, trickleInterval }, { elites, hpFactor, damageFactor }, random) {
   const timed = [];   // { time, entry, leader }
-  for (const { key, at, hpFactor, damageFactor } of finale.bosses) {
+  for (const { key, at, hpFactor: bossHp, damageFactor: bossDamage } of bosses) {
     timed.push({
       time: at,
-      entry: { key, def: ENEMIES[key], elite: false, hpFactor: hpFactor ?? finale.hpFactor, damageFactor: damageFactor ?? 1 },
+      entry: { key, def: ENEMIES[key], elite: false, hpFactor: bossHp, damageFactor: bossDamage },
     });
   }
   groups.forEach((g, gi) => {
-    const start = finale.trickleFrom + gi * finale.trickleInterval;
+    const start = trickleFrom + gi * trickleInterval;
     const leader = { key: g.members[0] };
     g.members.forEach((key, i) => {
       const def = ENEMIES[key];
-      const entry = { key, def, elite: random() < elites, hpFactor: 1, damageFactor: 1 };
+      const entry = { key, def, elite: random() < elites, hpFactor, damageFactor };
       if (i === 0) Object.assign(leader, { entry });
       timed.push({ time: start + i * WAVES.formationSpacing, entry, leader: g.escort && i > 0 ? leader : null });
     });

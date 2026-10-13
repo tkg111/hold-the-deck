@@ -1,7 +1,10 @@
 import {
-  ELITE, EXPEDITIONS, HEROES, ISLANDS, SPRITES,
+  EXPEDITIONS, HEROES, ISLANDS, PARTS, SPRITES,
 } from '../config.js';
-import { composeWave, waveScaling } from './WaveManager.js';
+import { islandContent, waveGold } from './WaveManager.js';
+import {
+  materialInGame, materialOf, materialOfBoss, PART_DATA,
+} from './Parts.js';
 
 // Expeditions: crewmates sent on timed voyages that run in real time (also
 // while the game is closed) and come back with loot. The state lives in
@@ -10,7 +13,8 @@ import { composeWave, waveScaling } from './WaveManager.js';
 //
 // An entry: { dest, party: [hero ids], duration: EXPEDITIONS.durations id,
 // elapsed: ms run so far, lastSeen: Date.now() when elapsed was last
-// advanced, loot: { gold, pearls, chests: [tiers], bonus }, story, from:
+// advanced, loot: { gold, pearls, chests: [tiers], bonus, material: { id,
+// count } or null }, story, from:
 // { heroId: the ship slot they left } }. Loot is rolled when the party sets
 // out, so reloading can't re-roll it.
 
@@ -103,12 +107,7 @@ export function goldPerMinute(progress) {
 
 // Gold a win of the current wave pays: every enemy's kill gold plus the
 // wave-clear bonus.
-function estimatedWaveGold(progress) {
-  const { scalingWave } = progress;
-  const plan = composeWave(progress.wave, progress.waveOptions);
-  const kills = plan.reduce((s, { def, elite }) => s + (def.gold ?? 0) * (elite ? ELITE.goldMultiplier : 1), 0);
-  return kills * waveScaling(scalingWave).gold + progress.waveClearGold();
-}
+const estimatedWaveGold = (progress) => waveGold(progress.wave, progress.waveOptions);
 
 // The party's reward multiplier and what makes it up. guaranteed: a full
 // party all with the favoured trait (a certain bonus find).
@@ -163,6 +162,21 @@ const tierAbove = (tier) => {
   return order[Math.min(order.length - 1, order.indexOf(tier) + 1)];
 };
 
+// A run's boss material, maybe (PARTS.expedition): one of its island's
+// beaten bosses' materials, or null.
+function rollMaterial(progress, dest, random) {
+  const island = islandOf(dest.island);
+  if (!island?.available) return null;
+  const found = islandContent(island).bosses
+    .filter((boss) => progress.defeatCount(boss) > 0)
+    .map((boss) => materialOfBoss(boss))
+    .filter((m) => m && materialInGame(m.id));
+  const { chance, min, max } = PARTS.expedition;
+  if (!found.length || random() >= chance) return null;
+  const m = found[Math.floor(random() * found.length)];
+  return { id: m.id, count: min + Math.floor(random() * (max - min + 1)) };
+}
+
 // Roll a run's loot (see preview for the ranges).
 export function rollLoot(progress, destId, party, durationId, random = Math.random) {
   const dest = destinationOf(destId);
@@ -181,6 +195,7 @@ export function rollLoot(progress, destId, party, durationId, random = Math.rand
       loot.bonus = { kind: 'chest', tier: tierAbove(best) };
     }
   }
+  loot.material = rollMaterial(progress, dest, random);
   return loot;
 }
 
@@ -249,6 +264,7 @@ export function collect(progress, slot) {
   if (loot.bonus?.kind === 'pearls') progress.pearls += loot.bonus.pearls;
   if (loot.bonus?.kind === 'chest') chests.push(loot.bonus.tier);
   for (const tier of chests) progress.addFreeChest(tier);
+  if (loot.material) progress.addMaterial(loot.material.id, loot.material.count);
   for (const id of e.party) {
     if (!progress.isOwned(id) || progress.slotOf(id) >= 0) continue;
     const at = e.from[id];
@@ -280,6 +296,9 @@ export function entryFromSave(r, progress, taken, now = Date.now()) {
   let bonus = null;
   if (loot.bonus?.kind === 'pearls') bonus = { kind: 'pearls', pearls: count(loot.bonus.pearls) };
   if (loot.bonus?.kind === 'chest' && tier(loot.bonus.tier)) bonus = { kind: 'chest', tier: loot.bonus.tier };
+  const m = loot.material;
+  const material = m && typeof m.id === 'string' && (materialOf(m.id) || !PART_DATA.loaded)
+    ? { id: m.id, count: Math.max(1, count(m.count)) } : null;
   const from = {};
   for (const id of party) {
     const at = r.from?.[id];
@@ -296,6 +315,7 @@ export function entryFromSave(r, progress, taken, now = Date.now()) {
       pearls: count(loot.pearls),
       chests: Array.isArray(loot.chests) ? loot.chests.filter(tier).slice(0, 5) : [],
       bonus,
+      material,
     },
     story: typeof r.story === 'string' ? r.story.slice(0, 200) : '',
     from,

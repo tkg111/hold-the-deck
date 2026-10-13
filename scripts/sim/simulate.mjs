@@ -1,4 +1,5 @@
-// Headless auto-play balance simulation: `npm run sim [-- runs maxWave [voyage]]`.
+// Headless auto-play balance simulation:
+// `npm run sim [-- runs maxWave [voyage] [parts=id:level,...]]`.
 //
 // Runs the real battle code (waves, enemies, crew, abilities, Progress) with
 // Phaser stubbed out, from a fresh save, with a simple bot playing between
@@ -16,6 +17,10 @@
 // followed by the next one the ship can sail to (Ember Isle after Skull
 // Cove), and maxWave is the wave to reach on the last island it gets to.
 //
+// parts=kraken_figurehead:3,ghostweave_sails:5 starts every run with those
+// ship parts (parts.json ids) crafted to those levels and on the ship.
+// Without it no part is ever made, so results are as before parts existed.
+//
 // To try numbers without editing config.js, set SIM_CONFIG to JSON merged
 // into its exports, e.g. SIM_CONFIG='{"WAVES":{"hpGrowth":0.1}}'.
 import { readFileSync } from 'node:fs';
@@ -31,10 +36,23 @@ import { Volcano } from '../../src/systems/Volcano.js';
 import { Blizzard } from '../../src/systems/Blizzard.js';
 import { Mists } from '../../src/systems/Mists.js';
 import { WaveManager } from '../../src/systems/WaveManager.js';
+import { initParts, partOf } from '../../src/systems/Parts.js';
+import { ShipParts } from '../../src/systems/ShipParts.js';
 
 const RUNS = Number(process.argv[2] ?? 5);
 const MAX_WAVE = Number(process.argv[3] ?? 50);
-const VOYAGE = process.argv[4] === 'voyage';
+const FLAGS = process.argv.slice(4);
+const VOYAGE = FLAGS.includes('voyage');
+// parts=id:level,... -> { id: level }
+export function parseParts(arg) {
+  const parts = {};
+  for (const item of (arg ?? '').split(',').filter(Boolean)) {
+    const [id, level] = item.split(':');
+    if (!partOf(id)) throw new Error(`Unknown part: ${id}`);
+    parts[id] = Math.max(1, Math.min(config.PARTS.maxLevel, Number(level) || 1));
+  }
+  return parts;
+}
 const MAX_TRIES = 15;
 const DT = 50;                   // ms per step (the game clamps to 100)
 const WAVE_TIMEOUT = 10 * 60e3;  // a wave this long counts as lost
@@ -63,6 +81,8 @@ const fxSheets = {
   ...readJson('fog/fx/fx_fog.json'),
 };
 initLayout(readJson('layout.json'));
+initParts(readJson('parts/parts.json'));
+const PARTS_ARG = parseParts(FLAGS.find((a) => a.startsWith('parts='))?.slice(6));
 // The JSON files the battle code reads from the cache (ship slots; the
 // Ghost Galleon's gun ports, the Molten Leviathan's mouth and position, and
 // Frostbite Reef's and Fogbound Isle's animation timings and points).
@@ -158,16 +178,25 @@ Hero.prototype.charm = function charmAndMaybeTap(ms, charmer) {
   if (fresh && Math.random() < TAP.chance) taps.push({ hero: this, at: waveClock + TAP.afterMs });
 };
 
-export function playWave(scene, progress, onStep = null) {
-  const { ship, waves, volcano, blizzard, mists, abilities } = scene;
+// hunt: a boss (ENEMIES key) to fight a Boss Hunt against on the current
+// island instead of the next wave (a win pays its drops and raises its
+// level, see Progress.winHunt).
+export function playWave(scene, progress, onStep = null, { hunt = null } = {}) {
+  const {
+    ship, waves, volcano, blizzard, mists, abilities, shipParts,
+  } = scene;
+  const options = hunt ? progress.huntOptions(hunt, progress.islandId) : progress.waveOptions;
+  const wave = hunt ? options.wave : progress.wave;
+  scene.hunting = !!hunt;
   ship.sync(progress);
   rebuildHeroes(scene, progress);
   scene.enemies = [];
   scene.projectiles = [];
-  waves.start(progress.wave, progress.waveOptions);
-  volcano.start(progress.waveOptions);
-  blizzard.start(progress.wave, progress.waveOptions);
-  mists.start(progress.wave, progress.waveOptions);
+  waves.start(wave, options);
+  volcano.start(options);
+  blizzard.start(wave, options);
+  mists.start(wave, options);
+  shipParts.start(progress);
   abilities.resetCooldowns();
   let time = 0;
   let won = false;
@@ -180,6 +209,7 @@ export function playWave(scene, progress, onStep = null) {
     volcano.update(DT);
     blizzard.update(DT);
     mists.update(DT);
+    shipParts.update(DT);
     abilities.update(DT, true);
     for (const h of scene.heroes) {
       const shot = h.update(DT, scene.enemies);
@@ -205,9 +235,11 @@ export function playWave(scene, progress, onStep = null) {
   volcano.stop();
   blizzard.stop();
   mists.stop();
+  shipParts.stop();
   abilities.clear();
   for (const h of scene.heroes) h.clearAbilities();
-  if (won) progress.winWave();
+  if (won && hunt) progress.winHunt(hunt, progress.islandId);
+  else if (won) progress.winWave();
   return { won, time, hullLeft: ship.hp / ship.maxHp };
 }
 
@@ -281,22 +313,41 @@ export function makeBattle(progress) {
   scene.blizzard = new Blizzard(scene);
   scene.mists = new Mists(scene);
   scene.abilities = new AbilitySystem(scene);
+  scene.shipParts = new ShipParts(scene);
   return scene;
 }
 
-export function run(seed, policy, { maxWave = MAX_WAVE, voyage = VOYAGE, maxTries = MAX_TRIES, stopAt = null } = {}) {
-  seedRandom(seed);
-  const progress = new Progress();
-  const scene = makeBattle(progress);
+// Ship parts crafted to these levels ({ id: level }) and put on the ship.
+export function equipParts(progress, parts) {
+  for (const [id, level] of Object.entries(parts)) {
+    progress.parts[id] = level;
+    progress.equipPart(id);
+  }
+}
+
+// Kills pay as in the game (GameScene.onEnemyKilled); scene.hunting: a
+// Boss Hunt is on (its boss pays on the win instead).
+export function payKills(scene, progress) {
   scene.events.on('enemy-killed', (e) => {
     if (e.def.hazard) return;   // a lava bomb shot down
     progress.recordDefeat(e.key);   // bounties pay Pearls
-    progress.earnGold(e.gold);
-    if (e.def.boss) {
+    progress.earnGold(progress.boostGold(e.gold));
+    if (e.def.boss && !scene.hunting) {
       progress.claimBossPearls();
+      progress.bossDrop(e.key);
       scene.waves.bossDown();   // the finale's other boss enrages
     }
   });
+}
+
+export function run(seed, policy, {
+  maxWave = MAX_WAVE, voyage = VOYAGE, maxTries = MAX_TRIES, stopAt = null, parts = PARTS_ARG,
+} = {}) {
+  seedRandom(seed);
+  const progress = new Progress();
+  equipParts(progress, parts);
+  const scene = makeBattle(progress);
+  payKills(scene, progress);
   scene.events.on('enemy-stole', (e) => {
     progress.gold -= Math.min(progress.gold, Math.ceil(progress.gold * e.def.stealPercent));
   });
@@ -344,8 +395,10 @@ const waveTag = ({ island, wave }) => `${islandTag(island)}${wave}`;
 
 // Run as `npm run sim` (not when imported by another script).
 const main = !!process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+const partsNote = Object.keys(PARTS_ARG).length
+  ? `, parts: ${Object.entries(PARTS_ARG).map(([id, l]) => `${id} ${l}`).join(', ')}` : '';
 for (const policy of main ? ['greedy', 'lazy'] : []) {
-  console.log(`--- ${policy}: ${RUNS} runs from a fresh save, up to wave ${MAX_WAVE} ---`);
+  console.log(`--- ${policy}: ${RUNS} runs from a fresh save, up to wave ${MAX_WAVE}${partsNote} ---`);
   const bands = new Map();   // per island and 10 waves: first tries, first-try wins, losses
   for (let r = 0; r < RUNS; r++) {
     const res = run(1000 + r, policy);

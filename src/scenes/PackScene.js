@@ -1,7 +1,9 @@
 import Phaser from 'phaser';
 import {
-  DISPLAY, EXPEDITIONS, HEROES, PACK_FX, PACKS, RARITY,
+  DISPLAY, EXPEDITIONS, HEROES, PACK_FX, PACKS, PARTS, RARITY,
 } from '../config.js';
+import { gameMaterials } from '../systems/Parts.js';
+import { materialIcon } from '../ui/parts.js';
 import { traitOf } from '../systems/Expeditions.js';
 import { sfx } from '../audio/Sfx.js';
 import { applyRenderScale, fillView } from '../display.js';
@@ -11,7 +13,7 @@ import { Button } from '../ui/Button.js';
 import { createHeroCard, HERO_CARD_SIZE } from '../ui/HeroCard.js';
 import { cssColor, formatNum, pearlsLabel } from '../ui/format.js';
 import {
-  face, icon, dark, light, panel, subText, text, traitIcon, UI,
+  face, hexColor, icon, dark, light, panel, subText, text, traitIcon, UI,
 } from '../ui/kit.js';
 
 const CARD_W = HERO_CARD_SIZE.large.width;
@@ -79,6 +81,7 @@ export class PackScene extends Phaser.Scene {
     this.resultText = text(this, CARD_X, 233, '', light({ font: 'big' })).setOrigin(0.5);
 
     this.bulkGrid = this.add.container(0, 0);
+    this.materialStrip = this.drawMaterials();
 
     this.openButton = new Button(this, CARD_X - 100, 257, {
       width: 90, height: 22, style: 'gold', icon: 'pearl', label: '',
@@ -152,6 +155,29 @@ export class PackScene extends Phaser.Scene {
     this.cardGlow.setVisible(false);
     this.card.removeAll(true).setVisible(false);
     this.bulkGrid.removeAll(true);
+    this.materialStrip.setVisible(true);
+  }
+
+  // The Materials strip down the left edge: each boss material in the game
+  // and how many are held (ones never found dark, with a dash). Hidden
+  // while a "Buy 10" grid covers it.
+  drawMaterials() {
+    const { x, y, width: w, rowHeight } = PARTS.strip;
+    const mats = gameMaterials();
+    const strip = this.add.container(0, 0);
+    if (!mats.length) return strip;
+    const h = 22 + (mats.length - 1) * rowHeight + 16;
+    strip.add(panel(this, x, y, w, h, 'parchment'));
+    strip.add(text(this, x + w / 2, y + 7, 'MATERIALS', subText()).setOrigin(0.5, 0));
+    mats.forEach((m, i) => {
+      const ry = y + 22 + i * rowHeight;
+      const found = this.progress.hasFoundMaterial(m.id);
+      const img = materialIcon(this, x + 14, ry, m.id);
+      if (!found) img.setTintFill(hexColor(UI.colors.subText)).setAlpha(0.5);
+      const count = found ? formatNum(this.progress.materialCount(m.id)) : '-';
+      strip.add([img, text(this, x + 25, ry, count, subText({ color: UI.colors.textOnParchment })).setOrigin(0, 0.5)]);
+    });
+    return strip;
   }
 
   // Fan of light rays pouring up out of the open chest.
@@ -302,6 +328,7 @@ export class PackScene extends Phaser.Scene {
     this.busy = true;
     this.resetChest();
     this.chest.setVisible(false);
+    this.materialStrip.setVisible(false);
     this.refresh();
 
     const order = Object.keys(RARITY);

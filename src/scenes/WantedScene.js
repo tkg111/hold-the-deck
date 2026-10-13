@@ -9,6 +9,8 @@ import {
   Bar, dark, face, hexColor, icon, light, panel, subText, text, UI, wantedKey,
 } from '../ui/kit.js';
 import { createPoster, enemyPortrait, traitIconKey, traitsOf, wantedLayout } from '../ui/wanted.js';
+import { materialInGame, materialOfBoss } from '../systems/Parts.js';
+import { materialIcon } from '../ui/parts.js';
 
 // The Wanted Board (enemy book): a poster for every enemy type on the left,
 // in the order they're met on the voyage, a page of them at a time (arrows by
@@ -211,7 +213,16 @@ export class WantedScene extends Phaser.Scene {
     const descY = Math.max(py + size, statsY + 46) + 6;
     const description = text(this, left + 10, descY, def.description.toUpperCase(), subText({ wrap: w - 20 }));
     add(description);
-    const descBottom = descY + description.inkHeight;
+    let descBottom = descY + description.inkHeight;
+    // A boss: the material it drops (for ship parts).
+    const material = def.boss ? materialOfBoss(id) : null;
+    if (material && materialInGame(material.id)) {
+      const dy = descBottom + 9;
+      const label = text(this, left + 10, dy, 'DROPS:', subText()).setOrigin(0, 0.5);
+      add(label, materialIcon(this, label.anchorX + label.inkWidth + 11, dy, material.id),
+        text(this, label.anchorX + label.inkWidth + 21, dy, material.name.toUpperCase(), subText({ color: UI.colors.textOnParchment })).setOrigin(0, 0.5));
+      descBottom = dy + 6;
+    }
     divider(descBottom + 5);
 
     // Weak to: crew faces with their short names.

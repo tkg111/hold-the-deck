@@ -1,5 +1,6 @@
 import { DISPLAY, ISLANDS } from '../config.js';
 import { finishAll } from '../systems/Expeditions.js';
+import { gameMaterials } from '../systems/Parts.js';
 import { isBossWave } from '../systems/WaveManager.js';
 import { Button } from '../ui/Button.js';
 
@@ -73,7 +74,17 @@ export function installDevTools(scene) {
     },
   });
 
-  const buttons = [devButton, pearlsButton, waveButton, islandButton, bossButton, expeditionsButton];
+  // 50 more of every boss material (for the Shipyard).
+  const materialsButton = new Button(scene, 64, 151, {
+    ...small, width: 124, label: 'DEV +50 MATERIALS',
+    onClick: () => {
+      for (const m of gameMaterials()) progress.addMaterial(m.id, 50);
+      scene.refreshUi();
+      scene.save();
+    },
+  });
+
+  const buttons = [devButton, pearlsButton, waveButton, islandButton, bossButton, expeditionsButton, materialsButton];
   const corner = scene.add.container(0, 0, buttons).setDepth(20);
   const layout = (view) => corner.setPosition(view.left, Math.round(view.bottom - DISPLAY.height));
   layout(scene.view);

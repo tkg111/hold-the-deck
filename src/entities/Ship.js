@@ -1,6 +1,7 @@
-import { SHIP, SPRITES } from '../config.js';
+import { PARTS, SHIP, SPRITES } from '../config.js';
 import { LAYOUT } from '../layout.js';
 import { SHIP_SLOTS_KEY, shipFrontKey, shipStageKey } from '../sprites.js';
+import { overlayKey, PART_DATA, partOf } from '../systems/Parts.js';
 
 // Draw order, back to front, as layout.json's drawOrder: background (and the
 // Frost Wyrm on its iceberg), ship, crew, enemies, The Kraken (and its
@@ -12,6 +13,7 @@ export const DEPTH = {
   background: -20,
   perch: -19.5,        // the Frost Wyrm, in the background
   ship: -19,
+  shipParts: -18.9,    // the equipped parts' overlays, over the ship and under the crew
   hero: -18,
   enemy: -17,
   kraken: -16,
@@ -36,6 +38,8 @@ export class Ship {
     this.front = scene.add.image(LAYOUT.shipX, this.spriteTop, shipFrontKey(1))
       .setOrigin(0).setDepth(DEPTH.shipFront);
     this.graphics = scene.add.graphics().setDepth(DEPTH.slotMarkers);
+    this.partImages = [];    // the equipped parts' overlays
+    this.partsKey = null;    // what they show (parts and ship stage)
     this.slots = this.loadSlots(scene.cache.json.get(SHIP_SLOTS_KEY));
     this.slotZones = [];
     this.selectedSlot = -1;
@@ -50,6 +54,7 @@ export class Ship {
     this.hp = this.maxHp;
     this.slotHeroes = progress.slots.slice(0, progress.slotCount);
     this.draw();
+    this.drawParts(progress.equippedLevels);
     this.createSlotZones();
   }
 
@@ -172,6 +177,36 @@ export class Ship {
       x: LAYOUT.shipX + left + Math.random() * (LAYOUT.shipContactX - right - LAYOUT.shipX - left),
       y: LAYOUT.waterY - minAbove - Math.random() * (maxAbove - minAbove),
     };
+  }
+
+  // Each equipped part's overlay (176x160, like the ship) at the ship's
+  // top-left, in slot order; the lantern's for this ship stage. The
+  // Blackbones' Lantern's glow pulses: a copy of it added on top as light.
+  drawParts(levels) {
+    const slot = (id) => PART_DATA.slots.indexOf(partOf(id).slot);
+    const ids = Object.keys(levels).filter((id) => partOf(id)).sort((a, b) => slot(a) - slot(b));
+    const key = `${this.decks}:${ids.join(',')}`;
+    if (key === this.partsKey) return;
+    this.partsKey = key;
+    const { scene } = this;
+    for (const img of this.partImages) {
+      scene.tweens.killTweensOf(img);
+      img.destroy();
+    }
+    this.partImages = [];
+    for (const id of ids) {
+      const tex = overlayKey(partOf(id), this.decks);
+      if (scene.textures && !scene.textures.exists(tex)) continue;
+      const add = () => scene.add.image(LAYOUT.shipX, this.spriteTop, tex).setOrigin(0).setDepth(DEPTH.shipParts);
+      this.partImages.push(add());
+      if (id === 'blackbones_lantern') {
+        const glow = add().setBlendMode('ADD').setAlpha(0);
+        scene.tweens.add({
+          targets: glow, alpha: PARTS.glowAlpha, duration: PARTS.glowMs, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
+        });
+        this.partImages.push(glow);
+      }
+    }
   }
 
   // Swap in the sprite for the current deck count, and mark empty slots

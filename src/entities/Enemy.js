@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import {
-  DISPLAY, ELITE, ENEMIES, FX, SHIP, SPRITES, WAVES,
+  CHARM, DISPLAY, ELITE, ENEMIES, FX, SHIP, SPRITES, WAVES,
 } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
 import { fxSprite, playFx } from '../fx.js';
@@ -21,6 +21,7 @@ const STATUS = {
   curse: { sprite: 'curse_mark', active: (e) => e.isCursed && e.curseMarkDelay <= 0 },
   poison: { sprite: 'poison_bubbles', active: (e) => e.isPoisoned },
   slow: { sprite: 'net_draped', active: (e) => e.isSlowed },
+  charm: { sprite: CHARM.status, active: (e) => e.isCharmed },
 };
 
 // An island's spawnPuff (Frostbite Reef's snow_puff as enemies step out of
@@ -111,6 +112,16 @@ export class Enemy {
     // A boss that enrages (the finale) attacks this much faster.
     this.rage = 1;
     this.stunGuard = 0;       // resist.stunGuardMs: ms before it can be stunned again
+    // Ship parts: charmed by the Siren Figurehead (fights its own side for
+    // charmTime ms, hitting every charmHitMs at charmHit), and the Frostwing
+    // Sails' chill (pace x partSlow; 1 = none), set each step by ShipParts.
+    this.charmTime = 0;
+    this.charmHit = 0;
+    this.charmFacing = 1;     // 1: facing the island, -1: the ship
+    this.partSlow = 1;
+    // The Heartwood Cannons' frozen log: pace x chillFactor for chillTime ms.
+    this.chillTime = 0;
+    this.chillFactor = 1;
     // An Ice Witch's shield over it: HP left of it, and its size.
     this.iceShieldHp = 0;
     this.iceShieldMax = 0;
@@ -485,17 +496,30 @@ export class Enemy {
   get isCursed() { return this.curseTime > 0; }
   get isPoisoned() { return this.poisonTime > 0; }
   get isHasted() { return this.hasteTime > 0; }
+  get isCharmed() { return this.charmTime > 0; }
   get hasShield() { return this.shieldHp > 0; }
   get hasIceShield() { return this.iceShieldHp > 0; }
-  // How fast it moves and attacks: slows and the Siren's haste multiply.
-  get pace() { return (this.isSlowed ? this.slowFactor : 1) * (this.isHasted ? this.hasteMult : 1); }
+  // How fast it moves and attacks: slows, the Siren's haste and the
+  // Frostwing Sails' chill multiply.
+  get pace() {
+    return (this.isSlowed ? this.slowFactor : 1) * (this.isHasted ? this.hasteMult : 1) * this.partSlow
+      * (this.chillTime > 0 ? this.chillFactor : 1);
+  }
   // Walking only: faster through a fire puddle, slower in a blizzard.
   get moveBoost() { return (this.boostTime > 0 ? this.boostMult : 1) * (this.scene.blizzard?.chill ?? 1); }
 
   // Whether a hero (or ability) can hit it: anything targetable on the lane,
-  // and flyers in the air only with anti-air.
+  // and flyers in the air only with anti-air. The crew leave a charmed one
+  // alone while it fights its own side.
   canBeHit(antiAir) {
-    return this.targetable && (antiAir || !this.airborne);
+    return this.targetable && (antiAir || !this.airborne) && !this.isCharmed;
+  }
+
+  // The Siren Figurehead can charm walkers on the lane: not bosses, boats,
+  // flyers, anything anchored, or one rising or out of reach.
+  get canBeCharmed() {
+    const { def } = this;
+    return this.alive && this.targetable && !def.boss && !def.hazard && !def.floats && !def.flies && !this.anchored;
   }
 
   // --- Status effects ---
@@ -518,6 +542,23 @@ export class Enemy {
     this.slowFactor = this.isSlowed ? Math.min(this.slowFactor, factor) : factor;
     this.slowTime = Math.max(this.slowTime, duration * (this.def.statusResist ?? 1));
     if (this.def.flies) this.groundTime = this.slowTime;
+  }
+
+  // The Siren Figurehead: for ms it turns round and fights the nearest
+  // other enemy (see brawl), each hit hit damage.
+  charm(ms, hit) {
+    if (!this.canBeCharmed) return false;
+    if (!this.isCharmed) this.attackCooldown = 0;
+    this.charmTime = Math.max(this.charmTime, ms);
+    this.charmHit = hit;
+    return true;
+  }
+
+  // The Heartwood Cannons' log: moves and attacks factor x as fast for
+  // duration (bosses for less, by statusResist). No net: it isn't grounded.
+  applyChill(factor, duration) {
+    this.chillFactor = this.chillTime > 0 ? Math.min(this.chillFactor, factor) : factor;
+    this.chillTime = Math.max(this.chillTime, duration * (this.def.statusResist ?? 1));
   }
 
   // Haunt: flees back toward the island for duration.
@@ -580,6 +621,8 @@ export class Enemy {
     this.hasteTime = Math.max(0, this.hasteTime - dt);
     this.fearTime = Math.max(0, this.fearTime - dt);
     this.boostTime = Math.max(0, this.boostTime - dt);
+    this.charmTime = Math.max(0, this.charmTime - dt);
+    this.chillTime = Math.max(0, this.chillTime - dt);
   }
 
   // --- Behaviour ---
@@ -617,6 +660,8 @@ export class Enemy {
         moving = this.prowl(sdt, ship);
       } else if (this.def.stationary) {
         this.sing(sdt);
+      } else if (this.isCharmed) {
+        moving = this.brawl(sdt);
       } else if (this.isAfraid) {
         moving = this.flee(sdt);
       } else if (this.x > this.stopX) {
@@ -678,6 +723,32 @@ export class Enemy {
     const moved = x > this.x;
     this.x = x;
     return moved;
+  }
+
+  // Charmed: walks to the nearest other enemy on the lane and hits it every
+  // attackInterval for charmHit. Returns whether it moved.
+  brawl(sdt) {
+    let target = null;
+    for (const e of this.scene.enemies) {
+      if (e === this || !e.alive || !e.targetable || e.isCharmed || e.def.hazard || e.airborne) continue;
+      if (!target || Math.abs(e.x - this.x) < Math.abs(target.x - this.x)) target = e;
+    }
+    if (!target) return false;
+    this.charmFacing = target.x >= this.x ? 1 : -1;
+    const reach = (this.def.width + target.def.width) / 2 + 2;
+    const gap = Math.abs(target.x - this.x) - reach;
+    if (gap > 0 && !this.anchored) {
+      const step = Math.min(gap, this.speed * this.moveBoost * sdt / 1000);
+      this.x = Math.min(LAYOUT.enemySpawnX, Math.max(this.stopX, this.x + this.charmFacing * step));
+      return step > 0;
+    }
+    this.attackCooldown -= sdt;
+    if (this.attackCooldown > 0) return false;
+    this.attackCooldown = this.def.attackInterval;
+    if (this.attackAnim) this.body.play(this.attackAnim);
+    playFx(this.scene, 'hit_spark', target.x, target.y);
+    target.takeDamage(this.charmHit);
+    return false;
   }
 
   // Left along the lane; in an escorted formation, never closer than
@@ -1586,7 +1657,8 @@ export class Enemy {
     // A walker with animSpeed walks its animation at its own speed's pace.
     const stride = moving && this.def.animSpeed ? this.walkingSpeed / this.def.animSpeed : 1;
     anims.timeScale = this.pace * this.rage * this.moveBoost * stride;
-    this.body.setFlipX?.(this.isAfraid);   // fleeing: facing the island
+    // Fleeing (or charmed and going for an enemy behind it): facing the island.
+    this.body.setFlipX?.(this.isAfraid || (this.isCharmed && this.charmFacing > 0));
     if (this.actionTime > 0) {
       if (this.isStunned) anims.pause();
       else if (anims.isPaused) anims.resume();
@@ -1993,7 +2065,9 @@ export class Enemy {
       this.iceSprite = null;
     }
     for (const sprite of [...Object.values(this.statusSprites), this.iceSprite]) sprite?.setVisible(!this.vanished);
-    const { slow, poison, stun, fear, curse } = this.statusSprites;
+    const {
+      slow, poison, stun, fear, curse, charm,
+    } = this.statusSprites;
     const x = Math.round(this.x);
     for (const over of [slow, this.iceSprite]) {
       if (!over) continue;
@@ -2002,7 +2076,7 @@ export class Enemy {
     }
     poison?.setPosition(x, Math.round(this.y - this.def.height / 4));
     let above = this.hpBarY - (this.nameTag ? 10 : 0) - this.shieldBarsHeight - FX.statusGap;
-    for (const mark of [stun, fear, curse]) {
+    for (const mark of [stun, fear, curse, charm]) {
       if (!mark) continue;
       mark.setOrigin(0.5, 1).setPosition(x, above);
       above -= mark.height + FX.statusGap;

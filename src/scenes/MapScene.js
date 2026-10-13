@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
-import { DISPLAY, ISLANDS, MAP, UI_KIT } from '../config.js';
+import {
+  DISPLAY, ENEMIES, HUNTS, ISLANDS, MAP, UI_KIT,
+} from '../config.js';
 import { sfx } from '../audio/Sfx.js';
 import { applyRenderScale, fillView } from '../display.js';
 import { MAP_JSON_KEY, mapKey } from '../sprites.js';
@@ -9,6 +11,8 @@ import { formatNum } from '../ui/format.js';
 import {
   dark, expeditionKey, hexColor, light, panel, subText, text, UI,
 } from '../ui/kit.js';
+import { materialIcon } from '../ui/parts.js';
+import { enemyPortrait } from '../ui/wanted.js';
 
 // The world map ("The Cursed Seas"), after ui_mock_world_map.png: map_bg.png
 // with every island from map/map.json at its spot, the route between them
@@ -17,10 +21,13 @@ import {
 // locked ones are greyscale and faded with a "?" and "???" for a name.
 // Clicking an unlocked island shows its card (island number, waves, hazard,
 // boss, best wave, Endless once cleared) with SET SAIL!, which sails there
-// (or a disabled COMING SOON for an island with no content yet). The
+// (or a disabled COMING SOON for an island with no content yet). Once one
+// of an island's bosses has been beaten, the card gets a Boss Hunt tab: each
+// of its bosses with its hunt level, what a win drops, today's doubles and
+// HUNT, which sails there and starts the hunt. The
 // Expeditions button (top right, with a badge counting the ones back) opens
 // the board over the map. Launched with { progress, openExpeditions(onClosed),
-// onClose(sailed) }.
+// onClose(sailed, hunt) } (hunt: { boss, island } to start, or null).
 
 const GREY = (key) => `${key}_grey`;
 
@@ -55,6 +62,7 @@ export class MapScene extends Phaser.Scene {
     this.onClose = onClose;
     this.openExpeditions = openExpeditions;
     this.selected = progress.islandId;
+    this.tab = 'island';   // the card's tab: 'island' or 'hunt'
   }
 
   create() {
@@ -172,6 +180,7 @@ export class MapScene extends Phaser.Scene {
   // A dotted gold ring round the selected island, and its card.
   select(id, { quiet = false } = {}) {
     if (!quiet) sfx.click();
+    if (id !== this.selected) this.tab = 'island';
     this.selected = id;
     const { spot } = this.islands.find((i) => i.def.id === id);
     const g = this.ring.clear().fillStyle(MAP.ringColor, 1);
@@ -192,7 +201,25 @@ export class MapScene extends Phaser.Scene {
     const { x, y, width: w, height: h } = MAP.card;
     const add = (...objs) => this.card.add(objs);
     this.card.removeAll(true);
+    // Island / Boss Hunt tabs over the card's top edge, once there's a boss
+    // to hunt here.
+    const hunts = p.hasHunts(def.id);
+    if (!hunts) this.tab = 'island';
+    if (hunts) {
+      [['island', 'ISLAND'], ['hunt', 'BOSS HUNT']].forEach(([tab, label], i) => {
+        const b = new Button(this, x + 36 + i * 74, y - 7, {
+          width: tab === 'hunt' ? 74 : 60, height: 16, font: 'small', label,
+          style: this.tab === tab ? 'gold' : 'wood',
+          onClick: () => this.setTab(tab),
+        });
+        add(b);
+      });
+    }
     add(panel(this, x, y, w, h, 'parchment'));
+    if (this.tab === 'hunt') {
+      this.drawHunts(def, index);
+      return;
+    }
     add(text(this, x + 10, y + 9, def.name, dark()));
     add(text(this, x + 10, y + 26, `ISLAND ${index + 1}  -  ${cleared ? 'ENDLESS' : `WAVES 1-${def.waves}`}`, subText()));
     const rows = [
@@ -212,6 +239,58 @@ export class MapScene extends Phaser.Scene {
       onClick: () => this.setSail(def.id),
     });
     add(button.setEnabled(def.available));
+  }
+
+  setTab(tab) {
+    if (tab === this.tab) return;
+    sfx.click();
+    this.tab = tab;
+    this.drawCard();
+  }
+
+  // The Boss Hunt tab: each of the island's bosses, beaten ones with their
+  // hunt level, a win's drop, today's double drops left and HUNT; the rest
+  // still to be beaten in a boss wave.
+  drawHunts(def, index) {
+    const p = this.progress;
+    const { x, y, width: w } = MAP.card;
+    const add = (...objs) => this.card.add(objs);
+    add(text(this, x + 10, y + 9, def.name, dark()));
+    add(text(this, x + 10, y + 26, `ISLAND ${index + 1}  -  BOSS HUNTS`, subText()));
+    p.huntableBosses(def.id).forEach(({ boss, open }, i) => {
+      const top = y + 38 + i * 42;
+      const enemy = ENEMIES[boss];
+      add(this.add.rectangle(x + 7, top - 1, 34, 34, hexColor(UI_KIT.dividerColor)).setOrigin(0));
+      const portrait = enemyPortrait(this, x + 8, top, boss);
+      add(open ? portrait : portrait.setTintFill(hexColor(UI.colors.subText)));
+      add(text(this, x + 46, top + 1, open ? enemy.name : '???', subText({ color: UI.colors.textOnParchment })));
+      if (!open) {
+        add(text(this, x + 46, top + 12, 'BEAT IT IN A BOSS WAVE', subText()));
+        add(text(this, x + 46, top + 21, 'TO HUNT IT HERE', subText()));
+        return;
+      }
+      const level = p.huntLevel(boss);
+      const drop = p.huntDrop(boss, level);
+      const left = p.huntDoublesLeft(boss);
+      add(text(this, x + 46, top + 11, left ? `2X TODAY: ${left} LEFT` : 'NO 2X LEFT TODAY', subText({ color: left ? MAP.clearedColor : null })));
+      const lv = text(this, x + 46, top + 22, `LV ${formatNum(level)}  WIN`, subText());
+      add(lv, materialIcon(this, lv.anchorX + lv.inkWidth + 10, top + 24, drop.material),
+        text(this, lv.anchorX + lv.inkWidth + 19, top + 22, `+${drop.count}`, subText({ color: UI.colors.textOnParchment })));
+      add(new Button(this, x + w - 23, top + 25, {
+        width: 36, height: 15, style: 'gold', font: 'small', label: 'HUNT',
+        onClick: () => this.hunt(boss, def.id),
+      }));
+    });
+    const note = `EACH WIN: +${Math.round(HUNTS.growth * 100)}% HP AND DAMAGE`;
+    add(text(this, x + w / 2, y + MAP.card.height - 10, note, subText()).setOrigin(0.5));
+  }
+
+  // Sail to the island if the ship isn't there, and start a Boss Hunt.
+  hunt(boss, id) {
+    sfx.click();
+    const sailed = id !== this.progress.islandId && this.progress.sailTo(id);
+    this.scene.stop();
+    this.onClose?.(sailed, { boss, island: id });
   }
 
   // Sail to the island (or, if the ship is already there, just back to it).

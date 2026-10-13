@@ -4,8 +4,9 @@ import { Button } from './Button.js';
 // Auto-continue, kept across scene restarts in a session (not saved): when
 // on, a cleared wave is followed by the next one and a lost wave is retried,
 // each after AUTO_CONTINUE.delayMs. Any other button (or a ship slot) pauses
-// it until a wave is started by hand with SET SAIL! again. Its toggle sits in
-// the bottom-left corner of the view, during waves too.
+// it until a wave is started by hand with SET SAIL! again; so does a Boss
+// Hunt. Its toggle sits in the bottom-left corner of the view, during waves
+// too.
 const auto = { on: false, paused: false };
 
 export class AutoContinue {
@@ -26,9 +27,11 @@ export class AutoContinue {
       if (b.parentContainer === scene.abilityBar) return;
       this.pause();
     };
-    const onWaveStarted = () => {
+    // A Boss Hunt (from the map) leaves it paused, and isn't followed by
+    // anything.
+    const onWaveStarted = ({ hunt = false } = {}) => {
       this.cancel();
-      if (!this.starting && auto.paused) {
+      if (!this.starting && !hunt && auto.paused) {
         auto.paused = false;
         this.refresh();
       }
@@ -37,7 +40,7 @@ export class AutoContinue {
       'button-pressed': onButton,
       'slot-clicked': () => this.pause(),   // opens the hero picker
       'wave-started': onWaveStarted,
-      'wave-ended': () => this.schedule(),
+      'wave-ended': (_won, { hunt = false } = {}) => (hunt ? this.pause() : this.schedule()),
     };
     for (const [name, fn] of Object.entries(handlers)) scene.events.on(name, fn);
     scene.events.once('shutdown', () => {

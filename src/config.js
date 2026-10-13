@@ -214,9 +214,10 @@ export const FX = {
 };
 
 export const SHIP = {
-  // The ship sprites are 160x160 art pixels (ship_stage1..3 plus a _front
-  // railing layer each), all at layout.json's shipPos; enemies stop at its
-  // shipContactX.
+  // The ship sprites are 176x160 art pixels (ship_stage1..3 plus a _front
+  // railing layer each, and the ship parts' overlays), all drawn by their
+  // top-left at layout.json's shipPos; enemies stop at its shipContactX
+  // (the bowsprit reaches past it, over them).
   baseHp: 120,          // max hull HP at hull level 0 (see UPGRADES.hullHp)
   startingDecks: 1,
   maxDecks: 3,
@@ -2028,6 +2029,128 @@ export const EXPEDITIONS = {
   board: { cardWidth: 148, cardHeight: 204, gap: 8, top: 32 },
   // Reveal: the party's story, then each reward flips in revealStepMs apart.
   reveal: { storyMs: 500, stepMs: 650, flipMs: 160, cardWidth: 64, cardHeight: 78, gap: 8, bonusConfetti: 160 },
+};
+
+// Boss materials and ship parts (src/systems/Parts.js, src/systems/ShipParts.js,
+// ShipyardScene). Art and data in public/sprites/parts/: parts.json lists
+// the materials (one per boss, in materials.png's order), the four slots and
+// the parts (each one's slot, material, effect text, overlay and icon).
+// A material, and the parts made from it, only show once its boss is in the
+// game (an ENEMIES boss with that sprite, on an available island).
+export const PARTS = {
+  path: 'parts/',       // under SPRITES.path
+  maxLevel: 5,
+  // Material to reach each level: [craft (level 1), level 2, 3, 4, 5].
+  material: [5, 8, 12, 18, 25],
+  // Gold to reach each level, in waves of gold (kills and clear bonus) of
+  // the wave where the part's boss first appears (on its island, offset
+  // included), so Skull Cove's parts cost thousands and Fogbound Isle's
+  // billions.
+  goldWaves: [3, 5, 8, 12, 18],
+  // Every boss killed in a wave (not a Boss Hunt) drops its material, once
+  // per boss per wave (like boss Pearls, a retry doesn't pay it again):
+  // firstKill the first time that boss is ever beaten, perKill after.
+  drops: { perKill: 3, firstKill: 5 },
+  // An expedition to one of an island's destinations: this chance of
+  // min-max of one of that island's boss materials (bosses beaten at least
+  // once), as an extra reward card.
+  expedition: { chance: 0.15, min: 1, max: 2 },
+  // The ship's cannon ports (ship image pixels): the Magma and Heartwood
+  // Cannons fire from a random one.
+  ports: { x: [44, 64, 84, 104, 124], y: 120 },
+  // Where the figurehead's tentacle and charm come from (ship image pixels).
+  bow: { x: 160, y: 104 },
+  // The Blackbones' Lantern glow pulses (an added-light copy of the
+  // overlay, between 0 and glowAlpha) every glowMs.
+  glowAlpha: 0.45,
+  glowMs: 900,
+  // What each part does (level L = 1-5):
+  //   kraken_figurehead: every `every` ms a tentacle grabs the frontmost
+  //     enemy (on the lane or in the air) and stuns it for stun + (L - 1) x
+  //     stunPerLevel ms (bosses resist as usual: statusResist, stunGuardMs).
+  //     The tentacle shows for slapMs, in `color` (its outline in `edge`).
+  //   siren_figurehead: every `every` ms charms the frontmost enemy that
+  //     walks the lane (not a boss, boat or flyer) for charm + (L - 1) x
+  //     charmPerLevel ms: it turns round and fights the nearest other enemy,
+  //     each hit `hitScale` x its own damage scaled like HP (so it matters
+  //     at every wave), and the crew leave it alone.
+  //   ghostweave_sails: the crew's attack speed x (1 + L x attackSpeedPerLevel).
+  //   frostwing_sails: enemies within `range` px of the ship (their front
+  //     edge from where walkers stop) move and attack L x slowPerLevel
+  //     slower; bosses by statusResist x that.
+  //   magma_cannons: every `every` ms a lava shot (magma_glob, lobbed over
+  //     flightTime ms) at the frontmost enemy on the lane: damagePerLevel x L
+  //     x the strongest crewmate's DMG, and a fire puddle where it lands for
+  //     puddleMs that burns ground enemies in it for puddleDps x the shot's
+  //     damage per second.
+  //   heartwood_cannons: every `every` ms a frozen log flies from a port
+  //     and skims along the lane, hitting the first `targets` enemies for
+  //     damagePerLevel x L x the strongest crewmate's DMG and slowing them
+  //     to slow x their pace for slowMs.
+  //   blackbones_lantern: gold from kills, wave clears and Boss Hunts x (1 +
+  //     L x goldPerLevel), and a fog bank's range penalty x fogPenalty.
+  // A timed part fires as soon as it has a target once its timer is up, and
+  // first fires `every` ms into a wave.
+  effects: {
+    kraken_figurehead: { every: 8000, stun: 1500, stunPerLevel: 250, slapMs: 220, color: 0x8a3a6a, edge: 0x1a1014 },
+    siren_figurehead: { every: 12000, charm: 3000, charmPerLevel: 500, hitScale: 1 },
+    ghostweave_sails: { attackSpeedPerLevel: 0.04 },
+    frostwing_sails: { range: 120, slowPerLevel: 0.06 },
+    magma_cannons: {
+      every: 6000, damagePerLevel: 0.4, flightTime: 900, arcHeight: 40,
+      shot: 'magma_glob', impact: 'lava_splash', puddle: 'fire_puddle', puddleMs: 3000, puddleDps: 0.25, puddleFadeMs: 400,
+    },
+    heartwood_cannons: {
+      every: 5000, damagePerLevel: 0.25, targets: 3, speed: 260, length: 260, hitRadius: 4,
+      slow: 0.7, slowMs: 2000, impact: 'frost_hit',
+    },
+    blackbones_lantern: { goldPerLevel: 0.05, fogPenalty: 0.5 },
+  },
+  // The Shipyard (ShipyardScene, base pixels): the ship preview on the left
+  // (the whole ship at 1x; zoomed to zoom x on the slot being chosen for,
+  // centred on that slot's focus, in ship image pixels: the lantern's y per
+  // ship stage), the slot cards on the right (or a slot's parts, one row
+  // each), and the materials along the bottom.
+  shipyard: {
+    preview: { x: 8, y: 30, width: 196, height: 214, sea: 0x2b4a6b },
+    zoom: 2,
+    focus: {
+      figurehead: { x: 152, y: 106 },
+      sails: { x: 112, y: 42 },
+      cannons: { x: 84, y: 118 },
+      lantern: { x: 24, y: [85, 59, 33] },
+    },
+    cards: { x: 212, y: 30, width: 260, cardHeight: 50, gap: 4 },
+    rowHeight: 94,
+    materials: { y: 248, height: 20 },
+  },
+  // The chest screen's Materials strip (base pixels): a parchment column
+  // down its left edge, a row per material.
+  strip: { x: 4, y: 68, width: 58, rowHeight: 17 },
+};
+
+// Boss Hunts (Progress, WaveManager.composeHunt, the map's island card): a
+// single fight against one boss with its island's enemies trickling in, at
+// the difficulty of that boss's first wave on the island (its bossBoost
+// included), opened on the island's card once that boss has been beaten.
+// Each boss has its own hunt level, from 1: every win raises it, and its
+// HP and damage, and the trickle's, are x (1 + growth) ^ (level - 1). A loss
+// costs nothing. The boss comes in bossAt ms into the fight; the trickle is
+// trickle x a normal wave's enemy count, a group every trickleInterval ms
+// from trickleFrom.
+// A win drops dropBase + floor(level / dropEvery) of the boss's material,
+// doubled for the first dailyDoubles wins over each boss each day (local
+// time, from midnight), and gold: gold x the fight's wave-clear bonus.
+export const HUNTS = {
+  growth: 0.15,
+  bossAt: 1500,
+  trickle: 0.6,
+  trickleFrom: 4000,
+  trickleInterval: 3000,
+  dropBase: 2,
+  dropEvery: 3,
+  dailyDoubles: 3,
+  gold: 2,
 };
 
 // Upgrade cost at level L: round(baseCost * costGrowth ^ L)

@@ -1,19 +1,33 @@
 import {
-  ABILITY_SCALING, BATTLE_LOG, ECONOMY, ENEMIES, EXPEDITIONS, HEROES, ISLANDS, SHIP, PACKS, RARITY, STARTING_HEROES,
-  UI_KIT, UPGRADES, WANTED, WAVES,
+  ABILITY_SCALING, BATTLE_LOG, ECONOMY, ENEMIES, EXPEDITIONS, HEROES, HUNTS, ISLANDS, PARTS, SHIP, PACKS, RARITY,
+  STARTING_HEROES, UI_KIT, UPGRADES, WANTED, WAVES,
 } from '../config.js';
-import { waveScaling } from './WaveManager.js';
+import { clearBonus, enemyFirstWave, islandContent } from './WaveManager.js';
 import { entryFromSave, maxSlots } from './Expeditions.js';
+import {
+  gameParts, materialOf, materialOfBoss, PART_DATA, partCost, partInGame, partOf,
+} from './Parts.js';
 
 // A guard on MAX buys (costs grow far faster than this matters).
 const MAX_BULK = 10000;
 
 const islandDef = (id) => ISLANDS.find((i) => i.id === id);
 // A fresh island's record: its wave counter, best wave cleared, whether its
-// finale is beaten, and the last boss wave whose Pearls were paid.
-const newIsland = () => ({ wave: 1, best: 0, cleared: false, bossPaid: 0 });
+// finale is beaten, the last boss wave whose Pearls were paid, and each
+// boss's last wave whose material was paid.
+const newIsland = () => ({
+  wave: 1, best: 0, cleared: false, bossPaid: 0, dropsPaid: {},
+});
 
 const scaledCost = ({ baseCost, costGrowth }, level) => Math.round(baseCost * costGrowth ** level);
+
+// Today in local time ("2026-10-13"): Boss Hunts' daily doubles reset at
+// midnight.
+export function localDay(now = Date.now()) {
+  const d = new Date(now);
+  const two = (n) => `${n}`.padStart(2, '0');
+  return `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}`;
+}
 
 // Everything the player has earned. Plain data plus the formulas that read it.
 // toSave() / fromSave() convert to and from the stored form (see Save.js).
@@ -58,6 +72,18 @@ export class Progress {
     this.expeditions = [];
     this.goldLog = [];
 
+    // Ship parts (see Parts.js): boss materials held, by material id; parts
+    // owned, by part id -> level (1-5); the part on each slot (parts.json's
+    // slots; missing = empty, the stock look).
+    this.materials = {};
+    this.parts = {};
+    this.equipped = {};
+    // Boss Hunts, by boss (ENEMIES key): hunt level (missing = 1), and
+    // today's wins over each (huntDay: the local day they count for).
+    this.huntLevels = {};
+    this.huntDay = '';
+    this.huntWins = {};
+
     this.muted = false;             // sound effects off
     this.autoAbilities = false;     // ability bar's Auto toggle
     // The Shipwright: how many levels a buy button buys (UI_KIT.buyAmounts:
@@ -78,7 +104,7 @@ export class Progress {
     const ownedOnly = (obj) => Object.fromEntries(Object.entries(obj).filter(([id]) => owned.includes(id)));
     return {
       island: this.islandId,
-      islands: Object.fromEntries(Object.entries(this.islands).map(([id, r]) => [id, { ...r }])),
+      islands: Object.fromEntries(Object.entries(this.islands).map(([id, r]) => [id, { ...r, dropsPaid: { ...r.dropsPaid } }])),
       mapSeen: this.mapSeen,
       freeLegendaryChests: this.freeLegendaryChests,
       freeChests: { ...this.freeChests },
@@ -103,6 +129,12 @@ export class Progress {
       battleLog: this.battleLog,
       expeditions: this.expeditions.map((e) => (e ? { ...e, party: [...e.party], from: { ...e.from } } : null)),
       goldLog: this.goldLog.map((w) => ({ ...w })),
+      materials: { ...this.materials },
+      parts: { ...this.parts },
+      equipped: { ...this.equipped },
+      huntLevels: { ...this.huntLevels },
+      huntDay: this.huntDay,
+      huntWins: { ...this.huntWins },
     };
   }
 
@@ -122,6 +154,8 @@ export class Progress {
         best: int(r.best, 0),
         cleared: r.cleared === true,
         bossPaid: int(r.bossPaid, 0),
+        dropsPaid: Object.fromEntries(Object.entries(r.dropsPaid ?? {})
+          .filter(([boss]) => ENEMIES[boss]?.boss).map(([boss, wave]) => [boss, int(wave, 0)])),
       };
     }
     p.islands[ISLANDS[0].id] ??= newIsland();
@@ -174,6 +208,26 @@ export class Progress {
         entry?.party.forEach((id) => away.add(id));
         return entry;
       });
+    }
+
+    // Ship parts and Boss Hunts. Before parts.json is loaded (it always is
+    // in the game) any id is kept as it is.
+    const knownMaterial = (id) => (PART_DATA.loaded ? !!materialOf(id) : true);
+    const knownPart = (id) => (PART_DATA.loaded ? !!partOf(id) : true);
+    for (const [id, n] of Object.entries(data.materials ?? {})) if (knownMaterial(id)) p.materials[id] = int(n, 0);
+    for (const [id, level] of Object.entries(data.parts ?? {})) {
+      if (knownPart(id) && Number.isFinite(level) && level >= 1) p.parts[id] = int(level, 1, PARTS.maxLevel);
+    }
+    for (const [slot, id] of Object.entries(data.equipped ?? {})) {
+      const fits = PART_DATA.loaded ? partOf(id)?.slot === slot : typeof id === 'string';
+      if (fits && p.parts[id]) p.equipped[slot] = id;
+    }
+    for (const [boss, level] of Object.entries(data.huntLevels ?? {})) {
+      if (ENEMIES[boss]?.boss) p.huntLevels[boss] = int(level, 1);
+    }
+    if (typeof data.huntDay === 'string') p.huntDay = data.huntDay.slice(0, 10);
+    for (const [boss, n] of Object.entries(data.huntWins ?? {})) {
+      if (ENEMIES[boss]?.boss) p.huntWins[boss] = int(n, 0, HUNTS.dailyDoubles);
     }
 
     if (Array.isArray(data.slots)) {
@@ -377,8 +431,11 @@ export class Progress {
     const buffs = {};
     const deckOf = (slot) => Math.floor(slot / SHIP.slotsPerDeck);
     const active = this.activeHeroes;
+    // Ghostweave Sails: the whole crew attacks faster.
+    const sails = this.partEffect('ghostweave_sails');
     for (const { id, slot } of active) {
       buffs[slot] = { damage: 1, attackSpeed: this.heroAttackSpeed(id), buffed: false, aura: null };
+      if (sails) buffs[slot].attackSpeed *= 1 + sails * PARTS.effects.ghostweave_sails.attackSpeedPerLevel;
     }
     for (const src of active) {
       const { aura } = HEROES[src.id];
@@ -398,7 +455,7 @@ export class Progress {
   }
 
   waveClearGold(wave = this.scalingWave) {
-    return Math.round((ECONOMY.waveClearBase + (wave - 1) * ECONOMY.waveClearPerWave) * waveScaling(wave).gold);
+    return clearBonus(wave);
   }
 
   // Add gold; returns the amount paid.
@@ -426,7 +483,7 @@ export class Progress {
   // beaten finale's config, or null).
   winWave() {
     const finale = this.isFinaleWave ? this.island.finale : null;
-    const gold = this.earnGold(this.waveClearGold());
+    const gold = this.earnGold(this.boostGold(this.waveClearGold()));
     let pearls = this.waveClearPearls();
     if (finale) {
       pearls += finale.pearls;
@@ -538,6 +595,154 @@ export class Progress {
     if (!this.spend(this.deckCost())) return false;
     this.decks++;
     return true;
+  }
+
+  // --- Ship parts ---
+
+  materialCount(id) { return this.materials[id] ?? 0; }
+  addMaterial(id, n) {
+    if (!id || n <= 0) return 0;
+    this.materials[id] = this.materialCount(id) + n;
+    return n;
+  }
+
+  partLevel(id) { return this.parts[id] ?? 0; }
+  equippedPart(slot) { return this.equipped[slot] ?? null; }
+  isEquipped(id) { return !!id && this.equipped[partOf(id)?.slot] === id; }
+  // An equipped part's level (0 if it isn't on the ship): what it does in
+  // battle.
+  partEffect(id) { return this.isEquipped(id) ? this.partLevel(id) : 0; }
+  // { partId: level } of everything on the ship.
+  get equippedLevels() {
+    return Object.fromEntries(Object.values(this.equipped).filter((id) => this.parts[id]).map((id) => [id, this.parts[id]]));
+  }
+
+  // Whether the material has ever dropped: its boss has been beaten (or some
+  // is held). Until then the Shipyard shows its parts dark.
+  hasFoundMaterial(materialId) {
+    const m = materialOf(materialId);
+    return !!m && (this.materialCount(materialId) > 0 || this.defeatCount(m.bossKey) > 0);
+  }
+
+  // What the part's next level costs ({ material, gold }), or null at max.
+  partNextCost(id) { return partCost(id, this.partLevel(id) + 1); }
+  canAffordPart(id) {
+    const cost = this.partNextCost(id);
+    return !!cost && partInGame(id) && this.materialCount(partOf(id).material) >= cost.material && this.gold >= cost.gold;
+  }
+  // Something in the Shipyard can be crafted or upgraded.
+  get anyPartAffordable() { return gameParts().some((p) => this.canAffordPart(p.id)); }
+
+  // Craft the part (level 1) or upgrade it. A part crafted for an empty
+  // slot goes straight on.
+  upgradePart(id) {
+    if (!this.canAffordPart(id)) return false;
+    const cost = this.partNextCost(id);
+    const part = partOf(id);
+    this.gold -= cost.gold;
+    this.materials[part.material] -= cost.material;
+    this.parts[id] = this.partLevel(id) + 1;
+    if (this.parts[id] === 1 && !this.equipped[part.slot]) this.equipped[part.slot] = id;
+    return true;
+  }
+
+  // Put an owned part on its slot (another there comes off), or take it off.
+  equipPart(id, on = true) {
+    const part = partOf(id);
+    if (!part || !this.parts[id]) return false;
+    if (on) this.equipped[part.slot] = id;
+    else if (this.equipped[part.slot] === id) delete this.equipped[part.slot];
+    return true;
+  }
+
+  // Gold from kills, wave clears and hunts, with the Blackbones' Lantern.
+  get goldMult() {
+    const lantern = this.partEffect('blackbones_lantern');
+    return lantern ? 1 + lantern * PARTS.effects.blackbones_lantern.goldPerLevel : 1;
+  }
+  boostGold(amount) {
+    const mult = this.goldMult;
+    return mult === 1 ? amount : Math.round(amount * mult);
+  }
+
+  // A boss was beaten in a wave (not a hunt): its material, more the first
+  // time that boss is ever beaten (call after recordDefeat); once per boss
+  // per wave, so retrying a lost wave doesn't pay it again. Returns
+  // { material, count } or null.
+  bossDrop(bossKey) {
+    const m = materialOfBoss(bossKey);
+    const paid = (this.record.dropsPaid ??= {});
+    if (!m || paid[bossKey] >= this.wave) return null;
+    paid[bossKey] = this.wave;
+    const { perKill, firstKill } = PARTS.drops;
+    const count = this.defeatCount(bossKey) <= 1 ? firstKill : perKill;
+    this.addMaterial(m.id, count);
+    return { material: m.id, count };
+  }
+
+  // --- Boss Hunts ---
+
+  // An island's bosses that can be hunted (those of its boss waves), each
+  // with whether it's open yet (beaten at least once).
+  huntableBosses(islandId) {
+    const island = ISLANDS.find((d) => d.id === islandId);
+    if (!island?.available) return [];
+    return islandContent(island).bosses.map((boss) => ({ boss, open: this.defeatCount(boss) > 0 }));
+  }
+  hasHunts(islandId) { return this.huntableBosses(islandId).some((h) => h.open); }
+
+  huntLevel(boss) { return this.huntLevels[boss] ?? 1; }
+  // Double-material wins left today over this boss.
+  huntDoublesLeft(boss, now = Date.now()) {
+    const wins = this.huntDay === localDay(now) ? this.huntWins[boss] ?? 0 : 0;
+    return Math.max(0, HUNTS.dailyDoubles - wins);
+  }
+
+  // What a hunt is fought with: waveOptions' shape, plus wave (the boss's
+  // first wave on its island) and hunt { boss, level }.
+  huntOptions(boss, islandId) {
+    const island = ISLANDS.find((d) => d.id === islandId);
+    return {
+      wave: enemyFirstWave(boss, island),
+      island,
+      offset: island.waveOffset,
+      finale: null,
+      countFactor: 1,
+      hunt: { boss, level: this.huntLevel(boss) },
+    };
+  }
+
+  // A hunt's drop at a level: { material, count } (before the daily double).
+  huntDrop(boss, level = this.huntLevel(boss)) {
+    return { material: materialOfBoss(boss)?.id ?? null, count: HUNTS.dropBase + Math.floor(level / HUNTS.dropEvery) };
+  }
+
+  // The gold a hunt win pays.
+  huntGold(boss, islandId) {
+    const { wave, offset } = this.huntOptions(boss, islandId);
+    return this.boostGold(Math.round(HUNTS.gold * clearBonus(wave + offset)));
+  }
+
+  // A hunt won: the boss's material (doubled while today's doubles last), a
+  // little gold, and its hunt level goes up. Returns { material, count,
+  // doubled, gold, level (the one beaten) }.
+  winHunt(boss, islandId, now = Date.now()) {
+    const level = this.huntLevel(boss);
+    const doubled = this.huntDoublesLeft(boss, now) > 0;
+    const drop = this.huntDrop(boss, level);
+    const count = drop.count * (doubled ? 2 : 1);
+    this.addMaterial(drop.material, count);
+    const gold = this.earnGold(this.huntGold(boss, islandId));
+    const today = localDay(now);
+    if (this.huntDay !== today) {
+      this.huntDay = today;
+      this.huntWins = {};
+    }
+    this.huntWins[boss] = Math.min(HUNTS.dailyDoubles, (this.huntWins[boss] ?? 0) + 1);
+    this.huntLevels[boss] = level + 1;
+    return {
+      material: drop.material, count, doubled, gold, level,
+    };
   }
 
   // --- Packs ---

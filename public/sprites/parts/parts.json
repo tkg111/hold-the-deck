@@ -1,0 +1,122 @@
+{
+  "materials": {
+    "sheet": "materials.png",
+    "size": 16,
+    "order": [
+      {
+        "id": "kraken_ink",
+        "name": "Kraken Ink",
+        "boss": "the_kraken",
+        "island": "skull_cove"
+      },
+      {
+        "id": "ectoplasm",
+        "name": "Spectral Ectoplasm",
+        "boss": "ghost_galleon",
+        "island": "skull_cove"
+      },
+      {
+        "id": "magma_core",
+        "name": "Magma Core",
+        "boss": "molten_leviathan",
+        "island": "ember_isle"
+      },
+      {
+        "id": "wyrm_scale",
+        "name": "Wyrm Scale",
+        "boss": "frost_wyrm",
+        "island": "frostbite_reef"
+      },
+      {
+        "id": "heartwood",
+        "name": "Frozen Heartwood",
+        "boss": "frost_giant",
+        "island": "frostbite_reef"
+      },
+      {
+        "id": "siren_pearl",
+        "name": "Siren Pearl",
+        "boss": "siren_queen",
+        "island": "fogbound_isle"
+      },
+      {
+        "id": "cursed_doubloon",
+        "name": "Cursed Doubloon",
+        "boss": "captain_blackbones",
+        "island": "fogbound_isle"
+      }
+    ]
+  },
+  "slots": [
+    "figurehead",
+    "sails",
+    "cannons",
+    "lantern"
+  ],
+  "parts": [
+    {
+      "id": "kraken_figurehead",
+      "name": "Kraken Figurehead",
+      "slot": "figurehead",
+      "material": "kraken_ink",
+      "effect": "Every 8s a tentacle grabs the frontmost enemy: stunned 1.5s (+0.25s/level).",
+      "overlay": "kraken_figurehead.png",
+      "icon": "icon_kraken_figurehead.png"
+    },
+    {
+      "id": "siren_figurehead",
+      "name": "Siren Figurehead",
+      "slot": "figurehead",
+      "material": "siren_pearl",
+      "effect": "Every 12s charms the frontmost non-boss enemy for 3s (+0.5s/level): it fights its own side.",
+      "overlay": "siren_figurehead.png",
+      "icon": "icon_siren_figurehead.png"
+    },
+    {
+      "id": "ghostweave_sails",
+      "name": "Ghostweave Sails",
+      "slot": "sails",
+      "material": "ectoplasm",
+      "effect": "Crew attack speed +4% per level.",
+      "overlay": "ghostweave_sails.png",
+      "icon": "icon_ghostweave_sails.png"
+    },
+    {
+      "id": "frostwing_sails",
+      "name": "Frostwing Sails",
+      "slot": "sails",
+      "material": "wyrm_scale",
+      "effect": "Enemies within 120px of the ship are slowed 6% per level.",
+      "overlay": "frostwing_sails.png",
+      "icon": "icon_frostwing_sails.png"
+    },
+    {
+      "id": "magma_cannons",
+      "name": "Magma Cannons",
+      "slot": "cannons",
+      "material": "magma_core",
+      "effect": "Every 6s fires a lava shot at the frontmost enemy and leaves a fire puddle.",
+      "overlay": "magma_cannons.png",
+      "icon": "icon_magma_cannons.png"
+    },
+    {
+      "id": "heartwood_cannons",
+      "name": "Heartwood Cannons",
+      "slot": "cannons",
+      "material": "heartwood",
+      "effect": "Every 5s fires a frozen log: hits the first 3 enemies in line and slows them 30% for 2s.",
+      "overlay": "heartwood_cannons.png",
+      "icon": "icon_heartwood_cannons.png"
+    },
+    {
+      "id": "blackbones_lantern",
+      "name": "Blackbones' Lantern",
+      "slot": "lantern",
+      "material": "cursed_doubloon",
+      "effect": "+5% gold per level, and halves the fog-bank range penalty.",
+      "overlay": "blackbones_lantern_s{stage}.png",
+      "icon": "icon_blackbones_lantern.png"
+    }
+  ],
+  "overlayNote": "All overlays are 176x160, the same size as the ship images; drawn at the ship position (same as ship_stageN.png), after the stage image and before crew. Lantern overlays are per ship stage and replace the stock lantern (hide nothing; it covers it)."
+}

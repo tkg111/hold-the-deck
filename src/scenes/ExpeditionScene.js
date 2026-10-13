@@ -7,6 +7,8 @@ import { applyRenderScale, fillView } from '../display.js';
 import { mapKey } from '../sprites.js';
 import * as X from '../systems/Expeditions.js';
 import { saveProgress } from '../systems/Save.js';
+import { materialOf } from '../systems/Parts.js';
+import { materialIcon } from '../ui/parts.js';
 import { Button } from '../ui/Button.js';
 import {
   cssColor, fmtClock, fmtShortTime, formatNum, starLabel,
@@ -511,12 +513,14 @@ export class ExpeditionScene extends Phaser.Scene {
     this.showReveal(entry, slot);
   }
 
-  // The rewards to flip, in order: gold, Pearls, chests, then the bonus find.
+  // The rewards to flip, in order: gold, Pearls, chests, a boss material,
+  // then the bonus find.
   rewardsOf(entry) {
     const { loot } = entry;
     const list = [{ kind: 'gold', amount: loot.gold }];
     if (loot.pearls) list.push({ kind: 'pearls', amount: loot.pearls });
     for (const tier of loot.chests) list.push({ kind: 'chest', tier });
+    if (loot.material) list.push({ kind: 'material', id: loot.material.id, amount: loot.material.count });
     if (loot.bonus) list.push({ ...loot.bonus, bonus: true });
     return list;
   }
@@ -593,11 +597,14 @@ export class ExpeditionScene extends Phaser.Scene {
     if (r.bonus) return EXPEDITIONS.glowColor;
     if (r.kind === 'chest') return EXPEDITIONS.chests[r.tier].color;
     if (r.kind === 'pearls') return 0xbfe6ff;
+    if (r.kind === 'material') return 0xc8ffe0;
     return 0xffd86a;
   }
 
-  // The big icon on the front (3x the kit's 12px icon).
+  // The big icon on the front (3x the kit's 12px icon; a material's 16px
+  // icon at 2x).
   rewardArt(r) {
+    if (r.kind === 'material') return materialIcon(this, 0, -14, r.id).setScale(2);
     const name = r.kind === 'chest' ? 'chest' : r.kind === 'pearls' ? 'pearl' : 'gold';
     return icon(this, 0, -14, name).setScale(3);
   }
@@ -613,6 +620,9 @@ export class ExpeditionScene extends Phaser.Scene {
     } else if (r.kind === 'pearls') {
       amount = `+${formatNum(r.amount)}`;
       label = r.bonus ? 'PEARLS X2' : 'PEARLS';
+    } else if (r.kind === 'material') {
+      amount = `+${formatNum(r.amount)}`;
+      label = (materialOf(r.id)?.name ?? '').toUpperCase();
     } else {
       amount = '+1';
       label = EXPEDITIONS.chests[r.tier].label.toUpperCase();

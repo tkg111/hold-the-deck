@@ -1439,3 +1439,246 @@ Scaled at the waves they fight on:
 
 A Bone Deckhand has 6,676 HP on wave 1 (13,352 with the early boost) and
 8,748 on wave 25, and hits for 340.
+
+## 11. Ship parts and Boss Hunts
+
+Reproduce with `npm run sim:parts -- 3 3` (`scripts/sim/parts.mjs`; set
+`PARTS_CACHE` to a file to keep the crews between runs). With no part
+equipped nothing changes: `npm run sim -- 3 50 voyage` gives the same
+results as before parts, wave for wave (win, battle time and hull left to six
+decimals, 794 waves).
+
+### 11.1 How it's measured
+
+- **Crews:** for seeds 1000–1002 the greedy bot sails all four islands from
+  a fresh save, spending after every attempt; a wave lost 30 times running
+  is skipped (all three cleared every finale). It never makes a part. Its
+  save is kept before the first attempt of every boss wave.
+- **Configs:** each boss wave (10, 20, 30, 40 and the finale, 50) is played
+  with no part, then with each part made from that island's bosses'
+  materials at level 1 and at level 5, 3 replays per crew (9 per cell).
+- **Two crews per wave:** *on pace* is the crew as it was at that wave;
+  *behind* is the crew from 10 waves earlier (wave 1's for wave 10)
+  fighting it, so wins aren't a given.
+- **Boss TTK:** from when the first boss can be hit to the last one's death,
+  over the wins. **Hull lost:** a loss counts as 100%.
+
+### 11.2 Each part against no part
+
+All five of its island's boss waves, both crews (90 attempts per row):
+
+| Part | Level | Wins (none → part) | Boss TTK change | Hull lost (none → part) |
+|---|---:|---|---:|---|
+| Kraken Figurehead | 1 | 43/90 → 45/90 | +0% | 74% → 72% |
+| Kraken Figurehead | 5 | 43/90 → 48/90 | 0% | 74% → 70% |
+| Siren Figurehead | 1 | 90/90 → 90/90 | -4% | 44% → 40% |
+| Siren Figurehead | 5 | 90/90 → 90/90 | -9% | 44% → 38% |
+| Ghostweave Sails | 1 | 43/90 → 45/90 | -3% | 74% → 70% |
+| Ghostweave Sails | 5 | 43/90 → 51/90 | -13% | 74% → 65% |
+| Frostwing Sails | 1 | 59/90 → 64/90 | -1% | 77% → 74% |
+| Frostwing Sails | 5 | 59/90 → 76/90 | +1% | 77% → 61% |
+| Magma Cannons | 1 | 57/90 → 62/90 | -2% | 66% → 63% |
+| Magma Cannons | 5 | 57/90 → 65/90 | -20% | 66% → 55% |
+| Heartwood Cannons | 1 | 59/90 → 61/90 | -2% | 77% → 73% |
+| Heartwood Cannons | 5 | 59/90 → 69/90 | -10% | 77% → 65% |
+| Blackbones' Lantern | 1 | 90/90 → 90/90 | +0% | 44% → 44% |
+| Blackbones' Lantern | 5 | 90/90 → 90/90 | +0% | 44% → 44% |
+
+Per wave (wins out of 9; TTK and hull lost averaged):
+
+| Part | Wave | Crew | Wins: none / L1 / L5 | Boss TTK: none / L1 / L5 | Hull lost: none / L1 / L5 |
+|---|---:|---|---|---|---|
+| Kraken Figurehead | 10 | on pace | 6/9 / 6/9 / 6/9 | 25.0s / 25.9s / 25.9s | 74% / 77% / 75% |
+| Kraken Figurehead | 10 | behind | 0/9 / 0/9 / 0/9 | - / - / - | 100% / 100% / 100% |
+| Kraken Figurehead | 20 | on pace | 9/9 / 9/9 / 9/9 | 26.3s / 26.6s / 26.4s | 33% / 32% / 33% |
+| Kraken Figurehead | 20 | behind | 0/9 / 0/9 / 0/9 | - / - / - | 100% / 100% / 100% |
+| Kraken Figurehead | 30 | on pace | 8/9 / 9/9 / 9/9 | 21.2s / 21.5s / 21.5s | 60% / 52% / 49% |
+| Kraken Figurehead | 30 | behind | 3/9 / 3/9 / 3/9 | 33.5s / 33.1s / 33.0s | 91% / 87% / 87% |
+| Kraken Figurehead | 40 | on pace | 9/9 / 9/9 / 9/9 | 30.5s / 29.1s / 27.1s | 38% / 28% / 24% |
+| Kraken Figurehead | 40 | behind | 3/9 / 3/9 / 3/9 | 39.4s / 37.6s / 38.1s | 74% / 71% / 71% |
+| Kraken Figurehead | 50 | on pace | 5/9 / 6/9 / 9/9 | 41.3s / 43.4s / 44.6s | 75% / 70% / 62% |
+| Kraken Figurehead | 50 | behind | 0/9 / 0/9 / 0/9 | - / - / - | 100% / 100% / 100% |
+| Ghostweave Sails | 10 | on pace | 6/9 / 6/9 / 6/9 | 25.0s / 23.3s / 21.1s | 74% / 58% / 46% |
+| Ghostweave Sails | 10 | behind | 0/9 / 0/9 / 0/9 | - / - / - | 100% / 100% / 100% |
+| Ghostweave Sails | 20 | on pace | 9/9 / 9/9 / 9/9 | 26.3s / 26.0s / 24.5s | 33% / 28% / 27% |
+| Ghostweave Sails | 20 | behind | 0/9 / 0/9 / 0/9 | - / - / - | 100% / 100% / 100% |
+| Ghostweave Sails | 30 | on pace | 8/9 / 9/9 / 9/9 | 21.2s / 21.2s / 18.7s | 60% / 53% / 64% |
+| Ghostweave Sails | 30 | behind | 3/9 / 3/9 / 3/9 | 33.5s / 32.9s / 29.8s | 91% / 88% / 86% |
+| Ghostweave Sails | 40 | on pace | 9/9 / 9/9 / 9/9 | 30.5s / 27.5s / 23.8s | 38% / 29% / 23% |
+| Ghostweave Sails | 40 | behind | 3/9 / 3/9 / 6/9 | 39.4s / 38.0s / 33.5s | 74% / 74% / 66% |
+| Ghostweave Sails | 50 | on pace | 5/9 / 6/9 / 9/9 | 41.3s / 41.8s / 37.3s | 75% / 71% / 40% |
+| Ghostweave Sails | 50 | behind | 0/9 / 0/9 / 0/9 | - / - / - | 100% / 100% / 100% |
+| Magma Cannons | 10 | on pace | 9/9 / 9/9 / 9/9 | 28.4s / 27.3s / 24.6s | 21% / 20% / 17% |
+| Magma Cannons | 10 | behind | 9/9 / 9/9 / 9/9 | 29.2s / 28.0s / 25.0s | 28% / 26% / 23% |
+| Magma Cannons | 20 | on pace | 9/9 / 9/9 / 9/9 | 31.8s / 30.5s / 26.6s | 39% / 42% / 36% |
+| Magma Cannons | 20 | behind | 5/9 / 8/9 / 8/9 | 33.0s / 38.6s / 29.9s | 82% / 75% / 70% |
+| Magma Cannons | 30 | on pace | 9/9 / 9/9 / 9/9 | 32.0s / 32.3s / 26.4s | 40% / 34% / 23% |
+| Magma Cannons | 30 | behind | 6/9 / 6/9 / 9/9 | 40.0s / 39.1s / 30.4s | 88% / 83% / 53% |
+| Magma Cannons | 40 | on pace | 8/9 / 9/9 / 9/9 | 45.4s / 44.6s / 38.3s | 61% / 56% / 46% |
+| Magma Cannons | 40 | behind | 2/9 / 3/9 / 3/9 | 46.7s / 38.3s / 24.0s | 99% / 91% / 81% |
+| Magma Cannons | 50 | on pace | 0/9 / 0/9 / 0/9 | - / - / - | 100% / 100% / 100% |
+| Magma Cannons | 50 | behind | 0/9 / 0/9 / 0/9 | - / - / - | 100% / 100% / 100% |
+| Frostwing Sails | 10 | on pace | 6/9 / 6/9 / 9/9 | 48.7s / 48.7s / 57.4s | 86% / 84% / 74% |
+| Frostwing Sails | 10 | behind | 6/9 / 6/9 / 6/9 | 50.5s / 50.4s / 50.1s | 90% / 88% / 81% |
+| Frostwing Sails | 20 | on pace | 6/9 / 6/9 / 7/9 | 40.7s / 40.8s / 40.9s | 81% / 79% / 70% |
+| Frostwing Sails | 20 | behind | 3/9 / 6/9 / 6/9 | 45.3s / 42.3s / 42.2s | 96% / 94% / 83% |
+| Frostwing Sails | 30 | on pace | 6/9 / 6/9 / 9/9 | 46.8s / 46.0s / 55.1s | 59% / 58% / 40% |
+| Frostwing Sails | 30 | behind | 6/9 / 6/9 / 6/9 | 48.3s / 48.5s / 48.7s | 72% / 70% / 59% |
+| Frostwing Sails | 40 | on pace | 6/9 / 7/9 / 9/9 | 40.8s / 40.9s / 40.6s | 80% / 75% / 45% |
+| Frostwing Sails | 40 | behind | 3/9 / 3/9 / 6/9 | 45.7s / 45.5s / 43.2s | 96% / 94% / 80% |
+| Frostwing Sails | 50 | on pace | 9/9 / 9/9 / 9/9 | 76.0s / 76.2s / 75.4s | 39% / 33% / 26% |
+| Frostwing Sails | 50 | behind | 8/9 / 9/9 / 9/9 | 96.3s / 93.6s / 88.4s | 76% / 69% / 49% |
+| Heartwood Cannons | 10 | on pace | 6/9 / 6/9 / 6/9 | 48.7s / 48.4s / 44.2s | 86% / 80% / 78% |
+| Heartwood Cannons | 10 | behind | 6/9 / 6/9 / 6/9 | 50.5s / 49.7s / 45.4s | 90% / 86% / 83% |
+| Heartwood Cannons | 20 | on pace | 6/9 / 6/9 / 6/9 | 40.7s / 40.3s / 37.1s | 81% / 77% / 68% |
+| Heartwood Cannons | 20 | behind | 3/9 / 6/9 / 6/9 | 45.3s / 41.9s / 39.2s | 96% / 89% / 82% |
+| Heartwood Cannons | 30 | on pace | 6/9 / 6/9 / 9/9 | 46.8s / 44.5s / 43.0s | 59% / 57% / 46% |
+| Heartwood Cannons | 30 | behind | 6/9 / 6/9 / 6/9 | 48.3s / 46.9s / 44.2s | 72% / 68% / 61% |
+| Heartwood Cannons | 40 | on pace | 6/9 / 6/9 / 9/9 | 40.8s / 39.6s / 37.6s | 80% / 73% / 63% |
+| Heartwood Cannons | 40 | behind | 3/9 / 3/9 / 3/9 | 45.7s / 44.9s / 43.2s | 96% / 91% / 91% |
+| Heartwood Cannons | 50 | on pace | 9/9 / 9/9 / 9/9 | 76.0s / 78.0s / 68.8s | 39% / 35% / 25% |
+| Heartwood Cannons | 50 | behind | 8/9 / 7/9 / 9/9 | 96.3s / 96.1s / 76.9s | 76% / 73% / 51% |
+| Siren Figurehead | 10 | on pace | 9/9 / 9/9 / 9/9 | 60.9s / 59.0s / 56.7s | 35% / 35% / 34% |
+| Siren Figurehead | 10 | behind | 9/9 / 9/9 / 9/9 | 63.1s / 60.6s / 58.4s | 42% / 43% / 40% |
+| Siren Figurehead | 20 | on pace | 9/9 / 9/9 / 9/9 | 23.7s / 22.4s / 21.3s | 25% / 19% / 17% |
+| Siren Figurehead | 20 | behind | 9/9 / 9/9 / 9/9 | 24.3s / 23.4s / 22.0s | 34% / 31% / 26% |
+| Siren Figurehead | 30 | on pace | 9/9 / 9/9 / 9/9 | 62.8s / 62.6s / 59.1s | 36% / 32% / 32% |
+| Siren Figurehead | 30 | behind | 9/9 / 9/9 / 9/9 | 66.1s / 66.1s / 63.1s | 55% / 47% / 47% |
+| Siren Figurehead | 40 | on pace | 9/9 / 9/9 / 9/9 | 66.0s / 62.4s / 57.6s | 43% / 41% / 40% |
+| Siren Figurehead | 40 | behind | 9/9 / 9/9 / 9/9 | 69.8s / 67.6s / 62.2s | 70% / 67% / 62% |
+| Siren Figurehead | 50 | on pace | 9/9 / 9/9 / 9/9 | 114.6s / 109.3s / 104.0s | 35% / 31% / 29% |
+| Siren Figurehead | 50 | behind | 9/9 / 9/9 / 9/9 | 129.1s / 116.6s / 113.4s | 62% / 51% / 47% |
+| Blackbones' Lantern | 10 | on pace | 9/9 / 9/9 / 9/9 | 60.9s / 60.9s / 60.9s | 35% / 35% / 35% |
+| Blackbones' Lantern | 10 | behind | 9/9 / 9/9 / 9/9 | 63.1s / 63.1s / 63.1s | 42% / 42% / 42% |
+| Blackbones' Lantern | 20 | on pace | 9/9 / 9/9 / 9/9 | 23.7s / 23.7s / 23.7s | 25% / 25% / 25% |
+| Blackbones' Lantern | 20 | behind | 9/9 / 9/9 / 9/9 | 24.3s / 24.3s / 24.3s | 34% / 34% / 34% |
+| Blackbones' Lantern | 30 | on pace | 9/9 / 9/9 / 9/9 | 62.8s / 62.8s / 62.8s | 36% / 36% / 36% |
+| Blackbones' Lantern | 30 | behind | 9/9 / 9/9 / 9/9 | 66.1s / 66.1s / 66.1s | 55% / 55% / 55% |
+| Blackbones' Lantern | 40 | on pace | 9/9 / 9/9 / 9/9 | 66.0s / 66.0s / 66.0s | 43% / 43% / 43% |
+| Blackbones' Lantern | 40 | behind | 9/9 / 9/9 / 9/9 | 69.8s / 69.8s / 69.8s | 70% / 70% / 70% |
+| Blackbones' Lantern | 50 | on pace | 9/9 / 9/9 / 9/9 | 114.6s / 114.9s / 114.9s | 35% / 34% / 34% |
+| Blackbones' Lantern | 50 | behind | 9/9 / 9/9 / 9/9 | 129.1s / 129.2s / 129.2s | 62% / 62% / 62% |
+
+### 11.3 Flags
+
+- **No must-have.** No part turns a wall into a sure win on its own. The
+  biggest swing is **Frostwing Sails at level 5** on Frostbite Reef: wins
+  59 → 76 of 90, hull lost 77% → 61%, and the on-pace crew wins waves 10,
+  30 and 40 every time (6/9 without). That's the closest to a must-have,
+  and it's local: the slow only covers the last 120 px, where Frostbite's
+  big hitters (Yetis, the Giant) do their damage. Worth watching if the
+  island is retuned.
+- **Kraken Figurehead: almost nothing on its own island.** Boss kill time is
+  unchanged at both levels (0%), hull lost 74% → 70% at level 5, and the
+  one real gain is the Skull Cove finale for the on-pace crew (5/9 → 9/9 at
+  level 5). Its stun lands on whatever is nearest the ship, usually trash
+  the crew would kill anyway, and bosses halve it. If it should matter: aim
+  it at the biggest threat (an Elite, a Keg Runner, a boss without stun
+  guard) rather than the frontmost, or give the slap some damage.
+- **Blackbones' Lantern: nothing in boss fights, by design.** Fog banks
+  skip boss waves, and in the finale's fog (×0.85 range) halving the
+  penalty to ×0.925 changed nothing measurable. Its worth is the +25% gold
+  at level 5 and Fogbound Isle's 9 fog-bank waves (×0.7 → ×0.85 range),
+  which this test doesn't play. Fine as an economy part, but it shouldn't
+  be presented as a combat one.
+- **The rest are solid without being required:** Magma Cannons level 5 cut
+  Ember boss kills by 20% and hull lost 66% → 55% (and turn the behind
+  crew's wave 30 from 6/9 to 9/9); Ghostweave Sails 13% faster and +8
+  wins; Heartwood Cannons 10% and +10 wins; the Siren Figurehead 9% and
+  44% → 38% hull (Fogbound's boss waves were already all won).
+- **Level 1 is a taste, level 5 is the part:** at level 1 every part is
+  within a few points of no part. That follows from the spec's numbers
+  (level 1 costs 5 material, level 5 another 63), but a freshly made part
+  feels flat. Raising the level-1 values and flattening the per-level
+  growth would fix that if it shows in play.
+
+### 11.4 Boss Hunts: how many to max a part
+
+A part needs **68** material (5 + 8 + 12 + 18 + 25). A hunt win at level L
+drops 2 + floor(L / 3), doubled for the first 3 wins over that boss each
+day. From nothing, all won:
+
+| | Hunts to 68 material |
+|---|---:|
+| No doubles | 16 |
+| The day's 3 doubles first, the rest the same day | 15 |
+| Every hunt doubled (3 a day, over 4 days) | 10 |
+
+How far each crew gets: the crew each seed has when it reaches the next
+island's wave 1 (the end of the voyage for Fogbound Isle) hunts each of the
+island's bosses from level 1 until it loses 3 times in a row at one level
+(all on one day: the first 3 wins doubled). Each cell lists the three
+seeds; "Material from its waves" is what the voyage's boss waves dropped
+(3 per kill, 5 the first, once per wave); "Hunts to max a part" counts
+hunt material only:
+
+| Island | Boss | Material from its waves | Best hunt level won | Hunts played | Hunts to max a part |
+|---|---|---|---|---|---|
+| Skull Cove | The Kraken | 11 / 11 / 11 | 19 / 20 / 19 | 22 / 23 / 22 | 15 / 15 / 15 |
+| Skull Cove | The Ghost Galleon | 11 / 11 / 11 | 13 / 13 / 14 | 16 / 16 / 17 | - / - / - |
+| Ember Isle | Molten Leviathan | 14 / 17 / 17 | 13 / 15 / 13 | 16 / 18 / 16 | - / 15 / - |
+| Frostbite Reef | Frost Wyrm | 8 / 11 / 11 | 8 / 5 / 5 | 11 / 8 / 8 | - / - / - |
+| Frostbite Reef | Frost Giant | 8 / 11 / 11 | 7 / 5 / 5 | 10 / 8 / 8 | - / - / - |
+| Fogbound Isle | Siren Queen | 11 / 11 / 11 | 11 / 11 / 11 | 14 / 14 / 15 | - / - / - |
+| Fogbound Isle | Captain Blackbones | 11 / 11 / 11 | 9 / 7 / 8 | 12 / 10 / 11 | - / - / - |
+
+- **Only Skull Cove's Kraken is maxed by hunting straight after its
+  island** (15 hunts, up to hunt level 19–20; the Leviathan once). Every
+  other boss stalls first: the Galleon and the Leviathan at levels 13–15,
+  the Siren Queen at 11, Blackbones at 7–9 and **Frostbite Reef's two at
+  5–8**. Counting the wave drops as well (a stall at level 13 has
+  gathered 59 from hunts), the Galleon's and the Leviathan's parts also
+  reach level 5 by the time the crew sails on; the Siren Queen's and
+  Blackbones' end at level 3–4 and Frostbite Reef's at 3 (4 for one Wyrm
+  crew).
+- That's the rising difficulty doing its job, but the pace differs a lot
+  between islands. Frostbite's hunts start from its hardest point: wave
+  10's bossBoost (×1.35 HP, ×1.4 damage) and early boost (×1.6 HP on the
+  trickle), which even the on-pace crew wins only 6 times in 9 at hunt
+  level 1. With a later crew (each island is about 49 waves of scaling
+  ahead) they get much easier, so Frostbite's parts are a Fogbound-era goal.
+  If they should come sooner, hunts could leave out `earlyBoost` and
+  `bossBoost`, or grow by less than 15% a level.
+- **Wave drops matter less than hunts:** 8–17 material per boss over a whole
+  island, enough to craft (5) and maybe reach level 2 (13 total).
+
+### 11.5 Gold costs
+
+Each level costs 3 / 5 / 8 / 12 / 18 waves of gold (kills and clear bonus)
+of the wave where the part's boss first appears, 46 of those waves for all
+five. Against the bot's average gold per wave won over the whole island:
+
+| Part | L1 | L2 | L3 | L4 | L5 | Bot gold per wave on its island | All 5 levels in waves of gold |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Kraken Figurehead | 807 | 1,344 | 2,151 | 3,226 | 4,839 | 5,326 | 2.3 |
+| Siren Figurehead | 87,574,008 | 145,956,680 | 233,530,687 | 350,296,031 | 525,444,046 | 197,374,867 | 6.8 |
+| Ghostweave Sails | 3,363 | 5,606 | 8,969 | 13,453 | 20,180 | 5,326 | 9.7 |
+| Frostwing Sails | 2,491,333 | 4,152,222 | 6,643,555 | 9,965,332 | 14,947,998 | 5,089,794 | 7.5 |
+| Magma Cannons | 55,268 | 92,114 | 147,382 | 221,073 | 331,609 | 211,633 | 4.0 |
+| Heartwood Cannons | 5,657,333 | 9,428,888 | 15,086,221 | 22,629,332 | 33,943,998 | 5,089,794 | 17.0 |
+| Blackbones' Lantern | 190,607,699 | 317,679,499 | 508,287,198 | 762,430,796 | 1,143,646,195 | 197,374,867 | 14.8 |
+
+So maxing a part costs about 2–17 average waves of its island's gold;
+material, not gold, is what holds parts back. Pricing in wave-clear
+bonuses (the first version) made it 4–80 waves, because kill gold is a far
+bigger share of a wave on some islands than on others; whole-wave gold
+evens that out. Second bosses' parts (Ghostweave, Heartwood, the Lantern)
+cost more than first bosses' because their first wave is 10 waves later.
+
+### 11.6 Final numbers
+
+| What | Value |
+|---|---|
+| Material per level | 5 / 8 / 12 / 18 / 25 (68 to max) |
+| Gold per level | 3 / 5 / 8 / 12 / 18 waves of gold at the boss's first wave |
+| Boss drops in waves | 3, 5 on the first kill ever; once per boss per wave |
+| Expedition find | 15% chance of 1–2 of one of the island's beaten bosses' material |
+| Hunt | the boss's first wave, boss 1.5s in, trickle 0.6 of the wave's count from 4s, a group every 3s; ×1.15 HP and damage per level |
+| Hunt win | 2 + floor(level / 3) material, ×2 for the first 3 wins per boss per day; 2 wave-clear bonuses of gold |
+| Kraken Figurehead | every 8s, stun 1.5s + 0.25s per level |
+| Siren Figurehead | every 12s, charm 3s + 0.5s per level; a charmed enemy's hits are its damage × its HP scaling |
+| Ghostweave Sails | crew attack speed +4% per level |
+| Frostwing Sails | −6% pace per level within 120 px (bosses half) |
+| Magma Cannons | every 6s, 40% per level of the best DMG, plus a 3s puddle burning at 25% of that per second |
+| Heartwood Cannons | every 5s, 25% per level of the best DMG to 3 enemies, ×0.7 pace for 2s |
+| Blackbones' Lantern | +5% gold per level, fog range penalty ×0.5 |

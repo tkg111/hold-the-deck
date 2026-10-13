@@ -1,7 +1,10 @@
 import {
-  ASHFALL, ENEMIES, FX, ISLANDS, MAP, MIST, SHIP, SNOWFALL, SPRITES, STORM,
+  ASHFALL, ENEMIES, FX, ISLANDS, MAP, MIST, PARTS, SHIP, SNOWFALL, SPRITES, STORM,
 } from './config.js';
 import { initLayout, LAYOUT } from './layout.js';
+import {
+  MATERIALS_KEY, overlayFile, overlayKey, PARTS_JSON_KEY, partIconKey,
+} from './systems/Parts.js';
 import { preloadUi } from './ui/kit.js';
 import { versioned } from './version.js';
 
@@ -83,6 +86,23 @@ function preloadStorm(load) {
   });
 }
 
+// Ship parts (parts/parts.json and the images it names): each part's
+// overlay (the lantern's for every ship stage) and 32x32 icon, and the
+// materials' 16x16 icons.
+function preloadParts(load) {
+  load.json(PARTS_JSON_KEY, `${PARTS.path}parts.json`);
+  load.once(`filecomplete-json-${PARTS_JSON_KEY}`, (key, type, data) => {
+    const size = data.materials.size;
+    load.spritesheet(MATERIALS_KEY, `${PARTS.path}${data.materials.sheet}`, { frameWidth: size, frameHeight: size });
+    const overlays = new Map();   // key -> file (most parts look the same on every stage)
+    for (const part of data.parts) {
+      load.image(partIconKey(part), `${PARTS.path}${part.icon}`);
+      for (let d = 1; d <= SHIP.maxDecks; d++) overlays.set(overlayKey(part, d), overlayFile(part, d));
+    }
+    for (const [key, file] of overlays) load.image(key, `${PARTS.path}${file}`);
+  });
+}
+
 function preloadMap(load) {
   load.image(mapKey('bg'), `${MAP.path}map_bg.png`);
   load.image(mapKey('flag'), `${MAP.path}flag_cleared.png`);
@@ -155,6 +175,7 @@ export function preloadSprites(scene) {
   }
   preloadStorm(load);
   preloadMap(load);
+  preloadParts(load);
   for (const { key: file, dir } of ANIMATION_FILES) {
     load.json(file, `${dir}${file}.json`);
     load.once(`filecomplete-json-${file}`, (key, type, data) => {

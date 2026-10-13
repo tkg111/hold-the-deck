@@ -1,4 +1,4 @@
-import { ENEMIES } from '../config.js';
+import { ENEMIES, PARTS } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
 import { isBossWave } from './WaveManager.js';
 
@@ -30,12 +30,16 @@ export class Mists {
     this.timeLeft = 0;     // ms it still lies (Infinity: the finale)
     this.elapsed = 0;      // ms since it rolled in
     this.range = 1;        // the crew's range multiplier while it's in
+    this.penalty = 1;      // share of that range lost that counts (the Blackbones' Lantern halves it)
     this.graves = [];      // { x, age, enemy } of fallen deckhands
   }
 
   get active() { return this.timeLeft > 0; }
   // The crew's attack range multiplier (1 without a fog bank).
-  get rangeMult() { return this.active ? this.range : 1; }
+  get rangeMult() {
+    if (!this.active) return 1;
+    return this.penalty === 1 ? this.range : 1 - (1 - this.range) * this.penalty;
+  }
   // How thick the bank is: 0 .. 1, fading in over its first fadeMs and out
   // over its last.
   get level() {
@@ -47,6 +51,8 @@ export class Mists {
   // A wave starts. options: Progress.waveOptions.
   start(wave, { island = null, finale = null } = {}) {
     this.stop();
+    const lantern = this.scene.progress?.partEffect('blackbones_lantern');
+    this.penalty = lantern ? PARTS.effects.blackbones_lantern.fogPenalty : 1;
     const spec = island?.fogBank;
     if (!spec) return;
     if (finale?.weather === 'fog') {

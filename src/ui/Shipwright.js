@@ -6,14 +6,16 @@ import {
   dark, face, glyph, glyphWidth, icon, nineSlice, subText, text, UI,
 } from './kit.js';
 import { ScrollPanel } from './ScrollPanel.js';
+import { materialIcon } from './parts.js';
+import { PART_DATA, partOf } from '../systems/Parts.js';
 
 const TAB_LABELS = { ship: 'Ship', crew: 'Crew' };
 const AMOUNT_LABELS = { 1: 'x1', 10: 'x10', max: 'MAX' };
 // Room the scrollbar takes inside the parchment's right margin.
 const BAR_ROOM = 4;
 
-// The between-wave upgrade panel ("Shipwright"), in two tabs: Ship (hull HP,
-// build deck) and Crew (the crew on the ship in slot order, then everyone
+// The between-wave upgrade panel ("Shipwright"), in two tabs: Ship (a Parts
+// row that opens the Shipyard, hull HP, build deck) and Crew (the crew on the ship in slot order, then everyone
 // else). Each row shows its level, what the next buy changes ("DMG 1.07K
 // -> 1.12K") and a gold buy button for progress.buyAmount levels (x1, x10 or
 // MAX, the toggle in the header): disabled with a red price when it's out of
@@ -23,12 +25,13 @@ const BAR_ROOM = 4;
 // anything in either tab is affordable. Rows read Progress, so refresh() is
 // enough after gold or levels change; rebuild() when the crew changes.
 export class Shipwright extends ScrollPanel {
-  constructor(scene, x, y, progress, { onPurchase, onSettingChange }) {
+  constructor(scene, x, y, progress, { onPurchase, onSettingChange, onOpenShipyard }) {
     const header = UI_KIT.shipwrightHeader;
     super(scene, x, y, UI_KIT.shipwrightWidth, { title: 'SHIPWRIGHT', headerHeight: header.height });
     this.progress = progress;
     this.onPurchase = onPurchase;
     this.onSettingChange = onSettingChange;
+    this.onOpenShipyard = onOpenShipyard;
     this.tab = 'crew';
     this.entries = [];
     this.anchor = null;
@@ -147,11 +150,21 @@ export class Shipwright extends ScrollPanel {
   // Row definitions for a tab. Each: art, name (and a shorter one for tight
   // rows), level label, costAt(k) (the k-th next level, null past the cap),
   // stat(count): [label, now, after count more] (or a plain line when maxed),
-  // and buyOne().
+  // and buyOne(). Or, for a row that opens a screen instead (Parts): open()
+  // and affordable() (the green arrow).
   defs(tab) {
     const p = this.progress;
     if (tab === 'ship') {
+      const equipped = () => Object.values(p.equipped).filter((id) => partOf(id)).length;
       return [
+        {
+          art: (s) => materialIcon(s, 6, 11, PART_DATA.materials[0]?.id),
+          name: 'Parts',
+          level: () => `${equipped()}/${PART_DATA.slots.length}`,
+          stat: () => (equipped() ? `${equipped()} ON THE SHIP - TAP OPEN` : 'MADE FROM BOSS MATERIALS'),
+          open: () => this.onOpenShipyard?.(),
+          affordable: () => p.anyPartAffordable,
+        },
         {
           art: (s) => icon(s, 6, 11, 'hull'),
           name: 'Hull',
@@ -194,7 +207,7 @@ export class Shipwright extends ScrollPanel {
   rebuild() {
     const defs = this.defs(this.tab);
     // Maxed rows last (in their order).
-    const maxed = (d) => d.costAt(0) == null;
+    const maxed = (d) => !d.open && d.costAt(0) == null;
     defs.sort((a, b) => maxed(a) - maxed(b));
     this.entries = defs.map((def) => this.createRow(def));
     this.setRows(this.entries.map((e) => e.row));
@@ -212,10 +225,12 @@ export class Shipwright extends ScrollPanel {
     const statArrow = glyph(scene, 0, 17, 'arrow', UI.colors.subText);
     const statTo = text(scene, 0, 15, '', subText());
     const entry = { def, row, name, level, afford, statFrom, statArrow, statTo };
-    entry.button = new Button(scene, this.listWidth - bw / 2, 2 + bh / 2, {
-      width: bw, height: bh, style: 'gold', icon: 'gold', label: '', onRelease: true,
-      onClick: () => this.buy(entry),
-    });
+    entry.button = new Button(scene, this.listWidth - bw / 2, 2 + bh / 2, def.open
+      ? { width: bw, height: bh, label: 'Open', onRelease: true, onClick: () => def.open() }
+      : {
+        width: bw, height: bh, style: 'gold', icon: 'gold', label: '', onRelease: true,
+        onClick: () => this.buy(entry),
+      });
     row.add([def.art(scene), name, level, afford, statFrom, statArrow, statTo, entry.button]);
     return entry;
   }
@@ -231,8 +246,10 @@ export class Shipwright extends ScrollPanel {
     this.onPurchase();
   }
 
-  // An entry's plan and whether it's affordable now.
+  // An entry's plan and whether it's affordable now (an Open row: whether
+  // there's something to buy behind it).
   planOf(def) {
+    if (def.open) return { count: 1, cost: 0, affordable: def.affordable() };
     const plan = this.progress.bulkPlan(def.costAt);
     return { ...plan, affordable: plan.count > 0 && plan.cost <= this.progress.gold };
   }
@@ -274,7 +291,9 @@ export class Shipwright extends ScrollPanel {
       }
 
       // The buy button: "x7 21.4M" (just the price at x1), or MAX.
-      if (maxed) {
+      if (def.open) {
+        continue;
+      } else if (maxed) {
         button.setIcon(null).setLabel('MAX').setLabelColor(null);
       } else {
         const price = formatNum(plan.cost);

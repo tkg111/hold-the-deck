@@ -22,6 +22,8 @@ import { Volcano } from '../systems/Volcano.js';
 import { Blizzard } from '../systems/Blizzard.js';
 import { Mists } from '../systems/Mists.js';
 import { BattleStats, mvpOf } from '../systems/BattleStats.js';
+import { initParts, materialOf, PARTS_JSON_KEY } from '../systems/Parts.js';
+import { ShipParts } from '../systems/ShipParts.js';
 import { AbilityBar } from '../ui/AbilityBar.js';
 import { Button } from '../ui/Button.js';
 import { ConfirmDialog } from '../ui/ConfirmDialog.js';
@@ -44,8 +46,9 @@ const isFoe = (e) => !e.def.hazard;
 // The between-waves button bar's centre line (base layout).
 const BOTTOM_BAR_Y = 251;
 
-// Gold amounts floating up from kills.
+// Gold amounts floating up from kills, and boss materials.
 const GOLD_TEXT = '#ffd86a';
+const MATERIAL_TEXT = '#c8ffe0';
 
 export class GameScene extends Phaser.Scene {
   constructor() {
@@ -65,6 +68,7 @@ export class GameScene extends Phaser.Scene {
     createAnimations(this);
     // Expedition data first: the save's expeditions are checked against it.
     Expeditions.initExpeditions(this.cache.json.get(EXPEDITION_JSON_KEY));
+    initParts(this.cache.json.get(PARTS_JSON_KEY));
     this.progress = loadProgress();
     Expeditions.tick(this.progress);
     this.expeditionClock = 0;   // real ms since expeditions were last checked
@@ -94,6 +98,8 @@ export class GameScene extends Phaser.Scene {
     this.volcano = new Volcano(this);   // Ember Isle's lava bombs and fire puddles
     this.blizzard = new Blizzard(this); // Frostbite Reef's blizzards
     this.mists = new Mists(this);       // Fogbound Isle's fog banks and graves
+    this.shipParts = new ShipParts(this);   // the equipped ship parts' effects
+    this.hunt = null;   // the Boss Hunt being fought: { boss, island, level }
     // Scene events outlive a restart, so unhook on shutdown to avoid double handlers.
     const handlers = {
       'enemy-killed': this.onEnemyKilled,
@@ -203,6 +209,7 @@ export class GameScene extends Phaser.Scene {
     this.shipwright = new Shipwright(this, 0, 0, this.progress, {
       onPurchase: () => this.onUpgradePurchased(),
       onSettingChange: () => this.save(),
+      onOpenShipyard: () => this.openShipyard(),
     });
     this.heroPicker = new HeroPicker(this, 0, 0, UI_KIT.pickerWidth, (id) => this.onHeroPicked(id));
     this.heroPicker.on('closed', () => {
@@ -299,8 +306,8 @@ export class GameScene extends Phaser.Scene {
   refreshUi() {
     const idle = this.state === STATE.IDLE;
     const p = this.progress;
-    const boss = isBossWave(p.wave);
-    this.layoutWavePlaque(p.island, `WAVE ${formatNum(p.wave)}${boss ? ' BOSS' : ''}`);
+    const boss = isBossWave(p.wave) || !!this.hunt;
+    this.layoutWavePlaque(p.island, this.hunt ? `HUNT LV ${formatNum(this.hunt.level)}` : `WAVE ${formatNum(p.wave)}${boss ? ' BOSS' : ''}`);
     const waveColor = boss ? UI.colors.warn : UI.colors.text;
     if (this.waveText.color !== waveColor) this.waveText.setColor(waveColor);
     this.goldText.setText(formatNum(p.gold));
@@ -392,13 +399,17 @@ export class GameScene extends Phaser.Scene {
   onEnemyKilled(enemy) {
     if (!isFoe(enemy)) return;   // a lava bomb shot down
     for (const bounty of this.progress.recordDefeat(enemy.key)) this.notices.bounty(enemy.key, bounty);
-    const gold = this.progress.earnGold(enemy.gold);
+    const gold = this.progress.earnGold(this.progress.boostGold(enemy.gold));
     this.waveGold += gold;
     const top = enemy.y - enemy.def.height / 2;
     this.floatText(enemy.x, top - 6, `+${formatNum(gold)}`, GOLD_TEXT);
-    if (enemy.def.boss) {
+    // A boss in a wave pays Pearls (once per wave) and drops its material;
+    // a hunt pays on winning instead.
+    if (enemy.def.boss && !this.hunt) {
       const pearls = this.progress.claimBossPearls();
       if (pearls) this.floatText(enemy.x, top - 16, `+${pearlsLabel(pearls)}`);
+      const drop = this.progress.bossDrop(enemy.key);
+      if (drop) this.floatText(enemy.x, top - 26, `+${drop.count} ${materialOf(drop.material).name.toUpperCase()}`, MATERIAL_TEXT);
       // The finale: the other boss enrages.
       for (const e of this.waves.bossDown()) {
         this.showBanner(`${e.def.name.toUpperCase()} ENRAGES!`, { color: UI.colors.warn });
@@ -428,6 +439,15 @@ export class GameScene extends Phaser.Scene {
         this.scene.restart();
       },
     });
+  }
+
+  // The Shipyard (ship parts), from the Shipwright's Parts row: parts
+  // change the ship's look and the crew's speed, so both are rebuilt after.
+  openShipyard() {
+    if (this.state !== STATE.IDLE) return;
+    if (this.heroPicker.visible) this.heroPicker.close();
+    sfx.click();
+    this.scene.launch('ShipyardScene', { progress: this.progress, onClose: () => this.onUpgradePurchased() });
   }
 
   onUpgradePurchased() {
@@ -554,10 +574,11 @@ export class GameScene extends Phaser.Scene {
     this.scene.launch('MapScene', {
       progress: this.progress,
       openExpeditions: (onClosed) => this.openExpeditions({ onClosed }),
-      onClose: (sailed) => {
+      onClose: (sailed, hunt = null) => {
         if (sailed) this.arriveAtIsland();
         this.refreshUi();
         this.save();
+        if (hunt) this.startWave({ hunt });
       },
     });
   }
@@ -597,37 +618,45 @@ export class GameScene extends Phaser.Scene {
   }
 
   // confirmed: the player chose to set sail despite the flyer warning.
-  startWave({ confirmed = false } = {}) {
+  // hunt: { boss, island } for a Boss Hunt (from the map; the ship is
+  // already at that island) instead of the next wave.
+  startWave({ confirmed = false, hunt = null } = {}) {
     if (this.state !== STATE.IDLE) return;
     if (this.heroes.length === 0) {
       this.showBanner('ASSIGN A HERO!', { detail: 'CLICK A SLOT ON THE SHIP', color: UI.colors.warn });
       return;
     }
     if (this.heroPicker.visible) this.heroPicker.close();
+    const p = this.progress;
+    const options = hunt ? p.huntOptions(hunt.boss, hunt.island) : p.waveOptions;
+    const wave = hunt ? options.wave : p.wave;
     // Flyers ahead (Storm Harpies, Ash Bats) and nobody on the ship can hit
     // (or net) them.
-    const options = this.progress.waveOptions;
-    const flyers = composeWave(this.progress.wave, options).some((s) => s.def.flies);
+    const flyers = composeWave(wave, options).some((s) => s.def.flies);
     if (flyers && !confirmed && !this.heroes.some((h) => h.antiAir)) {
       new ConfirmDialog(this, {
         title: 'Flyers ahead!',
-        message: 'Flyers come in this wave, and none of your crew can hit them. Set sail anyway?',
+        message: `Flyers come in this ${hunt ? 'hunt' : 'wave'}, and none of your crew can hit them. Set sail anyway?`,
         confirmLabel: 'Set sail',
-        onConfirm: () => this.startWave({ confirmed: true }),
+        onConfirm: () => this.startWave({ confirmed: true, hunt }),
       });
       return;
     }
+    this.hunt = hunt ? { ...hunt, level: options.hunt.level } : null;
     this.ship.setSlotsEnabled(false);
     this.ship.restore();
-    this.stats.start(this.progress.wave, this.progress.islandId, this.heroes);
-    this.waves.start(this.progress.wave, options);
+    this.stats.start(wave, p.islandId, this.heroes);
+    this.waves.start(wave, options);
     this.volcano.start(options);
-    this.blizzard.start(this.progress.wave, options);   // the finale's blizzard rolls in here
-    this.mists.start(this.progress.wave, options);      // and its fog bank
+    this.blizzard.start(wave, options);   // the finale's blizzard rolls in here
+    this.mists.start(wave, options);      // and its fog bank
+    this.shipParts.start(p);
     this.abilities.resetCooldowns();
     const { finale, island } = options;
-    const boss = isBossWave(this.progress.wave) ? ENEMIES[bossOf(this.progress.wave, island)] : null;
-    if (finale) {
+    const boss = isBossWave(wave) ? ENEMIES[hunt ? hunt.boss : bossOf(wave, island)] : null;
+    if (hunt) {
+      this.showBanner(`BOSS HUNT - LV ${formatNum(this.hunt.level)}`, { detail: boss.name.toUpperCase(), color: UI.colors.warn });
+    } else if (finale) {
       // The island's finale: its weather rolls in under its banner.
       if (finale.weather === 'storm') this.storm.start();
       if (finale.weather === 'eruption') this.ashfall.worsen();
@@ -642,18 +671,23 @@ export class GameScene extends Phaser.Scene {
     this.waveGold = 0;   // gold earned this wave (expedition rewards are based on it)
     this.applySpeed();
     this.refreshUi();
-    this.events.emit('wave-started');
+    this.events.emit('wave-started', { hunt: !!hunt });
   }
 
   endWave(won) {
     this.state = STATE.IDLE;
+    const { hunt } = this;
+    this.hunt = null;
+    // A hunt isn't a wave: it stays out of the Captain's Log and the gold
+    // per minute expeditions are based on.
     const record = this.stats.finish(won);
-    this.progress.logWave(record);
+    if (!hunt) this.progress.logWave(record);
     this.applySpeed();
     this.waves.stop();
     this.volcano.stop();
     this.blizzard.stop();
     this.mists.stop();
+    this.shipParts.stop();
     this.abilities.clear();
     for (const h of this.heroes) h.clearAbilities();
     for (const e of this.enemies) e.destroy();
@@ -664,7 +698,9 @@ export class GameScene extends Phaser.Scene {
     this.storm.stop();
     this.ashfall.calm();
     this.snowfall.calm();
-    if (won) {
+    if (hunt) {
+      this.endHunt(hunt, won);
+    } else if (won) {
       const wave = this.progress.wave;
       const { gold, pearls, finale } = this.progress.winWave();
       this.waveGold += gold;
@@ -687,7 +723,7 @@ export class GameScene extends Phaser.Scene {
       this.showBanner('SHIP SUNK!', { detail: 'UPGRADE AND TRY AGAIN', color: UI.colors.warn });
     }
     // Won or lost, the wave's gold per minute counts toward expeditions'.
-    this.progress.logGold(this.waveGold, this.waveTime);
+    if (!hunt) this.progress.logGold(this.waveGold, this.waveTime);
     const mvp = record && mvpOf(record);
     if (mvp) this.notices.mvp(mvp.id, mvp.damage);
     this.ship.restore();
@@ -700,7 +736,24 @@ export class GameScene extends Phaser.Scene {
       this.autoContinue.pause();
       this.time.delayedCall(ENDING.delayMs, () => this.playEnding());
     }
-    this.events.emit('wave-ended', won);
+    this.events.emit('wave-ended', won, { hunt: !!hunt });
+  }
+
+  // A Boss Hunt is over: a win pays the boss's material (and a little gold)
+  // and raises its hunt level; a loss costs nothing.
+  endHunt(hunt, won) {
+    const name = ENEMIES[hunt.boss].name.toUpperCase();
+    if (!won) {
+      this.showBanner('HUNT FAILED', { detail: `${name} GOT AWAY - TRY AGAIN ANY TIME`, color: UI.colors.warn });
+      return;
+    }
+    const r = this.progress.winHunt(hunt.boss, hunt.island);
+    const material = materialOf(r.material)?.name.toUpperCase() ?? '';
+    sfx.loot('bonus');
+    this.showBanner(`${name} HUNTED!`, {
+      detail: `+${r.count} ${material}${r.doubled ? ' (2X TODAY)' : ''}  +${formatNum(r.gold)} GOLD  -  NEXT: LV ${formatNum(r.level + 1)}`,
+      hold: 3500,
+    });
   }
 
   // The ending (after Fogbound Isle's finale): the voyage across the map.
@@ -777,6 +830,7 @@ export class GameScene extends Phaser.Scene {
     this.volcano.update(dt);
     this.blizzard.update(dt);
     this.mists.update(dt);
+    this.shipParts.update(dt);
     this.abilities.update(dt, this.progress.autoAbilities);
 
     for (const h of this.heroes) {

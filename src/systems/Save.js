@@ -7,7 +7,7 @@ export const SAVE_KEY = 'kampung-defense/save';
 const CORRUPT_BACKUP_KEY = 'kampung-defense/save-corrupt-backup';
 
 // Bump when the saved shape changes, and add a migration from the old version.
-export const SAVE_VERSION = 13;
+export const SAVE_VERSION = 14;
 
 // v5 pirate reskin: old hero IDs -> new hero IDs.
 const V5_HERO_IDS = {
@@ -127,6 +127,11 @@ const MIGRATIONS = {
   11: (data) => ({ ...data, expeditions: [], freeChests: { common: 0, rare: 0 }, goldLog: [] }),
   // v13: the Shipwright's buy amount (x1 / x10 / MAX) and whether it's slid away.
   12: (data) => ({ ...data, buyAmount: '1', shipwrightOpen: true }),
+  // v14: ship parts (boss materials, parts owned and their levels, the part
+  // on each slot) and Boss Hunts (each boss's hunt level, today's wins).
+  13: (data) => ({
+    ...data, materials: {}, parts: {}, equipped: {}, huntLevels: {}, huntDay: '', huntWins: {},
+  }),
 };
 
 function migrate(save) {

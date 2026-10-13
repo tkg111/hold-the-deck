@@ -7,6 +7,7 @@ import { GameScene } from './scenes/GameScene.js';
 import { LogScene } from './scenes/LogScene.js';
 import { MapScene } from './scenes/MapScene.js';
 import { PackScene } from './scenes/PackScene.js';
+import { ShipyardScene } from './scenes/ShipyardScene.js';
 import { WantedScene } from './scenes/WantedScene.js';
 import { loadUiSpec } from './ui/kit.js';
 
@@ -26,7 +27,7 @@ loadUiSpec().then(() => {
     // No automatic fitting: the canvas is sized to the game area (see
     // display.js), centered by the page's flex layout.
     scale: { mode: Phaser.Scale.NONE },
-    scene: [GameScene, PackScene, CollectionScene, WantedScene, MapScene, LogScene, EndingScene, ExpeditionScene],
+    scene: [GameScene, PackScene, CollectionScene, WantedScene, MapScene, LogScene, EndingScene, ExpeditionScene, ShipyardScene],
   });
 
   // Handy for poking at state from the browser console during development.
