@@ -1,7 +1,8 @@
 import {
-  ECONOMY, ELITE, ENEMIES, FORMATIONS, HUNTS, ISLANDS, WAVES,
+  ABYSS, ECONOMY, ELITE, ENEMIES, FORMATIONS, HUNTS, ISLANDS, WAVES,
 } from '../config.js';
 import { Enemy } from '../entities/Enemy.js';
+import { depthPlan, depthScaling } from './Abyss.js';
 
 // What an island's waves are made of (its ISLANDS entry, Skull Cove by
 // default): its formations, bosses and first Siren wave, falling back to
@@ -91,7 +92,7 @@ export function eliteChance(wave) {
 
 // Small seeded random generator (mulberry32): the same wave number always
 // gives the same line-up, so a retry meets the same formations.
-function seededRandom(seed) {
+export function seededRandom(seed) {
   let a = seed >>> 0;
   return () => {
     a = (a + 0x6d2b79f5) >>> 0;
@@ -140,7 +141,9 @@ export function earlyBoost(wave, island) {
   return { count: 1 + (b.count - 1) * t, hp: 1 + (b.hp - 1) * t };
 }
 
-const enemyCount = (wave) => Math.round(WAVES.baseCount + (wave - 1) * WAVES.countPerWave);
+export const enemyCount = (wave) => Math.round(WAVES.baseCount + (wave - 1) * WAVES.countPerWave);
+// Time between a wave's formations.
+export const spawnInterval = (wave) => Math.max(WAVES.minSpawnInterval, WAVES.spawnInterval + (wave - 1) * WAVES.spawnIntervalPerWave);
 
 // The wave's spawn plan, in order: [{ key, def, elite, delay, follow,
 // hpFactor, damageFactor }]. delay: ms after the previous spawn; follow:
@@ -153,15 +156,16 @@ const enemyCount = (wave) => Math.round(WAVES.baseCount + (wave - 1) * WAVES.cou
 // finalePlan). countFactor: multiplies the enemy count and Elite chance
 // (Endless grace, see Progress.endlessGrace).
 // hunt: { boss, level } for a Boss Hunt (see huntPlan; `wave` is then the
-// boss's first wave on the island).
+// boss's first wave on the island). abyss: { seed, depth } for a depth of
+// the Abyss (see Abyss.depthPlan).
 export function composeWave(wave, {
-  island = ISLANDS[0], offset = 0, finale = null, countFactor = 1, hunt = null,
+  island = ISLANDS[0], offset = 0, finale = null, countFactor = 1, hunt = null, abyss = null,
 } = {}) {
+  if (abyss) return depthPlan(abyss.seed, abyss.depth);
   if (hunt) return huntPlan(wave, island, offset, hunt);
   const random = seededRandom(wave * 7919 + 17 + offset * 104729);
   const { formations } = islandContent(island);
   if (finale) return finalePlan(wave, offset, finale, finale.formations ?? formations, random);
-  const n = wave - 1;
   const early = earlyBoost(wave, island);
   const boost = island.bossBoost?.[wave] ?? { hp: 1, damage: 1 };
   let count = Math.round(enemyCount(wave) * countFactor * early.count);
@@ -173,7 +177,7 @@ export function composeWave(wave, {
   if (isBossWave(wave)) groups.splice(Math.round(groups.length * WAVES.bossSpawnAt), 0, solo(bossOf(wave, island)));
 
   const elites = eliteChance(wave + offset) * countFactor;
-  const interval = Math.max(WAVES.minSpawnInterval, WAVES.spawnInterval + n * WAVES.spawnIntervalPerWave);
+  const interval = spawnInterval(wave);
   const plan = [];
   for (const g of groups) {
     const leader = plan.length;
@@ -274,12 +278,18 @@ export class WaveManager {
 
   get doneSpawning() { return this.queue.length === 0; }
 
-  // options: { island, offset, finale, countFactor } (Progress.waveOptions).
+  // options: { island, offset, finale, countFactor } (Progress.waveOptions),
+  // or a depth of the Abyss's (Abyss.depthOptions: its own scaling and
+  // Elites, ABYSS.elites).
   start(wave, options = {}) {
     this.queue = composeWave(wave, options).map((entry, index) => ({ ...entry, index }));
     this.spawned = [];
     this.total = this.queue.length;  // for the enemies-left bar
-    this.scaling = waveScaling(wave + (options.offset ?? 0), options.island);
+    const { abyss } = options;
+    this.scaling = abyss ? depthScaling(abyss.depth, abyss.currents) : waveScaling(wave + (options.offset ?? 0), options.island);
+    this.eliteStyle = abyss ? ABYSS.elites : null;
+    this.hullShare = abyss ? ABYSS.hullShare : 1;
+    this.island = options.island ?? null;
     this.spawnTimer = this.queue[0]?.delay ?? 0;
     this.finale = options.finale ?? null;
     // A finale whose bosses arrive enraged.
@@ -335,17 +345,21 @@ export class WaveManager {
         key, def, elite, follow, hpFactor, damageFactor, index,
       } = this.queue.shift();
       const { hp, damage, gold } = this.scaling;
+      const eliteGold = this.eliteStyle?.gold ?? ELITE.goldMultiplier;
       const enemy = new Enemy(this.scene, def, {
         hpMultiplier: hp * (hpFactor ?? 1),
         damageMultiplier: damage * (damageFactor ?? 1),
-        gold: Math.round(def.gold * gold * (elite ? ELITE.goldMultiplier : 1)),
+        gold: Math.round(def.gold * gold * (elite ? eliteGold : 1)),
         elite,
+        eliteStyle: this.eliteStyle,
+        hullShare: this.hullShare,
         key,
         leader: follow != null ? this.spawned[follow] ?? null : null,
         boulders: !!this.finale?.boulders,
       });
       if (this.enraged && def.boss) enemy.enrage(this.finale.rage, this.finale.rageTint);
       for (; this.crewCalls > 0 && def.blackbones; this.crewCalls--) enemy.callCrew();
+      this.scene.currents?.onSpawn(enemy);   // the Abyss's Shielded current
       this.spawned[index] = enemy;
       spawned.push(enemy);
       if (this.queue.length) this.spawnTimer += this.queue[0].delay;

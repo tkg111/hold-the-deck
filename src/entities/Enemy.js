@@ -5,7 +5,9 @@ import {
 import { sfx } from '../audio/Sfx.js';
 import { fxSprite, playFx } from '../fx.js';
 import { LAYOUT, laneFeetY } from '../layout.js';
-import { findAnim, sheetKey, sheetSpec, SPLASH_ANIM } from '../sprites.js';
+import {
+  ELITE_AURA_KEY, findAnim, sheetKey, sheetSpec, SPLASH_ANIM,
+} from '../sprites.js';
 import { light, text, UI } from '../ui/kit.js';
 import { LobProjectile, Projectile } from './Projectile.js';
 import { DEPTH } from './Ship.js';
@@ -56,23 +58,28 @@ export class Enemy {
   // The Siren Queen rises at her sheet's `pos`; Captain Blackbones steps out
   // of the fog on the lane.
   //   elite:  3x HP (ELITE), gold tint; gold is already multiplied by the caller
+  //   eliteStyle: the Abyss's Elites (ABYSS.elites): their own HP and damage
+  //           multipliers and tint, and an aura behind them
+  //   hullShare: multiplies a hullShare hit (the Abyss's ABYSS.hullShare)
   //   leader: in an escorted formation, the enemy this one keeps behind
   //   key:    its ENEMIES key (for the Wanted Board)
   //   fall:   a lava bomb's { deck, feetY (where it lands), fromY, ms }
   //   boulders: the Frost Giant throws ice boulders while walking (the finale)
   //   rising: a `rises` enemy summoned or raised at x: it rises there first
   constructor(scene, def, {
-    x = LAYOUT.enemySpawnX, hpMultiplier, damageMultiplier, gold, elite = false, leader = null, key = null, fall = null,
-    boulders = false, rising = false,
+    x = LAYOUT.enemySpawnX, hpMultiplier, damageMultiplier, gold, elite = false, eliteStyle = null, hullShare = 1, leader = null,
+    key = null, fall = null, boulders = false, rising = false,
   }) {
     this.scene = scene;
     this.def = def;
     this.key = key;
     this.elite = elite;
-    const eliteHp = elite ? ELITE.hpMultiplier : 1;
+    this.eliteTint = eliteStyle?.tint ?? ELITE.tint;
+    this.hullShareMult = hullShare;
+    const eliteHp = elite ? eliteStyle?.hp ?? ELITE.hpMultiplier : 1;
     this.maxHp = Math.round(def.hp * hpMultiplier * eliteHp);
     this.hp = this.maxHp;
-    this.damage = def.damage * damageMultiplier;
+    this.damage = def.damage * damageMultiplier * (elite && eliteStyle ? eliteStyle.damage : 1);
     this.speed = def.speed;
     this.gold = gold;
     this.attackCooldown = 0;
@@ -162,7 +169,10 @@ export class Enemy {
         : def.wyrm || def.queen ? DEPTH.perch
           : def.flies || def.falls ? DEPTH.flyer : DEPTH.enemy;
     this.body.setOrigin(...(def.origin ?? [0.5, 1])).setDepth(depth);
-    if (elite) this.setFlash(false);  // gold tint
+    if (elite) this.setFlash(false);  // gold tint (an Abyss Elite's violet)
+    // An Abyss Elite's aura, looping behind it, centred on its body.
+    this.aura = elite && eliteStyle ? scene.add.sprite(0, 0, ELITE_AURA_KEY).setDepth(depth - 0.01) : null;
+    if (this.aura && scene.anims.exists(ELITE_AURA_KEY)) this.aura.play(ELITE_AURA_KEY);
 
     // An emerging enemy rises at layout.kraken (whose x / y are the top-left
     // of its frame) with a splash, can't be hit until fully risen, then
@@ -501,9 +511,10 @@ export class Enemy {
   get hasIceShield() { return this.iceShieldHp > 0; }
   // How fast it moves and attacks: slows, the Siren's haste and the
   // Frostwing Sails' chill multiply.
+  // The Abyss's Frenzied current hurries everyone.
   get pace() {
     return (this.isSlowed ? this.slowFactor : 1) * (this.isHasted ? this.hasteMult : 1) * this.partSlow
-      * (this.chillTime > 0 ? this.chillFactor : 1);
+      * (this.chillTime > 0 ? this.chillFactor : 1) * (this.scene.currents?.enemyPace ?? 1);
   }
   // Walking only: faster through a fire puddle, slower in a blizzard.
   get moveBoost() { return (this.boostTime > 0 ? this.boostMult : 1) * (this.scene.blizzard?.chill ?? 1); }
@@ -691,6 +702,7 @@ export class Enemy {
     this.animate(moving);
 
     this.followGround();
+    this.aura?.setPosition(Math.round(this.x), Math.round(this.y)).setVisible(!this.vanished);
     if (this.nameTag) {
       // Kept on screen (a boss coming in at the right edge).
       const half = Math.ceil(this.nameTag.inkWidth / 2) + 2;
@@ -912,6 +924,7 @@ export class Enemy {
       damageMultiplier: this.damageMultiplier,
       gold: Math.round(def.gold * (scene.waves?.scaling.gold ?? 1)),
       key: def.minion ? null : key,
+      hullShare: this.hullShareMult,
       rising,
     });
     scene.enemies.push(enemy);
@@ -1206,7 +1219,8 @@ export class Enemy {
         this.puffTimer -= sdt;
         if (this.puffTimer <= 0) {
           this.puffTimer += g.puffEvery;
-          const puff = scene.progress?.island.spawnPuff;
+          // The battle's island (the Abyss has no pines).
+          const puff = (scene.waves?.island ?? scene.progress?.island)?.spawnPuff;
           if (puff) playSpawnPuff(scene, puff);
         }
       }
@@ -1701,7 +1715,8 @@ export class Enemy {
   // A hullShare enemy's one hit on the ship: a share of its max HP.
   hullHit(ship) {
     const { hullShare } = this.def;
-    return hullShare ? ship.maxHp * (this.elite ? hullShare.elite : hullShare.normal) : this.damage;
+    if (!hullShare) return this.damage;
+    return ship.maxHp * (this.elite ? hullShare.elite : hullShare.normal) * this.hullShareMult;
   }
 
   // Keg Runner at the ship: it blows up on the hull (no gold).
@@ -1819,7 +1834,7 @@ export class Enemy {
   // White while hit; otherwise its tint: an Elite's gold, an enraged boss's
   // red (or none).
   setFlash(on) {
-    const tint = this.tint ?? (this.elite ? ELITE.tint : null);
+    const tint = this.tint ?? (this.elite ? this.eliteTint : null);
     if (this.body.setTintFill) {
       if (on) this.body.setTintFill(FX.hitFlashColor);
       else if (tint != null) this.body.setTint(tint);
@@ -1872,6 +1887,8 @@ export class Enemy {
       this.body.destroy();
       return;
     }
+    // The Abyss's Risen Dead current: it may rise again.
+    this.scene.currents?.onDeath(this);
     this.scene.tweens.add({
       targets: this.body,
       alpha: 0,
@@ -2002,6 +2019,8 @@ export class Enemy {
     this.statusSprites = {};
     this.iceSprite?.destroy();
     this.iceSprite = null;
+    this.aura?.destroy();
+    this.aura = null;
     this.nameTag?.destroy();
     for (const c of this.circles ?? []) c.destroy();
     this.circles = [];

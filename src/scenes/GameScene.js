@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import {
-  ASHFALL, DISPLAY, ENDING, ENEMIES, GAME_SPEEDS, HEROES, SCENERY, SIM, SNOWFALL, UI_KIT,
+  ABYSS, ASHFALL, DISPLAY, ENDING, ENEMIES, EXPEDITIONS, GAME_SPEEDS, HEROES, MOTES, SCENERY, SIM, SNOWFALL, UI_KIT,
 } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
 import { DEV_TOOLS } from '../devFlag.js';
@@ -8,7 +8,9 @@ import {
   applyRenderScale, fullscreenSupported, isFullscreen, toggleFullscreen,
 } from '../display.js';
 import { Scenery } from '../scenery.js';
-import { createAnimations, mapKey, preloadSprites } from '../sprites.js';
+import {
+  ABYSS_JSON_KEY, createAnimations, CURRENTS_KEY, DEPTH_ICON_KEY, mapKey, preloadSprites,
+} from '../sprites.js';
 import { Storm } from '../storm.js';
 import { Weather } from '../weather.js';
 import { Fog } from '../fog.js';
@@ -21,6 +23,10 @@ import { AbilitySystem } from '../systems/Abilities.js';
 import { Volcano } from '../systems/Volcano.js';
 import { Blizzard } from '../systems/Blizzard.js';
 import { Mists } from '../systems/Mists.js';
+import { Currents } from '../systems/Currents.js';
+import {
+  abyssIsland, depthBosses, depthCurrents, isBossDepth, newSeed,
+} from '../systems/Abyss.js';
 import { BattleStats, mvpOf } from '../systems/BattleStats.js';
 import { initParts, materialOf, PARTS_JSON_KEY } from '../systems/Parts.js';
 import { ShipParts } from '../systems/ShipParts.js';
@@ -80,13 +86,18 @@ export class GameScene extends Phaser.Scene {
     this.enemies = [];
     this.projectiles = [];
 
-    this.scenery = new Scenery(this, this.progress.island);
-    // Ember Isle's ash and Frostbite Reef's snow.
+    // The Abyss: its currents' names and effects (abyss.json), and the
+    // battlefield of the depth under way or coming next (see battleIsland).
+    this.abyssData = this.cache.json.get(ABYSS_JSON_KEY);
+    this.depthIsland = null;
+    this.scenery = new Scenery(this, this.battleIsland);
+    // Ember Isle's ash and Frostbite Reef's snow, and the Abyss's motes.
     this.ashfall = new Weather(this, ASHFALL);
     this.snowfall = new Weather(this, SNOWFALL);
+    this.motes = new Weather(this, MOTES);
     // Fogbound Isle's mist (and its fog banks).
     this.fog = new Fog(this);
-    for (const w of [this.ashfall, this.snowfall, this.fog]) w.setIsland(this.progress.island, { instant: true });
+    for (const w of this.weathers) w.setIsland(this.battleIsland, { instant: true });
     this.storm = new Storm(this);
     this.ship = new Ship(this, this.progress);
     this.heroes = [];
@@ -98,6 +109,7 @@ export class GameScene extends Phaser.Scene {
     this.volcano = new Volcano(this);   // Ember Isle's lava bombs and fire puddles
     this.blizzard = new Blizzard(this); // Frostbite Reef's blizzards
     this.mists = new Mists(this);       // Fogbound Isle's fog banks and graves
+    this.currents = new Currents(this); // the Abyss's currents
     this.shipParts = new ShipParts(this);   // the equipped ship parts' effects
     this.hunt = null;   // the Boss Hunt being fought: { boss, island, level }
     // Scene events outlive a restart, so unhook on shutdown to avoid double handlers.
@@ -131,15 +143,36 @@ export class GameScene extends Phaser.Scene {
 
     this.createUi();
     this.refreshUi();
+    // A dive left mid-depth picks up at that depth's start.
+    if (this.progress.inAbyss) this.showBanner(ABYSS.name.toUpperCase(), { detail: `BACK AT DEPTH ${formatNum(this.progress.depth)}` });
+  }
+
+  // Every island weather (each shows where its island has its flag).
+  get weathers() { return [this.ashfall, this.snowfall, this.motes, this.fog]; }
+
+  // The battlefield (an ISLANDS entry, or the Abyss's island-shaped stand-in,
+  // Abyss.abyssIsland): the island the ship is at, or during a dive the depth
+  // under way (between depths, the next one, with its currents' weather).
+  get battleIsland() {
+    const p = this.progress;
+    if (!p.inAbyss) return p.island;
+    return this.depthIsland ?? abyssIsland(depthCurrents(p.abyss.run.seed, p.depth).active);
+  }
+
+  // The battlefield changed (a dive started or ended, a depth with other
+  // currents): its backdrop and weather.
+  showBattlefield() {
+    this.depthIsland = null;
+    const island = this.battleIsland;
+    this.scenery.setIsland(island);
+    for (const w of this.weathers) w.setIsland(island);
   }
 
   // The window changed size: re-cover the view with the storm, ash, snow and
   // fog and re-anchor the HUD (the battlefield and backdrop don't move).
   onViewResize(view) {
     this.storm.layout(view);
-    this.ashfall.layout(view);
-    this.snowfall.layout(view);
-    this.fog.layout(view);
+    for (const w of this.weathers) w.layout(view);
     this.layoutUi(view);
   }
 
@@ -154,9 +187,11 @@ export class GameScene extends Phaser.Scene {
   createUi() {
     const group = (...items) => this.add.container(0, 0, items);
 
-    // Wave plaque: "FOGBOUND · WAVE 15" (see layoutWavePlaque).
+    // Wave plaque: "FOGBOUND · WAVE 15" (see layoutWavePlaque), or in the
+    // Abyss "ABYSS · DEPTH 23" with the depth icon for the skull.
     this.wavePlaque = panel(this, 6, 6, UI_KIT.hud.wave.minWidth, 24, 'wood');
     this.waveIcon = icon(this, 19, 18, 'wave');
+    this.depthIcon = this.add.image(19, 18, DEPTH_ICON_KEY).setVisible(false);
     this.waveIsland = this.add.image(21, 18, mapKey(this.progress.islandId)).setVisible(false);
     this.islandText = text(this, 29, 18, '', light()).setOrigin(0, 0.5);
     this.waveDot = glyph(this, 0, 18, 'dot', UI.colors.text);
@@ -172,9 +207,15 @@ export class GameScene extends Phaser.Scene {
     }));
     const barW = Math.max(hull.barMin, widest + 8);
     this.hullBar = new Bar(this, 24, hull.y + 4, barW, 10, UI.colors.hull);
+    // The Abyss's active currents: a row of icons under the hull plaque
+    // (see layoutCurrents); tapping one shows its name and effect.
+    this.currentRow = group();
+    // Over the banner (it's anchored with the top-left group in layoutUi).
+    this.currentNote = group().setVisible(false).setDepth(11);
     this.topLeft = group(
-      this.wavePlaque, this.waveIcon, this.waveIsland, this.islandText, this.waveDot, this.waveText,
+      this.wavePlaque, this.waveIcon, this.depthIcon, this.waveIsland, this.islandText, this.waveDot, this.waveText,
       panel(this, 6, hull.y, 24 + barW + 5 - 6, hull.height, 'wood'), icon(this, 16, hull.y + 9, 'hull'), this.hullBar,
+      this.currentRow,
     );
 
     this.enemiesBar = new Bar(this, 172, 12, 136, 12, UI.colors.progress);
@@ -285,6 +326,7 @@ export class GameScene extends Phaser.Scene {
     const right = view.right - DISPLAY.width;
     const center = Math.round(view.centerX - DISPLAY.width / 2);
     this.topLeft.setPosition(view.left, view.top);
+    this.currentNote.setPosition(view.left, view.top);
     this.topCenter.setPosition(center, view.top);
     this.topRight.setPosition(right, view.top);
     this.banner.setPosition(center + 188, view.top + 80);
@@ -306,8 +348,16 @@ export class GameScene extends Phaser.Scene {
   refreshUi() {
     const idle = this.state === STATE.IDLE;
     const p = this.progress;
-    const boss = isBossWave(p.wave) || !!this.hunt;
-    this.layoutWavePlaque(p.island, this.hunt ? `HUNT LV ${formatNum(this.hunt.level)}` : `WAVE ${formatNum(p.wave)}${boss ? ' BOSS' : ''}`);
+    let boss;
+    if (p.inAbyss) {
+      boss = isBossDepth(p.depth);
+      this.layoutWavePlaque(this.battleIsland, `DEPTH ${formatNum(p.depth)}${boss ? ' BOSS' : ''}`);
+    } else {
+      boss = isBossWave(p.wave) || !!this.hunt;
+      this.layoutWavePlaque(p.island, this.hunt ? `HUNT LV ${formatNum(this.hunt.level)}` : `WAVE ${formatNum(p.wave)}${boss ? ' BOSS' : ''}`);
+    }
+    this.layoutCurrents(p.inAbyss ? depthCurrents(p.abyss.run.seed, p.depth).active : []);
+    this.startButton.setLabel(p.inAbyss ? 'DIVE!' : 'SET SAIL!');
     const waveColor = boss ? UI.colors.warn : UI.colors.text;
     if (this.waveText.color !== waveColor) this.waveText.setColor(waveColor);
     this.goldText.setText(formatNum(p.gold));
@@ -342,9 +392,9 @@ export class GameScene extends Phaser.Scene {
     if (idle) this.shipwright.refresh();
   }
 
-  // The wave plaque: "FOGBOUND · WAVE 15" after the skull, sized to fit; if
-  // that's wider than UI_KIT.hud.wave.maxWidth, the island's map art (scaled
-  // down) in place of the skull and its name.
+  // The wave plaque: "FOGBOUND · WAVE 15" after the skull (the Abyss: the
+  // depth icon), sized to fit; if that's wider than UI_KIT.hud.wave.maxWidth,
+  // the island's map art (scaled down) in place of the skull and its name.
   layoutWavePlaque(island, waveLabel) {
     const key = `${island.id}|${waveLabel}`;
     if (this.wavePlaqueKey === key) return;
@@ -355,7 +405,9 @@ export class GameScene extends Phaser.Scene {
     const dotX = 29 + this.islandText.inkWidth + 4;
     const waveX = dotX + glyphWidth('dot') + 4;
     const full = waveX + this.waveText.inkWidth + 7 - 6 <= spec.maxWidth;
-    this.waveIcon.setVisible(full);
+    const abyss = island.id === ABYSS.id;
+    this.waveIcon.setVisible(full && !abyss);
+    this.depthIcon.setVisible(full && abyss);
     this.islandText.setVisible(full);
     this.waveDot.setVisible(full).setX(dotX);
     this.waveIsland.setVisible(!full);
@@ -368,6 +420,59 @@ export class GameScene extends Phaser.Scene {
     }
     const right = this.waveText.x + this.waveText.inkWidth + 7;
     this.wavePlaque.setSize(Phaser.Math.Clamp(right - 6, spec.minWidth, spec.maxWidth), 24);
+  }
+
+  // The Abyss's current icons (abyss.json's order in currents.png) in a row
+  // on a wood strip under the hull plaque; none outside a dive. Tapping one
+  // shows its name and effect under the row for ABYSS.hud.noteMs.
+  layoutCurrents(ids) {
+    const key = ids.join(',');
+    if (this.currentsKey === key) return;
+    this.currentsKey = key;
+    this.currentRow.removeAll(true);
+    this.hideCurrentNote();
+    // Bounty toasts go below the row while there is one.
+    this.notices.setToastOffset(ids.length ? ABYSS.hud.iconSize + 8 : 0);
+    if (!ids.length) return;
+    const { iconSize, gap, y } = ABYSS.hud;
+    const order = this.abyssData.currents.order.map((c) => c.id);
+    const width = ids.length * (iconSize + gap) - gap + 8;
+    this.currentRow.add(panel(this, 6, y, width, iconSize + 6, 'wood'));
+    ids.forEach((id, i) => {
+      const img = this.add.image(10 + i * (iconSize + gap), y + 3, CURRENTS_KEY, order.indexOf(id)).setOrigin(0)
+        .setInteractive({ useHandCursor: true });
+      img.on('pointerdown', () => this.showCurrentNote(id));
+      this.currentRow.add(img);
+    });
+  }
+
+  showCurrentNote(id) {
+    const c = this.abyssData.currents.order.find((o) => o.id === id);
+    if (!c) return;
+    sfx.click();
+    const y = ABYSS.hud.y + ABYSS.hud.iconSize + 8;
+    const name = text(this, 12, y + 4, c.name.toUpperCase(), light({ font: 'small', color: UI.colors.warn }));
+    const effect = text(this, 12, y + 13, c.effect.toUpperCase(), light({ font: 'small', wrap: 170 }));
+    const w = Math.max(name.inkWidth, effect.inkWidth) + 12;
+    this.currentNote.removeAll(true);
+    this.currentNote.add([panel(this, 6, y, w, effect.inkHeight + 20, 'wood'), name, effect]).setVisible(true);
+    this.currentNoteTimer?.remove();
+    // Real time, so it lasts as long at any battle speed.
+    const started = performance.now();
+    this.currentNoteTimer = this.time.addEvent({
+      delay: 100,
+      loop: true,
+      callback: () => {
+        if (performance.now() - started >= ABYSS.hud.noteMs) this.hideCurrentNote();
+      },
+    });
+  }
+
+  hideCurrentNote() {
+    this.currentNoteTimer?.remove();
+    this.currentNoteTimer = null;
+    this.currentNote.removeAll(true);
+    this.currentNote.setVisible(false);
   }
 
   // A wood plaque with a short headline in the big font (and an optional
@@ -401,8 +506,15 @@ export class GameScene extends Phaser.Scene {
     for (const bounty of this.progress.recordDefeat(enemy.key)) this.notices.bounty(enemy.key, bounty);
     const gold = this.progress.earnGold(this.progress.boostGold(enemy.gold));
     this.waveGold += gold;
+    this.progress.noteDiveGold(gold);
     const top = enemy.y - enemy.def.height / 2;
     this.floatText(enemy.x, top - 6, `+${formatNum(gold)}`, GOLD_TEXT);
+    // A boss in the Abyss drops double its material (and no Pearls).
+    if (enemy.def.boss && this.progress.inAbyss) {
+      const drop = this.progress.abyssBossDrop(enemy.key);
+      if (drop) this.floatText(enemy.x, top - 16, `+${drop.count} ${materialOf(drop.material).name.toUpperCase()}`, MATERIAL_TEXT);
+      return;
+    }
     // A boss in a wave pays Pearls (once per wave) and drops its material;
     // a hunt pays on winning instead.
     if (enemy.def.boss && !this.hunt) {
@@ -567,6 +679,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   // The world map; sailing to another island picks up its wave counter.
+  // From the map's Abyss card a dive starts ({ from, seed }); during a dive,
+  // sailing to an island (or a hunt) leaves the Abyss first (left).
   openMap() {
     if (this.state !== STATE.IDLE || !this.progress.mapUnlocked) return;
     if (this.heroPicker.visible) this.heroPicker.close();
@@ -574,13 +688,37 @@ export class GameScene extends Phaser.Scene {
     this.scene.launch('MapScene', {
       progress: this.progress,
       openExpeditions: (onClosed) => this.openExpeditions({ onClosed }),
-      onClose: (sailed, hunt = null) => {
-        if (sailed) this.arriveAtIsland();
+      onClose: (sailed, hunt = null, { dive = null, left = null } = {}) => {
+        if (left) this.leftAbyss(left);
+        else if (sailed) this.arriveAtIsland();
+        if (dive) this.startDive(dive);
         this.refreshUi();
         this.save();
         if (hunt) this.startWave({ hunt });
       },
     });
+  }
+
+  // A dive starts at dive.from (1 or a checkpoint, which pays that depth's
+  // gold) with dive.seed: the Abyss's backdrop, and a banner.
+  startDive({ from, seed }) {
+    const gold = this.progress.startDive(from, seed);
+    if (gold == null) return;
+    this.showBattlefield();
+    this.showBanner(ABYSS.name.toUpperCase(), {
+      detail: `DEPTH ${formatNum(from)}${gold ? `  +${formatNum(gold)} GOLD` : ''}`, hold: 2500,
+    });
+    this.refreshUi();
+    this.save();
+  }
+
+  // The dive ended from the map (sailing to an island, or a hunt): back to
+  // the island, saying how deep it went. summary: Progress.endDive's.
+  leftAbyss(summary) {
+    this.showBattlefield();
+    const record = summary.newRecord ? `NEW RECORD - DEPTH ${formatNum(summary.depth)}` : `LEFT AT DEPTH ${formatNum(summary.depth)}`;
+    this.showBanner(`SAILING TO ${this.progress.island.name.toUpperCase()}`, { detail: record, hold: 2500 });
+    if (summary.newRecord) sfx.reveal('epic', true);
   }
 
   // The Expeditions board. Sending crew empties their ship slots and
@@ -604,10 +742,7 @@ export class GameScene extends Phaser.Scene {
   // backdrop and weather, and a banner.
   arriveAtIsland() {
     const { island } = this.progress;
-    this.scenery.setIsland(island);
-    this.ashfall.setIsland(island);
-    this.snowfall.setIsland(island);
-    this.fog.setIsland(island);
+    this.showBattlefield();
     this.showBanner(`SAILING TO ${island.name.toUpperCase()}`);
   }
 
@@ -628,8 +763,11 @@ export class GameScene extends Phaser.Scene {
     }
     if (this.heroPicker.visible) this.heroPicker.close();
     const p = this.progress;
-    const options = hunt ? p.huntOptions(hunt.boss, hunt.island) : p.waveOptions;
-    const wave = hunt ? options.wave : p.wave;
+    // A depth of the Abyss plays like an island wave (options.wave) with
+    // its own line-up, scaling and currents.
+    const dive = p.inAbyss && !hunt;
+    const options = hunt ? p.huntOptions(hunt.boss, hunt.island) : dive ? p.abyssOptions : p.waveOptions;
+    const wave = hunt || dive ? options.wave : p.wave;
     // Flyers ahead (Storm Harpies, Ash Bats) and nobody on the ship can hit
     // (or net) them.
     const flyers = composeWave(wave, options).some((s) => s.def.flies);
@@ -645,16 +783,24 @@ export class GameScene extends Phaser.Scene {
     this.hunt = hunt ? { ...hunt, level: options.hunt.level } : null;
     this.ship.setSlotsEnabled(false);
     this.ship.restore();
-    this.stats.start(wave, p.islandId, this.heroes);
+    this.stats.start(dive ? p.depth : wave, dive ? ABYSS.id : p.islandId, this.heroes);
+    if (dive) {
+      // The depth's battlefield: its currents' island weather.
+      this.depthIsland = options.island;
+      for (const w of this.weathers) w.setIsland(options.island);
+    }
     this.waves.start(wave, options);
     this.volcano.start(options);
     this.blizzard.start(wave, options);   // the finale's blizzard rolls in here
     this.mists.start(wave, options);      // and its fog bank
+    this.currents.start(options);
     this.shipParts.start(p);
     this.abilities.resetCooldowns();
     const { finale, island } = options;
-    const boss = isBossWave(wave) ? ENEMIES[hunt ? hunt.boss : bossOf(wave, island)] : null;
-    if (hunt) {
+    const boss = !dive && isBossWave(wave) ? ENEMIES[hunt ? hunt.boss : bossOf(wave, island)] : null;
+    if (dive) {
+      this.announceDepth(options.abyss);
+    } else if (hunt) {
       this.showBanner(`BOSS HUNT - LV ${formatNum(this.hunt.level)}`, { detail: boss.name.toUpperCase(), color: UI.colors.warn });
     } else if (finale) {
       // The island's finale: its weather rolls in under its banner.
@@ -674,6 +820,27 @@ export class GameScene extends Phaser.Scene {
     this.events.emit('wave-started', { hunt: !!hunt });
   }
 
+  // A depth sets out: a banner for each current new at it ("CURRENT:
+  // BLIZZARD"; at a dive's first depth, every one active), then the boss's
+  // (those that don't announce themselves on arrival), ABYSS.hud.bossBannerDelay
+  // after it if there was one.
+  announceDepth({ seed, depth, currents, fresh }) {
+    const run = this.progress.abyss.run;
+    const news = depth === run.from ? currents : fresh;
+    const names = news.map((id) => this.abyssData.currents.order.find((c) => c.id === id));
+    if (names.length === 1) {
+      this.showBanner(`CURRENT: ${names[0].name.toUpperCase()}`, { detail: names[0].effect.toUpperCase(), color: UI.colors.warn });
+    } else if (names.length) {
+      this.showBanner('CURRENTS', { detail: names.map((c) => c.name.toUpperCase()).join(' + '), color: UI.colors.warn });
+    }
+    if (names.length) sfx.wind();
+    const boss = depthBosses(seed, depth).map((k) => ENEMIES[k]).find((def) => !def.bannerOnEntrance);
+    if (!boss) return;
+    const show = () => this.state === STATE.RUNNING && this.showBanner(boss.banner, { color: UI.colors.warn });
+    if (names.length) this.time.delayedCall(ABYSS.hud.bossBannerDelay, show);
+    else show();
+  }
+
   endWave(won) {
     this.state = STATE.IDLE;
     const { hunt } = this;
@@ -682,11 +849,14 @@ export class GameScene extends Phaser.Scene {
     // per minute expeditions are based on.
     const record = this.stats.finish(won);
     if (!hunt) this.progress.logWave(record);
+    const dive = this.progress.inAbyss && !hunt;
+    if (dive) this.progress.noteDiveDamage(record);
     this.applySpeed();
     this.waves.stop();
     this.volcano.stop();
     this.blizzard.stop();
     this.mists.stop();
+    this.currents.stop();
     this.shipParts.stop();
     this.abilities.clear();
     for (const h of this.heroes) h.clearAbilities();
@@ -698,8 +868,11 @@ export class GameScene extends Phaser.Scene {
     this.storm.stop();
     this.ashfall.calm();
     this.snowfall.calm();
+    let summary = null;   // a dive that just ended (Progress.endDive)
     if (hunt) {
       this.endHunt(hunt, won);
+    } else if (dive) {
+      summary = this.endDepth(won);
     } else if (won) {
       const wave = this.progress.wave;
       const { gold, pearls, finale } = this.progress.winWave();
@@ -736,7 +909,63 @@ export class GameScene extends Phaser.Scene {
       this.autoContinue.pause();
       this.time.delayedCall(ENDING.delayMs, () => this.playEnding());
     }
-    this.events.emit('wave-ended', won, { hunt: !!hunt });
+    this.events.emit('wave-ended', won, { hunt: !!hunt, diveOver: !!summary });
+    // The dive is over: its end-of-run screen once the banner has shown
+    // (auto-continue waits for the player).
+    if (summary) {
+      this.autoContinue.pause();
+      this.time.delayedCall(ABYSS.endScreenDelay, () => this.showDiveEnd(summary));
+    }
+  }
+
+  // A depth of the Abyss is over. Won: its clear bonus and first-clear
+  // milestone, on to the next depth (and its currents' weather). Lost: the
+  // dive ends; returns its summary (Progress.endDive) for the end-of-run
+  // screen.
+  endDepth(won) {
+    const p = this.progress;
+    if (!won) {
+      const summary = p.endDive();
+      sfx.denied();
+      this.showBanner(summary.newRecord ? `NEW RECORD - DEPTH ${formatNum(summary.depth)}` : 'SHIP SUNK!', {
+        detail: `THE ABYSS TOOK YOU AT DEPTH ${formatNum(summary.depth)}`, color: summary.newRecord ? UI.colors.text : UI.colors.warn,
+      });
+      this.showBattlefield();
+      return summary;
+    }
+    const { depth, gold, milestone } = p.winDepth();
+    this.waveGold += gold;
+    const parts = [`+${formatNum(gold)} GOLD`];
+    if (milestone) {
+      sfx.reveal('legendary', true);
+      for (const [tier, n] of Object.entries(milestone.chests)) {
+        const { label } = EXPEDITIONS.chests[tier];
+        parts.push(`+${n > 1 ? `${n} ` : ''}${label.toUpperCase()}${n > 1 ? 'S' : ''}`);
+      }
+      if (milestone.pearls) parts.push(`+${pearlsLabel(milestone.pearls).toUpperCase()}`);
+    }
+    this.showBanner(`DEPTH ${formatNum(depth)} CLEARED!`, { detail: parts.join('  '), hold: milestone ? 3500 : 1700 });
+    this.showBattlefield();
+    return null;
+  }
+
+  // The end-of-run screen (AbyssEndScene): Dive again starts a new dive from
+  // the same depth (or the deepest checkpoint below it still open); Map
+  // takes the ship back to its island and opens the map.
+  showDiveEnd(summary) {
+    if (this.heroPicker.visible) this.heroPicker.close();
+    this.scene.launch('AbyssEndScene', {
+      progress: this.progress,
+      summary,
+      onDiveAgain: () => {
+        const open = this.progress.abyssCheckpoints.filter((d) => d <= summary.from);
+        this.startDive({ from: open[open.length - 1], seed: newSeed() });
+      },
+      onMap: () => {
+        this.refreshUi();
+        this.openMap();
+      },
+    });
   }
 
   // A Boss Hunt is over: a win pays the boss's material (and a little gold)
@@ -757,10 +986,17 @@ export class GameScene extends Phaser.Scene {
   }
 
   // The ending (after Fogbound Isle's finale): the voyage across the map.
+  // Its Continue then opens the map, which reveals the Abyss (once).
   playEnding() {
     this.endingDue = false;
     if (this.heroPicker.visible) this.heroPicker.close();
-    this.scene.launch('EndingScene', { progress: this.progress, onClose: () => this.refreshUi() });
+    this.scene.launch('EndingScene', {
+      progress: this.progress,
+      onClose: () => {
+        this.refreshUi();
+        if (this.progress.abyssUnlocked && !this.progress.abyss.revealed) this.openMap();
+      },
+    });
   }
 
   cycleSpeed() {
@@ -783,9 +1019,7 @@ export class GameScene extends Phaser.Scene {
   update(_time, delta) {
     this.notices.update(Math.min(delta, 100));
     this.storm.update(Math.min(delta, 100));
-    this.ashfall.update(Math.min(delta, 100));
-    this.snowfall.update(Math.min(delta, 100));
-    this.fog.update(Math.min(delta, 100));
+    for (const w of this.weathers) w.update(Math.min(delta, 100));
     this.watchExpeditions(delta);
     if (this.state !== STATE.RUNNING) return;
     // Fixed steps of game time, so the wave plays out the same at any frame
@@ -822,7 +1056,7 @@ export class GameScene extends Phaser.Scene {
     for (const e of spawned) if (this.progress.discover(e.key)) this.notices.newEnemy(e.key);
     // Frostbite Reef: snow puffs off the pines as each one steps out (the
     // Frost Giant shakes them itself; the Frost Wyrm flies in).
-    const puff = this.progress.island.spawnPuff;
+    const puff = this.battleIsland.spawnPuff;
     if (puff) for (const e of spawned) if (!e.def.wyrm && !e.def.giant) playSpawnPuff(this, puff);
     // The finale: a boss arriving after the other fell comes in enraged.
     for (const e of spawned) if (e.def.boss && e.rage > 1) this.showBanner(`${e.def.name.toUpperCase()} ENRAGES!`, { color: UI.colors.warn });
@@ -830,6 +1064,7 @@ export class GameScene extends Phaser.Scene {
     this.volcano.update(dt);
     this.blizzard.update(dt);
     this.mists.update(dt);
+    this.currents.update(dt);
     this.shipParts.update(dt);
     this.abilities.update(dt, this.progress.autoAbilities);
 

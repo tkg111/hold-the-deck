@@ -7,7 +7,7 @@ export const SAVE_KEY = 'kampung-defense/save';
 const CORRUPT_BACKUP_KEY = 'kampung-defense/save-corrupt-backup';
 
 // Bump when the saved shape changes, and add a migration from the old version.
-export const SAVE_VERSION = 14;
+export const SAVE_VERSION = 15;
 
 // v5 pirate reskin: old hero IDs -> new hero IDs.
 const V5_HERO_IDS = {
@@ -131,6 +131,15 @@ const MIGRATIONS = {
   // on each slot) and Boss Hunts (each boss's hunt level, today's wins).
   13: (data) => ({
     ...data, materials: {}, parts: {}, equipped: {}, huntLevels: {}, huntDay: '', huntWins: {},
+  }),
+  // v15: the Abyss (best depth, milestones paid, dives started, whether the
+  // map has revealed it, and the dive under way). A save that has already
+  // won Fogbound Isle's finale gets the reveal the next time the map opens.
+  14: (data) => ({
+    ...data,
+    abyss: {
+      best: 0, milestones: [], runs: 0, revealed: false, run: null,
+    },
   }),
 };
 

@@ -35,6 +35,7 @@ import { Progress } from '../../src/systems/Progress.js';
 import { Volcano } from '../../src/systems/Volcano.js';
 import { Blizzard } from '../../src/systems/Blizzard.js';
 import { Mists } from '../../src/systems/Mists.js';
+import { Currents } from '../../src/systems/Currents.js';
 import { WaveManager } from '../../src/systems/WaveManager.js';
 import { initParts, partOf } from '../../src/systems/Parts.js';
 import { ShipParts } from '../../src/systems/ShipParts.js';
@@ -180,13 +181,15 @@ Hero.prototype.charm = function charmAndMaybeTap(ms, charmer) {
 
 // hunt: a boss (ENEMIES key) to fight a Boss Hunt against on the current
 // island instead of the next wave (a win pays its drops and raises its
-// level, see Progress.winHunt).
+// level, see Progress.winHunt). During a dive in the Abyss it plays the
+// current depth (a win: Progress.winDepth; a loss is for the caller to end).
 export function playWave(scene, progress, onStep = null, { hunt = null } = {}) {
   const {
-    ship, waves, volcano, blizzard, mists, abilities, shipParts,
+    ship, waves, volcano, blizzard, mists, currents, abilities, shipParts,
   } = scene;
-  const options = hunt ? progress.huntOptions(hunt, progress.islandId) : progress.waveOptions;
-  const wave = hunt ? options.wave : progress.wave;
+  const dive = progress.inAbyss && !hunt;
+  const options = hunt ? progress.huntOptions(hunt, progress.islandId) : dive ? progress.abyssOptions : progress.waveOptions;
+  const wave = hunt || dive ? options.wave : progress.wave;
   scene.hunting = !!hunt;
   ship.sync(progress);
   rebuildHeroes(scene, progress);
@@ -196,6 +199,7 @@ export function playWave(scene, progress, onStep = null, { hunt = null } = {}) {
   volcano.start(options);
   blizzard.start(wave, options);
   mists.start(wave, options);
+  currents.start(options);
   shipParts.start(progress);
   abilities.resetCooldowns();
   let time = 0;
@@ -209,6 +213,7 @@ export function playWave(scene, progress, onStep = null, { hunt = null } = {}) {
     volcano.update(DT);
     blizzard.update(DT);
     mists.update(DT);
+    currents.update(DT);
     shipParts.update(DT);
     abilities.update(DT, true);
     for (const h of scene.heroes) {
@@ -235,10 +240,12 @@ export function playWave(scene, progress, onStep = null, { hunt = null } = {}) {
   volcano.stop();
   blizzard.stop();
   mists.stop();
+  currents.stop();
   shipParts.stop();
   abilities.clear();
   for (const h of scene.heroes) h.clearAbilities();
   if (won && hunt) progress.winHunt(hunt, progress.islandId);
+  else if (won && dive) progress.winDepth();
   else if (won) progress.winWave();
   return { won, time, hullLeft: ship.hp / ship.maxHp };
 }
@@ -312,6 +319,7 @@ export function makeBattle(progress) {
   scene.volcano = new Volcano(scene);
   scene.blizzard = new Blizzard(scene);
   scene.mists = new Mists(scene);
+  scene.currents = new Currents(scene);
   scene.abilities = new AbilitySystem(scene);
   scene.shipParts = new ShipParts(scene);
   return scene;
@@ -332,7 +340,9 @@ export function payKills(scene, progress) {
     if (e.def.hazard) return;   // a lava bomb shot down
     progress.recordDefeat(e.key);   // bounties pay Pearls
     progress.earnGold(progress.boostGold(e.gold));
-    if (e.def.boss && !scene.hunting) {
+    if (e.def.boss && progress.inAbyss) {
+      progress.abyssBossDrop(e.key);   // double, and no Pearls
+    } else if (e.def.boss && !scene.hunting) {
       progress.claimBossPearls();
       progress.bossDrop(e.key);
       scene.waves.bossDown();   // the finale's other boss enrages

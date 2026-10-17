@@ -1,0 +1,67 @@
+{
+  "currents": {
+    "sheet": "currents.png",
+    "size": 12,
+    "order": [
+      {
+        "id": "frenzied",
+        "name": "Frenzied",
+        "effect": "Enemies move and attack 25% faster."
+      },
+      {
+        "id": "armoured",
+        "name": "Armoured",
+        "effect": "Enemies have +40% HP."
+      },
+      {
+        "id": "shielded",
+        "name": "Shielded",
+        "effect": "Every 4th enemy spawns with an Ice Witch shield."
+      },
+      {
+        "id": "volcanic",
+        "name": "Volcanic",
+        "effect": "Ember Isle's lava bombs fall on the deck."
+      },
+      {
+        "id": "blizzard",
+        "name": "Blizzard",
+        "effect": "Frostbite's blizzard freezes a crewmate every 8s."
+      },
+      {
+        "id": "fogbound",
+        "name": "Fogbound",
+        "effect": "Fogbound's fog bank: crew range -20%."
+      },
+      {
+        "id": "sirens_call",
+        "name": "Siren's Call",
+        "effect": "Every 15s a crewmate is charmed for 2s."
+      },
+      {
+        "id": "risen_dead",
+        "name": "Risen Dead",
+        "effect": "Killed enemies have a 15% chance to rise again as a Bone Deckhand."
+      }
+    ]
+  },
+  "mapIcon": {
+    "file": "map_abyss.png",
+    "x": 420,
+    "y": 200,
+    "note": "centre on the world map (480x270), bottom-right, clear of the islands"
+  },
+  "eliteAura": {
+    "file": "elite_aura.png",
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "frames": 4,
+    "fps": 8,
+    "repeat": -1
+  },
+  "perch": {
+    "x": 257,
+    "y": 152,
+    "note": "flat top of the basalt pillar: same as the Frostbite iceberg, so frost_wyrm perchPos works unchanged"
+  }
+}

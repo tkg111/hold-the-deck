@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { canvasSize, installScaling } from './display.js';
+import { AbyssEndScene } from './scenes/AbyssEndScene.js';
 import { CollectionScene } from './scenes/CollectionScene.js';
 import { EndingScene } from './scenes/EndingScene.js';
 import { ExpeditionScene } from './scenes/ExpeditionScene.js';
@@ -27,7 +28,7 @@ loadUiSpec().then(() => {
     // No automatic fitting: the canvas is sized to the game area (see
     // display.js), centered by the page's flex layout.
     scale: { mode: Phaser.Scale.NONE },
-    scene: [GameScene, PackScene, CollectionScene, WantedScene, MapScene, LogScene, EndingScene, ExpeditionScene, ShipyardScene],
+    scene: [GameScene, PackScene, CollectionScene, WantedScene, MapScene, LogScene, EndingScene, ExpeditionScene, ShipyardScene, AbyssEndScene],
   });
 
   // Handy for poking at state from the browser console during development.

@@ -2,6 +2,7 @@ import { DISPLAY, ISLANDS } from '../config.js';
 import { finishAll } from '../systems/Expeditions.js';
 import { gameMaterials } from '../systems/Parts.js';
 import { isBossWave } from '../systems/WaveManager.js';
+import { isBossDepth } from '../systems/Abyss.js';
 import { Button } from '../ui/Button.js';
 
 // Dev controls. Loaded via dynamic import only when DEV_TOOLS is on
@@ -32,8 +33,13 @@ export function installDevTools(scene) {
     ...small, width: 60, label: '+10 WAVE',
     onClick: () => {
       if (scene.state !== 'idle') return;
+      // In a dive: 10 depths deeper.
+      if (progress.inAbyss) {
+        progress.abyss.run.depth += 10;
+        scene.showBattlefield();
+      }
       // Stops at an island's finale, so it isn't skipped.
-      for (let i = 0; i < 10 && !progress.isFinaleWave; i++) progress.advanceWave();
+      for (let i = 0; i < 10 && !progress.inAbyss && !progress.isFinaleWave; i++) progress.advanceWave();
       scene.refreshUi();
     },
   });
@@ -57,10 +63,34 @@ export function installDevTools(scene) {
   const bossButton = new Button(scene, 64, 177, {
     ...small, width: 124, label: 'DEV NEXT BOSS WAVE',
     onClick: () => {
-      if (scene.state !== 'idle' || progress.isFinaleWave) return;
+      if (scene.state !== 'idle') return;
+      // In a dive: the next boss depth.
+      if (progress.inAbyss) {
+        const { run } = progress.abyss;
+        do run.depth++;
+        while (!isBossDepth(run.depth));
+        scene.showBattlefield();
+        scene.refreshUi();
+        return;
+      }
+      if (progress.isFinaleWave) return;
       do progress.advanceWave();
       while (!isBossWave(progress.wave) && !progress.isFinaleWave);
       scene.refreshUi();
+    },
+  });
+
+  // Open the Abyss: every island cleared (the map reveals it next time).
+  const abyssButton = new Button(scene, 64, 138, {
+    ...small, width: 124, label: 'DEV OPEN ABYSS',
+    onClick: () => {
+      if (scene.state !== 'idle') return;
+      for (const island of islands) {
+        progress.islands[island.id] ??= { wave: 1, best: 0, cleared: false, bossPaid: 0, dropsPaid: {} };
+        progress.islands[island.id].cleared = true;
+      }
+      scene.refreshUi();
+      scene.save();
     },
   });
 
@@ -84,7 +114,7 @@ export function installDevTools(scene) {
     },
   });
 
-  const buttons = [devButton, pearlsButton, waveButton, islandButton, bossButton, expeditionsButton, materialsButton];
+  const buttons = [devButton, pearlsButton, waveButton, islandButton, bossButton, expeditionsButton, materialsButton, abyssButton];
   const corner = scene.add.container(0, 0, buttons).setDepth(20);
   const layout = (view) => corner.setPosition(view.left, Math.round(view.bottom - DISPLAY.height));
   layout(scene.view);

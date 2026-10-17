@@ -1,5 +1,5 @@
 import {
-  ASHFALL, ENEMIES, FX, ISLANDS, MAP, MIST, PARTS, SHIP, SNOWFALL, SPRITES, STORM,
+  ABYSS, ASHFALL, ENEMIES, FX, ISLANDS, MAP, MIST, MOTES, PARTS, SHIP, SNOWFALL, SPRITES, STORM,
 } from './config.js';
 import { initLayout, LAYOUT } from './layout.js';
 import {
@@ -49,9 +49,21 @@ export function sceneryKeys(island) {
     ? { bg: `bg_${id}`, fg: `fg_${id}`, anim: `fg_loop_${id}`, front: island.scenery.front ? `front_${id}` : null }
     : { bg: BACKGROUND_KEY, fg: FOREGROUND_KEY, anim: 'fg_loop', front: null };
 }
-// Weather sheets (ASHFALL, SNOWFALL): the light one, and its heavy one when
-// that has a file of its own.
-export const WEATHER = [ASHFALL, SNOWFALL];
+// Every battlefield with a backdrop of its own: the islands that have one,
+// and the Abyss (whose island-shaped stand-in, Abyss.abyssIsland, has the
+// same id and scenery).
+const SCENERIES = [...ISLANDS.filter((i) => i.scenery), ABYSS];
+// Weather sheets (ASHFALL, SNOWFALL, the Abyss's MOTES): the light one, and
+// its heavy one when that has a file of its own.
+export const WEATHER = [ASHFALL, SNOWFALL, MOTES];
+
+// The Abyss (ABYSS.path): abyss.json (the currents' names, effect lines and
+// icon order), the current icons, the depth icon, the Elites' aura (texture
+// and animation key) and the map icon (mapKey(ABYSS.id)).
+export const ABYSS_JSON_KEY = 'abyss';
+export const CURRENTS_KEY = 'abyss_currents';
+export const DEPTH_ICON_KEY = 'abyss_depth';
+export const ELITE_AURA_KEY = 'abyss_elite_aura';
 export const weatherKey = (spec, heavy = false) => `weather_${spec.flag}${heavy ? '_heavy' : ''}`;
 // Fogbound Isle's mist strip and fog bank sheets (MIST; see src/fog.js).
 export const MIST_KEY = 'mist';
@@ -103,6 +115,19 @@ function preloadParts(load) {
   });
 }
 
+function preloadAbyss(load) {
+  const { path } = ABYSS;
+  load.json(ABYSS_JSON_KEY, `${path}abyss.json`);
+  load.once(`filecomplete-json-${ABYSS_JSON_KEY}`, (key, type, data) => {
+    const { sheet, size } = data.currents;
+    load.spritesheet(CURRENTS_KEY, `${path}${sheet}`, { frameWidth: size, frameHeight: size });
+  });
+  load.image(DEPTH_ICON_KEY, `${path}${ABYSS.hud.depthIcon}`);
+  const { aura } = ABYSS.elites;
+  load.spritesheet(ELITE_AURA_KEY, `${path}${aura.file}`, { frameWidth: aura.frameWidth, frameHeight: aura.frameHeight });
+  load.image(mapKey(ABYSS.id), `${path}${ABYSS.map.file}`);
+}
+
 function preloadMap(load) {
   load.image(mapKey('bg'), `${MAP.path}map_bg.png`);
   load.image(mapKey('flag'), `${MAP.path}flag_cleared.png`);
@@ -137,8 +162,7 @@ export function preloadSprites(scene) {
     if (def.sprite && !def.sheetOnly) load.image(def.sprite, `${def.dir ?? ''}${def.sprite}.png`);
   }
   load.image(BACKGROUND_KEY, `${BACKGROUND_KEY}.png`);
-  for (const island of ISLANDS) {
-    if (!island.scenery) continue;
+  for (const island of SCENERIES) {
     const { path, bg, front } = island.scenery;
     load.image(sceneryKeys(island).bg, `${path}${bg}.png`);
     if (front) load.image(sceneryKeys(island).front, `${path}${front}.png`);
@@ -158,11 +182,12 @@ export function preloadSprites(scene) {
   load.once(`filecomplete-json-${LAYOUT_KEY}`, (key, type, data) => {
     const frame = { frameWidth: data.size[0], frameHeight: data.size[1] };
     load.spritesheet(FOREGROUND_KEY, `${FOREGROUND_KEY}.png`, frame);
-    for (const island of ISLANDS) {
-      if (island.scenery) load.spritesheet(sceneryKeys(island).fg, `${island.scenery.path}${island.scenery.fg}.png`, frame);
+    for (const island of SCENERIES) {
+      load.spritesheet(sceneryKeys(island).fg, `${island.scenery.path}${island.scenery.fg}.png`, frame);
     }
   });
   preloadUi(scene);
+  preloadAbyss(load);
   // Projectile, impact, status, ability and hazard effects: each fx list
   // gives its sheets' files and frame sizes.
   for (const { key: listKey, dir, file: listFile } of FX_FILES) {
@@ -190,13 +215,22 @@ export function preloadSprites(scene) {
 // "<name>_<anim>", plus each foreground loop and the Kraken's splash.
 export function createAnimations(scene) {
   initLayout(scene.cache.json.get(LAYOUT_KEY));
-  for (const island of [null, ...ISLANDS.filter((i) => i.scenery)]) {
+  for (const island of [null, ...SCENERIES]) {
     const { fg, anim } = sceneryKeys(island);
     if (scene.anims.exists(anim)) continue;
     scene.anims.create({
       key: anim,
       frames: scene.anims.generateFrameNumbers(fg, { start: 0, end: LAYOUT.foreground.frames - 1 }),
       frameRate: LAYOUT.foreground.fps,
+      repeat: -1,
+    });
+  }
+  const { aura } = ABYSS.elites;
+  if (!scene.anims.exists(ELITE_AURA_KEY)) {
+    scene.anims.create({
+      key: ELITE_AURA_KEY,
+      frames: scene.anims.generateFrameNumbers(ELITE_AURA_KEY, { start: 0, end: aura.frames - 1 }),
+      frameRate: aura.fps,
       repeat: -1,
     });
   }

@@ -1682,3 +1682,145 @@ cost more than first bosses' because their first wave is 10 waves later.
 | Magma Cannons | every 6s, 40% per level of the best DMG, plus a 3s puddle burning at 25% of that per second |
 | Heartwood Cannons | every 5s, 25% per level of the best DMG to 3 enemies, ×0.7 pace for 2s |
 | Blackbones' Lantern | +5% gold per level, fog range penalty ×0.5 |
+
+## 12. The Abyss
+
+Reproduce with `npm run sim:abyss -- 5 3` (`scripts/sim/abyss.mjs`; set
+`ABYSS_CACHE` to a file to keep the crews between runs, `seed=N` replays one
+dive per crew with a line per depth, `from=20` starts at a checkpoint,
+`parts=` changes the parted set, `profile=` runs one profile). The other
+islands are unchanged: `npm run sim -- 3 50 voyage` gives the same output as
+before the Abyss, wave for wave.
+
+### 12.1 How it's measured
+
+- **Crews:** for seeds 1000–1004 the greedy bot sails all four islands from
+  a fresh save, spending after every attempt; a wave lost 30 times running
+  is skipped (a skipped finale counts as cleared). No parts. Its save at the
+  end of Fogbound Isle dives.
+- **Dives:** each crew dives 3 times, each dive its own seed (its own types,
+  line-ups, Elites and currents), so **15 seeds per profile**:
+  - **none:** spends nothing between depths;
+  - **upgraded:** spends all its gold between depths like the greedy bot;
+  - **parted:** upgraded, with three parts at level 5: the Kraken
+    Figurehead, Frostwing Sails and Magma Cannons.
+- Frozen and charmed crew are tapped free like a player (60% of the time,
+  0.8s after). "Depth reached" is the depth the ship sank on.
+
+### 12.2 Tuning rounds
+
+| Round | Change | none | upgraded | parted |
+|---|---|---:|---:|---:|
+| 1 | as specified (every type's group counted by its members, all weights 1) | – | ~13 (5 seeds) | – |
+| 2 | groups count by a `size` (golem 6, crabs and knights 3…) | 12.3 | 14.3 | 23.9 |
+| 3 | Keg Runners weight 0.2, Harpies and Ash Bats 0.5 | – | 17.7 | 24.1 |
+| 4 | round 3 with damage growth 2% instead of 3% (not kept) | – | 18.1 | 26.2 |
+| 5 | hull-share hits (kegs, boats) x0.5 in the Abyss | 15.6 | 18.6 | 26.7 |
+| 6 | bigger sizes for the dangerous groups (keg pair 8, harpy pair 5, bats 6, knight 5, golem 9, crabs 4); weights keg 0.5, flyers 0.7 | 21.3 | **26.6** | 38.5 (Kraken + Ghostweave + Magma) |
+
+Parted with round 6's numbers, by part set (average depth): Kraken Figurehead +
+Ghostweave Sails + Heartwood Cannons 37.3; Siren Figurehead + Ghostweave +
+Magma Cannons 39.5; Kraken + Ghostweave + Blackbones' Lantern 35.2; **Kraken +
+Frostwing Sails + Magma Cannons 45.9** (the set reported below: the Frostwing
+Sails' slow near the ship is worth most against the Abyss's mixed swarms).
+
+What moved it: round 1's deaths came in two kinds. **Two-type depths** of
+nothing but Keg Runners and Harpies (or golems, whose split crabs make each
+one three armoured enemies) sank every crew at depth 4–5, because the pool
+filled the whole count with them; weights can't help there (they're only
+relative within the depth), so groups now count toward the depth's enemy
+count by how much they're worth. And **share-of-hull hits** (Keg Runners at
+12% / 22%, boarding boats 15%) are the same at every power level, so
+upgrades and parts couldn't move the depth reached (upgraded matched none,
+seed for seed). Halving them in the Abyss lets the crew's strength decide.
+Slowing the damage growth barely mattered (round 4), so it stays at 3%.
+
+### 12.3 Results (final numbers)
+
+#### Depth reached (5 crews x 3 dives = 15 seeds each)
+
+Parted: kraken_figurehead 5, frostwing_sails 5, magma_cannons 5.
+
+| Profile | Average | Median | Range | Ended on a boss depth | Reached 100 |
+|---|---:|---:|---|---:|---:|
+| none | 21.3 | 18 | 15–35 | 1/15 | 0 |
+| upgraded | 26.6 | 26 | 15–37 | 2/15 | 0 |
+| parted | 45.9 | 45 | 29–76 | 0/15 | 0 |
+
+#### Where dives end
+
+| Profile | Depths reached (sorted) | Bosses that ended dives | Currents at the end (most common combos) |
+|---|---|---|---|
+| none | 15 15 16 16 16 16 18 18 19 24 25 27 29 30 35 | Molten Leviathan 1 | Armoured + Frenzied 2, Risen Dead + Volcanic 2, Armoured + Blizzard 2, Shielded + Siren's Call 1 |
+| upgraded | 15 16 16 19 20 20 21 26 33 34 35 35 36 36 37 | The Ghost Galleon 2 | Armoured + Frenzied 3, Frenzied + Shielded + Volcanic 2, Armoured + Risen Dead + Shielded 2, Fogbound + Risen Dead + Siren's Call 1 |
+| parted | 29 33 35 38 38 41 43 45 46 49 51 52 55 57 76 | - | Frenzied + Risen Dead + Volcanic 2, Armoured + Frenzied + Volcanic 2, Armoured + Shielded + Volcanic 1, Armoured + Frenzied + Siren's Call 1 |
+
+#### What sinks the ship (hull damage in the depths that ended dives)
+
+- none: Storm Harpy 20%, Bone Deckhand 16%, Keg Runner 12%, Barnacle Knight 12%, Ash Bat 9%, Cinder Skeleton 8%
+- upgraded: Storm Harpy 27%, Keg Runner 17%, Barnacle Knight 15%, Bone Deckhand 8%, Cinder Skeleton 6%, Boarding Boat 6%
+- parted: Storm Harpy 38%, Keg Runner 17%, Ash Bat 9%, Lava Bomb 7%, Fog Wraith 7%, Bone Deckhand 6%
+
+#### Currents that end dives
+
+| Current | none: at the end / depths met (per 100) | upgraded: at the end / depths met (per 100) | parted: at the end / depths met (per 100) |
+|---|---|---|---|
+| Frenzied | 6 / 25 (24.0) | 7 / 51 (13.7) | 9 / 190 (4.7) |
+| Armoured | 6 / 51 (11.8) | 8 / 69 (11.6) | 10 / 154 (6.5) |
+| Shielded | 5 / 63 (7.9) | 7 / 114 (6.1) | 5 / 250 (2.0) |
+| Volcanic | 3 / 63 (4.8) | 3 / 85 (3.5) | 8 / 185 (4.3) |
+| Blizzard | 2 / 40 (5.0) | 2 / 59 (3.4) | 5 / 149 (3.4) |
+| Fogbound | 2 / 71 (2.8) | 1 / 75 (1.3) | 2 / 108 (1.9) |
+| Siren's Call | 4 / 32 (12.5) | 4 / 59 (6.8) | 1 / 147 (0.7) |
+| Risen Dead | 4 / 30 (13.3) | 5 / 59 (8.5) | 4 / 176 (2.3) |
+
+#### Depth time and hull
+
+| Profile | Depths 1-10 avg s | 11-20 | 21-30 | 31-40 | 41-60 | Hull left on won depths (avg) |
+|---|---:|---:|---:|---:|---:|---:|
+| none | 90 | 137 | 184 | 218 | - | 79% |
+| upgraded | 89 | 133 | 158 | 203 | - | 78% |
+| parted | 74 | 113 | 138 | 167 | 196 | 83% |
+
+#### Crews used
+
+| Seed | Waves skipped | Hull LV (max HP) | Crew (level, stars) |
+|---:|---:|---|---|
+| 1000 | 28 | 117 (329,015) | Storm 86 5★, Captain 86 5★, Duelist 86 5★, Sharp 86 5★, Ghost 86 5★, Voodoo 86 5★ |
+| 1001 | 1 | 116 (307,497) | Storm 86 5★, Captain 86 5★, Duelist 86 5★, Sharp 86 5★, Cannon 86 5★, Voodoo 85 5★ |
+| 1002 | 0 | 116 (307,497) | Storm 86 5★, Captain 86 5★, Duelist 86 5★, Sharp 86 5★, Cannon 86 5★, Ghost 85 5★ |
+| 1003 | 0 | 115 (287,387) | Storm 86 5★, Captain 86 5★, Duelist 86 5★, Cannon 86 5★, Ghost 86 5★, Voodoo 85 5★ |
+| 1004 | 3 | 116 (307,497) | Storm 86 5★, Captain 86 5★, Duelist 86 5★, Cannon 86 5★, Sharp 86 5★, Ghost 85 5★ |
+
+### 12.4 Against the targets
+
+- **A fresh end-of-Fogbound upgraded crew reaches depth 20–30:** upgraded
+  averages **26.6** (median 26, 15–37). With no upgrades it's 21.3.
+- **A fully parted crew reaches depth 40–60:** **45.9** (median 45, 29–76)
+  with the Kraken Figurehead, Frostwing Sails and Magma Cannons at level 5;
+  35–40 with weaker sets.
+- **Nothing reaches depth 100:** the deepest of the 45 dives is 76.
+- **Where dives end:** rarely on a boss depth (3 of 45); bosses are beaten
+  and the escort that comes after them isn't the problem. Dives end on
+  ordinary depths whose two to six types are flyers (Storm Harpies are the
+  biggest single killer in every profile, then Keg Runners and Barnacle
+  Knights) under the currents of the time.
+- **Which currents kill most:** per 100 depths met, **Frenzied** (24 / 14 / 5
+  for none / upgraded / parted) and **Armoured** (12 / 12 / 7) are the
+  deadliest, then Siren's Call and Risen Dead for weaker crews. Fogbound
+  (-20% range) is the mildest. Combos at the end are mostly Armoured +
+  Frenzied, and from depth 30 those with Volcanic.
+
+### 12.5 Final numbers
+
+| What | Value |
+|---|---|
+| Depth 1 | Fogbound Isle wave 40 (count 103, effective wave 187, damage x68) |
+| Each depth | one wave on; damage x1.03 per depth, no cap |
+| Types | 2, +1 every 5 depths, up to 6, from 16 |
+| Group sizes | golem 9, keg pair 8, Ash Bat three 6, Harpy pair 5, Barnacle Knight 5, Iron / Magma Crab 4, Lantern Ghoul group 4, Yeti / Witch / Cursed Cannoneer 2, others their heads |
+| Weights | keg 0.5, Harpy / Ash Bat 0.7, Ice Witch / Lantern Ghoul 0.5, others 1 |
+| Hull-share hits | x0.5 (lava bombs excepted) |
+| Elites | from depth 10: 10% → 25% at depth 60; x3 HP, x1.5 damage, x3 gold |
+| Bosses | every 10; pairs from 80; double material |
+| Currents | 1 from depth 5, 2 from 15, 3 from 30; swap the oldest every 5 |

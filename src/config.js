@@ -1819,7 +1819,10 @@ export const MAP = {
   shipTokenOffset: { x: -30, y: -22 },   // from the current island's centre
   bob: { px: 1, ms: 700 },               // the ship token bobs this much
   clearedColor: '#3a8a3a',
-  card: { x: 306, y: 132, width: 166, height: 126, valueX: 64 },
+  // The selected island's (or the Abyss's) card: on the right, or at leftX
+  // when what's selected is right of splitX, so it never covers it (nor,
+  // with the left half selected, anything on the right half).
+  card: { x: 306, leftX: 8, splitX: 240, y: 132, width: 166, height: 126, valueX: 64 },
 };
 
 // Groups a wave is built from, picked at random by weight from those
@@ -2151,6 +2154,141 @@ export const HUNTS = {
   dropEvery: 3,
   dailyDoubles: 3,
   gold: 2,
+};
+
+// The Abyss (src/systems/Abyss.js, src/systems/Currents.js, AbyssEndScene):
+// the endless endgame, opened once unlockIsland's finale is won. Art and
+// data in public/sprites/abyss/ (abyss.json: the currents' names, effect
+// lines and icon order). A run (a "dive") goes depth after depth, one wave
+// each, until the ship sinks; upgrades between depths work as between waves.
+//   start: depth 1 is that island's wave: its enemy count, spawn rate, HP,
+//          kill gold and damage; every depth after is one wave on.
+//   damageGrowth: enemy damage x (1 + damageGrowth) per depth on top of
+//          depth 1's (the islands' lateDamage.growth, with no cap).
+//   hullShare: enemies whose hit is a share of the hull (Keg Runners,
+//          boarding boats; ENEMIES hullShare) hit for this x that share, so
+//          a depth's walls are what the crew can't kill rather than a
+//          fixed share no upgrade outgrows. Lava bombs are as on Ember Isle.
+//   enemies: the island enemies a depth draws from, each with the group it
+//          comes in (members front first; escort and pack as in FORMATIONS),
+//          its weight, and its size: how many enemies the group counts as
+//          toward the depth's count (default: its members), so a tough one
+//          (an Obsidian Golem and the crabs it splits into) fills more of it. A depth uses types.start of them at random, one
+//          more every types.every depths, up to types.max.
+//   elites: from fromDepth, chance at fromDepth rising evenly to maxChance
+//          at maxDepth (and after): hp x HP, damage x damage, gold x kill
+//          gold, `tint` on the sprite and `aura` (an animated sheet) behind it.
+//   bosses: every `every` depths, `order` taking turns; from pairsFrom, each
+//          boss depth brings a pair (`pairs` taking turns; null: a random
+//          other boss), entering at spawnAt of the depth's groups. Each boss
+//          has its usual HP at the depth (no bossBoost) and drops `drops` x
+//          its material (PARTS.drops).
+//   checkpoints: a dive can start at depth 1 or any multiple of `every` up
+//          to share x the best depth (rounded down); starting at one pays
+//          that depth's gold (its kills and clear bonus).
+//   currents: stacking modifiers. `counts` [depth, how many] active from
+//          that depth; at every multiple of swapEvery from the first, a new
+//          one joins if the count grows there, else the oldest is swapped for
+//          a new random one (never the one it replaced). A run's seed
+//          decides them. Each one's numbers below (ids in abyss.json's order).
+//   milestones: first time a depth is cleared (once per save): chests (free
+//          chest tiers, EXPEDITIONS.chestTiers) and Pearls; past the last
+//          listed, every `every` depths pays `after`.
+//   map: its icon's centre on the world map; the card shows there.
+//   reveal: the one-time "something stirs" on the map: the map zooms
+//          `zoom` x on the icon over zoomMs while the icon fades in over fadeMs.
+export const ABYSS = {
+  id: 'abyss',
+  name: 'The Abyss',
+  shortName: 'Abyss',
+  path: 'abyss/',       // under SPRITES.path
+  unlockIsland: 'fogbound_isle',
+  start: { island: 'fogbound_isle', wave: 40 },
+  damageGrowth: 0.03,
+  hullShare: 0.5,
+  scenery: { path: 'abyss/', bg: 'bg_abyss_tall', fg: 'fg_abyss_sheet' },
+  enemies: {
+    ironCrab: { weight: 1, size: 4, members: ['ironCrab'] },
+    stormHarpy: { weight: 0.7, size: 5, members: ['stormHarpy', 'stormHarpy'] },
+    kegRunner: { weight: 0.5, size: 8, members: ['kegRunner', 'kegRunner'] },
+    barnacleKnight: { weight: 1, size: 5, members: ['barnacleKnight'] },
+    cinderSkeleton: { weight: 1, members: ['cinderSkeleton', 'cinderSkeleton', 'cinderSkeleton'] },
+    magmaCrab: { weight: 1, size: 4, members: ['magmaCrab'] },
+    ashBat: { weight: 0.7, size: 6, members: ['ashBat', 'ashBat', 'ashBat'] },
+    obsidianGolem: { weight: 1, size: 9, members: ['obsidianGolem'] },
+    frozenCorsair: { weight: 1, members: ['frozenCorsair', 'frozenCorsair', 'frozenCorsair'] },
+    sledPenguin: { weight: 1, pack: [3, 5], members: ['sledPenguin'] },
+    yetiRaider: { weight: 1, size: 2, members: ['yetiRaider'] },
+    iceWitch: { weight: 0.5, size: 2, members: ['iceWitch'] },
+    boneDeckhand: { weight: 1, members: ['boneDeckhand', 'boneDeckhand', 'boneDeckhand'] },
+    fogWraith: { weight: 1, members: ['fogWraith', 'fogWraith'] },
+    cursedCannoneer: { weight: 1, size: 2, members: ['cursedCannoneer'] },
+    // Its deckhands come with it, for its lantern to raise.
+    lanternGhoul: { weight: 0.5, size: 4, members: ['boneDeckhand', 'boneDeckhand', 'lanternGhoul'] },
+  },
+  types: { start: 2, every: 5, max: 6 },
+  elites: {
+    fromDepth: 10, chance: 0.1, maxDepth: 60, maxChance: 0.25,
+    hp: 3, damage: 1.5, gold: 3, tint: 0xc8a6ff,
+    aura: { file: 'elite_aura.png', frameWidth: 32, frameHeight: 32, frames: 4, fps: 8 },
+  },
+  bosses: {
+    every: 10,
+    order: ['kraken', 'ghostGalleon', 'moltenLeviathan', 'frostWyrm', 'frostGiant', 'sirenQueen', 'captainBlackbones'],
+    pairsFrom: 80,
+    pairs: [['kraken', 'ghostGalleon'], ['moltenLeviathan', 'frostWyrm'], ['frostGiant', 'sirenQueen'], ['captainBlackbones', null]],
+    spawnAt: [0.3, 0.55],
+    drops: 2,
+  },
+  checkpoints: { every: 10, share: 0.5 },
+  currents: {
+    counts: [[5, 1], [15, 2], [30, 3]],
+    swapEvery: 5,
+    ids: ['frenzied', 'armoured', 'shielded', 'volcanic', 'blizzard', 'fogbound', 'sirens_call', 'risen_dead'],
+    frenzied: { pace: 1.25 },                    // enemies move and attack this much faster
+    armoured: { hp: 1.4 },                       // enemy HP (and shields) x this
+    shielded: { every: 4 },                      // every n-th enemy (not bosses) gets an Ice Witch's shield
+    volcanic: { island: 'ember_isle' },          // that island's lavaBombs, the whole depth
+    // Frostbite Reef's blizzard rolling in `at` ms into the depth and
+    // blowing to its end, freezing a crewmate every freezeEvery ms
+    // (freezeMs each); enemies walk chill x as fast.
+    blizzard: { island: 'frostbite_reef', at: 1500, freezeEvery: 8000, freezeMs: 2000, chill: 1 },
+    // Fogbound Isle's fog bank from `at` ms to the depth's end: crew range x range.
+    fogbound: { island: 'fogbound_isle', at: 1500, range: 0.8 },
+    sirens_call: { every: 15000, charmMs: 2000 },   // a crewmate who attacks is charmed (CHARM)
+    risen_dead: { chance: 0.15, into: 'boneDeckhand' },   // a killed enemy (not a boss) rises as one
+  },
+  milestones: {
+    10: { chests: { rare: 1 } },
+    20: { chests: { rare: 2 } },
+    30: { chests: { legendary: 1 } },
+    every: 10,
+    after: { chests: { legendary: 1 }, pearls: 100 },
+  },
+  map: { x: 420, y: 200, file: 'map_abyss.png', lockedTint: 0x1a1a24, lockedAlpha: 0.8 },
+  reveal: { zoom: 2, zoomMs: 1600, fadeMs: 1400, message: 'SOMETHING STIRS IN THE DEEP...' },
+  // The battle: rising motes (Weather, like ASHFALL) over the scene the whole
+  // time; the HUD's depth icon; the row of current icons under the hull
+  // plaque (icons iconSize px, gap apart) and the note a tapped one shows
+  // (noteMs real time); the current banner, and a boss banner that waits
+  // bossBannerDelay ms (game time) after it.
+  hud: { depthIcon: 'icon_depth.png', iconSize: 12, gap: 2, y: 52, noteMs: 2500, bossBannerDelay: 1800 },
+  // The end-of-run screen (AbyssEndScene) opens this long after the ship
+  // sinks, so the sinking banner shows first.
+  endScreenDelay: 2000,
+};
+
+// Rising motes over the Abyss (src/weather.js, flag `motes`): no heavy weather.
+export const MOTES = {
+  flag: 'motes',
+  path: 'abyss/',
+  file: 'motes_sheet.png',
+  frameWidth: 64,
+  frameHeight: 64,
+  frames: 4,
+  fps: 5,
+  fadeMs: 1200,
+  heavy: { tint: 0x000000, tintAlpha: 0, layers: 0, drift: { x: 0, y: 0 }, fadeMs: 1200 },
 };
 
 // Upgrade cost at level L: round(baseCost * costGrowth ^ L)

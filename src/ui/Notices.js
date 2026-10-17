@@ -20,6 +20,12 @@ export class Notices {
     this.toasts = [];    // [{ box, time }], oldest first
     this.mvpNote = null; // { box, time }
     this.anchor = { centerX: 0, top: 0, left: 0 };
+    this.toastOffset = 0;   // px the toasts move down (under the Abyss's current icons)
+  }
+
+  setToastOffset(px) {
+    this.toastOffset = px;
+    this.place();
   }
 
   // Follow the view: the alert stays top-centre, toasts top-left.
@@ -35,7 +41,7 @@ export class Notices {
       const { box } = this.mvpNote;
       box.setPosition(centerX - DISPLAY.width / 2 + BATTLE_LOG.mvp.x - Math.round(box.plaqueWidth / 2), top + BATTLE_LOG.mvp.y);
     }
-    let y = top + WANTED.toast.y;
+    let y = top + WANTED.toast.y + this.toastOffset;
     for (const t of this.toasts) {
       t.box.setPosition(left + WANTED.toast.x, y);
       y += t.height + WANTED.toast.gap;

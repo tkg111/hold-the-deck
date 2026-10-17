@@ -1,8 +1,12 @@
 import {
-  ABILITY_SCALING, BATTLE_LOG, ECONOMY, ENEMIES, EXPEDITIONS, HEROES, HUNTS, ISLANDS, PARTS, SHIP, PACKS, RARITY,
+  ABILITY_SCALING, ABYSS, BATTLE_LOG, ECONOMY, ENEMIES, EXPEDITIONS, HEROES, HUNTS, ISLANDS, PARTS, SHIP, PACKS, RARITY,
   STARTING_HEROES, UI_KIT, UPGRADES, WANTED, WAVES,
 } from '../config.js';
 import { clearBonus, enemyFirstWave, islandContent } from './WaveManager.js';
+import {
+  checkpoints, depthGold, depthOptions, depthScalingWave, milestoneOf, newSeed,
+} from './Abyss.js';
+import { totalDamage } from './BattleStats.js';
 import { entryFromSave, maxSlots } from './Expeditions.js';
 import {
   gameParts, materialOf, materialOfBoss, PART_DATA, partCost, partInGame, partOf,
@@ -83,6 +87,14 @@ export class Progress {
     this.huntLevels = {};
     this.huntDay = '';
     this.huntWins = {};
+    // The Abyss (see Abyss.js): the deepest depth reached, depths whose
+    // first-clear milestone was paid, dives started, whether the map has
+    // revealed it, and the dive under way (null between dives): its seed,
+    // the depth it's at (a reload resumes at its start), the depth it
+    // started from, and its totals for the end-of-run screen (gold,
+    // materials by id, damage by crewmate) and the bosses whose material
+    // this depth already paid.
+    this.abyss = newAbyss();
 
     this.muted = false;             // sound effects off
     this.autoAbilities = false;     // ability bar's Auto toggle
@@ -135,6 +147,16 @@ export class Progress {
       huntLevels: { ...this.huntLevels },
       huntDay: this.huntDay,
       huntWins: { ...this.huntWins },
+      abyss: {
+        ...this.abyss,
+        milestones: [...this.abyss.milestones],
+        run: this.abyss.run && {
+          ...this.abyss.run,
+          materials: { ...this.abyss.run.materials },
+          damage: { ...this.abyss.run.damage },
+          dropsPaid: [...this.abyss.run.dropsPaid],
+        },
+      },
     };
   }
 
@@ -229,6 +251,7 @@ export class Progress {
     for (const [boss, n] of Object.entries(data.huntWins ?? {})) {
       if (ENEMIES[boss]?.boss) p.huntWins[boss] = int(n, 0, HUNTS.dailyDoubles);
     }
+    p.abyss = abyssFromSave(data.abyss, int, knownMaterial);
 
     if (Array.isArray(data.slots)) {
       const seen = new Set(away);
@@ -745,6 +768,98 @@ export class Progress {
     };
   }
 
+  // --- The Abyss ---
+
+  // It opens once its island's finale is won.
+  get abyssUnlocked() { return this.isIslandCleared(ABYSS.unlockIsland); }
+  // A dive is under way (between depths too).
+  get inAbyss() { return !!this.abyss.run; }
+  get depth() { return this.abyss.run?.depth ?? 0; }
+  // The depths a dive can start at (see Abyss.checkpoints).
+  get abyssCheckpoints() { return checkpoints(this.abyss.best); }
+
+  // Start a dive at `from` (1 or a checkpoint) with this seed. A checkpoint
+  // pays that depth's gold at once. Returns the gold paid (0 from depth 1),
+  // or null if it can't start there.
+  startDive(from = 1, seed = newSeed()) {
+    if (!this.abyssUnlocked || this.inAbyss || !this.abyssCheckpoints.includes(from)) return null;
+    this.abyss.runs++;
+    this.abyss.run = {
+      seed, depth: from, from, gold: 0, materials: {}, damage: {}, dropsPaid: [],
+    };
+    const gold = from > 1 ? this.earnGold(this.boostGold(depthGold(seed, from))) : 0;
+    this.abyss.run.gold += gold;
+    return gold;
+  }
+
+  // What the current depth is fought with (Abyss.depthOptions).
+  get abyssOptions() { return depthOptions(this.abyss.run.seed, this.abyss.run.depth); }
+
+  // Gold earned during the dive (kills), for the end-of-run screen.
+  noteDiveGold(n) {
+    if (this.abyss.run) this.abyss.run.gold += n;
+  }
+
+  // A depth's crew damage (its Captain's Log record), for the dive's top
+  // damage dealer.
+  noteDiveDamage(record) {
+    const run = this.abyss.run;
+    if (!run || !record) return;
+    for (const c of record.crew) run.damage[c.id] = (run.damage[c.id] ?? 0) + totalDamage(c);
+  }
+
+  // The current depth was cleared: its clear bonus, its first-clear
+  // milestone (once per save: free chests and Pearls), and on to the next.
+  // Returns { depth (the one cleared), gold, milestone (or null) }.
+  winDepth() {
+    const run = this.abyss.run;
+    const { depth } = run;
+    const gold = this.earnGold(this.boostGold(clearBonus(depthScalingWave(depth))));
+    run.gold += gold;
+    let milestone = null;
+    if (!this.abyss.milestones.includes(depth)) milestone = milestoneOf(depth);
+    if (milestone) {
+      this.abyss.milestones.push(depth);
+      for (const [tier, n] of Object.entries(milestone.chests)) for (let i = 0; i < n; i++) this.addFreeChest(tier);
+      this.pearls += milestone.pearls;
+    }
+    this.abyss.best = Math.max(this.abyss.best, depth);
+    run.depth++;
+    run.dropsPaid = [];
+    return { depth, gold, milestone };
+  }
+
+  // The dive is over (the ship sank, or it left): the depth reached is
+  // recorded. Returns the end-of-run summary: { depth (reached), from, best,
+  // newRecord, gold, materials, mvp ({ id, damage } or null) }.
+  endDive() {
+    const run = this.abyss.run;
+    if (!run) return null;
+    const newRecord = run.depth > this.abyss.best;
+    this.abyss.best = Math.max(this.abyss.best, run.depth);
+    this.abyss.run = null;
+    let mvp = null;
+    for (const [id, damage] of Object.entries(run.damage)) if (damage > 0 && (!mvp || damage > mvp.damage)) mvp = { id, damage };
+    return {
+      depth: run.depth, from: run.from, best: this.abyss.best, newRecord, gold: run.gold, materials: run.materials, mvp,
+    };
+  }
+
+  // A boss beaten in the Abyss: ABYSS.bosses.drops x its usual drop (more the
+  // first time it's ever beaten; call after recordDefeat), once per boss per
+  // depth. Returns { material, count } or null.
+  abyssBossDrop(bossKey) {
+    const run = this.abyss.run;
+    const m = materialOfBoss(bossKey);
+    if (!run || !m || run.dropsPaid.includes(bossKey)) return null;
+    run.dropsPaid.push(bossKey);
+    const { perKill, firstKill } = PARTS.drops;
+    const count = (this.defeatCount(bossKey) <= 1 ? firstKill : perKill) * ABYSS.bosses.drops;
+    this.addMaterial(m.id, count);
+    run.materials[m.id] = (run.materials[m.id] ?? 0) + count;
+    return { material: m.id, count };
+  }
+
   // --- Packs ---
 
   get packCost() { return PACKS.cost; }
@@ -855,6 +970,41 @@ export class Progress {
   }
 }
 
+// A fresh save's Abyss record (see Progress.abyss).
+function newAbyss() {
+  return {
+    best: 0, milestones: [], runs: 0, revealed: false, run: null,
+  };
+}
+
+// A saved Abyss record, checked like the rest of the save. A dive's seed is
+// kept as it is (any 31-bit number).
+function abyssFromSave(a, int, knownMaterial) {
+  const abyss = newAbyss();
+  if (!a || typeof a !== 'object') return abyss;
+  abyss.best = int(a.best, 0);
+  abyss.runs = int(a.runs, 0);
+  abyss.revealed = a.revealed === true;
+  if (Array.isArray(a.milestones)) {
+    abyss.milestones = [...new Set(a.milestones.filter((d) => Number.isInteger(d) && d > 0))];
+  }
+  const r = a.run;
+  if (r && typeof r === 'object' && Number.isFinite(r.seed)) {
+    const numbers = (obj, keep) => Object.fromEntries(Object.entries(obj ?? {}).filter(([k]) => keep(k)).map(([k, v]) => [k, int(v, 0)]));
+    const depth = int(r.depth, 1);
+    abyss.run = {
+      seed: Math.floor(Math.abs(r.seed)) % 2 ** 31,
+      depth,
+      from: int(r.from, 1, depth),
+      gold: int(r.gold, 0),
+      materials: numbers(r.materials, knownMaterial),
+      damage: numbers(r.damage, (id) => id in HEROES),
+      dropsPaid: Array.isArray(r.dropsPaid) ? r.dropsPaid.filter((k) => ENEMIES[k]?.boss) : [],
+    };
+  }
+  return abyss;
+}
+
 // A saved Captain's Log record (see BattleStats.finish), checked like the rest
 // of the save: unknown crew and enemy types dropped, numbers clamped. null if
 // it isn't one.
@@ -876,7 +1026,7 @@ function logRecordFromSave(r, int) {
   for (const [k, v] of Object.entries(r.hull ?? {})) if (k in ENEMIES) hull[k] = int(v, 0);
   return {
     wave: int(r.wave, 1),
-    island: ISLANDS.some((d) => d.id === r.island) ? r.island : ISLANDS[0].id,
+    island: ISLANDS.some((d) => d.id === r.island) || r.island === ABYSS.id ? r.island : ISLANDS[0].id,
     won: r.won === true,
     crew,
     hull,
