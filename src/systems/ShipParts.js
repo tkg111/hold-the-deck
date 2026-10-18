@@ -6,6 +6,7 @@ import { LobProjectile, nearestLiving, PiercingProjectile } from '../entities/Pr
 import { FX_DEPTH, fxSprite, playFx } from '../fx.js';
 import { LAYOUT, laneFeetY } from '../layout.js';
 import { fxKey } from '../sprites.js';
+import { partValue } from './Parts.js';
 
 const FX = PARTS.effects;
 
@@ -136,12 +137,23 @@ export class ShipParts {
 
   // --- The parts ---
 
-  // Kraken Figurehead: a tentacle slaps the frontmost enemy, stunning it.
+  // Within px of where walkers stop (an enemy's front edge).
+  near(e, px) { return e.x - e.def.width / 2 - LAYOUT.shipContactX <= px; }
+
+  // Kraken Figurehead: a tentacle grabs the most dangerous enemy near the
+  // ship (an Elite, then a Keg Runner, then a flyer, else the frontmost),
+  // stunning it and hitting it for a share of the strongest crewmate's DMG.
   grab(level) {
     const spec = FX.kraken_figurehead;
-    const target = this.frontmost((e) => e.targetable && !e.isCharmed);
+    const near = (e) => e.targetable && !e.isCharmed && this.near(e, spec.range);
+    const target = this.frontmost((e) => near(e) && e.elite)
+      ?? this.frontmost((e) => near(e) && !!e.def.blast)
+      ?? this.frontmost((e) => near(e) && !!e.def.flies)
+      ?? this.frontmost(near);
     if (!target) return false;
     target.applyStun(spec.stun + (level - 1) * spec.stunPerLevel);
+    const damage = partValue(spec.damageAtMax, level) * this.strongestDamage;
+    if (damage > 0) target.takeDamage(damage);
     this.drawTentacle(target);
     playFx(this.scene, 'hit_spark', Math.round(target.x), Math.round(target.y));
     if (target.body?.setTintFill) {
@@ -195,9 +207,9 @@ export class ShipParts {
   // rest not.
   chill() {
     const spec = FX.frostwing_sails;
-    const slow = this.level('frostwing_sails') * spec.slowPerLevel;
+    const slow = partValue(spec.slowAtMax, this.level('frostwing_sails'));
     for (const e of this.enemies) {
-      const near = e.alive && e.x - e.def.width / 2 - LAYOUT.shipContactX <= spec.range;
+      const near = e.alive && this.near(e, spec.range);
       e.partSlow = near ? 1 - slow * (e.def.boss ? e.def.statusResist ?? 1 : 1) : 1;
     }
   }
@@ -208,7 +220,7 @@ export class ShipParts {
     const spec = FX.magma_cannons;
     const canHit = (e) => e.canBeHit(false);
     const target = this.frontmost(canHit);
-    const damage = spec.damagePerLevel * level * this.strongestDamage;
+    const damage = partValue(spec.damageAtMax, level) * this.strongestDamage;
     if (!target || damage <= 0) return false;
     const { x, y } = this.port();
     this.scene.projectiles.push(new LobProjectile(this.scene, {
@@ -232,7 +244,7 @@ export class ShipParts {
     const spec = FX.heartwood_cannons;
     const canHit = (e) => e.canBeHit(false);
     const target = this.frontmost(canHit);
-    const damage = spec.damagePerLevel * level * this.strongestDamage;
+    const damage = partValue(spec.damageAtMax, level) * this.strongestDamage;
     if (!target || damage <= 0) return false;
     const { x, y } = this.port();
     this.scene.projectiles.push(new PiercingProjectile(this.scene, {

@@ -11,7 +11,7 @@
 //    - none:     that crew, spending nothing between depths;
 //    - upgraded: spending all its gold between depths like the greedy bot;
 //    - parted:   upgraded, with `parts` (default: the Kraken Figurehead,
-//                Frostwing Sails and Magma Cannons at max level) on the ship.
+//                Frostwing Sails and Heartwood Cannons at max level) on the ship.
 //    Frozen and charmed crew are tapped free like a player would (TAP in
 //    simulate.mjs). A dive ends when the ship sinks (or at MAX_DEPTH).
 // Report: the depth reached per profile (average, range), where dives end
@@ -43,7 +43,7 @@ const DIVES = Number(plain[1] ?? 3);
 const PROFILES = flag('profile') ? [flag('profile')] : ['none', 'upgraded', 'parted'];
 const FROM = Number(flag('from') ?? 1);
 const ONE_SEED = flag('seed') != null ? Number(flag('seed')) : null;
-const PARTED = parseParts(flag('parts') ?? 'kraken_figurehead:5,frostwing_sails:5,magma_cannons:5');
+const PARTED = parseParts(flag('parts') ?? 'kraken_figurehead:5,frostwing_sails:5,heartwood_cannons:5');
 const MAX_TRIES = 30;
 const MAX_DEPTH = 200;
 const islandIds = ['skull_cove', 'ember_isle', 'frostbite_reef', 'fogbound_isle'];
@@ -202,14 +202,15 @@ for (const profile of PROFILES) {
 const partsNote = Object.entries(PARTED).map(([id, l]) => `${id} ${l}`).join(', ');
 console.log(`\n### Depth reached (${list.length} crews x ${DIVES} dives = ${list.length * DIVES} seeds each${FROM > 1 ? `, from depth ${FROM}` : ''})\n`);
 console.log(`Parted: ${partsNote}.\n`);
-console.log('| Profile | Average | Median | Range | Ended on a boss depth | Reached 100 |');
-console.log('|---|---:|---:|---|---:|---:|');
+console.log('| Profile | Average | Median | Range | Ended on a boss depth | Reached 100 | Dive time (avg, at x1) |');
+console.log('|---|---:|---:|---|---:|---:|---:|');
 for (const profile of PROFILES) {
   const rs = results[profile];
   const depths = rs.map((r) => r.reached).sort((a, b) => a - b);
   const onBoss = rs.filter((r) => isBossDepth(r.reached)).length;
   console.log(`| ${profile} | ${avg(depths).toFixed(1)} | ${depths[Math.floor(depths.length / 2)]} | ${depths[0]}–${depths[depths.length - 1]} | `
-    + `${onBoss}/${rs.length} | ${rs.filter((r) => r.reached > 100).length} |`);
+    + `${onBoss}/${rs.length} | ${rs.filter((r) => r.reached > 100).length} | `
+    + `${Math.round(avg(rs.map((r) => r.depths.reduce((t, d) => t + d.time, 0))) / 60000)} min |`);
 }
 
 console.log('\n### Where dives end\n');

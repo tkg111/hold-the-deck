@@ -90,15 +90,18 @@ export function depthCurrents(seed, depth) {
   return { active, fresh: depth % swapEvery === 0 ? fresh : [] };
 }
 
-// Enemy HP, damage and kill gold multipliers at a depth (`currents`: the
-// active ones; Armoured adds HP). Damage: depth 1's (the start wave's, capped
+// Enemy HP, damage and kill gold multipliers at a depth (kill gold x
+// ABYSS.goldMult) (`currents`: the
+// active ones; Armoured adds HP). HP also grows ABYSS.hpGrowth per depth on
+// top of the wave curve (against the Abyss Tide). Damage: depth 1's (the start wave's, capped
 // as on its island) growing ABYSS.damageGrowth per depth with no cap.
 export function depthScaling(depth, currents = []) {
   const island = startIsland();
   const s = waveScaling(depthScalingWave(depth), island);
   const first = waveScaling(depthScalingWave(1), island).damage;
   const armoured = currents.includes('armoured') ? ABYSS.currents.armoured.hp : 1;
-  return { hp: s.hp * armoured, damage: first * (1 + ABYSS.damageGrowth) ** (depth - 1), gold: s.gold };
+  const deeper = (1 + ABYSS.hpGrowth) ** (depth - 1);
+  return { hp: s.hp * armoured * deeper, damage: first * (1 + ABYSS.damageGrowth) ** (depth - 1), gold: s.gold * ABYSS.goldMult };
 }
 
 // A depth's spawn plan (WaveManager's composeWave shape): groups of its
@@ -157,8 +160,11 @@ export function depthGold(seed, depth) {
   const { gold } = depthScaling(depth);
   const kills = depthPlan(seed, depth)
     .reduce((s, { def, elite }) => s + (def.gold ?? 0) * (elite ? ABYSS.elites.gold : 1), 0);
-  return Math.round(kills * gold) + clearBonus(depthScalingWave(depth));
+  return Math.round(kills * gold) + depthClearBonus(depth);
 }
+
+// A depth's clear bonus: its effective wave's, x ABYSS.goldMult.
+export const depthClearBonus = (depth) => Math.round(clearBonus(depthScalingWave(depth)) * ABYSS.goldMult);
 
 // The battlefield of a depth, island-shaped for the scenery, weather and
 // hazards (Volcano, Blizzard, Mists): the Abyss's own backdrop and motes,

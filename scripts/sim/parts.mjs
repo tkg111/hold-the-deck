@@ -37,6 +37,10 @@ import {
 
 const SEEDS = Number(process.argv[2] ?? 3);
 const TRIALS = Number(process.argv[3] ?? 3);
+// only=kraken_figurehead,frostwing_sails: test just those parts (no hunts);
+// hunts: just the Boss Hunts (no part trials).
+const ONLY = process.argv.slice(4).find((a) => a.startsWith('only='))?.slice(5).split(',') ?? null;
+const HUNTS_ONLY = process.argv.slice(4).includes('hunts');
 const MAX_TRIES = 30;
 const HUNT_TRIES = 3;
 const MAX_HUNT_LEVEL = 60;
@@ -151,7 +155,8 @@ function summarize(results) {
 function partTrials(list) {
   const rows = [];
   for (const island of islands) {
-    const parts = islandParts(island.id);
+    const parts = islandParts(island.id).filter((p) => !ONLY || ONLY.includes(p.id));
+    if (!parts.length) continue;
     const configs = [{ label: 'none', parts: {} }];
     for (const part of parts) {
       for (const level of [1, PARTS.maxLevel]) configs.push({ label: `${part.id} ${level}`, part: part.id, level, parts: { [part.id]: level } });
@@ -241,6 +246,7 @@ const pct = (v) => `${Math.round(v * 100)}%`;
 const secs = (ms) => (ms == null ? '-' : `${(ms / 1000).toFixed(1)}s`);
 const name = (id) => PART_DATA.parts.find((p) => p.id === id)?.name ?? id;
 
+if (!HUNTS_ONLY) {
 console.log('## Parts on their own island\'s boss waves');
 console.log(`(${list.length} crews x ${TRIALS} replays per wave and config)\n`);
 const partRows = partTrials(list);
@@ -260,6 +266,7 @@ console.log('### Each part against no part (all five boss waves, both crews)\n')
 console.log('| Part | Level | Wins (none -> part) | Boss TTK change | Hull lost (none -> part) |');
 console.log('|---|---:|---|---:|---|');
 for (const part of PART_DATA.parts) {
+  if (ONLY && !ONLY.includes(part.id)) continue;
   const island = materialOf(part.material).island;
   for (const level of [1, PARTS.maxLevel]) {
     const mine = partRows.filter((r) => r.part === part.id && r.level === level);
@@ -276,6 +283,9 @@ for (const part of PART_DATA.parts) {
   }
 }
 
+}
+
+if (!ONLY) {
 console.log('\n## Boss Hunts\n');
 console.log(`Material to max a part: ${totalMaterial()} (${PARTS.material.join(' + ')}).`);
 console.log(`Hunts to gather it from nothing, all won: ${huntsToMax(0)} with no doubles, `
@@ -291,6 +301,9 @@ for (const island of islands) {
   }
 }
 
+}
+
+if (!ONLY && !HUNTS_ONLY) {
 console.log('\n## Gold costs\n');
 console.log('| Part | L1 | L2 | L3 | L4 | L5 | Bot gold per wave on its island | All 5 levels in waves of gold |');
 console.log('|---|---:|---:|---:|---:|---:|---:|---:|');
@@ -301,4 +314,5 @@ for (const part of PART_DATA.parts) {
   const total = costs.reduce((s, n) => s + n, 0);
   const f = (n) => Math.round(n).toLocaleString('en-US');
   console.log(`| ${part.name} | ${costs.map(f).join(' | ')} | ${f(perWave)} | ${perWave ? (total / perWave).toFixed(1) : '-'} |`);
+}
 }

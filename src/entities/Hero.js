@@ -50,6 +50,7 @@ export class Hero {
     this.charmTime = 0;
     this.charmer = null;
     this.charmMark = null;
+    this.charmImmune = 0;   // ms after a charm ends before another can land (CHARM.immuneMs)
     // Anti-air crew can hit flyers in the air; the Net Thrower can aim at
     // them too (his net grounds them).
     this.antiAir = !!(this.def.antiAir || this.def.netsFlyers);
@@ -138,6 +139,7 @@ export class Hero {
     this.tickStun(0);
     this.thaw({ quiet: true });
     this.breakCharm({ quiet: true });
+    this.charmImmune = 0;
   }
 
   // The Siren's note or a lava bomb on this deck: no attacks for ms.
@@ -197,8 +199,10 @@ export class Hero {
 
   // Charmed for ms by `charmer` (the Siren Queen): it turns to face the ship
   // and its attacks hit the hull (see attackOwnShip), with CHARM.status
-  // looping over its head.
+  // looping over its head. Not while still immune from the last one (see
+  // canBeCharmed).
   charm(ms, charmer = null) {
+    if (!this.canBeCharmed) return;
     this.charmTime = Math.max(this.charmTime, ms);
     this.charmer = charmer;
     if (!this.charmMark) {
@@ -211,9 +215,11 @@ export class Hero {
 
   // The charm wears off or is tapped away (with CHARM.breakFx on them; quiet:
   // just gone, at the end of a wave). Returns whether they were charmed.
+  // For CHARM.immuneMs after, they can't be charmed again.
   breakCharm({ quiet = false } = {}) {
     if (!this.charmMark) return false;
     this.charmTime = 0;
+    this.charmImmune = CHARM.immuneMs;
     this.charmer = null;
     this.charmMark.destroy();
     this.charmMark = null;
@@ -223,11 +229,14 @@ export class Hero {
   }
 
   tickCharm(dt) {
+    this.charmImmune = Math.max(0, this.charmImmune - dt);
     this.charmTime = Math.max(0, this.charmTime - dt);
     if (this.charmTime <= 0 && this.charmMark) this.breakCharm({ quiet: true });
   }
 
   get isCharmed() { return this.charmTime > 0; }
+  // Not charmed now, nor just after a charm (CHARM.immuneMs).
+  get canBeCharmed() { return !this.isCharmed && this.charmImmune <= 0; }
 
   // A tap on this crewmate during a wave: breaks the ice and the charm.
   // Returns whether it freed them from anything.

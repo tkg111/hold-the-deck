@@ -209,21 +209,18 @@ function finalePlan(wave, offset, finale, formations, random) {
   return timedPlan(bosses, groups, finale, { elites: eliteChance(wave + offset), hpFactor: 1, damageFactor: 1 }, random);
 }
 
-// A Boss Hunt (HUNTS): the boss `hunt.boss` bossAt ms in, with its first
-// wave's bossBoost, and a trickle of the island's formations as on that
-// wave (its earlyBoost too), everyone's HP and damage x (1 + growth) ^
-// (level - 1). Seeded by the wave and the level, so a retry meets the same
-// line-up.
+// A Boss Hunt (HUNTS): the boss `hunt.boss` bossAt ms in and a trickle of
+// the island's formations, at that wave's plain scaling (no bossBoost or
+// earlyBoost), everyone's HP and damage x (1 + growth) ^ (level - 1).
+// Seeded by the wave and the level, so a retry meets the same line-up.
 function huntPlan(wave, island, offset, { boss, level }) {
   const random = seededRandom(wave * 7919 + 17 + offset * 104729 + level * 7);
   const { formations } = islandContent(island);
   const harder = (1 + HUNTS.growth) ** (level - 1);
-  const boost = island.bossBoost?.[wave] ?? { hp: 1, damage: 1 };
-  const early = earlyBoost(wave, island);
-  const groups = pickFormations(wave, Math.round(enemyCount(wave) * HUNTS.trickle * early.count), formations, random);
-  const bosses = [{ key: boss, at: HUNTS.bossAt, hpFactor: boost.hp * harder, damageFactor: boost.damage * harder }];
+  const groups = pickFormations(wave, Math.round(enemyCount(wave) * HUNTS.trickle), formations, random);
+  const bosses = [{ key: boss, at: HUNTS.bossAt, hpFactor: harder, damageFactor: harder }];
   return timedPlan(bosses, groups, HUNTS, {
-    elites: eliteChance(wave + offset), hpFactor: early.hp * harder, damageFactor: harder,
+    elites: eliteChance(wave + offset), hpFactor: harder, damageFactor: harder,
   }, random);
 }
 

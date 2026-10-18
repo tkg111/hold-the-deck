@@ -210,12 +210,16 @@ export class GameScene extends Phaser.Scene {
     // The Abyss's active currents: a row of icons under the hull plaque
     // (see layoutCurrents); tapping one shows its name and effect.
     this.currentRow = group();
+    // The dive's Abyss Tide stacks, on a small plaque right of the wave
+    // plaque (see layoutTide).
+    this.tidePlaque = panel(this, 0, 9, 10, 18, 'wood').setVisible(false);
+    this.tideText = text(this, 0, 18, '', light({ font: 'small' })).setOrigin(0, 0.5).setVisible(false);
     // Over the banner (it's anchored with the top-left group in layoutUi).
     this.currentNote = group().setVisible(false).setDepth(11);
     this.topLeft = group(
       this.wavePlaque, this.waveIcon, this.depthIcon, this.waveIsland, this.islandText, this.waveDot, this.waveText,
       panel(this, 6, hull.y, 24 + barW + 5 - 6, hull.height, 'wood'), icon(this, 16, hull.y + 9, 'hull'), this.hullBar,
-      this.currentRow,
+      this.currentRow, this.tidePlaque, this.tideText,
     );
 
     this.enemiesBar = new Bar(this, 172, 12, 136, 12, UI.colors.progress);
@@ -357,6 +361,7 @@ export class GameScene extends Phaser.Scene {
       this.layoutWavePlaque(p.island, this.hunt ? `HUNT LV ${formatNum(this.hunt.level)}` : `WAVE ${formatNum(p.wave)}${boss ? ' BOSS' : ''}`);
     }
     this.layoutCurrents(p.inAbyss ? depthCurrents(p.abyss.run.seed, p.depth).active : []);
+    this.layoutTide(p.inAbyss ? p.abyss.run.tide : null);
     this.startButton.setLabel(p.inAbyss ? 'DIVE!' : 'SET SAIL!');
     const waveColor = boss ? UI.colors.warn : UI.colors.text;
     if (this.waveText.color !== waveColor) this.waveText.setColor(waveColor);
@@ -420,6 +425,21 @@ export class GameScene extends Phaser.Scene {
     }
     const right = this.waveText.x + this.waveText.inkWidth + 7;
     this.wavePlaque.setSize(Phaser.Math.Clamp(right - 6, spec.minWidth, spec.maxWidth), 24);
+  }
+
+  // The Abyss Tide counter ("TIDE 7", its damage bonus after it) right of
+  // the wave plaque during a dive; hidden otherwise.
+  layoutTide(stacks) {
+    const key = `${stacks}|${this.wavePlaqueKey}`;
+    if (this.tideKey === key) return;
+    this.tideKey = key;
+    const on = stacks != null;
+    this.tidePlaque.setVisible(on);
+    this.tideText.setVisible(on);
+    if (!on) return;
+    const x = 6 + this.wavePlaque.width + UI_KIT.hud.plaqueGap;
+    this.tideText.setText(`TIDE ${formatNum(stacks)}  +${Math.round(stacks * ABYSS.tide.damage * 100)}%`).setX(x + 6);
+    this.tidePlaque.setPosition(x, 9).setSize(this.tideText.inkWidth + 12, 18);
   }
 
   // The Abyss's current icons (abyss.json's order in currents.png) in a row
@@ -705,8 +725,10 @@ export class GameScene extends Phaser.Scene {
     const gold = this.progress.startDive(from, seed);
     if (gold == null) return;
     this.showBattlefield();
+    this.rebuildHeroes();   // the Tide's skipped stacks
+    const { skipped, depth } = this.progress.abyss.run;
     this.showBanner(ABYSS.name.toUpperCase(), {
-      detail: `DEPTH ${formatNum(from)}${gold ? `  +${formatNum(gold)} GOLD` : ''}`, hold: 2500,
+      detail: `${skipped ? `SKIPPED THE SHALLOWS - ` : ''}DEPTH ${formatNum(depth)}${gold ? `  +${formatNum(gold)} GOLD` : ''}`, hold: 2500,
     });
     this.refreshUi();
     this.save();
@@ -716,6 +738,7 @@ export class GameScene extends Phaser.Scene {
   // the island, saying how deep it went. summary: Progress.endDive's.
   leftAbyss(summary) {
     this.showBattlefield();
+    this.rebuildHeroes();   // no more Tide
     const record = summary.newRecord ? `NEW RECORD - DEPTH ${formatNum(summary.depth)}` : `LEFT AT DEPTH ${formatNum(summary.depth)}`;
     this.showBanner(`SAILING TO ${this.progress.island.name.toUpperCase()}`, { detail: record, hold: 2500 });
     if (summary.newRecord) sfx.reveal('epic', true);
@@ -931,9 +954,11 @@ export class GameScene extends Phaser.Scene {
         detail: `THE ABYSS TOOK YOU AT DEPTH ${formatNum(summary.depth)}`, color: summary.newRecord ? UI.colors.text : UI.colors.warn,
       });
       this.showBattlefield();
+      this.rebuildHeroes();   // no more Tide
       return summary;
     }
     const { depth, gold, milestone } = p.winDepth();
+    this.rebuildHeroes();   // one more Tide stack
     this.waveGold += gold;
     const parts = [`+${formatNum(gold)} GOLD`];
     if (milestone) {

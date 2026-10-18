@@ -1824,3 +1824,131 @@ Parted: kraken_figurehead 5, frostwing_sails 5, magma_cannons 5.
 | Elites | from depth 10: 10% → 25% at depth 60; x3 HP, x1.5 damage, x3 gold |
 | Bosses | every 10; pairs from 80; double material |
 | Currents | 1 from depth 5, 2 from 15, 3 from 30; swap the oldest every 5 |
+
+## 13. Tuning pass (parts, hunts, the Abyss, Siren charms)
+
+Reproduce with `npm run sim:parts -- 3 3` (`only=kraken_figurehead` tests
+one part, `hunts` just the hunts), `npm run sim:fog -- 5 3` and
+`npm run sim:abyss -- 5 3`. "Before" is sections 10–12.
+
+**Changes:** the Kraken Figurehead grabs the most dangerous enemy within
+160 px (Elites, then Keg Runners, then flyers, then the frontmost) and hits
+it for up to 150% of the best DMG; every combat part grows as
+base × (1 + 0.5 × (level − 1)) with level 5 unchanged; the Blackbones'
+Lantern is tagged ECONOMY; Frostwing Sails cover 90 px instead of 120;
+hunts drop `earlyBoost` and `bossBoost` and grow ×1.08 a level instead of
+×1.15; the Siren Queen sings every 6 s below half HP (was 5 s) and a
+crewmate can't be charmed for 3 s after a charm ends; in the Abyss, the
+Tide (+2% crew damage per depth cleared in a dive), Skip the shallows,
+Storm Harpy weight 0.5, enemy HP ×1.03 per depth and gold ×8.
+
+### 13.1 Parts (11.2 summary rows; all five boss waves, both crews, 90 attempts)
+
+| Part | Level | Wins before | Wins after | TTK before → after | Hull lost before → after |
+|---|---:|---|---|---|---|
+| Kraken Figurehead | 1 | 43 → 45 | 43 → 47 | +0% → −3% | 74% → 72% / 74% → 68% |
+| Kraken Figurehead | 5 | 43 → 48 | 43 → **54** | 0% → −7% | 74% → 70% / 74% → 64% |
+| Siren Figurehead | 1 | 90 → 90 | 90 → 90 | −4% → −3% | 44% → 40% / 42% → 38% |
+| Siren Figurehead | 5 | 90 → 90 | 90 → 90 | −9% → −8% | 44% → 38% / 42% → 36% |
+| Ghostweave Sails | 1 | 43 → 45 | 43 → 47 | −3% → −3% | 74% → 70% / 74% → 69% |
+| Ghostweave Sails | 5 | 43 → 51 | 43 → 51 | −13% → −13% | 74% → 65% / 74% → 65% |
+| Frostwing Sails | 1 | 59 → 64 | 59 → 64 | −1% → −1% | 77% → 74% / 77% → 73% |
+| Frostwing Sails | 5 | 59 → 76 | 59 → **69** | +1% → +1% | 77% → 61% / 77% → 63% |
+| Magma Cannons | 1 | 57 → 62 | 57 → 62 | −2% → −6% | 66% → 63% / 66% → 61% |
+| Magma Cannons | 5 | 57 → 65 | 57 → 65 | −20% → −20% | 66% → 55% / 66% → 55% |
+| Heartwood Cannons | 1 | 59 → 61 | 59 → 62 | −2% → −4% | 77% → 73% / 77% → 71% |
+| Heartwood Cannons | 5 | 59 → 69 | 59 → 69 | −10% → −10% | 77% → 65% / 77% → 65% |
+| Blackbones' Lantern | 1, 5 | 90 → 90 | 90 → 90 | +0% | unchanged |
+
+- **Kraken Figurehead L5: +11 wins** (was +5), boss TTK −7% (was 0%). That
+  is past the +5–8 target. Its damage hardly matters (54/90 with 100%, 120%
+  and 150% of the best DMG; 54/90 with a 130 px reach too): the targeting
+  is what wins, stunning the Keg Runners and Elites that would have
+  reached the hull. +11 against +8 is inside the noise of 90 attempts, so
+  the specified numbers are kept.
+- **Level 1 is a third of level 5 now:** level 1 rows gained 0–2 wins and
+  1–4 points of hull; level 5 is unchanged (same values), apart from the
+  two parts changed on purpose.
+- **Frostwing Sails** at 90 px: +10 wins at L5 instead of +17, in line
+  with Heartwood (+10) and Magma (+8).
+
+### 13.2 Hunts (11.4 table: best hunt level won / hunts to max a part, three crews)
+
+| Island | Boss | Before | After (×1.08, no boosts) |
+|---|---|---|---|
+| Skull Cove | The Kraken | 19–20 / 15 | 34–36 / 15 |
+| Skull Cove | The Ghost Galleon | 13–14 / – | 25–26 / 15 |
+| Ember Isle | Molten Leviathan | 13–15 / – (15 once) | 24–25 / 15 |
+| Frostbite Reef | Frost Wyrm | 5–8 / – | 15–19 / 15 |
+| Frostbite Reef | Frost Giant | 5–7 / – | 9–13 / – |
+| Fogbound Isle | Siren Queen | 11 / – | 21 / 15 |
+| Fogbound Isle | Captain Blackbones | 7–9 / – | 13 / – |
+
+Every island's end crew can now max at least one of its parts by hunting
+(the Kraken's or Galleon's, the Leviathan's, the Wyrm's, the Queen's), all
+three crews each time. The requested ×1.12 wasn't enough: with the boosts
+gone, Frostbite still stalled at Wyrm level 11 (no part maxed) and Fogbound
+at Queen level 13; ×1.10 maxed Fogbound but Frostbite for one crew in
+three. ×1.08 is the value that meets the target on every island.
+
+### 13.3 The Abyss (15 seeds each)
+
+| Profile | Before (12.3) | After | Target | Dive time (at ×1) |
+|---|---:|---:|---:|---:|
+| none | 21.3 | **17.9** (12–28) | ~18 | 38 min |
+| upgraded | 26.6 | **29.7** (20–38) | ~28 | 75 min |
+| parted (Kraken + Frostwing + Heartwood) | 45.9* | **39.9** (33–50) | ~45 | 108 min |
+
+\* Before, the parted set was Kraken + Frostwing + Magma.
+
+Parted sets (average depth):
+
+| Set (all level 5) | Before | After |
+|---|---:|---:|
+| Kraken + Frostwing + Magma | 45.9 | 41.2 |
+| Kraken + Ghostweave + Magma | 38.5 | 40.1 |
+| Kraken + Frostwing + Heartwood | – | 39.9 |
+| Siren + Ghostweave + Magma | 39.5 | 39.6 |
+| Kraken + Ghostweave + Heartwood | 37.3 | 38.5 |
+| Kraken + Ghostweave + Lantern | 35.2 | 34.3 |
+
+- **Sets are in line:** the best four are within 1.6 depths of each other
+  (Frostwing led by 6.4 before). The Lantern set trails, as an economy part
+  should.
+- **How the profiles were placed:** the Tide alone lifted none to 31.4,
+  so enemy HP grows ×1.03 per depth (none back to 17.9). Upgrades still
+  meant little (upgraded 20.8, parted 33.5), so Abyss gold is ×8: only crews
+  that spend gain from it. ×3 gave upgraded 24.8 / parted 37.2, ×6 26.6 /
+  40.0, ×10 31.3 / 43.1, ×8 29.7 / 39.9.
+- **Parted falls short of 45:** gold lifts upgraded and parted together,
+  and the parts' own edge is about 10 depths, so any multiplier that
+  puts parted at 45 puts upgraded past 31. ×8 keeps upgraded on target and
+  parted at 40–41. Getting parted to 45 would need the parts to matter more
+  in the Abyss specifically (not tried).
+- **Skip the shallows** saves depths 1–5, about 8 minutes at ×1 (95 s a
+  depth). The sim's crews start with no best depth, so it isn't in these
+  numbers.
+- What sinks the ship now: Keg Runners lead for the upgraded (22%) and
+  parted (39%) crews; Storm Harpies, the top killer before, are 12–14%.
+  Frenzied remains the deadliest current per depth met.
+
+### 13.4 Siren charms (Fogbound Isle, `sim:fog -- 5 3`)
+
+| | Before | After |
+|---|---:|---:|
+| Finale charms, upgraded | 27.8 | 25.0 |
+| Finale wins, upgraded | 11/15 | 10/15 |
+| Finale charms, no upgrades | 7.8 | 7.5 |
+| Siren Queen waves (10, 30) charms, upgraded / none | 12.7 / 9.6 | 11.8 / 9.1 |
+
+A modest cut: a 6 s song and 3 s of immunity still leave a charm every few
+seconds in a long finale, since the Queen picks among the crewmates not
+immune.
+
+### 13.5 Islands unchanged
+
+`npm run sim -- 3 50 voyage` matches the baseline wave for wave (every
+wave, win and loss); the one difference is greedy run 2's total battle
+time, 287 → 288 min, from Fogbound Isle's Siren Queen waves (the charm
+change). In `sim:fog`, the no-upgrades profile, which plays each wave on its
+own, is identical on every wave except the Queen's (10, 30, 50).

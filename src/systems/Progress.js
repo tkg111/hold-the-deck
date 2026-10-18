@@ -4,12 +4,12 @@ import {
 } from '../config.js';
 import { clearBonus, enemyFirstWave, islandContent } from './WaveManager.js';
 import {
-  checkpoints, depthGold, depthOptions, depthScalingWave, milestoneOf, newSeed,
+  checkpoints, depthClearBonus, depthGold, depthOptions, milestoneOf, newSeed,
 } from './Abyss.js';
 import { totalDamage } from './BattleStats.js';
 import { entryFromSave, maxSlots } from './Expeditions.js';
 import {
-  gameParts, materialOf, materialOfBoss, PART_DATA, partCost, partInGame, partOf,
+  gameParts, materialOf, materialOfBoss, PART_DATA, partCost, partInGame, partOf, partValue,
 } from './Parts.js';
 
 // A guard on MAX buys (costs grow far faster than this matters).
@@ -457,8 +457,9 @@ export class Progress {
     // Ghostweave Sails: the whole crew attacks faster.
     const sails = this.partEffect('ghostweave_sails');
     for (const { id, slot } of active) {
-      buffs[slot] = { damage: 1, attackSpeed: this.heroAttackSpeed(id), buffed: false, aura: null };
-      if (sails) buffs[slot].attackSpeed *= 1 + sails * PARTS.effects.ghostweave_sails.attackSpeedPerLevel;
+      // The Abyss Tide: crew damage grows through a dive.
+      buffs[slot] = { damage: this.tideDamage, attackSpeed: this.heroAttackSpeed(id), buffed: false, aura: null };
+      if (sails) buffs[slot].attackSpeed *= 1 + partValue(PARTS.effects.ghostweave_sails.attackSpeedAtMax, sails);
     }
     for (const src of active) {
       const { aura } = HEROES[src.id];
@@ -778,19 +779,39 @@ export class Progress {
   // The depths a dive can start at (see Abyss.checkpoints).
   get abyssCheckpoints() { return checkpoints(this.abyss.best); }
 
+  // Whether a dive from depth 1 can skip the shallows (ABYSS.skip: the best
+  // depth is deep enough), and whether this one will (the saved setting).
+  get canSkipShallows() { return this.abyss.best >= ABYSS.skip.minBest; }
+  get skipsShallows() { return this.canSkipShallows && this.abyss.skipShallows; }
+
   // Start a dive at `from` (1 or a checkpoint) with this seed. A checkpoint
-  // pays that depth's gold at once. Returns the gold paid (0 from depth 1),
-  // or null if it can't start there.
+  // pays that depth's gold at once. From depth 1 with Skip the shallows on,
+  // the first ABYSS.skip.depths depths are cleared at once: their gold and
+  // Tide stacks, no fight. Returns the gold paid (0 from depth 1 without a
+  // skip), or null if it can't start there.
   startDive(from = 1, seed = newSeed()) {
     if (!this.abyssUnlocked || this.inAbyss || !this.abyssCheckpoints.includes(from)) return null;
     this.abyss.runs++;
     this.abyss.run = {
-      seed, depth: from, from, gold: 0, materials: {}, damage: {}, dropsPaid: [],
+      seed, depth: from, from, tide: 0, skipped: 0, gold: 0, materials: {}, damage: {}, dropsPaid: [],
     };
-    const gold = from > 1 ? this.earnGold(this.boostGold(depthGold(seed, from))) : 0;
-    this.abyss.run.gold += gold;
+    const run = this.abyss.run;
+    let gold = 0;
+    if (from > 1) {
+      gold = this.earnGold(this.boostGold(depthGold(seed, from)));
+    } else if (this.skipsShallows) {
+      for (let d = 1; d <= ABYSS.skip.depths; d++) gold += this.earnGold(this.boostGold(depthGold(seed, d)));
+      run.skipped = ABYSS.skip.depths;
+      run.tide = ABYSS.skip.depths;
+      run.depth = ABYSS.skip.depths + 1;
+    }
+    run.gold += gold;
     return gold;
   }
+
+  // The dive's Abyss Tide: +ABYSS.tide.damage crew damage per depth cleared
+  // this dive (1 outside a dive).
+  get tideDamage() { return 1 + (this.abyss.run?.tide ?? 0) * ABYSS.tide.damage; }
 
   // What the current depth is fought with (Abyss.depthOptions).
   get abyssOptions() { return depthOptions(this.abyss.run.seed, this.abyss.run.depth); }
@@ -814,7 +835,7 @@ export class Progress {
   winDepth() {
     const run = this.abyss.run;
     const { depth } = run;
-    const gold = this.earnGold(this.boostGold(clearBonus(depthScalingWave(depth))));
+    const gold = this.earnGold(this.boostGold(depthClearBonus(depth)));
     run.gold += gold;
     let milestone = null;
     if (!this.abyss.milestones.includes(depth)) milestone = milestoneOf(depth);
@@ -825,6 +846,7 @@ export class Progress {
     }
     this.abyss.best = Math.max(this.abyss.best, depth);
     run.depth++;
+    run.tide++;
     run.dropsPaid = [];
     return { depth, gold, milestone };
   }
@@ -973,7 +995,7 @@ export class Progress {
 // A fresh save's Abyss record (see Progress.abyss).
 function newAbyss() {
   return {
-    best: 0, milestones: [], runs: 0, revealed: false, run: null,
+    best: 0, milestones: [], runs: 0, revealed: false, skipShallows: true, run: null,
   };
 }
 
@@ -985,6 +1007,7 @@ function abyssFromSave(a, int, knownMaterial) {
   abyss.best = int(a.best, 0);
   abyss.runs = int(a.runs, 0);
   abyss.revealed = a.revealed === true;
+  abyss.skipShallows = a.skipShallows !== false;
   if (Array.isArray(a.milestones)) {
     abyss.milestones = [...new Set(a.milestones.filter((d) => Number.isInteger(d) && d > 0))];
   }
@@ -996,6 +1019,8 @@ function abyssFromSave(a, int, knownMaterial) {
       seed: Math.floor(Math.abs(r.seed)) % 2 ** 31,
       depth,
       from: int(r.from, 1, depth),
+      tide: int(r.tide, 0, depth - 1),
+      skipped: int(r.skipped, 0, depth - 1),
       gold: int(r.gold, 0),
       materials: numbers(r.materials, knownMaterial),
       damage: numbers(r.damage, (id) => id in HEROES),

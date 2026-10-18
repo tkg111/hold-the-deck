@@ -176,7 +176,8 @@ const charm = Hero.prototype.charm;
 Hero.prototype.charm = function charmAndMaybeTap(ms, charmer) {
   const fresh = !this.isCharmed;
   charm.call(this, ms, charmer);
-  if (fresh && Math.random() < TAP.chance) taps.push({ hero: this, at: waveClock + TAP.afterMs });
+  // (A crewmate still immune from the last charm isn't charmed.)
+  if (fresh && this.isCharmed && Math.random() < TAP.chance) taps.push({ hero: this, at: waveClock + TAP.afterMs });
 };
 
 // hunt: a boss (ENEMIES key) to fight a Boss Hunt against on the current

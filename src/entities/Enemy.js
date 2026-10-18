@@ -1417,7 +1417,8 @@ export class Enemy {
   singCharm() {
     const q = this.def.queen;
     this.songTimer = this.hp <= this.maxHp * q.angryAt ? q.angrySongEvery : q.songEvery;
-    const crew = this.scene.heroes.filter((h) => !h.def.aura);
+    // Not one still immune from a charm that just ended.
+    const crew = this.scene.heroes.filter((h) => !h.def.aura && h.canBeCharmed);
     if (!crew.length) return;
     this.charmTarget = crew[Math.floor(Math.random() * crew.length)];
     this.notesLeft = q.notes;

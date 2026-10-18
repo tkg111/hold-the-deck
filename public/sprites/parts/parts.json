@@ -59,7 +59,7 @@
       "name": "Kraken Figurehead",
       "slot": "figurehead",
       "material": "kraken_ink",
-      "effect": "Every 8s a tentacle grabs the frontmost enemy: stunned 1.5s (+0.25s/level).",
+      "effect": "Every 8s a tentacle grabs the most dangerous enemy near the ship (Elites, Keg Runners, flyers first): stunned 1.5s (+0.25s/level) and hit for up to 150% of your best DMG.",
       "overlay": "kraken_figurehead.png",
       "icon": "icon_kraken_figurehead.png"
     },
@@ -77,7 +77,7 @@
       "name": "Ghostweave Sails",
       "slot": "sails",
       "material": "ectoplasm",
-      "effect": "Crew attack speed +4% per level.",
+      "effect": "Crew attack speed +6.7% at level 1, up to +20% at level 5.",
       "overlay": "ghostweave_sails.png",
       "icon": "icon_ghostweave_sails.png"
     },
@@ -86,7 +86,7 @@
       "name": "Frostwing Sails",
       "slot": "sails",
       "material": "wyrm_scale",
-      "effect": "Enemies within 120px of the ship are slowed 6% per level.",
+      "effect": "Enemies within 90px of the ship are slowed 10% at level 1, up to 30% at level 5.",
       "overlay": "frostwing_sails.png",
       "icon": "icon_frostwing_sails.png"
     },
@@ -113,7 +113,7 @@
       "name": "Blackbones' Lantern",
       "slot": "lantern",
       "material": "cursed_doubloon",
-      "effect": "+5% gold per level, and halves the fog-bank range penalty.",
+      "effect": "+5% gold per level. Also halves the fog-bank range penalty.",
       "overlay": "blackbones_lantern_s{stage}.png",
       "icon": "icon_blackbones_lantern.png"
     }

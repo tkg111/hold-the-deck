@@ -144,11 +144,13 @@ export const FREEZE = {
 // hull instead, selfDamage x its damage each, and it turns to face the ship,
 // with `status` (an fx sheet) looping over its head. Tapping them breaks the
 // charm early, playing `breakFx` on them. The Captain (who doesn't attack)
-// is never charmed.
+// is never charmed. For immuneMs after a charm ends (worn off or tapped)
+// that crewmate can't be charmed again.
 export const CHARM = {
   status: 'charm_status',
   breakFx: 'ghost_hit',
   selfDamage: 1,
+  immuneMs: 3000,
 };
 
 // The UI kit (public/sprites/ui/): panels, buttons, bar, icons and ui.json
@@ -1338,7 +1340,7 @@ export const ENEMIES = {
     // wave that falls due during the other waits for it. Beaten, she plays
     // "sink" with the Kraken's splash (its top aboveWater px over the water).
     queen: {
-      firstSongAt: 2500, songEvery: 7000, angrySongEvery: 5000, angryAt: 0.5,
+      firstSongAt: 2500, songEvery: 7000, angrySongEvery: 6000, angryAt: 0.5,
       notes: 3, noteGap: 150, note: 'charm_note', noteSpeed: 120, charmMs: 3000,
       firstWaveAt: 5000, waveEvery: 5000, waveAt: 200, wave: 'siren_wave', waveSpeed: 110,
       shake: { duration: 200, intensity: 0.003 },   // as a wave hits
@@ -2067,44 +2069,59 @@ export const PARTS = {
   // overlay, between 0 and glowAlpha) every glowMs.
   glowAlpha: 0.45,
   glowMs: 900,
+  // Combat parts grow along levelCurve: an effect "atMax" is its level-5
+  // value, and level L has atMax x (1 + levelCurve x (L - 1)) / (1 +
+  // levelCurve x (maxLevel - 1)), so level 1 is a third of level 5.
+  // economy: parts the Shipyard tags ECONOMY (gold, not combat).
   // What each part does (level L = 1-5):
-  //   kraken_figurehead: every `every` ms a tentacle grabs the frontmost
-  //     enemy (on the lane or in the air) and stuns it for stun + (L - 1) x
-  //     stunPerLevel ms (bosses resist as usual: statusResist, stunGuardMs).
-  //     The tentacle shows for slapMs, in `color` (its outline in `edge`).
+  //   kraken_figurehead: every `every` ms a tentacle grabs the most
+  //     dangerous enemy whose front edge is within `range` px of where
+  //     walkers stop (on the lane or in the air): an Elite first, then a Keg
+  //     Runner, then a flyer, else the frontmost. It stuns it for stun + (L -
+  //     1) x stunPerLevel ms (bosses resist as usual: statusResist,
+  //     stunGuardMs) and hits it for damageAtMax (on the level curve) x the
+  //     strongest crewmate's DMG. The tentacle shows for slapMs, in `color`
+  //     (its outline in `edge`).
   //   siren_figurehead: every `every` ms charms the frontmost enemy that
   //     walks the lane (not a boss, boat or flyer) for charm + (L - 1) x
   //     charmPerLevel ms: it turns round and fights the nearest other enemy,
   //     each hit `hitScale` x its own damage scaled like HP (so it matters
   //     at every wave), and the crew leave it alone.
-  //   ghostweave_sails: the crew's attack speed x (1 + L x attackSpeedPerLevel).
+  //   ghostweave_sails: the crew's attack speed x (1 + attackSpeedAtMax on
+  //     the level curve).
   //   frostwing_sails: enemies within `range` px of the ship (their front
-  //     edge from where walkers stop) move and attack L x slowPerLevel
-  //     slower; bosses by statusResist x that.
+  //     edge from where walkers stop) move and attack slowAtMax (on the
+  //     level curve) slower; bosses by statusResist x that.
   //   magma_cannons: every `every` ms a lava shot (magma_glob, lobbed over
-  //     flightTime ms) at the frontmost enemy on the lane: damagePerLevel x L
-  //     x the strongest crewmate's DMG, and a fire puddle where it lands for
-  //     puddleMs that burns ground enemies in it for puddleDps x the shot's
-  //     damage per second.
+  //     flightTime ms) at the frontmost enemy on the lane: damageAtMax (on
+  //     the level curve) x the strongest crewmate's DMG, and a fire puddle
+  //     where it lands for puddleMs that burns ground enemies in it for
+  //     puddleDps x the shot's damage per second.
   //   heartwood_cannons: every `every` ms a frozen log flies from a port
   //     and skims along the lane, hitting the first `targets` enemies for
-  //     damagePerLevel x L x the strongest crewmate's DMG and slowing them
-  //     to slow x their pace for slowMs.
-  //   blackbones_lantern: gold from kills, wave clears and Boss Hunts x (1 +
-  //     L x goldPerLevel), and a fog bank's range penalty x fogPenalty.
+  //     damageAtMax (on the level curve) x the strongest crewmate's DMG and
+  //     slowing them to slow x their pace for slowMs.
+  //   blackbones_lantern (economy, not on the curve): gold from kills, wave
+  //     clears and Boss Hunts x (1 + L x goldPerLevel), and a fog bank's
+  //     range penalty x fogPenalty.
   // A timed part fires as soon as it has a target once its timer is up, and
   // first fires `every` ms into a wave.
+  levelCurve: 0.5,
+  economy: ['blackbones_lantern'],
   effects: {
-    kraken_figurehead: { every: 8000, stun: 1500, stunPerLevel: 250, slapMs: 220, color: 0x8a3a6a, edge: 0x1a1014 },
+    kraken_figurehead: {
+      every: 8000, range: 160, stun: 1500, stunPerLevel: 250, damageAtMax: 1.5,
+      slapMs: 220, color: 0x8a3a6a, edge: 0x1a1014,
+    },
     siren_figurehead: { every: 12000, charm: 3000, charmPerLevel: 500, hitScale: 1 },
-    ghostweave_sails: { attackSpeedPerLevel: 0.04 },
-    frostwing_sails: { range: 120, slowPerLevel: 0.06 },
+    ghostweave_sails: { attackSpeedAtMax: 0.2 },
+    frostwing_sails: { range: 90, slowAtMax: 0.3 },
     magma_cannons: {
-      every: 6000, damagePerLevel: 0.4, flightTime: 900, arcHeight: 40,
+      every: 6000, damageAtMax: 2, flightTime: 900, arcHeight: 40,
       shot: 'magma_glob', impact: 'lava_splash', puddle: 'fire_puddle', puddleMs: 3000, puddleDps: 0.25, puddleFadeMs: 400,
     },
     heartwood_cannons: {
-      every: 5000, damagePerLevel: 0.25, targets: 3, speed: 260, length: 260, hitRadius: 4,
+      every: 5000, damageAtMax: 1.25, targets: 3, speed: 260, length: 260, hitRadius: 4,
       slow: 0.7, slowMs: 2000, impact: 'frost_hit',
     },
     blackbones_lantern: { goldPerLevel: 0.05, fogPenalty: 0.5 },
@@ -2134,8 +2151,8 @@ export const PARTS = {
 
 // Boss Hunts (Progress, WaveManager.composeHunt, the map's island card): a
 // single fight against one boss with its island's enemies trickling in, at
-// the difficulty of that boss's first wave on the island (its bossBoost
-// included), opened on the island's card once that boss has been beaten.
+// the plain scaling of that boss's first wave on the island (no bossBoost
+// or earlyBoost), opened on the island's card once that boss has been beaten.
 // Each boss has its own hunt level, from 1: every win raises it, and its
 // HP and damage, and the trickle's, are x (1 + growth) ^ (level - 1). A loss
 // costs nothing. The boss comes in bossAt ms into the fight; the trickle is
@@ -2145,7 +2162,7 @@ export const PARTS = {
 // doubled for the first dailyDoubles wins over each boss each day (local
 // time, from midnight), and gold: gold x the fight's wave-clear bonus.
 export const HUNTS = {
-  growth: 0.15,
+  growth: 0.08,
   bossAt: 1500,
   trickle: 0.6,
   trickleFrom: 4000,
@@ -2165,6 +2182,10 @@ export const HUNTS = {
 //          kill gold and damage; every depth after is one wave on.
 //   damageGrowth: enemy damage x (1 + damageGrowth) per depth on top of
 //          depth 1's (the islands' lateDamage.growth, with no cap).
+//   hpGrowth: enemy HP (and shields) x (1 + hpGrowth) per depth on top of
+//          the wave curve, so the Abyss Tide's crew damage doesn't run away.
+//   goldMult: kill gold and clear bonus x this in the Abyss, so upgrading
+//          between depths keeps up with it.
 //   hullShare: enemies whose hit is a share of the hull (Keg Runners,
 //          boarding boats; ENEMIES hullShare) hit for this x that share, so
 //          a depth's walls are what the crew can't kill rather than a
@@ -2205,11 +2226,13 @@ export const ABYSS = {
   unlockIsland: 'fogbound_isle',
   start: { island: 'fogbound_isle', wave: 40 },
   damageGrowth: 0.03,
+  hpGrowth: 0.03,
+  goldMult: 8,
   hullShare: 0.5,
   scenery: { path: 'abyss/', bg: 'bg_abyss_tall', fg: 'fg_abyss_sheet' },
   enemies: {
     ironCrab: { weight: 1, size: 4, members: ['ironCrab'] },
-    stormHarpy: { weight: 0.7, size: 5, members: ['stormHarpy', 'stormHarpy'] },
+    stormHarpy: { weight: 0.5, size: 5, members: ['stormHarpy', 'stormHarpy'] },
     kegRunner: { weight: 0.5, size: 8, members: ['kegRunner', 'kegRunner'] },
     barnacleKnight: { weight: 1, size: 5, members: ['barnacleKnight'] },
     cinderSkeleton: { weight: 1, members: ['cinderSkeleton', 'cinderSkeleton', 'cinderSkeleton'] },
@@ -2266,6 +2289,8 @@ export const ABYSS = {
     after: { chests: { legendary: 1 }, pearls: 100 },
   },
   map: { x: 420, y: 200, file: 'map_abyss.png', lockedTint: 0x1a1a24, lockedAlpha: 0.8 },
+  // The Abyss's map card is this much taller than an island's (upward).
+  cardExtra: 14,
   reveal: { zoom: 2, zoomMs: 1600, fadeMs: 1400, message: 'SOMETHING STIRS IN THE DEEP...' },
   // The battle: rising motes (Weather, like ASHFALL) over the scene the whole
   // time; the HUD's depth icon; the row of current icons under the hull
@@ -2276,6 +2301,13 @@ export const ABYSS = {
   // The end-of-run screen (AbyssEndScene) opens this long after the ship
   // sinks, so the sinking banner shows first.
   endScreenDelay: 2000,
+  // The Abyss Tide: each depth cleared in a dive adds a stack (for that
+  // dive only), each worth +damage crew damage.
+  tide: { damage: 0.02 },
+  // Skip the shallows: a dive from depth 1, with the best depth at least
+  // minBest and the setting on (the Abyss card), clears its first `depths`
+  // depths at once: their gold and Tide stacks, no fight.
+  skip: { minBest: 20, depths: 5 },
 };
 
 // Rising motes over the Abyss (src/weather.js, flag `motes`): no heavy weather.

@@ -7,7 +7,7 @@ export const SAVE_KEY = 'kampung-defense/save';
 const CORRUPT_BACKUP_KEY = 'kampung-defense/save-corrupt-backup';
 
 // Bump when the saved shape changes, and add a migration from the old version.
-export const SAVE_VERSION = 15;
+export const SAVE_VERSION = 16;
 
 // v5 pirate reskin: old hero IDs -> new hero IDs.
 const V5_HERO_IDS = {
@@ -141,6 +141,20 @@ const MIGRATIONS = {
       best: 0, milestones: [], runs: 0, revealed: false, run: null,
     },
   }),
+  // v16: the Abyss Tide (stacks in the dive under way: one per depth it has
+  // cleared) and Skip the shallows (the setting, on; the shallows a dive
+  // skipped).
+  15: (data) => {
+    const { run, ...abyss } = data.abyss ?? {};
+    return {
+      ...data,
+      abyss: {
+        ...abyss,
+        skipShallows: true,
+        run: run ? { ...run, tide: Math.max(0, (run.depth ?? 1) - (run.from ?? 1)), skipped: 0 } : null,
+      },
+    };
+  },
 };
 
 function migrate(save) {

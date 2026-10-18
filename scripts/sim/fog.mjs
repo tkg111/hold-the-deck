@@ -50,8 +50,10 @@ function range(a, b) { return Array.from({ length: b - a + 1 }, (_, i) => a + i)
 let charms = 0;
 const charm = Hero.prototype.charm;
 Hero.prototype.charm = function countedCharm(ms, charmer) {
-  if (!this.isCharmed) charms++;
-  return charm.call(this, ms, charmer);
+  const fresh = !this.isCharmed;
+  const r = charm.call(this, ms, charmer);
+  if (fresh && this.isCharmed) charms++;
+  return r;
 };
 // Blackbones' slash and flintlock, told apart in the hull damage.
 let via = null;

@@ -62,8 +62,8 @@ export class Currents {
     if (this.charmTimer > 0) return;
     this.charmTimer += s.every;
     // Siren's Call: a random crewmate who attacks (not The Captain), not
-    // charmed already.
-    const crew = this.scene.heroes.filter((h) => !h.def.aura && !h.isCharmed);
+    // charmed already or just after a charm.
+    const crew = this.scene.heroes.filter((h) => !h.def.aura && h.canBeCharmed);
     if (crew.length) crew[Math.floor(Math.random() * crew.length)].charm(s.charmMs);
   }
 }

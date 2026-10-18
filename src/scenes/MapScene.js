@@ -345,7 +345,11 @@ export class MapScene extends Phaser.Scene {
   // and DIVE!.
   drawAbyssCard() {
     const p = this.progress;
-    const { x, y, width: w, height: h } = this.cardBox;
+    // Taller than an island's (upward), for the Skip the shallows row.
+    const box = this.cardBox;
+    const { x, width: w } = box;
+    const y = box.y - ABYSS.cardExtra;
+    const h = box.height + ABYSS.cardExtra;
     const add = (...objs) => this.card.add(objs);
     this.card.removeAll(true);
     add(panel(this, x, y, w, h, 'parchment'));
@@ -385,10 +389,25 @@ export class MapScene extends Phaser.Scene {
     const label = active.length ? 'CURRENTS' : `AT DEPTH ${first}`;
     add(text(this, x + 10, y + 80, label, subText()));
     list.forEach((id, i) => add(this.add.image(vx + 6 + i * 14, y + 82, CURRENTS_KEY, order.indexOf(id))));
-    add(this.add.rectangle(x + 8, y + 94, w - 16, 1, hexColor(UI_KIT.dividerColor)).setOrigin(0));
+    // Skip the shallows: from depth 1 once the best depth allows it.
+    if (this.diveFrom === 1 && p.canSkipShallows) {
+      add(text(this, x + 10, y + 94, `SKIP DEPTHS 1-${ABYSS.skip.depths}`, subText()));
+      add(new Button(this, x + w - 30, y + 97, {
+        width: 36, height: 14, font: 'small', label: p.abyss.skipShallows ? 'ON' : 'OFF',
+        style: p.abyss.skipShallows ? 'gold' : 'wood', onClick: () => this.toggleSkip(),
+      }));
+    }
+    add(this.add.rectangle(x + 8, y + 108, w - 16, 1, hexColor(UI_KIT.dividerColor)).setOrigin(0));
     add(new Button(this, x + w / 2, y + h - 20, {
       width: w - 24, height: 24, style: 'gold', label: 'DIVE!', onClick: () => this.dive(),
     }));
+  }
+
+  // Skip the shallows on or off (saved with the Abyss record).
+  toggleSkip() {
+    sfx.click();
+    this.progress.abyss.skipShallows = !this.progress.abyss.skipShallows;
+    this.drawCard();
   }
 
   pickStart(depth) {

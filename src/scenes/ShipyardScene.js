@@ -4,7 +4,7 @@ import { sfx } from '../audio/Sfx.js';
 import { applyRenderScale, fillView } from '../display.js';
 import { shipFrontKey, shipStageKey } from '../sprites.js';
 import {
-  gameMaterials, materialOf, materialSource, overlayKey, PART_DATA, partOf, slotParts,
+  gameMaterials, isEconomyPart, materialOf, materialSource, overlayKey, PART_DATA, partOf, slotParts,
 } from '../systems/Parts.js';
 import { saveProgress } from '../systems/Save.js';
 import { Button } from '../ui/Button.js';
@@ -12,7 +12,9 @@ import { formatNum } from '../ui/format.js';
 import {
   dark, glyph, hexColor, icon, light, panel, subText, text, UI,
 } from '../ui/kit.js';
-import { materialIcon, partIcon, partStat } from '../ui/parts.js';
+import {
+  economyTag, materialIcon, partIcon, partStat,
+} from '../ui/parts.js';
 
 const Y = PARTS.shipyard;
 // "the Frost Wyrm", but "The Kraken" and "Captain Blackbones" as they are.
@@ -138,7 +140,13 @@ export class ShipyardScene extends Phaser.Scene {
         const level = p.partLevel(id);
         card.add(partIcon(this, x + 24, top + h / 2, id));
         const name = text(this, x + 46, top + 7, partOf(id).name, dark());
-        card.add([name, text(this, x + 46 + name.inkWidth + 4, top + 11, `LV ${level}`, subText())]);
+        let after = x + 46 + name.inkWidth + 4;
+        if (isEconomyPart(id)) {
+          const tag = economyTag(this, after, top + 12);
+          card.add(tag);
+          after += tag[0].displayWidth + 4;
+        }
+        card.add([name, text(this, after, top + 11, `LV ${level}`, subText())]);
         card.add(text(this, x + 46, top + 25, partStat(id, level), subText({ wrap: w - 56 })));
       } else {
         card.add(this.add.rectangle(x + 8, top + h / 2 - 16, 32, 32, hexColor(UI_KIT.dividerColor)).setOrigin(0));
@@ -199,8 +207,18 @@ export class ShipyardScene extends Phaser.Scene {
     if (!found) iconImg.setTintFill(hexColor(UI.colors.subText)).setAlpha(0.6);
     add(iconImg);
     const name = text(this, x + 46, top + 7, part.name, dark());
+    let after = x + 46 + name.inkWidth + 4;
+    // Economy parts (the Blackbones' Lantern) say so in gold.
+    if (isEconomyPart(part.id)) {
+      const tag = economyTag(this, after, top + 12);
+      add(...tag);
+      after += tag[0].displayWidth + 4;
+    }
     const lvLabel = level ? `LV ${level}${p.isEquipped(part.id) ? '  ON THE SHIP' : ''}` : 'NOT MADE YET';
-    const lv = text(this, x + 46 + name.inkWidth + 4, top + 11, lvLabel, subText());
+    const lv = text(this, after, top + 11, lvLabel, subText());
+    // Past the row's edge (after an ECONOMY tag): just the level; its
+    // TAKE OFF button says it's on the ship.
+    if (level && lv.anchorX + lv.inkWidth > x + w - 12) lv.setText(`LV ${level}`);
     add(name, lv);
     if (p.canAffordPart(part.id)) add(glyph(this, lv.anchorX + lv.inkWidth + 5, top + 13, 'up', UI_KIT.affordColor));
     const effect = text(this, x + 46, top + 23, part.effect.toUpperCase(), subText({ wrap: w - 54 }));

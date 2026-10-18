@@ -53,6 +53,17 @@ function bossGold(material) {
   return bossWaveGold.get(material.id);
 }
 
+// A combat part's effect at a level, from its level-5 value (PARTS.levelCurve):
+// level 1 is a third of it, each level after adds as much again.
+export function partValue(atMax, level) {
+  if (level <= 0) return 0;
+  const c = PARTS.levelCurve;
+  return atMax * (1 + c * (level - 1)) / (1 + c * (PARTS.maxLevel - 1));
+}
+
+// Whether a part is an economy part (tagged ECONOMY in the Shipyard).
+export const isEconomyPart = (id) => PARTS.economy.includes(id);
+
 // What it costs to bring a part to `level` (1 = crafting it): { material,
 // gold }, or null past PARTS.maxLevel.
 export function partCost(id, level) {
