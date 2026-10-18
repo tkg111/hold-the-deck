@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import {
-  ABYSS, ASHFALL, DISPLAY, ENDING, ENEMIES, EXPEDITIONS, GAME_SPEEDS, HEROES, MOTES, SCENERY, SIM, SNOWFALL, UI_KIT,
+  ABYSS, ASHFALL, DISPLAY, ENDING, ENEMIES, EXPEDITIONS, GAME_SPEEDS, HEROES, MOTES, PACKS, SCENERY, SIM, SNOWFALL, UI_KIT,
 } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
 import { DEV_TOOLS } from '../devFlag.js';
@@ -29,6 +29,7 @@ import {
 } from '../systems/Abyss.js';
 import { BattleStats, mvpOf } from '../systems/BattleStats.js';
 import { initParts, materialOf, PARTS_JSON_KEY } from '../systems/Parts.js';
+import { initPacks, packOf, PACKS_JSON_KEY } from '../systems/Packs.js';
 import { ShipParts } from '../systems/ShipParts.js';
 import { AbilityBar } from '../ui/AbilityBar.js';
 import { Button } from '../ui/Button.js';
@@ -75,6 +76,7 @@ export class GameScene extends Phaser.Scene {
     // Expedition data first: the save's expeditions are checked against it.
     Expeditions.initExpeditions(this.cache.json.get(EXPEDITION_JSON_KEY));
     initParts(this.cache.json.get(PARTS_JSON_KEY));
+    initPacks(this.cache.json.get(PACKS_JSON_KEY));
     this.progress = loadProgress();
     Expeditions.tick(this.progress);
     this.expeditionClock = 0;   // real ms since expeditions were last checked
@@ -143,6 +145,8 @@ export class GameScene extends Phaser.Scene {
 
     this.createUi();
     this.refreshUi();
+    // A pack unlocked before this session (a save from before packs).
+    this.announcePacks();
     // A dive left mid-depth picks up at that depth's start.
     if (this.progress.inAbyss) this.showBanner(ABYSS.name.toUpperCase(), { detail: `BACK AT DEPTH ${formatNum(this.progress.depth)}` });
   }
@@ -388,6 +392,7 @@ export class GameScene extends Phaser.Scene {
     // Badges: chests you can open (free ones, and with Pearls), posters
     // not opened yet.
     this.packButton.setBadge(p.freeChestCount + Math.floor(p.pearls / p.packCost));
+    this.packButton.setDot(p.unseenPacks.length > 0, { left: true });   // a new pack to look at
     this.wantedButton.setBadge(p.discovered.filter((id) => !p.isPosterSeen(id)).length);
     if (this.settingsButton.enabled !== idle) this.settingsButton.setEnabled(idle);
     this.muteButton.setIcon(p.muted ? 'sound_off' : 'sound_on');
@@ -775,6 +780,23 @@ export class GameScene extends Phaser.Scene {
     this.scene.launch('PackScene', { progress: this.progress, onClose: () => this.onRosterChanged() });
   }
 
+  // "NEW PACK: FIRE & ICE CHEST" for a pack that has just unlocked (one at
+  // a time, the next after it), once per pack; the Chests button keeps its
+  // dot until the pack is looked at. after: ms to wait first (game time).
+  announcePacks({ after = 0 } = {}) {
+    const [id] = this.progress.unannouncedPacks;
+    if (!id) return;
+    const show = () => {
+      this.progress.markPackAnnounced(id);
+      this.save();
+      sfx.reveal('epic', true);
+      this.showBanner(`NEW PACK: ${packOf(id).name.toUpperCase()}`, { detail: 'OPEN IT FROM CHESTS', hold: PACKS.newPack.hold });
+      this.announcePacks({ after: PACKS.newPack.hold + 400 });
+    };
+    if (after > 0) this.time.delayedCall(after, show);
+    else show();
+  }
+
   // confirmed: the player chose to set sail despite the flyer warning.
   // hunt: { boss, island } for a Boss Hunt (from the map; the ship is
   // already at that island) instead of the next wave.
@@ -909,6 +931,8 @@ export class GameScene extends Phaser.Scene {
           detail: `+${pearlsLabel(pearls).toUpperCase()}  +${finale.legendaryChests} LEGENDARY CHEST${finale.legendaryChests > 1 ? 'S' : ''}  -  ${finale.unlocks}`,
           hold: 4500,
         });
+        // ...and a pack it unlocks, after that banner.
+        this.announcePacks({ after: PACKS.newPack.afterFinale });
       } else {
         this.showBanner(`WAVE ${formatNum(wave)} CLEARED!`, {
           detail: `+${formatNum(gold)} GOLD${pearls ? `  +${pearlsLabel(pearls).toUpperCase()}` : ''}`,

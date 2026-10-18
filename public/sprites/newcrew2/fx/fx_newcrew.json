@@ -1,0 +1,152 @@
+{
+  "thrown_anchor": {
+    "file": "thrown_anchor.png",
+    "frameWidth": 12,
+    "frameHeight": 12,
+    "frames": 4,
+    "fps": 12,
+    "repeat": -1,
+    "kind": "projectile",
+    "use": "Anchor Bosun attack (spins; heavy, slow)"
+  },
+  "anchor_drop": {
+    "file": "anchor_drop.png",
+    "frameWidth": 64,
+    "frameHeight": 64,
+    "frames": 4,
+    "fps": 10,
+    "repeat": 0,
+    "kind": "ability",
+    "use": "Drop Anchor: bottom-centre on the target; frame 3 is the impact"
+  },
+  "powder_bomb": {
+    "file": "powder_bomb.png",
+    "frameWidth": 8,
+    "frameHeight": 8,
+    "frames": 4,
+    "fps": 12,
+    "repeat": -1,
+    "kind": "projectile",
+    "use": "Powder Monkey attack (lobbed, spins)"
+  },
+  "powder_blast": {
+    "file": "powder_blast.png",
+    "frameWidth": 32,
+    "frameHeight": 24,
+    "frames": 4,
+    "fps": 14,
+    "repeat": 0,
+    "kind": "impact",
+    "use": "powder bomb explosion (splash)"
+  },
+  "flame_jet": {
+    "file": "flame_jet.png",
+    "frameWidth": 48,
+    "frameHeight": 14,
+    "frames": 3,
+    "fps": 12,
+    "repeat": 0,
+    "kind": "projectile",
+    "use": "Fire Breather attack: left edge at the torch, stretches right"
+  },
+  "inferno_wall": {
+    "file": "inferno_wall.png",
+    "frameWidth": 24,
+    "frameHeight": 40,
+    "frames": 4,
+    "fps": 10,
+    "repeat": -1,
+    "kind": "ability",
+    "use": "Inferno: tile several side by side on the lane for the wall"
+  },
+  "thrown_hammer": {
+    "file": "thrown_hammer.png",
+    "frameWidth": 12,
+    "frameHeight": 12,
+    "frames": 4,
+    "fps": 14,
+    "repeat": -1,
+    "kind": "projectile",
+    "use": "Blacksmith attack (spins)"
+  },
+  "temper_aura": {
+    "file": "temper_aura.png",
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "frames": 4,
+    "fps": 8,
+    "repeat": -1,
+    "kind": "status",
+    "use": "Temper Steel: on every crewmate while the buff lasts"
+  },
+  "ice_javelin": {
+    "file": "ice_javelin.png",
+    "frameWidth": 18,
+    "frameHeight": 5,
+    "frames": 1,
+    "fps": 0,
+    "repeat": 0,
+    "kind": "projectile",
+    "use": "Whaler attack (straight, pierces)"
+  },
+  "whale_spear": {
+    "file": "whale_spear.png",
+    "frameWidth": 40,
+    "frameHeight": 10,
+    "frames": 1,
+    "fps": 0,
+    "repeat": 0,
+    "kind": "projectile",
+    "use": "Whale Hunt: one huge javelin"
+  },
+  "aurora_bolt": {
+    "file": "aurora_bolt.png",
+    "frameWidth": 12,
+    "frameHeight": 8,
+    "frames": 2,
+    "fps": 8,
+    "repeat": -1,
+    "kind": "projectile",
+    "use": "Aurora Seer attack"
+  },
+  "aurora_veil": {
+    "file": "aurora_veil.png",
+    "frameWidth": 128,
+    "frameHeight": 32,
+    "frames": 4,
+    "fps": 6,
+    "repeat": -1,
+    "kind": "ability",
+    "use": "Aurora Veil: tile across the sky while enemies are frozen"
+  },
+  "wail_bolt": {
+    "file": "wail_bolt.png",
+    "frameWidth": 10,
+    "frameHeight": 10,
+    "frames": 2,
+    "fps": 8,
+    "repeat": -1,
+    "kind": "projectile",
+    "use": "Banshee attack"
+  },
+  "wail_ring": {
+    "file": "wail_ring.png",
+    "frameWidth": 64,
+    "frameHeight": 64,
+    "frames": 4,
+    "fps": 10,
+    "repeat": 0,
+    "kind": "ability",
+    "use": "Wail: left edge at the ship, scale x3 so it sweeps the near lane"
+  },
+  "bone_shard": {
+    "file": "bone_shard.png",
+    "frameWidth": 8,
+    "frameHeight": 8,
+    "frames": 4,
+    "fps": 12,
+    "repeat": -1,
+    "kind": "projectile",
+    "use": "Bone Caller attack (spins)"
+  }
+}

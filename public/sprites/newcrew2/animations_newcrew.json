@@ -1,0 +1,187 @@
+{
+  "anchor_bosun": {
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "idle": {
+      "frames": [
+        0,
+        1
+      ],
+      "fps": 2,
+      "repeat": -1
+    },
+    "attack": {
+      "frames": [
+        2,
+        3
+      ],
+      "fps": 10,
+      "repeat": 0
+    }
+  },
+  "powder_monkey": {
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "idle": {
+      "frames": [
+        0,
+        1
+      ],
+      "fps": 2,
+      "repeat": -1
+    },
+    "attack": {
+      "frames": [
+        2,
+        3
+      ],
+      "fps": 10,
+      "repeat": 0
+    }
+  },
+  "fire_breather": {
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "idle": {
+      "frames": [
+        0,
+        1
+      ],
+      "fps": 2,
+      "repeat": -1
+    },
+    "attack": {
+      "frames": [
+        2,
+        3
+      ],
+      "fps": 10,
+      "repeat": 0
+    }
+  },
+  "blacksmith": {
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "idle": {
+      "frames": [
+        0,
+        1
+      ],
+      "fps": 2,
+      "repeat": -1
+    },
+    "attack": {
+      "frames": [
+        2,
+        3
+      ],
+      "fps": 10,
+      "repeat": 0
+    }
+  },
+  "whaler": {
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "idle": {
+      "frames": [
+        0,
+        1
+      ],
+      "fps": 2,
+      "repeat": -1
+    },
+    "attack": {
+      "frames": [
+        2,
+        3
+      ],
+      "fps": 10,
+      "repeat": 0
+    }
+  },
+  "aurora_seer": {
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "idle": {
+      "frames": [
+        0,
+        1
+      ],
+      "fps": 2,
+      "repeat": -1
+    },
+    "attack": {
+      "frames": [
+        2,
+        3
+      ],
+      "fps": 10,
+      "repeat": 0
+    }
+  },
+  "banshee": {
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "idle": {
+      "frames": [
+        0,
+        1
+      ],
+      "fps": 2,
+      "repeat": -1
+    },
+    "attack": {
+      "frames": [
+        2,
+        3
+      ],
+      "fps": 10,
+      "repeat": 0
+    }
+  },
+  "bone_caller": {
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "idle": {
+      "frames": [
+        0,
+        1
+      ],
+      "fps": 2,
+      "repeat": -1
+    },
+    "attack": {
+      "frames": [
+        2,
+        3
+      ],
+      "fps": 10,
+      "repeat": 0
+    }
+  },
+  "ally_skeleton": {
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "walk": {
+      "frames": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "fps": 6,
+      "repeat": -1
+    },
+    "rise": {
+      "frames": [
+        4,
+        5,
+        6,
+        7
+      ],
+      "fps": 6,
+      "repeat": 0
+    },
+    "facing": "right"
+  }
+}

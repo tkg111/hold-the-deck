@@ -11,6 +11,7 @@ import { entryFromSave, maxSlots } from './Expeditions.js';
 import {
   gameParts, materialOf, materialOfBoss, PART_DATA, partCost, partInGame, partOf, partValue,
 } from './Parts.js';
+import { allPacks, PACK_DATA, packOf } from './Packs.js';
 
 // A guard on MAX buys (costs grow far faster than this matters).
 const MAX_BULK = 10000;
@@ -44,7 +45,13 @@ export class Progress {
     this.mapSeen = false;           // the world map opened since it unlocked
     this.gold = ECONOMY.startingGold;
     this.pearls = ECONOMY.startingPearls;
-    this.packsSinceLegendary = 0;   // pity counter
+    this.packsSinceLegendary = 0;   // pity counter (across every pack)
+    // Packs (packs.json ids): the one the chest screen opens on, those looked
+    // at there since they unlocked, and those whose "NEW PACK" banner has
+    // shown.
+    this.lastPack = null;
+    this.packsSeen = [];
+    this.packsAnnounced = [];
     this.freeLegendaryChests = 0;   // finale rewards waiting in the chest screen
     // Free chests from expeditions waiting there, by tier (Legendary ones
     // join freeLegendaryChests).
@@ -134,6 +141,9 @@ export class Progress {
       buyAmount: this.buyAmount,
       shipwrightOpen: this.shipwrightOpen,
       packsSinceLegendary: this.packsSinceLegendary,
+      lastPack: this.lastPack,
+      packsSeen: [...this.packsSeen],
+      packsAnnounced: [...this.packsAnnounced],
       discovered: [...this.discovered],
       seenPosters: [...this.seenPosters],
       defeats: { ...this.defeats },
@@ -195,6 +205,12 @@ export class Progress {
     if (UI_KIT.buyAmounts.includes(data.buyAmount)) p.buyAmount = data.buyAmount;
     p.shipwrightOpen = data.shipwrightOpen !== false;
     p.packsSinceLegendary = int(data.packsSinceLegendary, 0, PACKS.legendaryPity - 1);
+    // Before packs.json is loaded (it always is in the game) any id is kept.
+    const knownPack = (id) => typeof id === 'string' && (PACK_DATA.loaded ? !!packOf(id) : true);
+    p.lastPack = knownPack(data.lastPack) ? data.lastPack : null;
+    const packIds = (list) => (Array.isArray(list) ? [...new Set(list.filter(knownPack))] : []);
+    p.packsSeen = packIds(data.packsSeen);
+    p.packsAnnounced = packIds(data.packsAnnounced);
 
     const owned = Array.isArray(data.owned) ? data.owned.filter((id) => id in HEROES) : [];
     p.owned = [...new Set([...STARTING_HEROES, ...owned])];
@@ -901,15 +917,47 @@ export class Progress {
     else if (tier in this.freeChests) this.freeChests[tier]++;
   }
 
+  // A pack (packs.json id) can be opened: it exists and is unlocked.
+  isPackUnlocked(id) {
+    const pack = packOf(id);
+    return !!pack && (!pack.island || this.isIslandUnlocked(pack.island));
+  }
+  get unlockedPacks() { return allPacks().filter((p) => this.isPackUnlocked(p.id)).map((p) => p.id); }
+  // Packs unlocked along the way (not those open from the start) that the
+  // player hasn't looked at in the chest screen yet (the Chests button's
+  // dot; the carousel opens on the first), and ones whose "NEW PACK" banner
+  // hasn't shown.
+  get newPacks() { return this.unlockedPacks.filter((id) => packOf(id).island); }
+  get unseenPacks() { return this.newPacks.filter((id) => !this.packsSeen.includes(id)); }
+  get unannouncedPacks() { return this.newPacks.filter((id) => !this.packsAnnounced.includes(id)); }
+  markPackSeen(id) {
+    if (this.isPackUnlocked(id) && !this.packsSeen.includes(id)) this.packsSeen.push(id);
+  }
+  markPackAnnounced(id) {
+    if (!this.packsAnnounced.includes(id)) this.packsAnnounced.push(id);
+  }
+
+  // The Abyss blessing: Legendary odds x PACKS.abyssBlessing.legendary in
+  // every pack once the Abyss's best depth has reached its depth.
+  get abyssBlessed() { return this.abyss.best >= PACKS.abyssBlessing.depth; }
+
+  // The pack's crew owned so far, and its size ("3/6").
+  packOwnedCount(id) { return (packOf(id)?.crew ?? []).filter((h) => this.isOwned(h)).length; }
+
   get canOpenPack() { return this.freeChestCount > 0 || this.pearls >= this.packCost; }
   // "Buy 10" (Pearls only; free chests open one at a time).
   get canOpenBulk() { return this.pearls >= PACKS.bulkCost; }
+  canOpenFrom(id) { return this.isPackUnlocked(id) && this.canOpenPack; }
+  canOpenBulkFrom(id) { return this.isPackUnlocked(id) && this.canOpenBulk; }
 
-  // Rarity weights limited to rarities that have heroes, so rates stay valid
-  // if a tier is empty (e.g. Legendary before its heroes exist).
-  static packRates() {
-    const present = new Set(Object.values(HEROES).map((h) => h.rarity));
-    const entries = Object.entries(PACKS.rates).filter(([r]) => present.has(r));
+  // A pack's rarity odds: PACKS.rates over the rarities it has crew of (a
+  // roll of one it lacks is rolled again, which comes to the same), with the
+  // Abyss blessing's Legendary weight when blessed.
+  static packRates(id, blessed = false) {
+    const crew = packOf(id)?.crew ?? Object.keys(HEROES);
+    const present = new Set(crew.map((h) => HEROES[h].rarity));
+    const entries = Object.entries(PACKS.rates).filter(([r]) => present.has(r))
+      .map(([r, w]) => [r, r === 'legendary' && blessed ? w * PACKS.abyssBlessing.legendary : w]);
     const total = entries.reduce((sum, [, w]) => sum + w, 0);
     return entries.map(([rarity, w]) => ({ rarity, chance: w / total }));
   }
@@ -918,55 +966,70 @@ export class Progress {
   // number at the latest (1 = the next pack).
   get packsUntilPity() { return PACKS.legendaryPity - this.packsSinceLegendary; }
 
-  // minRarity: only that rarity or rarer (renormalized), for Rare Chests.
-  static rollHero(random = Math.random, forceRarity = null, minRarity = null) {
+  // A crewmate from the pack. minRarity: only that rarity or rarer
+  // (renormalized), for Rare Chests; forceRarity: that rarity (a Legendary
+  // Chest, pity), or the pack's rarest below it if it has none.
+  static rollHero(id, random = Math.random, { forceRarity = null, minRarity = null, blessed = false } = {}) {
+    const crew = packOf(id)?.crew ?? Object.keys(HEROES);
+    const order = Object.keys(RARITY);
+    let rates = Progress.packRates(id, blessed);
     let roll = random();
-    let rates = Progress.packRates();
     if (minRarity) {
-      const order = Object.keys(RARITY);
       const kept = rates.filter((r) => order.indexOf(r.rarity) >= order.indexOf(minRarity));
-      const total = kept.reduce((sum, r) => sum + r.chance, 0);
-      rates = kept.map((r) => ({ ...r, chance: r.chance / total }));
+      if (kept.length) {
+        const total = kept.reduce((sum, r) => sum + r.chance, 0);
+        rates = kept.map((r) => ({ ...r, chance: r.chance / total }));
+      }
     }
-    let rarity = forceRarity ?? rates[rates.length - 1].rarity;
-    if (!forceRarity) {
+    let rarity = rates[rates.length - 1].rarity;
+    if (forceRarity) {
+      const atMost = rates.filter((r) => order.indexOf(r.rarity) <= order.indexOf(forceRarity));
+      rarity = (atMost.length ? atMost : rates).at(-1).rarity;
+    } else {
       for (const r of rates) {
         if (roll < r.chance) { rarity = r.rarity; break; }
         roll -= r.chance;
       }
     }
-    const pool = Object.keys(HEROES).filter((id) => HEROES[id].rarity === rarity);
+    const pool = crew.filter((h) => HEROES[h].rarity === rarity);
     return pool[Math.floor(random() * pool.length)];
   }
 
-  // Pull one hero: a free chest first if one is waiting (the best tier
-  // first), else spend Pearls. Returns what happened (see pull, plus free:
-  // the free chest's tier or null), or null if unaffordable.
-  openPack(random = Math.random) {
-    if (!this.canOpenPack) return null;
+  // Pull one hero from the pack: a free chest first if one is waiting (the
+  // best tier first), else spend Pearls. Returns what happened (see pull,
+  // plus free: the free chest's tier or null), or null if unaffordable or
+  // the pack is locked.
+  openPack(id, random = Math.random) {
+    if (!this.canOpenFrom(id)) return null;
     const free = this.nextFreeChest;
     if (free === 'legendary') this.freeLegendaryChests--;
     else if (free) this.freeChests[free]--;
     else this.pearls -= this.packCost;
-    return { ...this.pull(random, free), free };
+    this.lastPack = id;
+    return { ...this.pull(id, random, free), free };
   }
 
-  // "Buy 10": PACKS.bulkCount paid chests for PACKS.bulkCost Pearls. Returns
-  // the pulls in order (see pull), or null if unaffordable.
-  openBulk(random = Math.random) {
-    if (!this.canOpenBulk) return null;
+  // "Buy 10": PACKS.bulkCount paid chests from the pack for PACKS.bulkCost
+  // Pearls. Returns the pulls in order (see pull), or null if unaffordable.
+  openBulk(id, random = Math.random) {
+    if (!this.canOpenBulkFrom(id)) return null;
     this.pearls -= PACKS.bulkCost;
-    return Array.from({ length: PACKS.bulkCount }, () => this.pull(random));
+    this.lastPack = id;
+    return Array.from({ length: PACKS.bulkCount }, () => this.pull(id, random));
   }
 
-  // One chest's hero: a Legendary from a free Legendary chest or at pity,
-  // else rolled (Rare or better from a Rare Chest). tier: a free chest's
-  // tier, or null for a bought one. A new hero joins the crew, a duplicate
-  // adds a star, and one past max stars adds a Bonus Level. Returns { id,
-  // pity, isNew, stars, bonus, bonusLevel, slot }.
-  pull(random, tier = null) {
+  // One chest's hero from the pack: a Legendary from a free Legendary chest
+  // or at pity, else rolled (Rare or better from a Rare Chest). tier: a free
+  // chest's tier, or null for a bought one. A new hero joins the crew, a
+  // duplicate adds a star, and one past max stars adds a Bonus Level.
+  // Returns { id, pity, isNew, stars, bonus, bonusLevel, slot }.
+  pull(packId, random, tier = null) {
     const pity = tier !== 'legendary' && this.packsUntilPity <= 1;
-    const id = Progress.rollHero(random, tier === 'legendary' || pity ? 'legendary' : null, tier === 'rare' ? 'rare' : null);
+    const id = Progress.rollHero(packId, random, {
+      forceRarity: tier === 'legendary' || pity ? 'legendary' : null,
+      minRarity: tier === 'rare' ? 'rare' : null,
+      blessed: this.abyssBlessed,
+    });
     if (HEROES[id].rarity === 'legendary') this.packsSinceLegendary = 0;
     else this.packsSinceLegendary++;
 

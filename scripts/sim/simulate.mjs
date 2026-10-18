@@ -3,7 +3,9 @@
 //
 // Runs the real battle code (waves, enemies, crew, abilities, Progress) with
 // Phaser stubbed out, from a fresh save, with a simple bot playing between
-// waves: it opens every affordable chest and puts its best crew on the ship
+// waves: it opens every affordable chest (from the unlocked pack with the
+// most crew it doesn't have yet or can still star up) and puts its best
+// crew on the ship
 // (The Captain beside the strongest, someone anti-air once harpies come).
 // Auto abilities are on. Two ways of spending gold:
 //   greedy: spends it all after every wave (saving up for a deck while crew
@@ -38,6 +40,7 @@ import { Mists } from '../../src/systems/Mists.js';
 import { Currents } from '../../src/systems/Currents.js';
 import { WaveManager } from '../../src/systems/WaveManager.js';
 import { initParts, partOf } from '../../src/systems/Parts.js';
+import { initPacks, packOf } from '../../src/systems/Packs.js';
 import { ShipParts } from '../../src/systems/ShipParts.js';
 
 const RUNS = Number(process.argv[2] ?? 5);
@@ -79,10 +82,11 @@ const sprites = new URL('../../public/sprites/', import.meta.url);
 const readJson = (path) => JSON.parse(readFileSync(new URL(path, sprites), 'utf8'));
 const fxSheets = {
   ...readJson('fx/fx.json'), ...readJson('ember/fx/fx_ember.json'), ...readJson('frost/fx/fx_frost.json'),
-  ...readJson('fog/fx/fx_fog.json'),
+  ...readJson('fog/fx/fx_fog.json'), ...readJson('newcrew2/fx/fx_newcrew.json'),
 };
 initLayout(readJson('layout.json'));
 initParts(readJson('parts/parts.json'));
+initPacks(readJson('packs/packs.json'));
 const PARTS_ARG = parseParts(FLAGS.find((a) => a.startsWith('parts='))?.slice(6));
 // The JSON files the battle code reads from the cache (ship slots; the
 // Ghost Galleon's gun ports, the Molten Leviathan's mouth and position, and
@@ -93,6 +97,7 @@ const jsonCache = {
   animations_ember: readJson('ember/animations_ember.json'),
   animations_frost: readJson('frost/animations_frost.json'),
   animations_fog: readJson('fog/animations_fog.json'),
+  animations_newcrew: readJson('newcrew2/animations_newcrew.json'),
 };
 
 // --- A stand-in scene: game objects are inert stubs that keep x / y ---
@@ -285,11 +290,19 @@ function arrangeCrew(p) {
   order.forEach((id, i) => { p.slots[i] = id; });
 }
 
+// The unlocked pack with the most crew still to find or star up (the first
+// such pack on a tie).
+export function bestPack(p) {
+  const { PACKS } = config;
+  const room = (id) => packOf(id).crew.filter((h) => !p.isOwned(h) || p.heroStarCount(h) < PACKS.maxStars).length;
+  return p.unlockedPacks.reduce((best, id) => (room(id) > room(best) ? id : best));
+}
+
 // Chests (Buy 10 whenever it's affordable) and crew after every wave; gold
 // only when spending (see top).
 function between(p, spend) {
-  while (p.canOpenBulk) p.openBulk();
-  while (p.canOpenPack) p.openPack();
+  while (p.canOpenBulk) p.openBulk(bestPack(p));
+  while (p.canOpenPack) p.openPack(bestPack(p));
   arrangeCrew(p);
   if (spend) spendGold(p);
 }

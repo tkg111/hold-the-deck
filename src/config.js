@@ -118,6 +118,15 @@ export const SPRITES = {
     sharpshooter: { key: 'sharpshooter', height: 28, faceTop: 4 },
     ghostPirate: { key: 'ghost_pirate', height: 28, faceTop: 4 },
     stormCaller: { key: 'storm_caller', height: 32, faceTop: 4 },
+    // The pack crew (public/sprites/newcrew2/: dir is their folder).
+    anchorBosun: { key: 'anchor_bosun', dir: 'newcrew2/', height: 26, faceTop: 6 },
+    powderMonkey: { key: 'powder_monkey', dir: 'newcrew2/', height: 29, faceTop: 4 },
+    fireBreather: { key: 'fire_breather', dir: 'newcrew2/', height: 27, faceTop: 5 },
+    blacksmith: { key: 'blacksmith', dir: 'newcrew2/', height: 29, faceTop: 4 },
+    whaler: { key: 'whaler', dir: 'newcrew2/', height: 28, faceTop: 4 },
+    auroraSeer: { key: 'aurora_seer', dir: 'newcrew2/', height: 28, faceTop: 4 },
+    banshee: { key: 'banshee', dir: 'newcrew2/', height: 28, faceTop: 4 },
+    boneCaller: { key: 'bone_caller', dir: 'newcrew2/', height: 32, faceTop: 3 },
   },
   // Crew faces in the UI: this box of each hero's 32x32 sprite (x, width and
   // height in art pixels; y comes from faceTop).
@@ -271,6 +280,16 @@ export const RARITY = {
 //            then jumping to the nearest enemy not yet hit within `jump` px,
 //            up to `targets`; each jump does falloff x the last hit. segment is
 //            tiled along each link for segmentMs, impact plays on each enemy.
+//   jet: { from: { x, y }, splash } — a flame from `from` (off centre x /
+//          feet; the projectile sprite's left edge, turned to the target):
+//          the hit lands at once, on the target and everything within
+//          splash px of it
+//   knockback: { px, speed }        — each hit pushes a non-boss walker back px
+//                                     (at speed px/s)
+//   burn:   { ratio, duration }     — like poison, a burn of ratio x hit damage
+//                                     per second (burns and poison both tick)
+//   chill:  { factor, duration }    — slows like slow, without a net (flyers
+//                                     stay in the air)
 export const HEROES = {
   cabinBoy: {
     name: 'Cabin Boy',
@@ -463,6 +482,125 @@ export const HEROES = {
     },
     catchphrase: 'The sea answers to me, and today she be angry.',
   },
+
+  // The pack crew (see PACKS): each balanced against crew of its rarity
+  // and role.
+  // Rare, like the Harpooner and the Net Thrower: slow, heavy hits.
+  anchorBosun: {
+    name: 'Anchor Bosun',
+    shortName: 'Bosun',
+    rarity: 'rare',
+    color: 0x4e6a80,
+    damage: 30,
+    attackInterval: 2400,
+    range: 320,
+    projectileSpeed: 170,
+    projectile: { sprite: 'thrown_anchor', impact: 'hit_spark' },
+    knockback: { px: 6, speed: 120 },
+    catchphrase: 'Lower the anchor. On them.',
+  },
+  // Common: a lobbed bomb with a small splash (a little Cannoneer).
+  powderMonkey: {
+    name: 'Powder Monkey',
+    shortName: 'Powder',
+    rarity: 'common',
+    color: 0x8d6e4a,
+    damage: 6,
+    attackInterval: 1000,
+    range: 330,
+    projectile: { sprite: 'powder_bomb', impact: 'powder_blast' },
+    lob: { flightTime: 700, arcHeight: 40 },
+    area: { radius: 16 },
+    catchphrase: 'Who wants a present?!',
+  },
+  // Rare: short range, but everything near the target burns.
+  fireBreather: {
+    name: 'Fire Breather',
+    shortName: 'Fire',
+    rarity: 'rare',
+    color: 0xe65100,
+    damage: 9,
+    attackInterval: 800,
+    range: 200,
+    projectile: { sprite: 'flame_jet', impact: 'hit_spark' },
+    // The torch in fire_breather_sheet.png's attack frames.
+    jet: { from: { x: 13, y: -17 }, splash: 20 },
+    burn: { ratio: 0.6, duration: 3000 },
+    catchphrase: "Feel that? That's the warm-up.",
+  },
+  // Epic: a steady hitter whose hammer goes through armour.
+  blacksmith: {
+    name: 'Blacksmith',
+    shortName: 'Smith',
+    rarity: 'epic',
+    color: 0x6d6d6d,
+    damage: 14,
+    attackInterval: 1200,
+    range: 330,
+    projectileSpeed: 260,
+    projectile: { sprite: 'thrown_hammer', impact: 'hit_spark' },
+    ignoresArmor: true,
+    catchphrase: "Steel's hot. Swing harder.",
+  },
+  // Rare: a javelin through the first few in the line, chilling them.
+  whaler: {
+    name: 'Whaler',
+    shortName: 'Whaler',
+    rarity: 'rare',
+    color: 0x90a4ae,
+    damage: 16,
+    attackInterval: 1500,
+    range: 340,
+    projectileSpeed: 330,
+    projectile: { sprite: 'ice_javelin', impact: 'hit_spark', rotate: true },
+    pierce: { maxTargets: 3, length: 110, hitRadius: 8 },
+    chill: { factor: 0.85, duration: 2000 },
+    catchphrase: "I've hunted bigger. Not by much.",
+  },
+  // Legendary: a strong bolt that bursts on a small area, with a little chill.
+  auroraSeer: {
+    name: 'Aurora Seer',
+    shortName: 'Aurora',
+    rarity: 'legendary',
+    color: 0x4dd0e1,
+    damage: 26,
+    attackInterval: 1100,
+    range: 350,
+    projectileSpeed: 280,
+    projectile: { sprite: 'aurora_bolt', impact: 'hit_spark' },
+    area: { radius: 24 },
+    chill: { factor: 0.85, duration: 1500 },
+    antiAir: true,
+    catchphrase: 'The sky remembers every storm.',
+  },
+  // Rare, like the Harpooner: anti-air.
+  banshee: {
+    name: 'Banshee',
+    shortName: 'Banshee',
+    rarity: 'rare',
+    color: 0xb0bec5,
+    damage: 12,
+    attackInterval: 1000,
+    range: 330,
+    projectileSpeed: 230,
+    projectile: { sprite: 'wail_bolt', impact: 'hit_spark' },
+    antiAir: true,
+    catchphrase: '*an unholy shriek*',
+  },
+  // Legendary: his skeletons hold the line (see ALLIES).
+  boneCaller: {
+    name: 'Bone Caller',
+    shortName: 'Bones',
+    rarity: 'legendary',
+    color: 0xd7ccc8,
+    damage: 20,
+    attackInterval: 1100,
+    range: 340,
+    projectileSpeed: 250,
+    projectile: { sprite: 'bone_shard', impact: 'hit_spark' },
+    antiAir: true,
+    catchphrase: 'Up, lads. One more voyage.',
+  },
 };
 
 export const STARTING_HEROES = ['cabinBoy'];
@@ -584,7 +722,100 @@ export const ABILITIES = {
     sprite: 'tidal_wave', sink: 6,   // its bottom sits this far below the lane
     effect: 'Pushes ground foes back, {damage} dmg',
   },
+
+  // The pack crew's (fx sheets in newcrew2/fx/).
+  // anchor_drop (64x64) slams down bottom-centre on the frontmost enemy on
+  // the lane; impactAt ms in (its frame 3) it hits for the damage, stuns
+  // and pushes it `push` px back (bosses resist both, as usual).
+  anchorBosun: {
+    name: 'Drop Anchor', cooldown: 20000, color: 0x90a4ae,
+    damage: 8, stun: 2000, push: 20, pushSpeed: 200,
+    sprite: 'anchor_drop', impactAt: 300,
+    shake: { duration: 150, intensity: 0.004 },
+    effect: 'Anchor on the front foe: {damage} dmg, {stun} stun',
+  },
+  // `bombs` powder bombs lobbed from him, `interval` ms apart, to spots
+  // spread along the lane, each blasting everything within radius.
+  powderMonkey: {
+    name: 'Powder Barrage', cooldown: 18000, color: 0xffb74d,
+    bombs: 6, damage: 2, radius: 20, interval: 120, flightTime: 700, arcHeight: 60,
+    sprite: 'powder_bomb', impact: 'powder_blast',
+    effect: '{bombs} powder bombs on the lane, {damage} dmg',
+  },
+  // `tiles` inferno_wall tiles side by side on the lane, centred on x, for
+  // the duration (fading over fadeTime at the end): ground enemies in it burn
+  // for damagePerSecond x his damage, and keep burning burnMs after.
+  fireBreather: {
+    name: 'Inferno', cooldown: 22000, color: 0xff7043,
+    x: 300, tiles: 3, duration: 5000, damagePerSecond: 1.5, burnMs: 3000, fadeTime: 400,
+    sprite: 'inferno_wall',
+    effect: 'Wall of fire on the lane for {duration}',
+  },
+  // The whole crew hits bonus harder for the duration, temper_aura on each.
+  blacksmith: {
+    name: 'Temper Steel', cooldown: 26000, color: 0xffa726,
+    bonus: 0.25, duration: 7000, needsRange: true, air: true,
+    fx: { sprite: 'temper_aura' },
+    effect: 'Whole crew +{bonus} damage for {duration}',
+  },
+  // One whale_spear at the enemy with the most HP (bosses and flyers too),
+  // through armour.
+  whaler: {
+    name: 'Whale Hunt', cooldown: 24000, color: 0xb3e5fc,
+    damage: 10, speed: 420, air: true,
+    sprite: 'whale_spear', impact: 'hit_spark',
+    shake: { duration: 100, intensity: 0.003 },
+    effect: 'Spears the toughest foe for {damage} dmg',
+  },
+  // aurora_veil tiled across the sky (its top skyY px under the view's top)
+  // for the duration: every enemy but the bosses is frozen (ENEMY_FREEZE),
+  // bosses slowed to slow x their pace.
+  auroraSeer: {
+    name: 'Aurora Veil', cooldown: 30000, color: 0x80deea,
+    duration: 2000, slow: 0.6, air: true,
+    sprite: 'aurora_veil', skyY: 12, fadeTime: 300,
+    effect: 'Freezes every foe {duration}, bosses slowed {slow}',
+  },
+  // wail_ring from the ship (its left edge ringX px from where walkers stop,
+  // on the lane ringY px up, scaled ringScale x): every enemy within radius
+  // px of the ship takes the damage, and walkers are pushed `push` px back
+  // and scared for the duration (bosses resist). Needs one that near.
+  banshee: {
+    name: 'Wail', cooldown: 22000, color: 0xcfd8dc,
+    radius: 200, damage: 3, push: 30, pushSpeed: 220, duration: 2000, air: true, needs: 'near',
+    sprite: 'wail_ring', ringX: -40, ringY: 30, ringScale: 3,
+    effect: 'Hits foes near the ship, scares them {duration}',
+  },
+  // `count` friendly skeletons (ALLIES.skeleton) rise from summon_circles
+  // `spread` px apart from x and walk out to fight for the duration.
+  boneCaller: {
+    name: 'Raise the Crew', cooldown: 30000, color: 0xd7ccc8,
+    count: 3, x: 170, spread: 14, duration: 12000, needs: 'movable',
+    circle: 'summon_circle',
+    effect: 'Raises {count} skeletons for {duration}',
+  },
 };
+
+// Friendly units on the lane (the Bone Caller's skeletons; src/entities/
+// Ally.js). The skeleton rises ("rise" in newcrew2/animations_newcrew.json,
+// riseMs without it), then walks right at speed until the first ground
+// enemy, and hits it every attackInterval for damage x the Bone Caller's
+// damage; it has hp x his damage, so both grow with his level and stars.
+// Walking enemies that reach it stop and fight it instead of walking on
+// (a Keg Runner blows up on it); flyers and boats pass it by. It crumbles
+// (fadeMs) when its time is up or it's beaten. width: its body, for where
+// enemies stop.
+export const ALLIES = {
+  skeleton: {
+    sprite: 'ally_skeleton', width: 12, height: 28, riseMs: 667,
+    speed: 30, attackInterval: 900, hp: 5, damage: 0.6,
+    hpBarColor: 0x66bb6a, fadeMs: 300,
+  },
+};
+
+// Enemies frozen by the Aurora Veil: like a stun, with `sprite` (an fx
+// sheet) over them. Bosses aren't frozen.
+export const ENEMY_FREEZE = { sprite: 'ice_block' };
 
 // How abilities grow: each duration (and the Hot Stew stun) is multiplied by
 // min(maxScale, 1 + (level - 1) * perLevel + stars * perStar).
@@ -1869,13 +2100,31 @@ export const ECONOMY = {
   pearlsPerOldRenown: 2,
 };
 
+// Chests come from packs (public/sprites/packs/packs.json: each pack's id,
+// name, banner, unlock and crew; src/systems/Packs.js). A pack unlocks
+// "always" or on reaching an island ("reach Ember Isle": that island open
+// on the map), and only rolls its own crew. The free chests are opened from
+// whichever unlocked pack the player picks.
 export const PACKS = {
+  path: 'packs/',       // under SPRITES.path
   cost: 5,
   // "Buy 10": bulkCount chests at once for bulkCost Pearls.
   bulkCount: 10,
   bulkCost: 45,
-  // Rarity weights; renormalized over rarities that actually have heroes.
+  // Rarity weights; renormalized over the rarities the pack has crew of (a
+  // roll of a rarity it has none of is rolled again).
   rates: { common: 0.45, rare: 0.3, epic: 0.18, legendary: 0.07 },
+  // The Abyss blessing: once the Abyss's best depth reaches `depth`,
+  // Legendary weight x legendary in every pack, for good.
+  abyssBlessing: { depth: 25, legendary: 2 },
+  // The chest screen (PackScene, base pixels): the banner carousel (banners
+  // `gap` px apart, the others shaded sideShade black; a drag of swipe px
+  // turns it, over slideMs), the details panel under it with a cell per crewmate
+  // (cols to a row), and GameScene's "NEW PACK" banner: its hold, and how
+  // long after a finale's win it waits (for the CLEARED banner).
+  carousel: { y: 28, gap: 136, sideShade: 0.6, swipe: 24, slideMs: 180 },
+  details: { x: 76, y: 82, width: 328, cell: { width: 40, height: 42 }, cols: 8 },
+  newPack: { hold: 2500, afterFinale: 5000 },
   // Pity: a Legendary is guaranteed within this many packs.
   legendaryPity: 30,
   maxStars: 5,

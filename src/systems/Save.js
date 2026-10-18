@@ -7,7 +7,7 @@ export const SAVE_KEY = 'kampung-defense/save';
 const CORRUPT_BACKUP_KEY = 'kampung-defense/save-corrupt-backup';
 
 // Bump when the saved shape changes, and add a migration from the old version.
-export const SAVE_VERSION = 16;
+export const SAVE_VERSION = 17;
 
 // v5 pirate reskin: old hero IDs -> new hero IDs.
 const V5_HERO_IDS = {
@@ -155,6 +155,12 @@ const MIGRATIONS = {
       },
     };
   },
+  // v17: packs (the chest screen's pack, packs looked at and announced).
+  // Every crewmate already owned is kept, whichever pack it's in now; packs
+  // a save has already unlocked get their "NEW PACK" banner and dot.
+  16: (data) => ({
+    ...data, lastPack: null, packsSeen: [], packsAnnounced: [],
+  }),
 };
 
 function migrate(save) {

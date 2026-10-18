@@ -25,6 +25,10 @@ export function describeHero(def) {
   if (def.poison) parts.push(`poison: ${pct(def.poison.ratio)} dmg/s for ${secs(def.poison.duration)}`);
   if (def.crit) parts.push(`${pct(def.crit.chance)} crit chance for ${def.crit.multiplier}x damage`);
   if (def.slow) parts.push(`slows ${pct(1 - def.slow.factor)} for ${secs(def.slow.duration)}`);
+  if (def.chill) parts.push(`chills ${pct(1 - def.chill.factor)} for ${secs(def.chill.duration)}`);
+  if (def.jet) parts.push('short-range flame hits all near the target');
+  if (def.burn) parts.push(`burn: ${pct(def.burn.ratio)} dmg/s for ${secs(def.burn.duration)}`);
+  if (def.knockback) parts.push('knocks foes back');
   if (def.curse) parts.push(`curse: +${pct(def.curse.bonus)} damage taken from all`);
   if (def.targets === 'furthest') parts.push('aims at the furthest foe');
   if (def.ignoresArmor) parts.push('ignores armour');
@@ -52,6 +56,8 @@ export function describeAbility(id, scale = 1) {
     heal: a.heal != null && pct(a.heal),
     balls: a.balls,
     hits: a.hits,
+    bombs: a.bombs,
+    count: a.count,
   };
   return a.effect.replace(/\{(\w+)\}/g, (_, key) => values[key]);
 }

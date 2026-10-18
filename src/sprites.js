@@ -1,10 +1,11 @@
 import {
-  ABYSS, ASHFALL, ENEMIES, FX, ISLANDS, MAP, MIST, MOTES, PARTS, SHIP, SNOWFALL, SPRITES, STORM,
+  ABYSS, ASHFALL, ENEMIES, FX, ISLANDS, MAP, MIST, MOTES, PACKS, PARTS, SHIP, SNOWFALL, SPRITES, STORM,
 } from './config.js';
 import { initLayout, LAYOUT } from './layout.js';
 import {
   MATERIALS_KEY, overlayFile, overlayKey, PARTS_JSON_KEY, partIconKey,
 } from './systems/Parts.js';
+import { bannerKey, PACKS_JSON_KEY } from './systems/Packs.js';
 import { preloadUi } from './ui/kit.js';
 import { versioned } from './version.js';
 
@@ -18,22 +19,25 @@ export const SHIP_SLOTS_KEY = 'ship_slots';
 // and the Frost Giant's feet and slamPoint) and Fogbound Isle's in
 // fog/animations_fog.json (with the Cursed Cannoneer's muzzle, the Lantern
 // Ghoul's lantern, the Siren Queen's pos, mouth and waveHand and Captain
-// Blackbones' feet and muzzle).
+// Blackbones' feet and muzzle), and the pack crew's (with the ally
+// skeleton) in newcrew2/animations_newcrew.json.
 const ANIMATION_FILES = [
   { key: 'animations', dir: '' },
   { key: 'animations_new_enemies', dir: '' },
   { key: 'animations_ember', dir: 'ember/' },
   { key: 'animations_frost', dir: 'frost/' },
   { key: 'animations_fog', dir: 'fog/' },
+  { key: 'animations_newcrew', dir: 'newcrew2/' },
 ];
 // Effect sheet lists: fx/fx.json, Ember Isle's ember/fx/fx_ember.json,
 // Frostbite Reef's frost/fx/fx_frost.json and Fogbound Isle's
-// fog/fx/fx_fog.json.
+// fog/fx/fx_fog.json, and the pack crew's newcrew2/fx/fx_newcrew.json.
 const FX_FILES = [
   { key: 'fx_list', dir: FX.path, file: 'fx.json' },
   { key: 'fx_ember', dir: 'ember/fx/', file: 'fx_ember.json' },
   { key: 'fx_frost', dir: 'frost/fx/', file: 'fx_frost.json' },
   { key: 'fx_fog', dir: 'fog/fx/', file: 'fx_fog.json' },
+  { key: 'fx_newcrew', dir: 'newcrew2/fx/', file: 'fx_newcrew.json' },
 ];
 const LAYOUT_KEY = 'layout';
 const BACKGROUND_KEY = 'bg_tall';  // bg.png's picture with more sky and sea (see SCENERY)
@@ -115,6 +119,17 @@ function preloadParts(load) {
   });
 }
 
+// The chest packs (packs/packs.json, see src/systems/Packs.js): each pack's
+// banner and the locked overlay.
+function preloadPacks(load) {
+  load.json(PACKS_JSON_KEY, `${PACKS.path}packs.json`);
+  load.once(`filecomplete-json-${PACKS_JSON_KEY}`, (key, type, data) => {
+    for (const file of [...data.packs.map((p) => p.banner), data.lockedOverlay].filter(Boolean)) {
+      load.image(bannerKey(file), `${PACKS.path}${file}`);
+    }
+  });
+}
+
 function preloadAbyss(load) {
   const { path } = ABYSS;
   load.json(ABYSS_JSON_KEY, `${path}abyss.json`);
@@ -157,7 +172,7 @@ export function preloadSprites(scene) {
     load.image(shipFrontKey(d), `${shipFrontKey(d)}.png`);
   }
   load.json(SHIP_SLOTS_KEY, `${SHIP_SLOTS_KEY}.json`);
-  for (const { key } of Object.values(SPRITES.heroes)) load.image(key, `${key}.png`);
+  for (const { key, dir = '' } of Object.values(SPRITES.heroes)) load.image(key, `${dir}${key}.png`);
   for (const def of Object.values(ENEMIES)) {
     if (def.sprite && !def.sheetOnly) load.image(def.sprite, `${def.dir ?? ''}${def.sprite}.png`);
   }
@@ -201,6 +216,7 @@ export function preloadSprites(scene) {
   preloadStorm(load);
   preloadMap(load);
   preloadParts(load);
+  preloadPacks(load);
   for (const { key: file, dir } of ANIMATION_FILES) {
     load.json(file, `${dir}${file}.json`);
     load.once(`filecomplete-json-${file}`, (key, type, data) => {

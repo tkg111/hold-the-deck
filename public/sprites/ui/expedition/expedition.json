@@ -90,6 +90,14 @@
     "storm_caller": "mystic",
     "ships_cook": "caretaker",
     "ships_doctor": "caretaker",
-    "grog_brewer": "caretaker"
+    "grog_brewer": "caretaker",
+    "anchor_bosun": "fighter",
+    "powder_monkey": "scout",
+    "whaler": "scout",
+    "blacksmith": "caretaker",
+    "fire_breather": "mystic",
+    "aurora_seer": "mystic",
+    "banshee": "mystic",
+    "bone_caller": "mystic"
   }
 }

@@ -1,10 +1,13 @@
 import Phaser from 'phaser';
 import {
-  DISPLAY, EXPEDITIONS, HEROES, PACK_FX, PACKS, PARTS, RARITY,
+  DISPLAY, EXPEDITIONS, HEROES, PACK_FX, PACKS, PARTS, RARITY, SPRITES, UI_KIT,
 } from '../config.js';
 import { gameMaterials } from '../systems/Parts.js';
 import { materialIcon } from '../ui/parts.js';
 import { traitOf } from '../systems/Expeditions.js';
+import {
+  allPacks, bannerKey, PACK_DATA, unlockLabel,
+} from '../systems/Packs.js';
 import { sfx } from '../audio/Sfx.js';
 import { applyRenderScale, fillView } from '../display.js';
 import { Progress } from '../systems/Progress.js';
@@ -13,7 +16,7 @@ import { Button } from '../ui/Button.js';
 import { createHeroCard, HERO_CARD_SIZE } from '../ui/HeroCard.js';
 import { cssColor, formatNum, pearlsLabel } from '../ui/format.js';
 import {
-  face, hexColor, icon, dark, light, panel, subText, text, traitIcon, UI,
+  face, hexColor, icon, dark, light, panel, starRow, subText, text, traitIcon, UI,
 } from '../ui/kit.js';
 
 const CARD_W = HERO_CARD_SIZE.large.width;
@@ -38,14 +41,21 @@ const TILE_COLS = 5;
 const TILES_TOP = 74;
 
 
-// Overlay scene for opening treasure chests (packs). Launched on top of
-// GameScene with { progress, onClose }; the full-screen backdrop swallows
-// clicks underneath.
+// Overlay scene for opening treasure chests. Launched on top of GameScene
+// with { progress, onClose }; the full-screen backdrop swallows clicks
+// underneath.
+//
+// The screen: the pack carousel (each pack's banner; arrows or a swipe turn
+// it) over the pack's details (its crew, owned ones in colour with their
+// stars and the rest as silhouettes, its odds and how many are found), and
+// Open / Buy 10 under them, from the pack in the middle. Free chests open
+// from whichever unlocked pack is chosen.
 //
 // Opening flow: build-up (the chest rattles, glows, and light leaks out of
 // it in a colour that hints the rarity) → open (light spills out and the hero
 // card rises out) → reveal (chime, glow, confetti for new heroes)
-// → new-crewmate splash.
+// → new-crewmate splash. The carousel and details come back with a tap, or
+// when the pack is turned.
 export class PackScene extends Phaser.Scene {
   constructor() {
     super('PackScene');
@@ -55,22 +65,27 @@ export class PackScene extends Phaser.Scene {
     this.progress = progress;
     this.onClose = onClose;
     this.busy = false;
+    this.showingResult = false;
+    this.packs = allPacks();
+    // A pack unlocked since it was last looked at first, then the last one
+    // opened, then the first.
+    const p = progress;
+    const first = p.unseenPacks[0] ?? (p.lastPack && p.isPackUnlocked(p.lastPack) ? p.lastPack : null);
+    this.index = Math.max(0, this.packs.findIndex((pack) => pack.id === first));
   }
+
+  get pack() { return this.packs[this.index]; }
 
   create() {
     applyRenderScale(this);
     this.ensureConfettiTexture();
     fillView(this, 0x000000, 0.8);
 
-    // Title plate and a parchment strip with the wallet, rates and pity.
     panel(this, CARD_X - 80, 4, 160, 20, 'wood');
-    text(this, CARD_X, 14, 'TREASURE CHEST', light()).setOrigin(0.5);
-    panel(this, CARD_X - 150, 28, 300, 34, 'parchment');
-    this.walletText = text(this, CARD_X, 32, '', dark({ font: 'small' })).setOrigin(0.5, 0);
-    const rates = Progress.packRates()
-      .map(({ rarity, chance }) => `${RARITY[rarity].label} ${Math.round(chance * 100)}%`).join('  ');
-    text(this, CARD_X, 42, rates.toUpperCase(), subText()).setOrigin(0.5, 0);
-    this.pityText = text(this, CARD_X, 52, '', subText({ color: UI.colors.warn })).setOrigin(0.5, 0);
+    this.titleText = text(this, CARD_X, 14, 'TREASURE CHESTS', light()).setOrigin(0.5);
+
+    this.carousel = this.buildCarousel();
+    this.details = this.add.container(0, 0);
 
     this.chestGlow = this.add.rectangle(CARD_X, CHEST_Y, CHEST_W + 30, CHEST_H + 30, 0xffffff, 0);
     this.light = this.add.graphics({ x: CARD_X, y: LID_Y });
@@ -79,6 +94,11 @@ export class PackScene extends Phaser.Scene {
     this.card = this.add.container(CARD_X, CARD_Y).setVisible(false);
 
     this.resultText = text(this, CARD_X, 233, '', light({ font: 'big' })).setOrigin(0.5);
+    // After a reveal, a tap on the result goes back to the pack.
+    this.resultZone = this.add.zone(CARD_X, 150, 300, 170).setInteractive({ useHandCursor: true })
+      .on('pointerdown', () => this.backToPack());
+    this.resultZone.disableInteractive();
+    this.backHint = text(this, CARD_X, 32, 'TAP TO SEE THE PACK', { font: 'small', ...light() }).setOrigin(0.5).setVisible(false);
 
     this.bulkGrid = this.add.container(0, 0);
     this.materialStrip = this.drawMaterials();
@@ -95,31 +115,225 @@ export class PackScene extends Phaser.Scene {
       width: 90, height: 22, label: 'Done',
       onClick: () => this.close(),
     });
+    this.showPack();
+  }
+
+  // --- The carousel ---
+
+  // A banner per pack, side by side PACKS.carousel.gap apart (the middle one
+  // is the chosen pack), with arrows either side and a swipe zone over them.
+  buildCarousel() {
+    const { y, swipe } = PACKS.carousel;
+    const [bw, bh] = PACK_DATA.size;
+    const c = this.add.container(0, 0);
+    this.banners = this.packs.map((pack) => {
+      const b = this.add.container(0, y + bh / 2);
+      const locked = !this.progress.isPackUnlocked(pack.id);
+      if (pack.banner && this.textures.exists(bannerKey(pack.banner))) b.add(this.add.image(0, 0, bannerKey(pack.banner)));
+      else b.add(panel(this, -bw / 2, -bh / 2, bw, bh, 'wood'));
+      if (locked && PACK_DATA.lockedOverlay) b.add(this.add.image(0, 0, bannerKey(PACK_DATA.lockedOverlay)));
+      // The name on a dark strip along the top, in the main font if it fits.
+      const name = pack.name.toUpperCase();
+      let label = text(this, 0, 0, name, light());
+      if (label.inkWidth > bw - 8) {
+        label.destroy();
+        label = text(this, 0, 0, name, light({ font: 'small' }));
+      }
+      const stripH = label.inkHeight + 6;
+      b.add(this.add.rectangle(0, -bh / 2 + stripH / 2, bw - 4, stripH, 0x000000, 0.45));
+      b.add(label.setOrigin(0.5).setPosition(0, Math.round(-bh / 2 + stripH / 2)));
+      if (locked) {
+        const req = text(this, 0, 0, unlockLabel(pack).toUpperCase(), light({ font: 'small', color: UI.colors.warn })).setOrigin(0.5);
+        const reqH = req.inkHeight + 6;
+        b.add(this.add.rectangle(0, bh / 2 - reqH / 2, bw - 4, reqH, 0x000000, 0.6));
+        b.add(req.setPosition(0, Math.round(bh / 2 - reqH / 2)));
+      }
+      // Shades the banner when it isn't the chosen one.
+      b.shade = this.add.rectangle(0, 0, bw, bh, 0x000000, 0);
+      b.add(b.shade);
+      b.newDot = this.add.circle(bw / 2 - 5, -bh / 2 + 4, UI_KIT.dotRadius, hexColor(UI.colors.warn))
+        .setStrokeStyle(1, hexColor(UI.colors.textOnParchment));
+      b.add(b.newDot);
+      c.add(b);
+      return b;
+    });
+    const arrow = (dx, step, angle) => {
+      const b = new Button(this, CARD_X + dx, y + bh / 2, {
+        width: 18, height: 18, icon: 'arrow_up', onClick: () => this.turn(step),
+      });
+      b.icon.setAngle(angle);
+      return b;
+    };
+    this.prevArrow = arrow(-bw / 2 - 14, -1, -90);
+    this.nextArrow = arrow(bw / 2 + 14, 1, 90);
+    c.add([this.prevArrow, this.nextArrow]);
+    // A swipe across the banners turns the carousel.
+    const zone = this.add.zone(CARD_X, y + bh / 2, DISPLAY.width - 140, bh).setInteractive();
+    zone.on('pointerdown', (pointer) => { this.swipeFrom = pointer.x; });
+    zone.on('pointerup', (pointer) => {
+      if (this.swipeFrom == null) return;
+      const dx = pointer.x - this.swipeFrom;
+      this.swipeFrom = null;
+      if (Math.abs(dx) >= swipe) this.turn(dx < 0 ? 1 : -1);
+    });
+    c.addAt(zone, 0);
+    this.placeBanners(false);
+    return c;
+  }
+
+  // The banners round the chosen one (sliding there unless instant), the
+  // others shaded.
+  placeBanners(slide = true) {
+    const { gap, sideShade, slideMs } = PACKS.carousel;
+    this.banners.forEach((b, i) => {
+      const x = CARD_X + (i - this.index) * gap;
+      const shade = i === this.index ? 0 : sideShade;
+      this.tweens.killTweensOf([b, b.shade]);
+      if (slide) {
+        this.tweens.add({
+          targets: b, x, duration: slideMs, ease: 'Quad.easeOut', onUpdate: () => { b.x = Math.round(b.x); },
+        });
+        this.tweens.add({ targets: b.shade, fillAlpha: shade, duration: slideMs });
+      } else {
+        b.setPosition(x, b.y);
+        b.shade.setFillStyle(0x000000, shade);
+      }
+      b.newDot.setVisible(this.progress.unseenPacks.includes(this.packs[i].id));
+    });
+    this.prevArrow.setEnabled(this.index > 0);
+    this.nextArrow.setEnabled(this.index < this.packs.length - 1);
+  }
+
+  turn(step) {
+    if (this.busy) return;
+    const index = Phaser.Math.Clamp(this.index + step, 0, this.packs.length - 1);
+    if (index === this.index && !this.showingResult) return;
+    sfx.click();
+    this.index = index;
+    this.showPack();
+  }
+
+  // The chosen pack: looked at now (its "new" dot goes), its details, and
+  // the screen back from any result.
+  showPack() {
+    this.progress.markPackSeen(this.pack.id);
+    saveProgress(this.progress);
+    this.showingResult = false;
+    this.resetChest();
+    this.chest.setVisible(false);
+    this.resultText.setText('');
+    this.placeBanners(true);
+    this.drawDetails();
     this.refresh();
   }
 
+  backToPack() {
+    if (this.busy || !this.showingResult) return;
+    sfx.click();
+    this.showPack();
+  }
+
+  // --- The details ---
+
+  // Parchment under the carousel: the pack's odds (and the Abyss blessing),
+  // a cell per crewmate (owned in colour with their stars, the rest a dark
+  // silhouette with "?", each over its rarity's colour), how many are found,
+  // and the wallet and pity lines.
+  drawDetails() {
+    const p = this.progress;
+    const { pack } = this;
+    const {
+      x, y, width: w, cell, cols,
+    } = PACKS.details;
+    const crew = pack.crew;
+    const rows = Math.ceil(crew.length / cols);
+    const d = this.details.removeAll(true);
+    // As tall as its rows of crew need.
+    d.add(panel(this, x, y, w, 26 + rows * cell.height + 26, 'parchment'));
+    const cx = x + w / 2;
+    const rates = Progress.packRates(pack.id, p.abyssBlessed)
+      .map(({ rarity, chance }) => `${RARITY[rarity].label} ${+(chance * 100).toFixed(1)}%`).join('  ');
+    d.add(text(this, cx, y + 6, rates.toUpperCase(), subText()).setOrigin(0.5, 0));
+    const { depth, legendary } = PACKS.abyssBlessing;
+    const blessing = p.abyssBlessed
+      ? text(this, cx, y + 15, `ABYSS BLESSING: LEGENDARY X${legendary}`, subText({ color: cssColor(RARITY.legendary.color) }))
+      : text(this, cx, y + 15, `REACH ABYSS DEPTH ${depth}: LEGENDARY X${legendary}`, subText()).setAlpha(0.5);
+    d.add(blessing.setOrigin(0.5, 0));
+
+    const gridTop = y + 26;
+    crew.forEach((id, i) => {
+      const row = Math.floor(i / cols);
+      const inRow = Math.min(cols, crew.length - row * cols);
+      const left = cx - (inRow * cell.width) / 2;
+      const ccx = Math.round(left + (i % cols + 0.5) * cell.width);
+      const top = gridTop + row * cell.height;
+      d.add(this.crewCell(id, ccx, top));
+    });
+
+    const owned = p.packOwnedCount(pack.id);
+    const infoY = gridTop + rows * cell.height + 2;
+    d.add(text(this, x + 10, infoY, `CREW FOUND ${owned}/${crew.length}`, subText()));
+    this.walletText = text(this, x + w - 10, infoY, '', subText()).setOrigin(1, 0);
+    this.pityText = text(this, cx, infoY + 10, '', subText({ color: UI.colors.warn })).setOrigin(0.5, 0);
+    d.add([this.walletText, this.pityText]);
+  }
+
+  // A crewmate's cell: their 32x32 sprite over a strip in their rarity's
+  // colour, and their stars (owned) or a "?" (not found yet).
+  crewCell(id, x, top) {
+    const p = this.progress;
+    const owned = p.isOwned(id);
+    const sprite = SPRITES.heroes[id];
+    const c = this.add.container(x, top);
+    c.add(this.add.rectangle(0, 33, 30, 2, RARITY[HEROES[id].rarity].color));
+    const img = sprite && this.textures.exists(sprite.key)
+      ? this.add.image(0, 32, sprite.key).setOrigin(0.5, 1)
+      : this.add.rectangle(0, 32, 16, 26, HEROES[id].color).setOrigin(0.5, 1);
+    c.add(img);
+    if (owned) {
+      c.add(starRow(this, 0, 38, p.heroStarCount(id), PACKS.maxStars));
+    } else {
+      if (img.setTintFill) img.setTintFill(0x1a120c);
+      else img.setFillStyle(0x1a120c);
+      img.setAlpha(0.85);
+      c.add(text(this, 0, 20, '?', light()).setOrigin(0.5));
+    }
+    return c;
+  }
+
   refresh() {
-    const { pearls, freeChestCount: free, nextFreeChest: next, freeLegendaryChests: legendary } = this.progress;
-    const cost = this.progress.packCost;
-    this.walletText.setText(`YOU HAVE ${pearlsLabel(pearls).toUpperCase()}  -  A CHEST COSTS ${formatNum(cost)}`);
+    const p = this.progress;
+    const { pearls, freeChestCount: free, nextFreeChest: next, freeLegendaryChests: legendary } = p;
+    const cost = p.packCost;
+    const unlocked = p.isPackUnlocked(this.pack.id);
+    const picking = !this.busy && !this.showingResult;
+    this.carousel.setVisible(picking);
+    this.details.setVisible(picking);
+    this.materialStrip.setVisible(picking || (this.showingResult && !this.bulkGrid.length));
+    this.titleText.setText(picking ? 'TREASURE CHESTS' : this.pack.name.toUpperCase());
+    this.backHint.setVisible(this.showingResult && !this.busy);
+    if (this.showingResult && !this.busy) this.resultZone.setInteractive({ useHandCursor: true });
+    else this.resultZone.disableInteractive();
+    this.walletText?.setText(`${pearlsLabel(pearls).toUpperCase()} - A CHEST COSTS ${formatNum(cost)}`);
     // Free chests (an island's Legendary ones, expeditions' finds) open
-    // first, the best tier first, at no cost.
-    this.openButton.setIcon(free ? null : 'pearl').setLabel(free ? 'Open FREE' : `Open ${formatNum(cost)}`);
+    // first, the best tier first, at no cost, from the chosen pack.
+    this.openButton.setIcon(free || !unlocked ? null : 'pearl')
+      .setLabel(!unlocked ? 'Locked' : free ? `Open free x${free}` : `Open ${formatNum(cost)}`);
     // Hold the pity line while a chest is opening: the counter resets the
     // moment a Legendary is rolled, which would spoil the reveal.
-    if (!this.busy) {
-      const n = this.progress.packsUntilPity;
+    if (!this.busy && this.pityText) {
+      const n = p.packsUntilPity;
       const plural = free > 1 ? 'S' : '';
       this.pityText.setText(free
         ? (legendary === free
-          ? `${free} FREE LEGENDARY CHEST${plural} TO OPEN!`
-          : `${free} FREE CHEST${plural} TO OPEN! NEXT: ${EXPEDITIONS.chests[next].label.toUpperCase()}`)
+          ? `${free} FREE LEGENDARY CHEST${plural} - OPEN FROM ANY PACK`
+          : `${free} FREE CHEST${plural} - NEXT: ${EXPEDITIONS.chests[next].label.toUpperCase()}`)
         : n <= 1
           ? 'NEXT CHEST IS A GUARANTEED LEGENDARY!'
           : `LEGENDARY GUARANTEED WITHIN ${n} CHESTS`);
     }
-    this.openButton.setEnabled(!this.busy && this.progress.canOpenPack);
-    this.bulkButton.setEnabled(!this.busy && this.progress.canOpenBulk);
+    this.openButton.setEnabled(!this.busy && p.canOpenFrom(this.pack.id));
+    this.bulkButton.setEnabled(!this.busy && p.canOpenBulkFrom(this.pack.id));
     this.closeButton.setEnabled(!this.busy);
   }
 
@@ -140,8 +354,7 @@ export class PackScene extends Phaser.Scene {
     const body = icon(this, 0, 0, 'chest').setScale(CHEST_SCALE);
     // Light leaking out of the chest during the build-up.
     this.seam = this.add.rectangle(0, -CHEST_H / 4, CHEST_W - 16, 2, 0xffffff, 0);
-    this.tapText = text(this, 0, CHEST_H / 2 + 8, 'TAP OPEN', { font: 'small', ...light() }).setOrigin(0.5);
-    this.chest.add([body, this.seam, this.tapText]);
+    this.chest.add([body, this.seam]);
   }
 
   // Put the chest back for the next opening.
@@ -149,13 +362,11 @@ export class PackScene extends Phaser.Scene {
     this.tweens.killTweensOf([this.chest, this.light, this.cardGlow, this.card]);
     this.chest.setPosition(CARD_X, CHEST_Y).setAngle(0).setAlpha(1).setVisible(true);
     this.seam.setFillStyle(0xffffff, 0);
-    this.tapText.setVisible(false);
     this.light.clear().setAlpha(0).setScale(1);
     this.chestGlow.setFillStyle(HINT_START, 0).setScale(1).setAlpha(1);
     this.cardGlow.setVisible(false);
     this.card.removeAll(true).setVisible(false);
     this.bulkGrid.removeAll(true);
-    this.materialStrip.setVisible(true);
   }
 
   // The Materials strip down the left edge: each boss material in the game
@@ -197,10 +408,11 @@ export class PackScene extends Phaser.Scene {
 
   openPack() {
     if (this.busy) return;
-    const result = this.progress.openPack();
+    const result = this.progress.openPack(this.pack.id);
     if (!result) return;
     saveProgress(this.progress);
     this.busy = true;
+    this.showingResult = true;
     this.resultText.setText('');
     this.resetChest();
     this.refresh();
@@ -322,14 +534,14 @@ export class PackScene extends Phaser.Scene {
   // build-up), then the new-crewmate splash for each new hero in turn.
   openBulk() {
     if (this.busy) return;
-    const results = this.progress.openBulk();
+    const results = this.progress.openBulk(this.pack.id);
     if (!results) return;
     saveProgress(this.progress);
     this.busy = true;
+    this.showingResult = true;
     this.resetChest();
     this.chest.setVisible(false);
-    this.materialStrip.setVisible(false);
-    this.refresh();
+    this.resultText.setText('');
 
     const order = Object.keys(RARITY);
     const best = results.reduce((a, r) => (order.indexOf(HEROES[r.id].rarity) > order.indexOf(HEROES[a.id].rarity) ? r : a));
@@ -347,6 +559,7 @@ export class PackScene extends Phaser.Scene {
       this.bulkGrid.add(tile);
       this.tweens.add({ targets: tile, alpha: 1, duration: 200, delay: i * 60 });
     });
+    this.refresh();
     this.resultText.setText(fresh.length ? `${fresh.length} NEW CREWMATE${fresh.length > 1 ? 'S' : ''}!` : `${results.length} CHESTS OPENED`)
       .setColor(UI.colors.text).setAlpha(1);
 
@@ -428,7 +641,6 @@ export class PackScene extends Phaser.Scene {
 
     splash.add([backdrop, rays, title, card, quote, where, hint]);
 
-    // Entrance
     // Entrance: slide in and fade, never scaled, so text stays 1x.
     card.setAlpha(0).setY(cardY + 24);
     title.setAlpha(0).setY(title.y - 16);

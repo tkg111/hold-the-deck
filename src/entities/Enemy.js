@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import {
-  CHARM, DISPLAY, ELITE, ENEMIES, FX, SHIP, SPRITES, WAVES,
+  CHARM, DISPLAY, ELITE, ENEMIES, ENEMY_FREEZE, FX, SHIP, SPRITES, WAVES,
 } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
 import { fxSprite, playFx } from '../fx.js';
@@ -15,14 +15,16 @@ import { DEPTH } from './Ship.js';
 // HP bar colours while cursed / poisoned.
 const CURSE_COLOR = 0xb620e0;
 const POISON_COLOR = 0x76ff03;
+const BURN_COLOR = 0xff8f00;
 
 // Status sprites (fx sheets) and when each shows.
 const STATUS = {
-  stun: { sprite: 'stun_stars', active: (e) => e.isStunned },
+  stun: { sprite: 'stun_stars', active: (e) => e.stunTime > 0 },
   fear: { sprite: 'fear_mark', active: (e) => e.isAfraid },
   curse: { sprite: 'curse_mark', active: (e) => e.isCursed && e.curseMarkDelay <= 0 },
   poison: { sprite: 'poison_bubbles', active: (e) => e.isPoisoned },
   slow: { sprite: 'net_draped', active: (e) => e.isSlowed },
+  frozen: { sprite: ENEMY_FREEZE.sprite, active: (e) => e.isFrozen },
   charm: { sprite: CHARM.status, active: (e) => e.isCharmed },
 };
 
@@ -103,10 +105,14 @@ export class Enemy {
     this.curseMarkDelay = 0;  // ms before the curse mark shows (after Hex's burst)
     this.poisonTime = 0;
     this.poisonDps = 0;
+    this.burnTime = 0;        // the Fire Breather's flames and Inferno
+    this.burnDps = 0;
+    this.freezeTime = 0;      // the Aurora Veil: frozen in place (like a stun)
     // Who to credit in the Captain's Log (BattleStats sources): the poison's
     // ticks, the curse's bonus damage, and the blow that killed it (for a
     // Keg Runner's blast).
     this.poisonSource = null;
+    this.burnSource = null;
     this.curseSource = null;
     this.killSource = null;
     this.hasteTime = 0;       // sped up by the Siren's song
@@ -501,7 +507,10 @@ export class Enemy {
   get isGrounded() { return this.groundTime > 0; }
   get hpBarWidth() { return this.def.boss ? 40 : this.def.width + 4; }
   get hpBarY() { return Math.round(this.y - this.def.height / 2 - 4); }
-  get isStunned() { return this.stunTime > 0; }
+  // Frozen counts as stunned: it can't move or attack.
+  get isStunned() { return this.stunTime > 0 || this.freezeTime > 0; }
+  get isFrozen() { return this.freezeTime > 0; }
+  get isBurning() { return this.burnTime > 0; }
   get isSlowed() { return this.slowTime > 0; }
   get isCursed() { return this.curseTime > 0; }
   get isPoisoned() { return this.poisonTime > 0; }
@@ -604,6 +613,21 @@ export class Enemy {
     this.poisonTime = Math.max(this.poisonTime, duration);
   }
 
+  // A burn: ticks like poison, alongside it (the stronger burn is kept).
+  applyBurn(damagePerSecond, duration, source = null) {
+    if (!this.isBurning || damagePerSecond >= this.burnDps) this.burnSource = source;
+    this.burnDps = this.isBurning ? Math.max(this.burnDps, damagePerSecond) : damagePerSecond;
+    this.burnTime = Math.max(this.burnTime, duration);
+  }
+
+  // The Aurora Veil: frozen in a block of ice for ms (not bosses or
+  // hazards). Returns whether it froze.
+  applyFreeze(ms) {
+    if (this.def.boss || this.def.hazard) return false;
+    this.freezeTime = Math.max(this.freezeTime, ms);
+    return true;
+  }
+
   applyHaste(mult, duration) {
     this.hasteMult = this.isHasted ? Math.max(this.hasteMult, mult) : mult;
     this.hasteTime = Math.max(this.hasteTime, duration);
@@ -623,7 +647,14 @@ export class Enemy {
       this.takeDamage(this.poisonDps * tick / 1000, { flash: false, dot: true, source: this.poisonSource });
       if (!this.alive) return;
     }
+    if (this.isBurning) {
+      const tick = Math.min(dt, this.burnTime);
+      this.burnTime -= tick;
+      this.takeDamage(this.burnDps * tick / 1000, { flash: false, dot: true, source: this.burnSource });
+      if (!this.alive) return;
+    }
     this.stunTime = Math.max(0, this.stunTime - dt);
+    this.freezeTime = Math.max(0, this.freezeTime - dt);
     this.stunGuard = Math.max(0, this.stunGuard - dt);
     this.slowTime = Math.max(0, this.slowTime - dt);
     this.groundTime = Math.max(0, this.groundTime - dt);
@@ -699,6 +730,7 @@ export class Enemy {
         this.attack(sdt, ship);
       }
     }
+    if (!this.alive) return;   // a Keg Runner blew up on a skeleton
     this.animate(moving);
 
     this.followGround();
@@ -764,17 +796,58 @@ export class Enemy {
   }
 
   // Left along the lane; in an escorted formation, never closer than
-  // followGap behind the leader while it walks. Returns whether it moved.
+  // followGap behind the leader while it walks. A friendly skeleton in the
+  // way (the Bone Caller's) stops it, and it fights that instead. Returns
+  // whether it moved.
   walk(sdt) {
     let minX = this.stopX;
     const { leader } = this;
     if (leader?.alive && leader.x > leader.stopX) {
       minX = Math.max(minX, leader.x + (leader.def.width + this.def.width) / 2 + WAVES.followGap);
     }
+    const ally = this.allyAhead();
+    if (ally) {
+      const wall = ally.x + (ally.width + this.def.width) / 2;
+      if (this.x <= wall + 0.01) {
+        this.fightAlly(sdt, ally);
+        return false;
+      }
+      minX = Math.max(minX, wall);
+    }
     const x = Math.max(minX, this.x - this.speed * this.moveBoost * sdt / 1000);
     const moved = x < this.x;
     if (moved) this.x = x;
     return moved;
+  }
+
+  // The nearest friendly unit on the lane ahead of it (between it and the
+  // ship) that holds walkers up, or null. Flyers, boats and anything that
+  // doesn't walk the lane go by.
+  allyAhead() {
+    const allies = this.scene.abilities?.allies;
+    if (!allies?.length || this.def.flies || this.def.floats || this.def.emerges || this.anchored) return null;
+    let best = null;
+    for (const a of allies) if (a.blocks && a.x < this.x && (!best || a.x > best.x)) best = a;
+    return best;
+  }
+
+  // Held up by a friendly skeleton: hits it every attackInterval (a Keg
+  // Runner blows up on it instead, with no gold, like at the ship).
+  fightAlly(sdt, ally) {
+    if (this.def.blast) {
+      this.alive = false;
+      ally.takeDamage(this.damage);
+      this.explode();
+      this.removeOverlays();
+      this.body.destroy();
+      return;
+    }
+    this.attackCooldown -= sdt;
+    if (this.attackCooldown > 0) return;
+    this.attackCooldown = this.def.attackInterval / this.rage;
+    ally.takeDamage(this.damage);
+    if (this.attackAnim) this.body.play(this.attackAnim);
+    else this.scene.tweens.add({ targets: this.body, angle: -15, duration: 80, yoyo: true });
   }
 
   attack(sdt, ship) {
@@ -2044,7 +2117,7 @@ export class Enemy {
     const pct = Phaser.Math.Clamp(this.hp / this.maxHp, 0, 1);
     this.hpBar.clear();
     this.hpBar.fillStyle(0x000000, 0.6).fillRect(x, y, w, 2);
-    const barColor = this.isCursed ? CURSE_COLOR : this.isPoisoned ? POISON_COLOR : 0xe53935;
+    const barColor = this.isCursed ? CURSE_COLOR : this.isPoisoned ? POISON_COLOR : this.isBurning ? BURN_COLOR : 0xe53935;
     this.hpBar.fillStyle(barColor).fillRect(x, y, Math.round(w * pct), 2);
     let barY = y;
     if (this.hasShield) {
@@ -2086,10 +2159,10 @@ export class Enemy {
     }
     for (const sprite of [...Object.values(this.statusSprites), this.iceSprite]) sprite?.setVisible(!this.vanished);
     const {
-      slow, poison, stun, fear, curse, charm,
+      slow, frozen, poison, stun, fear, curse, charm,
     } = this.statusSprites;
     const x = Math.round(this.x);
-    for (const over of [slow, this.iceSprite]) {
+    for (const over of [slow, frozen, this.iceSprite]) {
       if (!over) continue;
       if (this.large) over.setOrigin(0.5).setPosition(x, Math.round(this.y));
       else over.setOrigin(0.5, 1).setPosition(x, Math.round(this.feetY));

@@ -1,7 +1,8 @@
 import Phaser from 'phaser';
-import { ABILITIES, ABILITY_BAR } from '../config.js';
+import { ABILITIES, ABILITY_BAR, ALLIES } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
 import { LAYOUT, laneFeetY } from '../layout.js';
+import { AllySkeleton } from '../entities/Ally.js';
 import { LobProjectile, nearestLiving, Projectile } from '../entities/Projectile.js';
 import { DEPTH } from '../entities/Ship.js';
 import { FX_DEPTH, fxDuration, fxSize, fxSprite, playFx } from '../fx.js';
@@ -17,6 +18,7 @@ export class AbilitySystem {
     this.scene = scene;
     this.slots = [];
     this.effects = [];   // ongoing effects: update(dt) -> false when finished
+    this.allies = [];    // friendly units on the lane (the Bone Caller's skeletons)
   }
 
   // heroes: the Hero objects on the ship, in slot order.
@@ -48,7 +50,8 @@ export class AbilitySystem {
   // crewmate, for the attack speed boosts; flyers in the air only count for
   // abilities with air), or what `needs` asks for: a flyer (Flock), a walker
   // (Haunt, Tidal Wave) or hull to mend (Patch Up; with Auto, only once at
-  // least a full repair's worth is missing, so none of it is wasted).
+  // least a full repair's worth is missing, so none of it is wasted) or
+  // 'near' an enemy within def.radius of the ship (Wail).
   hasTarget({ hero, def }, auto = false) {
     if (def.needs === 'repairs') {
       const { ship } = this.scene;
@@ -56,7 +59,7 @@ export class AbilitySystem {
       return auto ? missing >= ship.maxHp * def.heal : missing > 0;
     }
     const range = def.needsRange ? ABILITY_BAR.supportRange : Infinity;
-    return this.targets({ air: def.air, needs: def.needs })
+    return this.targets({ air: def.air, needs: def.needs, near: def.radius })
       .some((e) => Math.hypot(e.x - hero.x, e.y - hero.y) <= range);
   }
 
@@ -84,6 +87,7 @@ export class AbilitySystem {
       fx.destroy();
       return false;
     });
+    this.allies = this.allies.filter((a) => a.alive);
     if (auto) this.slots.forEach((_, i) => this.trigger(i, { auto: true }));
   }
 
@@ -91,15 +95,19 @@ export class AbilitySystem {
   clear() {
     for (const fx of this.effects) fx.destroy();
     this.effects = [];
+    for (const a of this.allies) a.destroy();
+    this.allies = [];
   }
 
   // Enemies an ability can affect: those on the lane, plus flyers in the
   // air with air; only flyers with needs 'flyers', only walkers (that can
-  // be scared or pushed) with 'movable'.
-  targets({ air = false, needs = null } = {}) {
+  // be scared or pushed) with 'movable', only those within `near` px of where
+  // walkers stop at the ship with 'near'.
+  targets({ air = false, needs = null, near = Infinity } = {}) {
     return this.scene.enemies.filter((e) => e.canBeHit(air)
       && (needs !== 'flyers' || e.def.flies)
-      && (needs !== 'movable' || e.canBeMoved));
+      && (needs !== 'movable' || e.canBeMoved)
+      && (needs !== 'near' || nearShip(e) <= near));
   }
 
   // An arcing throw of the ability's sprite from the hero at an enemy (bends
@@ -244,7 +252,248 @@ const ACTIONS = {
   stormCaller(sys, { hero, def }) {
     sys.effects.push(new TidalWave(sys, def, hero.damage * def.damage, hero.source.ability));
   },
+
+  // Drop Anchor: an anchor slams onto the frontmost enemy on the lane.
+  anchorBosun(sys, { hero, def, scale }) {
+    const front = sys.targets().reduce((a, e) => (!a || e.x < a.x ? e : a), null);
+    sys.effects.push(new AnchorDrop(sys, hero, def, front, scale));
+  },
+
+  // Powder Barrage: bombs lobbed to spots spread along the lane.
+  powderMonkey(sys, slot) {
+    sys.effects.push(new PowderBarrage(sys, slot));
+  },
+
+  // Inferno: a wall of fire on the lane that burns walkers going through.
+  fireBreather(sys, { hero, def, scale }) {
+    sys.effects.push(new InfernoWall(sys, def, hero.damage * def.damagePerSecond, def.duration * scale, hero.source.effect));
+    sfx.crash();
+  },
+
+  // Temper Steel: the whole crew hits harder for a while.
+  blacksmith(sys, { def, scale }) {
+    for (const h of sys.scene.heroes) h.addBoost(1 + def.bonus, def.duration * scale, def.fx, 'damage');
+  },
+
+  // Whale Hunt: one huge spear at the enemy with the most HP.
+  whaler(sys, { hero, def }) {
+    const { scene } = sys;
+    const toughest = () => sys.targets({ air: true }).reduce((a, e) => (!a || e.hp > a.hp ? e : a), null);
+    scene.projectiles.push(new Projectile(scene, {
+      ...hero.muzzlePoint(), target: toughest(), speed: def.speed, sprite: def.sprite, rotate: true,
+      onHit: (hit, x, y) => {
+        hit.takeDamage(hero.damage * def.damage, { ignoreArmor: true, source: hero.source.ability });
+        playFx(scene, def.impact, x, y);
+        shake(scene, def.shake);
+        sfx.boom();
+      },
+      findTarget: () => toughest(),
+    }));
+  },
+
+  // Aurora Veil: the sky lights up and every enemy freezes (bosses slow).
+  auroraSeer(sys, { hero, def, scale }) {
+    const duration = def.duration * scale;
+    let frozen = 0;
+    for (const e of sys.targets({ air: true })) {
+      if (e.def.boss) e.applyChill(def.slow, duration);
+      else if (e.applyFreeze(duration)) frozen++;
+    }
+    sys.scene.stats?.add(hero.id, 'stuns', frozen);
+    sys.effects.push(new AuroraVeil(sys.scene, def, duration));
+    sfx.freeze();
+  },
+
+  // Wail: a shriek from the ship hits, shoves back and scares what's near.
+  banshee(sys, { hero, def, scale }) {
+    const { scene } = sys;
+    const ring = playFx(scene, def.sprite, LAYOUT.shipContactX + def.ringX, laneFeetY(LAYOUT.shipContactX) - def.ringY);
+    ring.setOrigin(0, 0.5).setScale(def.ringScale);
+    for (const e of sys.targets({ air: true, needs: 'near', near: def.radius })) {
+      e.takeDamage(hero.damage * def.damage, { source: hero.source.ability });
+      if (!e.alive) continue;
+      e.pushBack(def.push, def.pushSpeed);
+      e.applyFear(def.duration * scale);
+    }
+    shake(scene, { duration: 200, intensity: 0.002 });
+  },
+
+  // Raise the Crew: friendly skeletons rise near the ship and walk out to fight.
+  boneCaller(sys, { hero, def, scale }) {
+    const spec = ALLIES.skeleton;
+    const raised = Array.from({ length: def.count }, (_, i) => new AllySkeleton(sys.scene, def.x + i * def.spread, {
+      hp: spec.hp * hero.damage,
+      damage: spec.damage * hero.damage,
+      duration: def.duration * scale,
+      source: hero.source.ability,
+      circle: def.circle,
+    }));
+    sys.allies.push(...raised);
+    sys.effects.push(new AlliesOut(raised));
+  },
 };
+
+// Raise the Crew's skeletons, stepped along with the other effects while
+// any is still up (the system keeps the list, for enemies to find them).
+class AlliesOut {
+  constructor(allies) {
+    this.allies = allies;
+  }
+
+  update(dt) {
+    let up = false;
+    for (const a of this.allies) if (a.update(dt)) up = true;
+    return up;
+  }
+
+  destroy() {}
+}
+
+// Drop Anchor: anchor_drop stands bottom-centre on its target (following it
+// until it lands); def.impactAt ms in it hits for def.damage x his damage,
+// stuns and shoves the target back (bosses resist, as usual), with a shake.
+class AnchorDrop {
+  constructor(sys, hero, def, target, scale) {
+    this.sys = sys;
+    this.hero = hero;
+    this.def = def;
+    this.scale = scale;
+    this.target = target;
+    this.time = 0;
+    this.landed = false;
+    this.sprite = fxSprite(sys.scene, def.sprite, Math.round(target.x), Math.round(target.feetY))
+      .setOrigin(0.5, 1).setDepth(FX_DEPTH);
+    this.showMs = Math.max(def.impactAt, fxDuration(sys.scene, def.sprite));
+  }
+
+  update(dt) {
+    this.time += dt;
+    const { def, target } = this;
+    if (!this.landed) {
+      if (target.alive) this.sprite.setPosition(Math.round(target.x), Math.round(target.feetY));
+      if (this.time < def.impactAt) return true;
+      this.landed = true;
+      if (target.alive) {
+        target.takeDamage(this.hero.damage * def.damage, { lobbed: true, source: this.hero.source.ability });
+        if (target.alive) {
+          target.applyStun(def.stun * this.scale);
+          target.pushBack(def.push, def.pushSpeed);
+          this.sys.scene.stats?.add(this.hero.id, 'stuns');
+        }
+      }
+      shake(this.sys.scene, def.shake);
+      sfx.boom();
+    }
+    return this.time < this.showMs;
+  }
+
+  destroy() { this.sprite.destroy(); }
+}
+
+// Powder Barrage: def.bombs powder bombs lobbed from the Powder Monkey,
+// def.interval ms apart, to spots spread along the lane (in a shuffled
+// order); each blasts everything on the lane within def.radius.
+class PowderBarrage {
+  constructor(sys, { hero, def }) {
+    this.sys = sys;
+    this.hero = hero;
+    this.def = def;
+    this.time = 0;
+    const from = LAYOUT.shipContactX + def.radius;
+    const to = LAYOUT.enemySpawnX - def.radius;
+    const spots = Array.from({ length: def.bombs }, (_, i) => from + (to - from) * (i + 0.5) / def.bombs);
+    this.bombs = Phaser.Utils.Array.Shuffle(spots).map((x, i) => ({ x, start: i * def.interval, thrown: false }));
+  }
+
+  update(dt) {
+    this.time += dt;
+    const { sys, hero, def } = this;
+    for (const b of this.bombs) {
+      if (b.thrown || this.time < b.start) continue;
+      b.thrown = true;
+      const spot = { alive: true, x: b.x, y: laneFeetY(b.x) - 4 };
+      sys.scene.projectiles.push(new LobProjectile(sys.scene, {
+        x: hero.x, y: hero.y, target: spot, flightTime: def.flightTime, arcHeight: def.arcHeight, sprite: def.sprite,
+        findTarget: () => null,
+        aimAt: () => spot,
+        onHit: (_hit, x, y) => this.land(x, y),
+      }));
+    }
+    return this.bombs.some((b) => !b.thrown);
+  }
+
+  land(x, y) {
+    const { sys, hero, def } = this;
+    for (const e of sys.targets()) {
+      if (Math.abs(e.x - x) <= def.radius + e.def.width / 2) {
+        e.takeDamage(hero.damage * def.damage, { lobbed: true, source: hero.source.ability });
+      }
+    }
+    playFx(sys.scene, def.impact, x, y - 8);
+    sfx.crash();
+  }
+
+  destroy() {}
+}
+
+// Inferno: def.tiles inferno_wall sprites side by side on the lane, centred
+// on def.x, for the duration (fading at the end). Ground enemies in it burn
+// (dps), and keep burning for def.burnMs after they're through.
+class InfernoWall {
+  constructor(sys, def, dps, duration, source) {
+    this.sys = sys;
+    this.def = def;
+    this.dps = dps;
+    this.source = source;
+    this.time = duration;
+    const { width } = fxSize(sys.scene, def.sprite);
+    this.half = (def.tiles * width) / 2;
+    this.tiles = Array.from({ length: def.tiles }, (_, i) => {
+      const x = def.x - this.half + width * (i + 0.5);
+      return fxSprite(sys.scene, def.sprite, Math.round(x), Math.round(laneFeetY(x)) + 2)
+        .setOrigin(0.5, 1).setDepth(DEPTH.ally + 0.1);
+    });
+  }
+
+  update(dt) {
+    this.time -= dt;
+    for (const e of this.sys.targets()) {
+      if (Math.abs(e.x - this.def.x) <= this.half + e.def.width / 2) e.applyBurn(this.dps, this.def.burnMs, this.source);
+    }
+    const alpha = Phaser.Math.Clamp(this.time / this.def.fadeTime, 0, 1);
+    for (const t of this.tiles) t.setAlpha(alpha);
+    return this.time > 0;
+  }
+
+  destroy() { for (const t of this.tiles) t.destroy(); }
+}
+
+// Aurora Veil: aurora_veil tiled across the sky (its top def.skyY px under
+// the view's top) while enemies are frozen, fading out at the end.
+class AuroraVeil {
+  constructor(scene, def, duration) {
+    this.def = def;
+    this.time = duration;
+    const { width } = fxSize(scene, def.sprite);
+    const { left, right, top } = scene.view;
+    this.tiles = [];
+    for (let x = left; x < right; x += width) {
+      this.tiles.push(fxSprite(scene, def.sprite, Math.round(x), Math.round(top + def.skyY)).setOrigin(0).setDepth(FX_DEPTH - 1));
+    }
+  }
+
+  update(dt) {
+    this.time -= dt;
+    const alpha = Phaser.Math.Clamp(this.time / this.def.fadeTime, 0, 1);
+    for (const t of this.tiles) t.setAlpha(alpha);
+    return this.time > 0;
+  }
+
+  destroy() { for (const t of this.tiles) t.destroy(); }
+}
+
+// How far an enemy's front edge is from where walkers stop at the ship.
+const nearShip = (e) => e.x - e.def.width / 2 - LAYOUT.shipContactX;
 
 // Flock's show: def.extra parrots fly from the ship across the sky (spread
 // over def.spread px of height), off the right edge of the view.

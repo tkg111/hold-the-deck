@@ -1,0 +1,58 @@
+{
+  "packs": [
+    {
+      "id": "sea_dog",
+      "name": "Sea Dog Chest",
+      "banner": "banner_sea_dog.png",
+      "unlock": "always",
+      "crew": [
+        "cabin_boy",
+        "ships_cook",
+        "net_thrower",
+        "grog_brewer",
+        "harpooner",
+        "cannoneer",
+        "the_captain",
+        "the_duelist",
+        "voodoo_priestess",
+        "parrot_keeper",
+        "ghost_pirate",
+        "anchor_bosun",
+        "powder_monkey",
+        "storm_caller"
+      ]
+    },
+    {
+      "id": "fire_ice",
+      "name": "Fire & Ice Chest",
+      "banner": "banner_fire_ice.png",
+      "unlock": "reach Ember Isle",
+      "crew": [
+        "sharpshooter",
+        "ships_doctor",
+        "fire_breather",
+        "blacksmith",
+        "whaler",
+        "aurora_seer"
+      ]
+    },
+    {
+      "id": "cursed",
+      "name": "Cursed Chest",
+      "banner": "banner_cursed.png",
+      "unlock": "reach Fogbound Isle",
+      "crew": [
+        "banshee",
+        "bone_caller",
+        "ghost_pirate",
+        "voodoo_priestess"
+      ]
+    }
+  ],
+  "lockedOverlay": "banner_locked.png",
+  "size": [
+    120,
+    48
+  ],
+  "abyssBonus": "Abyss depth 25: Legendary odds x2 in every pack (permanent)"
+}

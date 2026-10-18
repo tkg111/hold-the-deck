@@ -16,6 +16,7 @@ export const DEPTH = {
   shipParts: -18.9,    // the equipped parts' overlays, over the ship and under the crew
   hero: -18,
   enemy: -17,
+  ally: -16.5,         // the Bone Caller's skeletons, in front of the enemies
   kraken: -16,
   splash: -15,
   foreground: -14,

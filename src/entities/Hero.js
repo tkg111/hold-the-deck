@@ -27,11 +27,12 @@ export class Hero {
     this.source = {
       attack: damageSource(id, 'attack'), ability: damageSource(id, 'ability'), effect: damageSource(id, 'effect'),
     };
-    this.damage = damage;
+    this.baseDamage = damage;
     this.attackInterval = attackInterval;
     this.cooldown = 0;
-    // Abilities: attack speed boosts ({ mult, time, fx } with time in ms left
-    // and fx the sprite shown while it lasts) and The Duelist's Lunge
+    // Abilities: attack speed and damage boosts ({ kind, mult, time, fx }:
+    // kind 'speed' or 'damage', time in ms left and fx the sprite shown while
+    // it lasts) and The Duelist's Lunge
     // ({ hits } left, each a guaranteed crit on the toughest enemy, and the
     // impact played on each).
     this.boosts = [];
@@ -89,9 +90,12 @@ export class Hero {
   // --- Abilities ---
 
   // fx: { sprite, behind } — an fx sheet standing on the hero's slot while the
-  // boost lasts, behind the hero or (default) over them.
-  addBoost(mult, duration, fx) {
-    this.boosts.push({ mult, time: duration, fx });
+  // boost lasts, behind the hero or (default) over them. kind: 'speed'
+  // (attack speed, the default) or 'damage' (Temper Steel).
+  addBoost(mult, duration, fx, kind = 'speed') {
+    this.boosts.push({
+      kind, mult, time: duration, fx,
+    });
     const name = fx.sprite;
     if (!this.boostSprites[name]) {
       this.boostSprites[name] = fxSprite(this.scene, name, this.x, this.feetY).setOrigin(0.5, 1)
@@ -247,7 +251,8 @@ export class Hero {
 
   // Charmed: an attack into its own hull, at a random spot on it, for
   // CHARM.selfDamage x its damage (lobbed, flying straight or, the Storm
-  // Caller's, a bolt at once). The Captain's Log blames the charmer.
+  // Caller's bolt and the Fire Breather's flame, at once). The Captain's Log
+  // blames the charmer.
   attackOwnShip() {
     const { scene, def } = this;
     const { ship } = scene;
@@ -258,7 +263,7 @@ export class Hero {
       playFx(scene, def.chain ? def.chain.impact : def.projectile.impact, x, y);
       ship.takeDamage(damage, charmer, this);
     };
-    if (def.chain) {
+    if (def.chain || def.jet) {
       land(spot.x, spot.y);
       return null;
     }
@@ -279,8 +284,13 @@ export class Hero {
   // Whether this crewmate can hit (or, the Net Thrower, net) the enemy.
   canHit(e) { return e.canBeHit(this.antiAir); }
 
-  get speedMult() {
-    return this.boosts.reduce((m, b) => m * b.mult, 1);
+  get speedMult() { return this.boostMult('speed'); }
+  // Its damage now: Progress's (level, stars, deck buffs) x damage boosts.
+  get damage() { return this.baseDamage * this.boostMult('damage'); }
+  boostMult(kind) {
+    let m = 1;
+    for (const b of this.boosts) if (b.kind === kind) m *= b.mult;
+    return m;
   }
 
   tickAbilities(dt) {
@@ -356,6 +366,7 @@ export class Hero {
   fire(target, lunge = null) {
     const { def } = this;
     if (def.chain) return this.chainLightning(target);
+    if (def.jet) return this.breatheFire(target);
     const common = {
       ...this.muzzlePoint(), target,
       sprite: def.projectile.sprite, rotate: def.projectile.rotate,
@@ -406,6 +417,18 @@ export class Hero {
     return new ChainLightning(this.scene, { points, sprite: chain.segment, showMs: chain.segmentMs });
   }
 
+  // The Fire Breather: a flame from his torch (the projectile sprite, its
+  // left edge there, turned to the target) that plays out once; the hit
+  // lands at once on the target and everything within jet.splash of it.
+  breatheFire(target) {
+    const { jet, projectile } = this.def;
+    const x = Math.round(this.x + jet.from.x);
+    const y = Math.round(this.feetY + jet.from.y);
+    playFx(this.scene, projectile.sprite, x, y).setOrigin(0, 0.5).setRotation(Math.atan2(target.y - y, target.x - x));
+    this.onHit(target, target.x, target.y, null, jet.splash);
+    return null;
+  }
+
   // Where an enemy will be after msLeft, for lobbed shots: walking left at its
   // current (possibly slowed, or hurried by a fire puddle) speed, standing
   // still if stunned, scared or pushed, never past where it stops. Walkers
@@ -450,13 +473,16 @@ export class Hero {
   // passes through it; the Sharpshooter's ignore armour; the Parrot Keeper's
   // hit flyers harder. Lunge shots count as the Duelist's ability in the
   // Captain's Log; curses and poison as effects.
-  onHit(target, x, y, lunge = null) {
+  // splash: a radius to hit around (x, y) when the hero has no area (the
+  // Fire Breather's flame).
+  onHit(target, x, y, lunge = null, splash = null) {
     const {
-      area, stun, slow, curse, poison, crit, lob, flyerBonus, passesShields, ignoresArmor,
+      area, stun, slow, curse, poison, crit, lob, flyerBonus, passesShields, ignoresArmor, knockback, burn, chill,
     } = this.def;
     playFx(this.scene, this.def.projectile.impact, x, y);
-    const victims = area
-      ? this.scene.enemies.filter((e) => this.canHit(e) && Math.hypot(e.x - x, e.y - y) <= area.radius)
+    const radius = area?.radius ?? splash;
+    const victims = radius
+      ? this.scene.enemies.filter((e) => this.canHit(e) && (e === target || Math.hypot(e.x - x, e.y - y) <= radius))
       : (target && this.canHit(target) ? [target] : []);
 
     const { stats } = this.scene;
@@ -483,6 +509,10 @@ export class Hero {
       }
       if (curse) e.applyCurse(curse.bonus, curse.duration, this.source.effect);
       if (poison) e.applyPoison(this.damage * poison.ratio, poison.duration, this.source.effect);
+      if (burn) e.applyBurn(this.damage * burn.ratio, burn.duration, this.source.effect);
+      if (chill) e.applyChill(chill.factor, chill.duration);
+      // The Anchor Bosun's anchor: a shove back (not bosses).
+      if (knockback && !e.def.boss) e.pushBack(knockback.px, knockback.speed);
     }
   }
 

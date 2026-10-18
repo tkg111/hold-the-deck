@@ -1952,3 +1952,138 @@ wave, win and loss); the one difference is greedy run 2's total battle
 time, 287 → 288 min, from Fogbound Isle's Siren Queen waves (the charm
 change). In `sim:fog`, the no-upgrades profile, which plays each wave on its
 own, is identical on every wave except the Queen's (10, 30, 50).
+
+## 14. Packs and the pack crew
+
+Reproduce with `npm run sim -- 10 50 voyage` (before: `main` at `8d42595`,
+the same seeds) and `npm run sim:packs -- 3`.
+
+**What changed:** chests come from three packs (Sea Dog: the 11 Skull Cove
+crew plus Anchor Bosun and Powder Monkey; Fire & Ice, from reaching Ember
+Isle: Sharpshooter, Ship's Doctor, Storm Caller (moved to Sea Dog in 14.3),
+Fire Breather, Blacksmith, Whaler, Aurora Seer; Cursed, from reaching Fogbound Isle: Banshee, Bone
+Caller, Ghost Pirate, Voodoo Priestess), each rolling only its own crew. The
+bot opens every chest from the unlocked pack with the most crew it hasn't
+found or can still star up. Eight new crewmates; the Sharpshooter, Ship's
+Doctor and Storm Caller now arrive only after Skull Cove.
+
+### 14.1 The voyage, before and after (10 runs each)
+
+Runs that cleared each island (out of 10):
+
+| | Skull Cove | Ember Isle | Frostbite Reef | Fogbound Isle |
+|---|---:|---:|---:|---:|
+| Greedy, before | 4 | 1 | 1 | 1 |
+| Greedy, after | 5 | 4 | 4 | 4 |
+| Greedy, Storm Caller in Sea Dog (14.3) | 9 | 8 | 8 | 8 |
+| Lazy, before | 7 | 0 | 0 | 0 |
+| Lazy, after | 6 | 6 | 6 | 6 |
+| Lazy, Storm Caller in Sea Dog (14.3) | 9 | 8 | 8 | 8 |
+
+First-try wins by band (before → after → Storm Caller in Sea Dog, 14.3):
+
+| Waves | Greedy | Lazy |
+|---|---|---|
+| Skull 1–10 | 92% → 97% → 97% | 77% → 78% → 78% |
+| Skull 11–20 | 99% → 98% → 98% | 90% → 89% → 89% |
+| Skull 21–30 | 93% → 97% → 96% | 85% → 79% → 83% |
+| Skull 31–40 | 95% → 98% → 99% | 91% → 90% → 89% |
+| Skull 41–50 | 79% → 84% → 93% | 78% → 72% → 86% |
+| Ember 1–10 | 100% → 100% → 100% | 100% → 98% → 99% |
+| Ember 11–20 | 98% → 94% → 100% | 90% → 92% → 91% |
+| Ember 21–30 | 95% → 94% → 98% | 83% → 95% → 92% |
+| Ember 31–40 | 88% → 96% → 98% | 67% → 83% → 84% |
+| Ember 41–50 | 90% → 92% → 98% | 75% → 90% → 87% |
+| Frostbite 1–50 | 100% (1 run) → 100% (4) → 100% (8) | none got there → 92–100% (6) → 91–100% (8) |
+| Fogbound 1–50 | 100% (1 run) → 100% (4) → 100% (8) | none got there → 92–100% (6) → 93–99% (8) |
+
+**Skull Cove** clears about as often as before (greedy 4 → 5, lazy 7 → 6),
+but where it stops has moved: before, the runs that didn't clear it walled
+at waves 30 (The Kraken, twice), 43, 49 and 50 (twice); now **every one walls
+at wave 48–49** (18 Storm Harpies and a Siren), 5 greedy and 4 lazy runs,
+all with the same crew (Duelist, Captain, Cannoneer, Ghost Pirate, Voodoo
+Priestess, Anchor Bosun at level 34–36). That crew has two anti-air
+crewmates (Duelist, Voodoo); before, the Storm Caller (chain lightning,
+anti-air) was in it from mid-island. The Kraken waves got easier (no wall at
+30 now): the Anchor Bosun and Powder Monkey come early and the pool is
+smaller, so stars come faster.
+
+**Ember Isle and on** got clearly **easier**: the runs that leave Skull Cove
+open the Fire & Ice Chest straight away (Storm Caller, Aurora Seer, the
+Sharpshooter, all at once) and later the Cursed Chest's Bone Caller, and
+every one of them then clears all three islands. Before, 1 greedy and no
+lazy run got past Ember Isle.
+
+The fix chosen was moving the Storm Caller to the Sea Dog Chest (14.3).
+
+### 14.2 Each new crewmate against an existing one (`sim:packs -- 3`)
+
+The same six-crew line-up (Captain, Duelist, Storm Caller, Sharpshooter,
+Cannoneer, Ghost Pirate at 3 stars) with the crewmate under test beside The
+Captain, in place of the one it's compared with (or the Ghost Pirate); crew
+level by wave like the greedy bot's (`LEVELS` in `packs.mjs`). Waves 5–45
+every 5 on the pack's island, 3 seeds (27 waves, 12 of them boss waves).
+First numbers, then after the tuning below:
+
+| New (rarity) | vs | Island | Wins first → final (rival) | Damage share first → final (rival) | Boss TTK final (rival) |
+|---|---|---|---|---|---|
+| Powder Monkey (C) | Ship's Cook | Skull Cove | 27 → 27 (27) | 18% → 18% (11%) | 16.5 s (15.8) |
+| Anchor Bosun (R) | Harpooner | Skull Cove | 27 → 27 (27) | 14% → 16% (39%) | 13.1 s (14.8) |
+| Fire Breather (R) | Grog Brewer | Ember Isle | 9 → 14 (15) | 23% → 34% (44%) | 29.0 s (35.9) |
+| Whaler (R) | Harpooner | Ember Isle | 12 → 15 (15) | 21% → 27% (36%) | 34.9 s (35.9) |
+| Blacksmith (E) | Sharpshooter | Ember Isle | 24 → 24 (16) | 14% → 15% (28%) | 30.5 s (36.6) |
+| Aurora Seer (L) | Storm Caller | Ember Isle | 12 → 21 (27) | 21% → 39% (52%) | 33.2 s (41.1) |
+| Banshee (R) | Harpooner | Fogbound Isle | 6 → 7 (7) | 16% → 21% (36%) | 61.9 s (64.8) |
+| Bone Caller (L) | The Duelist | Fogbound Isle | 21 → 19 (12) | 23% → 22% (24%) | 93.6 s (74.9) |
+
+**Tuning made** (all in `HEROES` / `ABILITIES` / `ALLIES`):
+- Anchor Bosun 22 → 30 damage, every 2.6 → 2.4 s.
+- Fire Breather 6 → 9 damage, splash 14 → 20 px, burn 50% → 60%.
+- Whaler 12 → 16 damage.
+- Aurora Seer 22 → 26 damage, every 1.2 → 1.1 s, and a 24 px burst.
+- Banshee 9 → 12 damage.
+- Temper Steel +30% for 8 s → +25% for 7 s.
+- Skeleton HP 8x → 5x the Bone Caller's damage.
+
+**Flags:**
+- **Bone Caller: stronger** than The Duelist at keeping the ship alive
+  (19 vs 12 wins) though slower on bosses. It's all the skeletons: with Raise
+  the Crew off he wins 9. Skeleton HP is a steep dial (6x: 21 wins, 5x: 19,
+  4x: 11), left at 5x.
+- **Blacksmith: wins more** than the Sharpshooter (24 vs 16) with half the
+  damage share, and still 22 with Temper Steel off: a hammer through armour
+  at the front of the line holds Ember Isle better than the Sharpshooter's
+  shots at the furthest enemy. Not a damage outlier, but a stronger pick.
+- **Aurora Seer: weaker** than the Storm Caller (21 vs 27 wins) even after
+  the buff; the Storm Caller is the strongest crewmate in these line-ups.
+- **The Harpooner** out-damages every Rare (36–39% shares): the Rare pack
+  crew match it on wins but not damage. The Harpooner is the outlier more
+  than they are.
+- Powder Monkey out-damages the Ship's Cook (18% vs 11%); both win everything
+  at Skull Cove's levels here.
+
+### 14.3 The Storm Caller moved to the Sea Dog Chest
+
+The Sea Dog Chest now has 14 crew (the Storm Caller its third Legendary,
+beside The Captain and The Duelist); the Fire & Ice Chest has 6, its one
+Legendary the Aurora Seer. Same 10 seeds, same sim.
+
+- **Skull Cove's wave-49 wall is gone:** 9 of 10 runs clear it, greedy and
+  lazy alike (4 and 7 before packs). The one that doesn't (run 4, the same
+  seed both ways) still stalls at 49 with no Storm Caller pulled by then
+  (greedy) or him at level 35 among no other anti-air but the Duelist and
+  Voodoo Priestess (lazy). Skull 41–50 first tries: greedy 79% before packs
+  → 93%, lazy 78% → 86%.
+- **Everything after is easier still:** 8 of 10 runs clear every island
+  (1 greedy and no lazy run did before packs). The two that don't wall at
+  Ember Isle wave 28 (greedy) and the Eruption (lazy).
+- So against the game before packs, **the voyage is now clearly easier
+  from Skull Cove's late waves on.** The causes: two new Legendaries (Aurora
+  Seer, Bone Caller) the late crews all field; the smaller pools getting
+  crew to stars sooner; and the Storm Caller back from the start. If the
+  old difficulty is the target, the later islands want retuning (their
+  `sim:frost` / `sim:fog` / `sim:abyss` runs), or the pack crew want
+  trimming, Bone Caller's skeletons first (14.2). Not done here.
+
+The head-to-head numbers (14.2) don't depend on packs and are unchanged.
+

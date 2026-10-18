@@ -152,9 +152,10 @@ export class Button extends Phaser.GameObjects.Container {
     return this;
   }
 
-  // Red dot in the top-right corner: something worth doing here.
-  setDot(visible) {
-    this.dot.setVisible(visible);
+  // Red dot in the top-right corner: something worth doing here. left: in
+  // the top-left corner instead (where a count badge has the right).
+  setDot(visible, { left = false } = {}) {
+    this.dot.setVisible(visible).setX(left ? -Math.floor(this.btnWidth / 2) + 3 : this.btnWidth - Math.floor(this.btnWidth / 2) - 3);
     return this;
   }
 

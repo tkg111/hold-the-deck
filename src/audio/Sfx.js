@@ -215,6 +215,30 @@ class Sfx {
       },
       // A rolling rush of water.
       stormCaller: () => this.noise({ start: t, duration: 1, volume: 0.45, filterFrom: 300, filterTo: 1600, q: 0.6 }),
+      // A chain rattling down (the slam is its own boom).
+      anchorBosun: () => {
+        for (let i = 0; i < 5; i++) this.noise({ start: t + i * 0.04, duration: 0.05, volume: 0.2, filterFrom: 3500, q: 2 });
+      },
+      // A fizzing fuse, then the lobs.
+      powderMonkey: () => this.noise({ start: t, duration: 0.5, volume: 0.25, filterFrom: 6000, filterTo: 3000, q: 1.5 }),
+      // A roaring rush of flame.
+      fireBreather: () => this.noise({ start: t, duration: 0.8, volume: 0.45, filterFrom: 200, filterTo: 900, q: 0.5 }),
+      // Two ringing hammer strikes on the anvil.
+      blacksmith: () => [0, 0.18].forEach((d) => {
+        this.tone({ freq: 1320, endFreq: 1250, type: 'triangle', start: t + d, duration: 0.3, volume: 0.15 });
+      }),
+      // A heavy throw: a deep whoosh.
+      whaler: () => this.noise({ start: t, duration: 0.4, volume: 0.4, filterFrom: 150, filterTo: 1800, q: 1 }),
+      // A shimmering high chord.
+      auroraSeer: () => [1046.5, 1318.5, 1568].forEach((f, i) => {
+        this.tone({ freq: f, type: 'sine', start: t + i * 0.05, duration: 0.9, volume: 0.07, attack: 0.08 });
+      }),
+      // A shriek sliding up and down.
+      banshee: () => this.tone({ freq: 700, endFreq: 1900, type: 'sawtooth', start: t, duration: 0.6, volume: 0.07, attack: 0.03 }),
+      // Low drum beats as the dead get up.
+      boneCaller: () => [0, 0.15, 0.3].forEach((d) => {
+        this.tone({ freq: 110, endFreq: 60, type: 'sine', start: t + d, duration: 0.15, volume: 0.3 });
+      }),
     }[id];
     play?.();
   }
