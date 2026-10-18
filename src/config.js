@@ -563,12 +563,12 @@ export const HEROES = {
     shortName: 'Aurora',
     rarity: 'legendary',
     color: 0x4dd0e1,
-    damage: 26,
+    damage: 30,
     attackInterval: 1100,
     range: 350,
     projectileSpeed: 280,
     projectile: { sprite: 'aurora_bolt', impact: 'hit_spark' },
-    area: { radius: 24 },
+    area: { radius: 40 },
     chill: { factor: 0.85, duration: 1500 },
     antiAir: true,
     catchphrase: 'The sky remembers every storm.',
@@ -772,7 +772,7 @@ export const ABILITIES = {
   // bosses slowed to slow x their pace.
   auroraSeer: {
     name: 'Aurora Veil', cooldown: 30000, color: 0x80deea,
-    duration: 2000, slow: 0.6, air: true,
+    duration: 2500, slow: 0.6, air: true,
     sprite: 'aurora_veil', skyY: 12, fadeTime: 300,
     effect: 'Freezes every foe {duration}, bosses slowed {slow}',
   },
@@ -808,7 +808,7 @@ export const ABILITIES = {
 export const ALLIES = {
   skeleton: {
     sprite: 'ally_skeleton', width: 12, height: 28, riseMs: 667,
-    speed: 30, attackInterval: 900, hp: 5, damage: 0.6,
+    speed: 30, attackInterval: 900, hp: 4, damage: 0.6,
     hpBarColor: 0x66bb6a, fadeMs: 300,
   },
 };
@@ -2089,7 +2089,7 @@ export const ECONOMY = {
 
   // Pearls: earned from wave clears, milestone waves and boss kills; spent on
   // treasure chests (packs).
-  startingPearls: 3,        // enough for one chest right away
+  startingPearls: 3,        // a first chest after wave 5 (with PACKS.cost 8)
   pearlsPerWave: 1,         // every wave clear
   pearlsMilestoneEvery: 5,  // clearing every Nth wave pays a bonus on top
   pearlsPerMilestone: 3,
@@ -2107,10 +2107,10 @@ export const ECONOMY = {
 // whichever unlocked pack the player picks.
 export const PACKS = {
   path: 'packs/',       // under SPRITES.path
-  cost: 5,
+  cost: 8,
   // "Buy 10": bulkCount chests at once for bulkCost Pearls.
   bulkCount: 10,
-  bulkCost: 45,
+  bulkCost: 72,
   // Rarity weights; renormalized over the rarities the pack has crew of (a
   // roll of a rarity it has none of is rolled again).
   rates: { common: 0.45, rare: 0.3, epic: 0.18, legendary: 0.07 },

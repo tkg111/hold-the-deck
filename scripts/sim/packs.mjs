@@ -10,7 +10,8 @@
 // wave is played once per seed, the boss waves included, from a fresh
 // state each time. Per pair: wins, the crewmate's share of the crew's
 // damage, and boss time-to-kill (from when it can first be hit to its
-// death; a boss still alive counts the wave's time).
+// death; a boss still alive counts the wave's time). `-- seeds id,id` plays
+// only the pairs of those new crewmates (HEROES keys).
 import { HEROES, PACKS } from '../../src/config.js';
 import { BattleStats, totalDamage } from '../../src/systems/BattleStats.js';
 import { Progress } from '../../src/systems/Progress.js';
@@ -19,6 +20,7 @@ import {
 } from './simulate.mjs';
 
 const SEEDS = Number(process.argv[2] ?? 3);
+const ONLY = process.argv[3]?.split(',') ?? null;
 const BASE = ['captain', 'duelist', 'stormCaller', 'sharpshooter', 'cannoneer', 'ghostPirate'];
 // Crew level by wave on each island (hull level = crew level x hullPerLevel).
 const LEVELS = {
@@ -34,6 +36,9 @@ const PAIRS = [
   ['fireBreather', 'grogBrewer', 'ember_isle'],
   ['whaler', 'harpooner', 'ember_isle'],
   ['blacksmith', 'sharpshooter', 'ember_isle'],
+  // The Blacksmith again, against the other Epic that hits the front of the
+  // line (with the Sharpshooter staying in the crew).
+  ['blacksmith', 'ghostPirate', 'ember_isle'],
   ['auroraSeer', 'stormCaller', 'ember_isle'],
   ['banshee', 'harpooner', 'fogbound_isle'],
   ['boneCaller', 'duelist', 'fogbound_isle'],
@@ -91,7 +96,7 @@ function play(subject, crew, island, wave, seed) {
 
 const fmt = (n) => `${Math.round(n * 100)}%`;
 console.log(`--- pack crew vs existing crew: ${SEEDS} seeds x waves ${WAVES.join(', ')} (stars 3, max ${PACKS.maxStars}) ---`);
-for (const [fresh, rival, island] of PAIRS) {
+for (const [fresh, rival, island] of PAIRS.filter(([id]) => !ONLY || ONLY.includes(id))) {
   const rows = [];
   for (const subject of [fresh, rival]) {
     const crew = crewWith(subject, subject === fresh ? rival : fresh);

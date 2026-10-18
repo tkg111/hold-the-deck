@@ -2087,3 +2087,125 @@ Legendary the Aurora Seer. Same 10 seeds, same sim.
 
 The head-to-head numbers (14.2) don't depend on packs and are unchanged.
 
+
+## 15. Trimming the packs back toward the old difficulty
+
+Reproduce with `npm run sim -- 10 50 voyage`, `npm run sim:packs -- 3`
+(`-- 3 blacksmith` for one pair) and `npm run sim:stars -- 2000` (here and
+on `main` at `8d42595` for "before packs"). Islands are untouched; only
+the pack crew and the chest price changed.
+
+**Changes:**
+- Bone Caller's skeletons: HP 5x → **4x** his damage.
+- Aurora Seer: Aurora Veil's freeze 2 → **2.5 s**; damage 26 → **30** and
+  burst 24 → **40 px** (damage alone didn't move her, see 15.2).
+- Chests: **8 Pearls** (was 5), Buy 10 **72** (was 45).
+- Blacksmith: unchanged, see 15.2.
+- Star pacing: unchanged, see 15.3.
+
+### 15.1 The voyage (10 runs each, same seeds)
+
+Runs that cleared each island (out of 10). Target: Skull Cove 5–8 and
+Fogbound Isle 3–6, for greedy and lazy alike.
+
+| | Skull Cove | Ember Isle | Frostbite Reef | Fogbound Isle |
+|---|---:|---:|---:|---:|
+| Greedy, before packs | 4 | 1 | 1 | 1 |
+| Greedy, section 14.3 | 9 | 8 | 8 | 8 |
+| Greedy, section 15 (crew changes, chests still 5) | 9 | 7 | 7 | 7 |
+| **Greedy, section 15** | **5** | **5** | **4** | **4** |
+| Lazy, before packs | 7 | 0 | 0 | 0 |
+| Lazy, section 14.3 | 9 | 8 | 8 | 8 |
+| Lazy, section 15 (crew changes, chests still 5) | 9 | 7 | 7 | 7 |
+| **Lazy, section 15** | **6** | **5** | **3** | **3** |
+
+The crew changes alone took one Fogbound clear off each bot. The chest
+price did the rest. Prices tried (Skull / Fogbound clears, greedy; lazy):
+
+| Chest (Buy 10) | Greedy | Lazy |
+|---|---|---|
+| 5 (45) | 9 / 7 | 9 / 7 |
+| 6 (54) | 6 / 4 | 7 / 7 |
+| 7 (63) | 6 / 5 | 3 / 2 |
+| **8 (72)** | **5 / 4** | **6 / 3** |
+
+Only 8 meets all four targets; 7's lazy row shows how noisy 10 runs are
+(about ±2 clears). First tries at 8 Pearls, greedy / lazy: Skull 1–10 90% /
+72%, 21–30 90% / 84%, 41–50 94% / 84%; Ember 31–40 94% / 79%. Where runs stop
+now: Skull Cove 30 (the Kraken; 3 runs), 34, 49–50 (4), wave 10 once (lazy);
+Ember 32 once; and **Frostbite Reef wave 10** (the Frost Wyrm, 3
+runs). Slower chests mean
+weaker crews everywhere, not just late on, so the early walls (Kraken 30,
+Wyrm F10) are back too.
+
+### 15.2 Head-to-heads (`sim:packs -- 3`)
+
+| New | vs | 14.2 wins | Now | Rival |
+|---|---|---:|---:|---:|
+| Powder Monkey | Ship's Cook | 27 | 27 | 27 |
+| Anchor Bosun | Harpooner | 27 | 27 | 27 |
+| Fire Breather | Grog Brewer | 14 | 14 | 15 |
+| Whaler | Harpooner | 15 | 15 | 15 |
+| Blacksmith | Sharpshooter | 24 | 24 | 16 |
+| Blacksmith | **Ghost Pirate** (new row) | – | 9 | 21 |
+| Aurora Seer | Storm Caller | 21 | **25** | 27 |
+| Banshee | Harpooner | 7 | 7 | 7 |
+| Bone Caller | The Duelist | 19 | **11** | 12 |
+
+All within 3 of their rival except the Blacksmith, both ways. (The chest
+price doesn't touch these; the crews are set directly.)
+
+**Aurora Seer:** with the 2.5 s veil she stayed at 21 wins at 26, 30, 34
+and 38 damage. Every loss was Ember Isle waves 40 and 45 (the Leviathan
+wave and a big crowd wave, all three seeds), which the Storm Caller's chain
+lightning and Tidal Wave handle. A wider burst is what helps: 40 px alone
+gives 22, 30 damage with 40 px **25**.
+
+**Blacksmith, what makes him "good at the front":** nothing about his
+hammer. With Temper Steel off he wins 22 against the Sharpshooter's 16,
+and each change below leaves him at 20–22:
+
+| Blacksmith change (Temper Steel off) | Wins |
+|---|---:|
+| none | 22 |
+| no armour piercing | 22 |
+| aims at the furthest enemy, like the Sharpshooter | 20 |
+| hammer at 150 px/s | 22 |
+| the Sharpshooter's hit rate (26 damage every 2.1 s) | 22 |
+| (Temper Steel on) damage 14 → 11 / 9 / 7 | 24 / 23 / 24 |
+
+The difference is the Sharpshooter's. Aimed at the nearest enemy instead
+of the furthest, he wins **22** too. And with the same six crewmates, the
+crew wins 16 with the Sharpshooter beside The Captain but 21 with the Ghost
+Pirate there and the Sharpshooter on the top deck. In slot 1, his
+furthest-enemy shots spend The Captain's deck buff on enemies nowhere near
+the hull. Against the Ghost Pirate (an Epic that hits the front of the line,
+with the Sharpshooter kept in the crew) the Blacksmith wins **9 to 21**,
+weaker, not stronger. Halving his damage didn't change his wins, so no
+Blacksmith number can close this gap without making him useless. Left
+unchanged. If the Sharpshooter row should read level, that's the
+Sharpshooter's targeting (or the bot's seating) to change, not the
+Blacksmith.
+
+### 15.3 Star pacing (`sim:stars -- 2000`)
+
+Chests only: from a fresh save with every pack open, chests opened one at
+a time (from the pack the greedy bot picks) until the main six (the six the
+bot fields once it has everyone) are all at 3 stars, then 5 stars. Median
+over 2,000 saves (10th–90th percentile):
+
+| | Main six | 3 stars | 5 stars |
+|---|---|---:|---:|
+| Before packs | Captain, Storm Caller, Duelist, Sharpshooter, Cannoneer, Ghost Pirate | 212 (154–301) | 300 (227–407) |
+| With packs, the same six | the same | 260 (183–373) | 356 (278–468) |
+| With packs, its own main six | Captain, Aurora Seer, Storm Caller, Duelist, Bone Caller, Sharpshooter | 385 (296–497) | 403 (319–516) |
+
+Stars come **slower** with packs, not faster: +23% chests to 3 stars and
++19% to 5 for the same six (+82% / +34% for the new main six of five
+Legendaries). The pools aren't smaller where it counts: the Sea Dog Chest
+alone holds 14 crew, as many as the single chest did, and the bot spreads
+its chests over three packs. So no change to stars per duplicate. (These
+counts are in chests, so they don't depend on the price; at 8 Pearls each
+chest costs 60% more, which is the slowdown the voyage in 15.1 shows.)
+A voyage can't measure this directly: no run, before or after, gets all six
+to 3 stars in the ~85 chests it opens.
