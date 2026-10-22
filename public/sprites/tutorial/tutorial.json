@@ -1,0 +1,64 @@
+{
+ "captain_portrait": {
+  "frame": [
+   48,
+   48
+  ],
+  "faces": [
+   "talk0",
+   "talk1",
+   "happy",
+   "worried",
+   "point",
+   "laugh"
+  ],
+  "facing": "right",
+  "note": "talking = alternate talk0/talk1 (or the face + talk1) at ~8 fps while the text types"
+ },
+ "captain_mini": {
+  "frame": [
+   24,
+   24
+  ],
+  "faces": [
+   "talk0",
+   "talk1",
+   "worried"
+  ]
+ },
+ "pointer": {
+  "frame": [
+   16,
+   16
+  ],
+  "frames": 2,
+  "points": "down",
+  "fingertip": [
+   7,
+   15
+  ],
+  "note": "rotate 90/180/270 to point other ways; swap frames at ~3 fps"
+ },
+ "bracket": {
+  "size": [
+   6,
+   6
+  ],
+  "corner": "top-left",
+  "note": "flipX/flipY for the other corners"
+ },
+ "next_arrow": {
+  "frame": [
+   8,
+   6
+  ],
+  "frames": 2
+ },
+ "nameplate": {
+  "size": [
+   48,
+   12
+  ],
+  "note": "write CAPTAIN on it in the small bitmap font, centred"
+ }
+}

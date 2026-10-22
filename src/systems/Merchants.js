@@ -8,6 +8,7 @@ import { MERCHANTS_JSON_KEY, merchantKey } from '../sprites.js';
 import { formatNum } from '../ui/format.js';
 import { light, text } from '../ui/kit.js';
 import { materialInGame, materialOf, materialOfBoss } from './Parts.js';
+import { tutorial } from '../tutorial/TutorialManager.js';
 
 const between = ([min, max]) => min + Math.random() * (max - min);
 
@@ -48,13 +49,18 @@ export function rollPlunder(progress, typeId, G, random = Math.random) {
 // hit pays its plunder (Progress.plunder, then onPlunder(reward)) and it
 // limps off. The ship keeps
 // sailing between waves (at 1x), but new ones only come during waves.
+// forceNext: the next one's type (the tutorial's first is a Trade Cog).
+// The scene hears 'merchant-tappable', 'merchant-plundered' and
+// 'merchant-gone'; the ship is the tutorial's 'merchant' target.
 export class Merchants {
   constructor(scene, { onPlunder }) {
     this.scene = scene;
     this.onPlunder = onPlunder;
     this.data = scene.cache.json.get(MERCHANTS_JSON_KEY);
     this.ship = null;
+    this.forceNext = null;
     this.reset();
+    tutorial.registerTarget('merchant', () => this.ship?.sprite);
   }
 
   // A new battle (the scene starting, or another battlefield): the clock
@@ -99,7 +105,8 @@ export class Merchants {
   }
 
   sail() {
-    const id = rollMerchant();
+    const id = this.forceNext ?? rollMerchant();
+    this.forceNext = null;
     const spec = this.data.ships[id];
     const [w, h] = spec.frame;
     const { waterY } = this.lane;
@@ -145,6 +152,7 @@ export class Merchants {
     if (!s.tappable && !s.struck && !s.fading && s.x + s.w / 2 >= MERCHANTS.tapFromX) {
       s.tappable = true;
       s.sprite.setInteractive();
+      this.scene.events.emit('merchant-tappable');
     }
     if (!s.fading && s.x + s.w >= this.lane.fadeX) this.fadeOut(this.lane.fadeMs);
     if (!s.fading) return;
@@ -170,6 +178,7 @@ export class Merchants {
     this.ship.sprite.destroy();
     this.ship.wake.destroy();
     this.ship = null;
+    this.scene.events.emit('merchant-gone');
   }
 
   // Tapped: a cannonball from the bow in an arc to where the ship will be.
@@ -213,6 +222,7 @@ export class Merchants {
     scene.progress.plunder(reward);
     this.showLoot(Math.round(s.x + s.w / 2), Math.round(s.sprite.y), reward);
     this.onPlunder(reward);
+    scene.events.emit('merchant-plundered', reward);
   }
 
   // The loot crate pops up over the ship and rises crateRise px, the

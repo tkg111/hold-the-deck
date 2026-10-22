@@ -38,6 +38,7 @@ import { MealEffects } from '../systems/Meals.js';
 import { AbilityBar } from '../ui/AbilityBar.js';
 import { Button } from '../ui/Button.js';
 import { ConfirmDialog } from '../ui/ConfirmDialog.js';
+import { SettingsDialog } from '../ui/SettingsDialog.js';
 import { formatNum, pearlsLabel } from '../ui/format.js';
 import { HeroPicker } from '../ui/HeroPicker.js';
 import { Notices } from '../ui/Notices.js';
@@ -48,6 +49,8 @@ import {
   Bar, EXPEDITION_JSON_KEY, expeditionKey, glyph, glyphWidth, icon, light, panel, text, UI, wantedKey,
 } from '../ui/kit.js';
 import * as Expeditions from '../systems/Expeditions.js';
+import { unionBounds } from '../tutorial/targets.js';
+import { tutorial } from '../tutorial/TutorialManager.js';
 
 const STATE = { IDLE: 'idle', RUNNING: 'running' };
 
@@ -90,6 +93,7 @@ export class GameScene extends Phaser.Scene {
     sfx.setMuted(this.progress.muted);
     this.state = STATE.IDLE;
     this.speed = this.speed ?? GAME_SPEEDS[0];  // kept across restarts in a session
+    this.slowMotion = 1;   // x the battle's speed (the tutorial's first merchant)
     this.enemies = [];
     this.projectiles = [];
 
@@ -229,6 +233,8 @@ export class GameScene extends Phaser.Scene {
     }));
     const barW = Math.max(hull.barMin, widest + 8);
     this.hullBar = new Bar(this, 24, hull.y + 4, barW, 10, UI.colors.hull);
+    const hullPlaque = panel(this, 6, hull.y, 24 + barW + 5 - 6, hull.height, 'wood');
+    tutorial.registerTarget('hull', hullPlaque);
     // The Abyss's active currents: a row of icons under the hull plaque
     // (see layoutCurrents); tapping one shows its name and effect.
     this.currentRow = group();
@@ -240,7 +246,7 @@ export class GameScene extends Phaser.Scene {
     this.currentNote = group().setVisible(false).setDepth(11);
     this.topLeft = group(
       this.wavePlaque, this.waveIcon, this.depthIcon, this.waveIsland, this.islandText, this.waveDot, this.waveText,
-      panel(this, 6, hull.y, 24 + barW + 5 - 6, hull.height, 'wood'), icon(this, 16, hull.y + 9, 'hull'), this.hullBar,
+      hullPlaque, icon(this, 16, hull.y + 9, 'hull'), this.hullBar,
       this.currentRow, this.tidePlaque, this.tideText,
     );
 
@@ -254,9 +260,9 @@ export class GameScene extends Phaser.Scene {
     const goldX = pearlsX - plaqueGap - goldWidth;
     this.goldText = text(this, goldX + 21, 18, '', light()).setOrigin(0, 0.5);
     this.pearlsText = text(this, pearlsX + 21, 18, '', light()).setOrigin(0, 0.5);
-    // Settings: currently just Reset progress (with a confirmation).
+    // Settings: Captain's tips, Replay tutorial and Reset progress.
     this.settingsButton = new Button(this, 421, 43, {
-      width: 18, height: 18, icon: 'gear', onClick: () => this.confirmReset(),
+      width: 18, height: 18, icon: 'gear', onClick: () => this.openSettings(),
     });
     this.muteButton = new Button(this, 443, 43, {
       width: 18, height: 18, icon: 'sound_on', onClick: () => this.toggleMute(),
@@ -351,6 +357,14 @@ export class GameScene extends Phaser.Scene {
       onToggleAuto: () => this.toggleAutoAbilities(),
     });
     this.abilityBar.setCrew(this.heroes.map((h) => h.id));
+    // Spotlight targets for the Captain's tutorial.
+    tutorial.registerTarget('setSail', this.startButton);
+    tutorial.registerTarget('chests', this.packButton);
+    tutorial.registerTarget('voyage', this.expeditionButton);
+    tutorial.registerTarget('crew', {
+      scene: this,
+      bounds: () => unionBounds(this.heroes.map((h) => h.body)),
+    });
     this.bottomBar = group(
       this.logButton, this.mapButton, this.expeditionButton, this.galleyButton, this.startButton, this.packButton, this.collectionButton, this.wantedButton, this.speedButton,
     );
@@ -588,7 +602,10 @@ export class GameScene extends Phaser.Scene {
       const pearls = this.progress.claimBossPearls();
       if (pearls) this.floatText(enemy.x, top - 16, `+${pearlsLabel(pearls)}`);
       const drop = this.progress.bossDrop(enemy.key);
-      if (drop) this.floatText(enemy.x, top - 26, `+${drop.count} ${materialOf(drop.material).name.toUpperCase()}`, MATERIAL_TEXT);
+      if (drop) {
+        this.floatText(enemy.x, top - 26, `+${drop.count} ${materialOf(drop.material).name.toUpperCase()}`, MATERIAL_TEXT);
+        this.events.emit('boss-material', drop);
+      }
       // The finale: the other boss enrages.
       for (const e of this.waves.bossDown()) {
         this.showBanner(`${e.def.name.toUpperCase()} ENRAGES!`, { color: UI.colors.warn });
@@ -604,6 +621,20 @@ export class GameScene extends Phaser.Scene {
 
   save() {
     saveProgress(this.progress);
+  }
+
+  // Settings (between waves): Captain's tips on or off, Replay tutorial,
+  // and Reset progress.
+  openSettings() {
+    if (this.state !== STATE.IDLE) return;
+    if (this.heroPicker.visible) this.heroPicker.close();
+    sfx.click();
+    new SettingsDialog(this, {
+      tipsOn: this.progress.tutorial.tipsOn,
+      onTips: (on) => tutorial.setTipsOn(on),
+      onReplay: () => tutorial.replay(),
+      onReset: () => this.confirmReset(),
+    });
   }
 
   confirmReset() {
@@ -827,6 +858,7 @@ export class GameScene extends Phaser.Scene {
     this.merchants.reset();
     this.showBattlefield();
     this.showBanner(`SAILING TO ${island.name.toUpperCase()}`);
+    this.events.emit('island-arrived', { id: island.id });
   }
 
   openPacks() {
@@ -918,7 +950,9 @@ export class GameScene extends Phaser.Scene {
     this.waveGold = 0;   // gold earned this wave (expedition rewards are based on it)
     this.applySpeed();
     this.refreshUi();
-    this.events.emit('wave-started', { hunt: !!hunt });
+    this.events.emit('wave-started', {
+      hunt: !!hunt, dive, wave, boss: !!boss || (dive && isBossDepth(p.depth)), finale: !!finale,
+    });
   }
 
   // A depth sets out: a banner for each current new at it ("CURRENT:
@@ -1020,7 +1054,7 @@ export class GameScene extends Phaser.Scene {
       this.autoContinue.pause();
       this.time.delayedCall(ENDING.delayMs, () => this.playEnding());
     }
-    this.events.emit('wave-ended', won, { hunt: !!hunt, diveOver: !!summary });
+    this.events.emit('wave-ended', won, { hunt: !!hunt, dive, diveOver: !!summary });
     // The dive is over: its end-of-run screen once the banner has shown
     // (auto-continue waits for the player).
     if (summary) {
@@ -1114,6 +1148,13 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  // Everything at f x its speed (1: as normal), on top of the battle speed.
+  setSlowMotion(f) {
+    if (this.slowMotion === f) return;
+    this.slowMotion = f;
+    this.applySpeed();
+  }
+
   cycleSpeed() {
     const i = GAME_SPEEDS.indexOf(this.speed);
     this.speed = GAME_SPEEDS[(i + 1) % GAME_SPEEDS.length];
@@ -1125,7 +1166,7 @@ export class GameScene extends Phaser.Scene {
   // Run the battle at this.speed while a wave is on, 1x otherwise: game logic
   // (via update's steps), sprite animations, tweens and timers all follow it.
   applySpeed() {
-    const scale = this.state === STATE.RUNNING ? this.speed : 1;
+    const scale = (this.state === STATE.RUNNING ? this.speed : 1) * this.slowMotion;
     this.anims.globalTimeScale = scale;
     this.tweens.timeScale = scale;
     this.time.timeScale = scale;
@@ -1141,7 +1182,7 @@ export class GameScene extends Phaser.Scene {
     if (this.state !== STATE.RUNNING) return;
     // Fixed steps of game time, so the wave plays out the same at any frame
     // rate (see SIM in config).
-    this.simCarry += Math.min(delta, SIM.maxFrameMs) * this.speed;
+    this.simCarry += Math.min(delta, SIM.maxFrameMs) * this.speed * this.slowMotion;
     while (this.simCarry >= SIM.stepMs) {
       this.simCarry -= SIM.stepMs;
       this.waveTime += SIM.stepMs;

@@ -10,7 +10,10 @@ import { LogScene } from './scenes/LogScene.js';
 import { MapScene } from './scenes/MapScene.js';
 import { PackScene } from './scenes/PackScene.js';
 import { ShipyardScene } from './scenes/ShipyardScene.js';
+import { TutorialScene, TutorialView } from './scenes/TutorialScene.js';
 import { WantedScene } from './scenes/WantedScene.js';
+import { TutorialHost } from './tutorial/TutorialHost.js';
+import { tutorial } from './tutorial/TutorialManager.js';
 import { loadUiSpec } from './ui/kit.js';
 
 // ui.json (icon order, slice sizes, colours) loads before the game starts.
@@ -29,11 +32,20 @@ loadUiSpec().then(() => {
     // No automatic fitting: the canvas is sized to the game area (see
     // display.js), centered by the page's flex layout.
     scale: { mode: Phaser.Scale.NONE },
-    scene: [GameScene, PackScene, CollectionScene, WantedScene, MapScene, LogScene, EndingScene, ExpeditionScene, ShipyardScene, AbyssEndScene, GalleyScene],
+    scene: [GameScene, PackScene, CollectionScene, WantedScene, MapScene, LogScene, EndingScene, ExpeditionScene, ShipyardScene, AbyssEndScene, GalleyScene,
+      // Last: over every other scene.
+      TutorialScene],
   });
 
   // Handy for poking at state from the browser console during development.
   if (import.meta.env.DEV) window.game = game;
 
   installScaling(game);
+
+  // The Captain's tutorial listens to the scenes once they exist.
+  game.events.once('ready', () => {
+    const host = new TutorialHost(game, tutorial);
+    tutorial.install(host, new TutorialView(game, tutorial));
+    host.install();
+  });
 });

@@ -8,6 +8,8 @@ import {
 import { ScrollPanel } from './ScrollPanel.js';
 import { materialIcon } from './parts.js';
 import { PART_DATA, partOf } from '../systems/Parts.js';
+import { tutorial } from '../tutorial/TutorialManager.js';
+import { unionBounds } from '../tutorial/targets.js';
 
 const TAB_LABELS = { ship: 'Ship', crew: 'Crew' };
 const AMOUNT_LABELS = { 1: 'x1', 10: 'x10', max: 'MAX' };
@@ -23,7 +25,12 @@ const BAR_ROOM = 4;
 // bottom, dimmed. The handle on its left edge slides it off the right of the
 // view and back (progress.shipwrightOpen), and shows the arrow too when
 // anything in either tab is affordable. Rows read Progress, so refresh() is
-// enough after gold or levels change; rebuild() when the crew changes.
+// enough after gold or levels change; rebuild() when the crew changes. It
+// tells its scene when it's slid ('shipwright-toggled' { open }), a tab is
+// picked ('shipwright-tab' { tab }) and something is bought
+// ('upgrade-bought' { kind: 'hull' | 'deck' | 'crew' }), and registers the
+// tutorial's targets (the panel, its handle, tabs and buy amount toggle,
+// the cheapest crew upgrade's and Build deck's buy buttons).
 export class Shipwright extends ScrollPanel {
   constructor(scene, x, y, progress, { onPurchase, onSettingChange, onOpenShipyard }) {
     const header = UI_KIT.shipwrightHeader;
@@ -40,6 +47,28 @@ export class Shipwright extends ScrollPanel {
     // A drag that starts on a buy button scrolls instead of buying.
     this.on('drag-start', () => this.entries.forEach((e) => e.button.cancelPress()));
     this.rebuild();
+    this.registerTargets();
+  }
+
+  registerTargets() {
+    tutorial.registerTarget('shipwright', this.parchment);
+    tutorial.registerTarget('shipwrightHandle', this.handleBg);
+    for (const b of this.tabButtons) tutorial.registerTarget(`shipwrightTab:${b.tab}`, b);
+    tutorial.registerTarget('buyAmount', { scene: this.scene, bounds: () => unionBounds(this.amountButtons) });
+    tutorial.registerTarget('crewBuy', () => this.cheapestCrew()?.entry?.button);
+    tutorial.registerTarget('deckBuy', () => this.entries.find((e) => e.def.kind === 'deck')?.button);
+  }
+
+  // The crew upgrade with the lowest price at the buy amount: { def, plan,
+  // entry } (entry: its row, if the Crew tab is showing), or null.
+  cheapestCrew() {
+    const rows = this.tab === 'crew' ? this.entries.map((entry) => ({ def: entry.def, entry })) : this.defs('crew').map((def) => ({ def }));
+    let best = null;
+    for (const row of rows) {
+      const plan = this.planOf(row.def);
+      if (plan.count > 0 && (!best || plan.cost < best.plan.cost)) best = { ...row, plan };
+    }
+    return best;
   }
 
   get listWidth() { return this.innerWidth - BAR_ROOM; }
@@ -84,6 +113,7 @@ export class Shipwright extends ScrollPanel {
     this.offset = 0;
     this.paintHeader();
     this.rebuild();
+    this.scene.events.emit('shipwright-tab', { tab });
   }
 
   setAmount(amount) {
@@ -139,6 +169,7 @@ export class Shipwright extends ScrollPanel {
       });
     }
     this.onSettingChange();
+    this.scene.events.emit('shipwright-toggled', { open: p.shipwrightOpen });
   }
 
   paintHandle() {
@@ -167,6 +198,7 @@ export class Shipwright extends ScrollPanel {
         },
         {
           art: (s) => icon(s, 6, 11, 'hull'),
+          kind: 'hull',
           name: 'Hull',
           level: () => `LV ${formatNum(p.hullHpLevel)}`,
           costAt: (k) => p.hullHpCost(p.hullHpLevel + k),
@@ -175,6 +207,7 @@ export class Shipwright extends ScrollPanel {
         },
         {
           art: (s) => icon(s, 6, 11, 'hammer'),
+          kind: 'deck',
           name: 'Build deck',
           level: () => `${p.decks}/${SHIP.maxDecks}`,
           costAt: (k) => p.deckCost(p.decks + k),
@@ -191,6 +224,7 @@ export class Shipwright extends ScrollPanel {
       const def = HEROES[id];
       const lv = () => p.heroLevel(id);
       return {
+        kind: 'crew',
         art: (s) => face(s, 6, 11, id),
         name: def.name,
         short: def.shortName,
@@ -244,6 +278,7 @@ export class Shipwright extends ScrollPanel {
     // Something may have just maxed out (the last deck): re-sort.
     if (entry.def.costAt(0) == null) this.rebuild();
     this.onPurchase();
+    this.scene.events.emit('upgrade-bought', { kind: entry.def.kind });
   }
 
   // An entry's plan and whether it's affordable now (an Open row: whether

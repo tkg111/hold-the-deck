@@ -9,7 +9,7 @@ export const SAVE_KEY = 'kampung-defense/save';
 const CORRUPT_BACKUP_KEY = 'kampung-defense/save-corrupt-backup';
 
 // Bump when the saved shape changes, and add a migration from the old version.
-export const SAVE_VERSION = 18;
+export const SAVE_VERSION = 19;
 
 // v5 pirate reskin: old hero IDs -> new hero IDs.
 const V5_HERO_IDS = {
@@ -98,6 +98,18 @@ function addIslands(data) {
   };
 }
 
+// v19 the Captain's tutorial: a save past wave 1 has learned the ropes (its
+// onboarding is done), and doesn't get tips for what it has already seen.
+export function addTutorial(data) {
+  const records = Object.values(data.islands ?? {}).filter((r) => r && typeof r === 'object');
+  const veteran = records.some((r) => (r.wave ?? 1) > 1 || (r.best ?? 0) > 0);
+  const tipsSeen = veteran ? ['first_loss'] : [];
+  return {
+    ...data,
+    tutorial: { onboarding: veteran ? 'done' : 'O1', tipsSeen, tipsOn: true },
+  };
+}
+
 // MIGRATIONS[n] upgrades a version-n save to version n + 1.
 const MIGRATIONS = {
   // v2: sound mute setting saved with progress.
@@ -178,6 +190,8 @@ const MIGRATIONS = {
     merchantsPlundered: 0,
     fishCaught: 0,
   }),
+  // v19: the Captain's tutorial (onboarding progress, tips seen, tips on).
+  18: addTutorial,
 };
 
 function migrate(save) {

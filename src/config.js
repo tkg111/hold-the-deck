@@ -2777,6 +2777,50 @@ export const GALLEY = {
   hud: { x: 352, y: 34, width: 56 },
 };
 
+// The Captain's tutorial (src/tutorial/, TutorialScene): the onboarding for
+// a new save and one-time tips. Art in public/sprites/tutorial/
+// (tutorial.json: the frame sizes, the portrait's and mini face's order,
+// the pointer's fingertip). Base pixels and ms (real time):
+//   typeCps: the text types out at this many characters a second;
+//     talkFps: the talking faces' swap (talk0 / point with talk1).
+//   dim: the shade over the scene; pad: the spotlight's hole round its
+//     target; bracketPulseMs: the corner brackets step out 1px and back;
+//     pointerFps / pointerBob: the pointer's frame swap and its bob (px).
+//   box: the dialogue box (width x height; up to `lines` lines wrapped at
+//     wrap px). It sits barGap px over the bottom button bar, or `lift` px
+//     higher (room for the pointer over a bar button), or at the top or
+//     middle of the view (margin px in from its edges), wherever it first
+//     clears the spotlight; arrowFps: the next arrow's bob.
+//   banner: the banner tip's strip (y under the view's top, at most
+//     maxWidth wide), how long it holds and its slide.
+//   missingMs: a guided step whose target is gone (or disabled) this long
+//     moves on. waveDelayMs: steps after a wave wait this long (the wave's
+//     banner shows first).
+//   merchantSpeed: the battle's speed while the first merchant is guided.
+//   galleyRig: the first Galley cast's catch (fish, rarity) and its catch
+//     zone's share of the bar; it can't get away and misses don't count.
+export const TUTORIAL = {
+  path: 'tutorial/',    // under SPRITES.path
+  typeCps: 45,
+  talkFps: 8,
+  dim: 0.6,
+  pad: 4,
+  bracketPulseMs: 400,
+  pointerFps: 3,
+  pointerBob: 2,
+  box: {
+    width: 300, height: 58, lines: 3, wrap: 228, barGap: 2, lift: 26, margin: 2, arrowFps: 3,
+  },
+  banner: {
+    y: 30, maxWidth: 300, height: 28, holdMs: 4000, slideMs: 250,
+  },
+  skip: { width: 40, height: 14 },
+  missingMs: 1000,
+  waveDelayMs: 2300,
+  merchantSpeed: 0.5,
+  galleyRig: { fish: 'sardine', rarity: 'common', zone: 0.45 },
+};
+
 // Upgrade cost at level L: round(baseCost * costGrowth ^ L)
 export const UPGRADES = {
   hullHp: {

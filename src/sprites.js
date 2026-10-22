@@ -1,5 +1,5 @@
 import {
-  ABYSS, ASHFALL, ENEMIES, FISHING, FX, ISLANDS, MAP, MERCHANTS, MIST, MOTES, PACKS, PARTS, SHIP, SNOWFALL, SPRITES, STORM,
+  ABYSS, ASHFALL, ENEMIES, FISHING, FX, ISLANDS, MAP, MERCHANTS, MIST, MOTES, PACKS, PARTS, SHIP, SNOWFALL, SPRITES, STORM, TUTORIAL,
 } from './config.js';
 import { initLayout, LAYOUT } from './layout.js';
 import {
@@ -191,6 +191,26 @@ function preloadFishing(load) {
   load.image(fishingKey('reel_marker'), `${path}reel_marker.png`);
 }
 
+// The Captain's tutorial (TUTORIAL.path, tutorial.json: each sheet's frame
+// size): the portrait and mini faces, the pointer, the next arrow (sheets,
+// texture tutorialKey(name)), the spotlight's corner bracket and the
+// nameplate.
+export const TUTORIAL_JSON_KEY = 'tutorial';
+export const tutorialKey = (name) => `tutorial_${name}`;
+const TUTORIAL_SHEETS = ['captain_portrait', 'captain_mini', 'pointer', 'next_arrow'];
+
+function preloadTutorial(load) {
+  const { path } = TUTORIAL;
+  load.json(TUTORIAL_JSON_KEY, `${path}tutorial.json`);
+  load.once(`filecomplete-json-${TUTORIAL_JSON_KEY}`, (key, type, data) => {
+    for (const name of TUTORIAL_SHEETS) {
+      const [frameWidth, frameHeight] = data[name].frame;
+      load.spritesheet(tutorialKey(name), `${path}${name}_sheet.png`, { frameWidth, frameHeight });
+    }
+  });
+  for (const name of ['bracket', 'nameplate']) load.image(tutorialKey(name), `${path}${name}.png`);
+}
+
 function preloadMap(load) {
   load.image(mapKey('bg'), `${MAP.path}map_bg.png`);
   load.image(mapKey('flag'), `${MAP.path}flag_cleared.png`);
@@ -267,6 +287,7 @@ export function preloadSprites(scene) {
   preloadPacks(load);
   preloadMerchants(load);
   preloadFishing(load);
+  preloadTutorial(load);
   for (const { key: file, dir } of ANIMATION_FILES) {
     load.json(file, `${dir}${file}.json`);
     load.once(`filecomplete-json-${file}`, (key, type, data) => {

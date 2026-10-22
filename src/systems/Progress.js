@@ -13,6 +13,8 @@ import {
   gameParts, materialOf, materialOfBoss, PART_DATA, partCost, partInGame, partOf, partValue,
 } from './Parts.js';
 import { allPacks, PACK_DATA, packOf } from './Packs.js';
+import { DONE, newTutorialState } from '../tutorial/TutorialManager.js';
+import { ONBOARDING } from '../tutorial/steps.js';
 
 // A guard on MAX buys (costs grow far faster than this matters).
 const MAX_BULK = 10000;
@@ -125,6 +127,9 @@ export class Progress {
     // '1', '10' or 'max'), and whether the panel is out (or slid away).
     this.buyAmount = UI_KIT.buyAmounts[0];
     this.shipwrightOpen = true;
+    // The Captain's tutorial (see TutorialManager): the onboarding step it
+    // waits on (or 'done'), the tips already shown, and Captain's tips on.
+    this.tutorial = newTutorialState();
 
     // Dev-only: treat every hero as owned. Not part of saved progress.
     this.devUnlockAll = false;
@@ -156,6 +161,7 @@ export class Progress {
       autoAbilities: this.autoAbilities,
       buyAmount: this.buyAmount,
       shipwrightOpen: this.shipwrightOpen,
+      tutorial: { ...this.tutorial, tipsSeen: [...this.tutorial.tipsSeen] },
       packsSinceLegendary: this.packsSinceLegendary,
       lastPack: this.lastPack,
       packsSeen: [...this.packsSeen],
@@ -229,6 +235,12 @@ export class Progress {
     p.autoAbilities = data.autoAbilities === true;
     if (UI_KIT.buyAmounts.includes(data.buyAmount)) p.buyAmount = data.buyAmount;
     p.shipwrightOpen = data.shipwrightOpen !== false;
+    const t = data.tutorial;
+    if (t && typeof t === 'object') {
+      const step = t.onboarding === DONE || ONBOARDING.some((s) => s.id === t.onboarding) ? t.onboarding : DONE;
+      const seen = Array.isArray(t.tipsSeen) ? [...new Set(t.tipsSeen.filter((id) => typeof id === 'string'))] : [];
+      p.tutorial = { onboarding: step, tipsSeen: seen, tipsOn: t.tipsOn !== false };
+    }
     p.packsSinceLegendary = int(data.packsSinceLegendary, 0, PACKS.legendaryPity - 1);
     // Before packs.json is loaded (it always is in the game) any id is kept.
     const knownPack = (id) => typeof id === 'string' && (PACK_DATA.loaded ? !!packOf(id) : true);

@@ -12,7 +12,7 @@ const PLATE_H = 20;
 
 // Modal yes/no dialog: parchment under a wood title plate, laid out in the
 // base 480x270 and kept centred in the view. The full-view backdrop blocks
-// clicks underneath.
+// clicks underneath. scene.modalOpen counts the dialogs open over a scene.
 export class ConfirmDialog extends Phaser.GameObjects.Container {
   constructor(scene, { title, message, confirmLabel = 'Confirm', onConfirm }) {
     super(scene, 0, 0);
@@ -23,7 +23,9 @@ export class ConfirmDialog extends Phaser.GameObjects.Container {
     );
     center(scene.view);
     scene.events.on('view-resize', center);
+    scene.modalOpen = (scene.modalOpen ?? 0) + 1;
     this.once('destroy', () => {
+      scene.modalOpen--;
       scene.events.off('view-resize', center);
       backdrop.destroy();
     });
