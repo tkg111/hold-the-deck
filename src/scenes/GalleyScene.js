@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import {
-  DISPLAY, FISHING, GALLEY, SCENERY,
+  DISPLAY, FISHING, GALLEY, MEALS, SCENERY, UI_KIT,
 } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
 import { applyRenderScale, fillView } from '../display.js';
@@ -8,15 +8,18 @@ import { LAYOUT } from '../layout.js';
 import {
   FISHING_JSON_KEY, fishingKey, sceneryKeys, shipFrontKey, shipStageKey,
 } from '../sprites.js';
+import { traitOf } from '../systems/Expeditions.js';
 import {
-  fishingSpots, fishOf, hitsToLand, iconFrame, reelSpec, rollFish, rollRarity,
+  FISH_DATA, fishingSpots, fishOf, hitsToLand, iconFrame, itemFrame, mealEffectLines, mealFish, mealOf, reelSpec,
+  rollFish, rollRarity,
 } from '../systems/Fishing.js';
 import { overlayKey, PART_DATA, partOf } from '../systems/Parts.js';
 import { saveProgress } from '../systems/Save.js';
 import { Button } from '../ui/Button.js';
+import { ConfirmDialog } from '../ui/ConfirmDialog.js';
 import { fmtClock, formatNum } from '../ui/format.js';
 import {
-  hexColor, light, nineSlice, panel, text, UI,
+  dark, glyph, hexColor, light, nineSlice, panel, subText, text, UI,
 } from '../ui/kit.js';
 
 const TABS = [
@@ -175,6 +178,12 @@ export class GalleyScene extends Phaser.Scene {
     });
     this.bottom.add(this.castButton);
 
+    // Cooking: over a dark backdrop, the recipe list and the chosen one.
+    this.cookingShade = fillView(this, 0x0d1117, 0.9).setDepth(9);
+    this.cookingUi = this.add.container(0, 0);
+    this.top.add(this.cookingUi);
+    this.recipe ??= FISH_DATA.meals[0]?.id;
+
     // The reel's timing bar (world pixels, above the water).
     const R = FISHING.reel;
     this.bar = this.add.container(0, 0).setVisible(false).setDepth(5);
@@ -201,7 +210,153 @@ export class GalleyScene extends Phaser.Scene {
     const fishing = tab === 'fishing';
     this.fishingUi.setVisible(fishing);
     this.castButton.setVisible(fishing);
+    this.cookingShade.setVisible(!fishing);
+    this.cookingUi.setVisible(!fishing);
+    if (!fishing) this.drawCooking();
     this.refreshSpots();
+  }
+
+  // --- Cooking ---
+
+  // The Spice and active meal strip, the twelve recipes down the left (the
+  // Pantry's count of each, a green up-arrow on one that can be cooked
+  // now), and the chosen recipe on the right.
+  drawCooking() {
+    const p = this.progress;
+    const C = GALLEY.cooking;
+    const ui = this.cookingUi;
+    ui.removeAll(true);
+    const add = (...objs) => ui.add(objs);
+
+    // Spice, and the meal being eaten.
+    add(panel(this, 8, C.stripY, 84, 20, 'wood'));
+    add(this.add.image(19, C.stripY + 10, fishingKey('items'), itemFrame('spice')));
+    add(text(this, 30, C.stripY + 10, `SPICE ${formatNum(p.spice)}`, light()).setOrigin(0, 0.5));
+    add(panel(this, 96, C.stripY, 376, 20, 'wood'));
+    if (p.meal) {
+      const meal = mealOf(p.meal.id);
+      const n = p.meal.wavesLeft;
+      add(this.add.image(107, C.stripY + 10, fishingKey('meals'), meal.index));
+      add(text(this, 118, C.stripY + 10, `EATING: ${meal.name.toUpperCase()}`, light()).setOrigin(0, 0.5));
+      add(text(this, 466, C.stripY + 10, `${n} WAVE${n === 1 ? '' : 'S'} LEFT`, light({ font: 'small', color: '#ffd86a' })).setOrigin(1, 0.5));
+    } else {
+      add(text(this, 104, C.stripY + 10, 'NO MEAL - COOK ONE, THEN EAT IT', light({ font: 'small' })).setOrigin(0, 0.5));
+    }
+
+    // The recipes.
+    const L = C.list;
+    add(panel(this, L.x, L.y, L.width, L.height, 'parchment'));
+    FISH_DATA.meals.forEach((meal, i) => {
+      const y = L.y + 4 + i * L.rowHeight;
+      const cy = y + L.rowHeight / 2;
+      const known = p.isRecipeKnown(meal.id);
+      if (meal.id === this.recipe) {
+        add(this.add.rectangle(L.x + 4, y, L.width - 8, L.rowHeight, hexColor(UI_KIT.dividerColor)).setOrigin(0));
+      }
+      const img = this.add.image(L.x + 14, cy, fishingKey('meals'), meal.index);
+      if (!known) img.setTintFill(hexColor(UI.colors.subText)).setAlpha(0.6);
+      const name = text(this, L.x + 26, cy, known ? meal.name : '???', dark()).setOrigin(0, 0.5);
+      add(img, name);
+      if (p.canCook(meal.id)) add(glyph(this, name.anchorX + name.inkWidth + 5, cy, 'up', UI_KIT.affordColor));
+      const n = p.pantryCount(meal.id);
+      if (n) add(text(this, L.x + L.width - 8, cy, `X${formatNum(n)}`, subText({ color: UI.colors.textOnParchment })).setOrigin(1, 0.5));
+      const hit = this.add.rectangle(L.x + 4, y, L.width - 8, L.rowHeight, 0xffffff, 0).setOrigin(0)
+        .setInteractive({ useHandCursor: true });
+      hit.on('pointerdown', () => {
+        if (this.recipe === meal.id) return;
+        sfx.click();
+        this.recipe = meal.id;
+        this.drawCooking();
+      });
+      add(hit);
+    });
+
+    this.drawRecipe(mealOf(this.recipe));
+  }
+
+  // The chosen recipe: its picture, what it does and for how long, what it
+  // needs (have / need, red where short), Cook, the Pantry's count and Eat.
+  drawRecipe(meal) {
+    const p = this.progress;
+    const D = GALLEY.cooking.detail;
+    const add = (...objs) => this.cookingUi.add(objs);
+    const { x, y } = D;
+    const ink = (extra = {}) => subText({ color: UI.colors.textOnParchment, ...extra });
+    add(panel(this, x, y, D.width, D.height, 'parchment'));
+    const known = p.isRecipeKnown(meal.id);
+    const img = this.add.image(x + 24, y + 22, fishingKey('meals'), meal.index).setScale(2);
+    if (!known) img.setTintFill(hexColor(UI.colors.subText)).setAlpha(0.6);
+    add(img, text(this, x + 46, y + 10, known ? meal.name : '???', dark()));
+    if (!known) {
+      add(text(this, x + 46, y + 25, 'CATCH EACH OF ITS FISH TO LEARN IT', subText({ wrap: D.width - 56 })));
+    } else {
+      const caretaker = p.activeHeroes.some(({ id }) => traitOf(id) === MEALS.caretakerTrait);
+      const extra = caretaker ? ` (CARETAKER +${MEALS.caretakerWaves})` : '';
+      add(text(this, x + 46, y + 25, `LASTS ${p.mealWaves(meal.id)} WAVES${extra}`, subText()));
+      const lines = mealEffectLines(meal);
+      lines.forEach((line, i) => add(text(this, x + 12, y + 46 + i * 10, line, ink())));
+      if (meal.note) add(text(this, x + 12, y + 46 + lines.length * 10, `"${meal.note.toUpperCase()}"`, subText()));
+    }
+
+    // What it needs: each fish (a silhouette until caught) and Spice.
+    add(text(this, x + 12, y + D.needsY, 'NEEDS', subText()));
+    const needs = [...mealFish(meal), ...(meal.needs.spice ? [['spice', meal.needs.spice]] : [])];
+    needs.forEach(([id, n], i) => {
+      const ry = y + D.needsY + 16 + i * 18;
+      const spice = id === 'spice';
+      const caught = spice || p.hasCaught(id);
+      const have = spice ? p.spice : p.fishCount(id);
+      let art;
+      if (spice) art = this.add.image(x + 20, ry, fishingKey('items'), itemFrame('spice'));
+      else if (caught) art = this.add.image(x + 20, ry, fishingKey('fish'), fishOf(id).index);
+      else art = this.add.image(x + 20, ry, fishingKey('items'), itemFrame('unknown_fish'));
+      const name = spice ? 'Spice' : caught ? fishOf(id).name : '???';
+      add(art, text(this, x + 34, ry, `${n} ${name.toUpperCase()}`, ink()).setOrigin(0, 0.5));
+      add(text(this, x + D.width - 12, ry, `${formatNum(have)}/${n}`,
+        subText({ color: have >= n ? UI.colors.textOnParchment : UI.colors.warn })).setOrigin(1, 0.5));
+    });
+
+    // Cook, the Pantry and Eat.
+    const by = y + D.height - 16;
+    const cook = new Button(this, x + 44, by, {
+      width: 72, height: 20, style: 'gold', label: 'Cook', onClick: () => this.cook(meal.id),
+    });
+    const eat = new Button(this, x + D.width - 44, by, {
+      width: 72, height: 20, label: 'Eat', onClick: () => this.eat(meal.id),
+    });
+    add(cook.setEnabled(p.canCook(meal.id)), eat.setEnabled(p.pantryCount(meal.id) > 0));
+    add(text(this, x + D.width / 2, by, `PANTRY: ${formatNum(p.pantryCount(meal.id))}`, ink()).setOrigin(0.5, 0.5));
+  }
+
+  cook(id) {
+    if (!this.progress.cook(id)) return;
+    sfx.splat();
+    saveProgress(this.progress);
+    this.drawCooking();
+  }
+
+  // Eat a meal from the Pantry; one still going is replaced, after a
+  // confirm.
+  eat(id) {
+    const p = this.progress;
+    if (p.pantryCount(id) < 1) return;
+    const doEat = () => {
+      p.eat(id);
+      sfx.loot('gold');
+      saveProgress(p);
+      this.drawCooking();
+    };
+    if (!p.meal) {
+      doEat();
+      return;
+    }
+    const left = p.meal.wavesLeft;
+    new ConfirmDialog(this, {
+      title: 'Replace meal?',
+      message: `${mealOf(p.meal.id).name} still has ${left} wave${left === 1 ? '' : 's'} left. Eat ${mealOf(id).name} instead?`,
+      confirmLabel: 'Eat',
+      onConfirm: doEat,
+    });
   }
 
   pickSpot(id) {

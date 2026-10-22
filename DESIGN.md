@@ -568,6 +568,32 @@ Opened from the **Galley** button (the pot icon) in the bottom bar between waves
 - Fish go into the hold (the Cooking tab's ingredients) and the **Fish Log**. Every catch and every bait spent is saved at once.
 - **Captain's Log:** a **Fish Log** tab: every fish in a 6 x 2 grid (fishing.json's order) with its picture at 2x, name, rarity and how many have been caught ("X3"); one never caught is the dark `unknown_fish` silhouette and "???"; the line above reads "5/12 FOUND - 23 CAUGHT". The **Stats** tab adds **Fish caught**.
 
+### Cooking and meals
+
+- **The tab:** a wood strip with the Spice held and the meal being eaten ("EATING: SNAPPER CURRY ... 7 WAVES LEFT", or "NO MEAL - COOK ONE, THEN EAT IT"); the twelve recipes down the left (meal icon, name, a green ▲ on one that can be cooked now, and how many are in the **Pantry**, "X2"); the chosen recipe on the right: its icon at 2x, name, how many waves it lasts, its effects, and what it needs, each fish (and Spice) with have / need, red where short; **Cook** (gold), "PANTRY: N" and **Eat**.
+- **Learning recipes:** a recipe stays "???" (its icon a dark silhouette) until each of its fish has been caught at least once (an expedition's fish don't count); its ingredient list shows the fish caught so far and silhouettes ("???") for the rest, with "CATCH EACH OF ITS FISH TO LEARN IT".
+- **Cook** uses up the fish and Spice and puts the meal in the Pantry (a stack per meal, saved). **Eat** makes it the **active meal**; only one is active at a time, and eating another while one is going asks first ("Replace meal? Snapper Curry still has 7 waves left. Eat Fish Stew instead?").
+- **How long:** each meal lasts its waves; a wave counts when it's **cleared**, in any mode: an island wave, an Abyss depth, or a Boss Hunt (one wave). Lost waves don't count. If anyone on the ship has the **Caretaker** trait when it's eaten (Ship's Cook, Ship's Doctor, Grog Brewer, Blacksmith), it lasts **5 waves longer**. It ends after the last one, and the crew and hull go back to normal.
+- **HUD:** during and between waves, while a meal is active, a small wood plaque left of the settings buttons shows its icon and "7 LEFT".
+- **The meals** (`MEALS.list`; their effects go through the same stat code as everything else: crew damage and attack speed through `Progress.deckBuffs`, max hull through `hullMaxHpAt`, gold through `goldMult`, the hazards through Volcano, Blizzard, Mists and the charm itself, and the Abyss through its depth scaling):
+
+  | Meal | Needs | Effect | Waves |
+  |---|---|---|---:|
+  | Fish Stew | 3 Sardine | +10% gold | 10 |
+  | Grilled Mackerel | 3 Mackerel | +8% crew attack speed | 10 |
+  | Snapper Curry | 2 Red Snapper, 1 Spice | +12% crew damage | 10 |
+  | Puffer Sashimi | 2 Pufferfish | +18% crew damage, -15% max hull (was +25%: see BALANCE_REPORT section 16) | 10 |
+  | Moonfish Pie | 1 Moonfish, 2 Sardine | mends 2% of max hull every 10 s of a wave | 10 |
+  | Swordfish Steak | 1 Swordfish, 1 Spice | +20% crew damage to bosses | 10 |
+  | Ember Eel Skewers | 2 Ember Eel, 1 Spice | -50% lava bomb damage, +5% crew damage | 10 |
+  | Ice Cod Chowder | 2 Ice Cod, 1 Spice | blizzard freezes last half as long, +10% max hull | 10 |
+  | Ghost Carp Soup | 2 Ghost Carp, 1 Spice | Siren charms last half as long, fog banks' range penalty halved | 10 |
+  | Abyss Angler Bake | 1 Abyss Angler, 2 Spice | the Abyss's rising tide 25% lower: enemy HP and damage grow per depth as if 25% fewer depths had gone by | 10 |
+  | Golden Koi Feast | 1 Golden Koi, 2 Spice | +40% gold, +10% crew damage, +10% attack speed | 20 |
+  | Boot Soup | 3 Old Boot | +1% gold ("It tastes awful.") | 10 |
+
+  Notes: the hull is full at the start of every wave, so a heal "at the start of each wave" would do nothing; Moonfish Pie mends during the wave instead (`MEALS.healEveryMs`). The Abyss Tide itself is a crew bonus (+2% damage a stack), so making it lower would hurt; the Angler Bake eases the Abyss's per-depth growth (`ABYSS.hpGrowth` and `damageGrowth`) instead. Boss damage counts the crew's attacks (chain lightning included), not abilities. Charms are the Siren Queen's song and the Abyss's Siren's Call; blizzard freezes are Frostbite Reef's blizzards and the Abyss's Blizzard current (not the Frost Wyrm's or Giant's). The fog penalty halves on top of the Blackbones' Lantern's.
+
 ## No prestige
 
 There is no prestige or reset loop: progress is one long voyage across the islands. (A "New Voyage" prestige with a Renown currency and a Renown shop existed up to save v5 and was removed. Loading an older save drops it and pays back all Renown, held plus everything spent on shop levels, at **2 Pearls per Renown**; a voyage at wave 20 paid 10 Renown, so that is worth about 20 Pearls, roughly 6 chests.)

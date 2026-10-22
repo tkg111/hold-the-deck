@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import {
-  ABYSS, ASHFALL, DISPLAY, ENDING, ENEMIES, EXPEDITIONS, GAME_SPEEDS, HEROES, MOTES, PACKS, SCENERY, SIM, SNOWFALL, UI_KIT,
+  ABYSS, ASHFALL, DISPLAY, ENDING, ENEMIES, EXPEDITIONS, GALLEY, GAME_SPEEDS, HEROES, MOTES, PACKS, SCENERY, SIM, SNOWFALL,
+  UI_KIT,
 } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
 import { DEV_TOOLS } from '../devFlag.js';
@@ -30,7 +31,7 @@ import {
 import { BattleStats, mvpOf } from '../systems/BattleStats.js';
 import { initParts, materialOf, PARTS_JSON_KEY } from '../systems/Parts.js';
 import { initPacks, packOf, PACKS_JSON_KEY } from '../systems/Packs.js';
-import { initFishing } from '../systems/Fishing.js';
+import { initFishing, mealOf } from '../systems/Fishing.js';
 import { ShipParts } from '../systems/ShipParts.js';
 import { Merchants } from '../systems/Merchants.js';
 import { MealEffects } from '../systems/Meals.js';
@@ -263,10 +264,16 @@ export class GameScene extends Phaser.Scene {
     this.fullscreenButton = new Button(this, 465, 43, {
       width: 18, height: 18, icon: 'fullscreen', onRelease: true, onClick: () => this.toggleFullscreen(),
     }).setVisible(fullscreenSupported());
+    // The active meal: its icon and waves left, on a small plaque left of
+    // the settings buttons (only while there is one).
+    const mh = GALLEY.hud;
+    this.mealIcon = this.add.image(mh.x + 10, mh.y + 9, fishingKey('meals'), 0);
+    this.mealText = text(this, mh.x + 20, mh.y + 9, '', light({ font: 'small' })).setOrigin(0, 0.5);
+    this.mealPlaque = this.add.container(0, 0, [panel(this, mh.x, mh.y, mh.width, 18, 'wood'), this.mealIcon, this.mealText]);
     this.topRight = group(
       panel(this, goldX, 6, goldWidth, 24, 'wood'), icon(this, goldX + 12, 18, 'gold'), this.goldText,
       panel(this, pearlsX, 6, pearlsWidth, 24, 'wood'), icon(this, pearlsX + 12, 18, 'pearl'), this.pearlsText,
-      this.settingsButton, this.muteButton, this.fullscreenButton,
+      this.settingsButton, this.muteButton, this.fullscreenButton, this.mealPlaque,
     );
 
     // Over the sky between the ship and the Shipwright.
@@ -400,6 +407,11 @@ export class GameScene extends Phaser.Scene {
     if (this.waveText.color !== waveColor) this.waveText.setColor(waveColor);
     this.goldText.setText(formatNum(p.gold));
     this.pearlsText.setText(formatNum(p.pearls));
+    this.mealPlaque.setVisible(!!p.meal);
+    if (p.meal) {
+      this.mealIcon.setFrame(mealOf(p.meal.id)?.index ?? 0);
+      this.mealText.setText(`${p.meal.wavesLeft} LEFT`);
+    }
     this.hullBar.setValue(this.ship.hp / this.ship.maxHp,
       `${formatNum(Math.ceil(this.ship.hp))} / ${formatNum(this.ship.maxHp)}`);
 

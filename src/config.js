@@ -2603,7 +2603,8 @@ export const MOTES = {
 //          something in the way (Frostbite Reef's iceberg, Fogbound Isle's
 //          wreck, the Abyss's pillar), so a merchant is gone before it.
 //   bobFps: its sail frames (0-2); hitPad: px round the frame that still
-//          count as a tap on it.
+//          count as a tap on it; tapFromX: it can be tapped once its middle
+//          is past this x (clear of our ship's sails and rigging).
 //   shot: a cannonball from the bow (ship image pixels) in an arc of
 //          arcHeight px over ms. On a hit: the struck frame, speed x slow,
 //          a loot crate rising crateRise px while the plunder text rises,
@@ -2632,6 +2633,7 @@ export const MERCHANTS = {
   },
   bobFps: 3,
   hitPad: 6,
+  tapFromX: 160,
   shot: { from: { x: 150, y: 100 }, ms: 500, arcHeight: 28 },
   slow: 0.4,
   fadeMs: 2000,
@@ -2742,7 +2744,7 @@ export const MEALS = {
     fish_stew: { needs: { sardine: 3 }, waves: 10, gold: 0.1 },
     grilled_mackerel: { needs: { mackerel: 3 }, waves: 10, attackSpeed: 0.08 },
     snapper_curry: { needs: { red_snapper: 2, spice: 1 }, waves: 10, damage: 0.12 },
-    puffer_sashimi: { needs: { pufferfish: 2 }, waves: 10, damage: 0.25, hull: -0.15 },
+    puffer_sashimi: { needs: { pufferfish: 2 }, waves: 10, damage: 0.18, hull: -0.15 },
     moonfish_pie: { needs: { moonfish: 1, sardine: 2 }, waves: 10, heal: 0.02 },
     swordfish_steak: { needs: { swordfish: 1, spice: 1 }, waves: 10, bossDamage: 0.2 },
     ember_eel_skewers: { needs: { ember_eel: 2, spice: 1 }, waves: 10, lavaDamage: -0.5, damage: 0.05 },
@@ -2757,13 +2759,22 @@ export const MEALS = {
 };
 
 // The Galley screen (GalleyScene, base pixels): its tabs, the fishing
-// spot picker and the cooking tab's recipe grid; and the battle HUD's
-// active meal (icon and waves left) under the gold plaque.
+// spot picker and the cooking tab; and the battle HUD's active meal (its
+// icon and waves left on a small plaque left of the settings buttons, at
+// x / y, width wide).
 export const GALLEY = {
   tabWidth: 84,
   spots: { y: 36, width: 70, height: 18, gap: 3 },
   recipes: { x: 12, y: 46, cols: 3, cardWidth: 148, cardHeight: 44, gapX: 4, gapY: 4, rows: 4 },
-  hud: { x: 401, y: 33 },
+  // The Cooking tab: the Spice / active meal strip, the recipe list (a row
+  // per meal) and the chosen recipe's panel (needsY: where its ingredients
+  // start).
+  cooking: {
+    stripY: 30,
+    list: { x: 8, y: 54, width: 196, height: 212, rowHeight: 17 },
+    detail: { x: 208, y: 54, width: 264, height: 212, needsY: 96 },
+  },
+  hud: { x: 352, y: 34, width: 56 },
 };
 
 // Upgrade cost at level L: round(baseCost * costGrowth ^ L)

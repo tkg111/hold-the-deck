@@ -23,6 +23,9 @@
 // ship parts (parts.json ids) crafted to those levels and on the ship.
 // Without it no part is ever made, so results are as before parts existed.
 //
+// meal=snapper_curry keeps that meal (MEALS.list id) active for every wave
+// of every run (it never runs out). Without it there's never a meal.
+//
 // To try numbers without editing config.js, set SIM_CONFIG to JSON merged
 // into its exports, e.g. SIM_CONFIG='{"WAVES":{"hpGrowth":0.1}}'.
 import { readFileSync } from 'node:fs';
@@ -89,6 +92,8 @@ initLayout(readJson('layout.json'));
 initParts(readJson('parts/parts.json'));
 initPacks(readJson('packs/packs.json'));
 const PARTS_ARG = parseParts(FLAGS.find((a) => a.startsWith('parts='))?.slice(6));
+const MEAL_ARG = FLAGS.find((a) => a.startsWith('meal='))?.slice(5) ?? null;
+if (MEAL_ARG && !config.MEALS.list[MEAL_ARG]) throw new Error(`Unknown meal: ${MEAL_ARG}`);
 // The JSON files the battle code reads from the cache (ship slots; the
 // Ghost Galleon's gun ports, the Molten Leviathan's mouth and position, and
 // Frostbite Reef's and Fogbound Isle's animation timings and points).
@@ -371,7 +376,7 @@ export function payKills(scene, progress) {
 }
 
 export function run(seed, policy, {
-  maxWave = MAX_WAVE, voyage = VOYAGE, maxTries = MAX_TRIES, stopAt = null, parts = PARTS_ARG,
+  maxWave = MAX_WAVE, voyage = VOYAGE, maxTries = MAX_TRIES, stopAt = null, parts = PARTS_ARG, meal = MEAL_ARG,
 } = {}) {
   seedRandom(seed);
   const progress = new Progress();
@@ -397,6 +402,7 @@ export function run(seed, policy, {
   while (progress.wave <= maxWave && tries < maxTries && !stopAt?.(progress)) {
     const wave = progress.wave;
     const island = progress.islandId;
+    if (meal) progress.meal = { id: meal, wavesLeft: Infinity };
     const result = playWave(scene, progress);
     attempts++;
     playTime += result.time;
@@ -425,8 +431,9 @@ const waveTag = ({ island, wave }) => `${islandTag(island)}${wave}`;
 
 // Run as `npm run sim` (not when imported by another script).
 const main = !!process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
-const partsNote = Object.keys(PARTS_ARG).length
-  ? `, parts: ${Object.entries(PARTS_ARG).map(([id, l]) => `${id} ${l}`).join(', ')}` : '';
+const partsNote = (Object.keys(PARTS_ARG).length
+  ? `, parts: ${Object.entries(PARTS_ARG).map(([id, l]) => `${id} ${l}`).join(', ')}` : '')
+  + (MEAL_ARG ? `, meal: ${MEAL_ARG}` : '');
 for (const policy of main ? ['greedy', 'lazy'] : []) {
   console.log(`--- ${policy}: ${RUNS} runs from a fresh save, up to wave ${MAX_WAVE}${partsNote} ---`);
   const bands = new Map();   // per island and 10 waves: first tries, first-try wins, losses

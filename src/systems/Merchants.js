@@ -120,9 +120,11 @@ export class Merchants {
       event?.stopPropagation?.();
       this.fire();
     });
+    // Not while it's still behind our ship (see update).
+    sprite.disableInteractive();
     this.ship = {
       id, spec, sprite, wake, w, h, wakeX: w - ax, wakeY: ay,
-      x: -w, speed: MERCHANTS.types[id].speed, struck: false, fading: 0, fadeTotal: 0,
+      x: -w, speed: MERCHANTS.types[id].speed, struck: false, fading: 0, fadeTotal: 0, tappable: false,
     };
     this.due = this.clock + between(MERCHANTS.every);
     this.place();
@@ -140,6 +142,10 @@ export class Merchants {
     if (!s) return;
     s.x += s.speed * (s.struck ? MERCHANTS.slow : 1) * ms / 1000;
     this.place();
+    if (!s.tappable && !s.struck && !s.fading && s.x + s.w / 2 >= MERCHANTS.tapFromX) {
+      s.tappable = true;
+      s.sprite.setInteractive();
+    }
     if (!s.fading && s.x + s.w >= this.lane.fadeX) this.fadeOut(this.lane.fadeMs);
     if (!s.fading) return;
     s.fading = Math.max(0, s.fading - ms);

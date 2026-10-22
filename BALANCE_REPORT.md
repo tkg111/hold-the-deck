@@ -2209,3 +2209,66 @@ counts are in chests, so they don't depend on the price; at 8 Pearls each
 chest costs 60% more, which is the slowdown the voyage in 15.1 shows.)
 A voyage can't measure this directly: no run, before or after, gets all six
 to 3 stars in the ~85 chests it opens.
+
+## 16. Meals (the Galley)
+
+Reproduce with `npm run sim -- 5 50 voyage`, `npm run sim -- 5 50 voyage
+meal=snapper_curry` and `npm run sim -- 5 50 voyage meal=puffer_sashimi`
+(`meal=` keeps that meal active for every wave of every run; it never runs
+out). Five seeds (1000-1004) for each of greedy and lazy, so **10 runs** a
+row. Without `meal=` the sim matches `main` before the Galley wave for wave
+(the 3-run voyage was diffed: identical).
+
+**Rule:** a meal may add at most **1 full clear in 10 runs** (a run that wins
+Fogbound Isle's finale) over no meal; past that its damage bonus comes down
+and the run is repeated (at most 3 rounds). In the game a meal lasts 10
+waves (15 with a Caretaker) and needs fish caught first, so "always on from
+wave 1" is the worst case.
+
+**Changes:**
+- Puffer Sashimi: crew damage **+25% → +18%** (max hull still -15%).
+- Snapper Curry: unchanged (+12%).
+
+### 16.1 The voyage, 10 runs each
+
+Runs that cleared each island (out of 10, greedy + lazy):
+
+| | Skull Cove | Ember Isle | Frostbite Reef | Fogbound Isle (full clear) |
+|---|---:|---:|---:|---:|
+| No meal | 5 | 4 | 3 | **3** |
+| Snapper Curry (+12% damage) | 7 | 4 | 4 | **4** (+1) |
+| Puffer Sashimi, +25% damage / -15% hull | 7 | 6 | 6 | **6** (+3, over) |
+| **Puffer Sashimi, +18% damage / -15% hull** | 3 | 3 | 3 | **3** (+0) |
+
+By bot (full clears, greedy / lazy): no meal 2 / 1, Curry 3 / 1, Sashimi
++25% 3 / 3, Sashimi +18% 2 / 1.
+
+Where runs stop: with no meal at Skull Cove 30 (the Kraken, both bots),
+49-50, wave 10 (lazy), Ember 32 and Frostbite 10 (the Wyrm). The Curry
+gets one more greedy run home (seed 1000, which had walled at 30) and
+pushes the lazy walls a little later (34 instead of 30, 18 instead of 10).
+
+**Sashimi:** at +25% it was the strongest thing in the table, taking every
+lazy run that reached Ember Isle all the way. One round at **+18%** puts it
+back level with no meal for full clears. It now trades: more damage, but
+the -15% hull shows at Skull Cove's finale, where five of its runs (three
+greedy, two lazy) wall at waves 49-50 (Skull 41-50 first tries: 81% greedy
+/ 68% lazy, against 95% / 83% with no meal), so fewer runs leave Skull Cove
+than with no meal (3 against 5). That is the meal's intended shape (a glass-cannon meal
+for crews that kill fast), so it stays.
+
+**Noise:** 10 runs move by about ±2 clears from seed luck alone (section
+15.1), so "+1 in 10" is inside the noise; the Curry's +1 and the Sashimi's
++0 both read as "about level with no meal on full clears", the Curry
+helping early (Skull Cove 7/10 vs 5/10) without changing who finishes.
+
+### 16.2 Merchants and the rest
+
+The merchant ships aren't simulated (the bot doesn't tap). On paper a ship
+every ~100 s of battle worth 1.05 G on average (G = 10 s of income) is
+**+10.5% gold** if every one is tapped; ignored ships cost nothing. The
+other meals weren't simulated: their effects are gold or hazard-specific
+(lava, blizzard, charms, fog, the Abyss). Besides these two, crew damage
+only comes from the Golden Koi Feast (+10% damage and +10% attack speed,
+from a 1% Legendary catch), the Swordfish Steak (+20%, against bosses only)
+and the Ember Eel Skewers (+5%).
