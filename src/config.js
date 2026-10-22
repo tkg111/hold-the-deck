@@ -201,6 +201,15 @@ export const UI_KIT = {
     plaqueGap: 3,
   },
   bottomButtonHeight: 30,   // the between-waves button bar (room for badges)
+  // Its buttons' widths, left to right from `left`, `gap` apart: each fits
+  // its icon and label (Log and Map are icons alone, to make room).
+  bottomBar: {
+    left: 4,
+    gap: 2,
+    widths: {
+      log: 24, map: 24, voyage: 65, galley: 57, start: 106, chests: 62, crew: 51, wanted: 66,
+    },
+  },
   // The hero picker: wider than the Shipwright (it extends left over the
   // sea) with taller rows that also show each crewmate's ability.
   pickerWidth: 260,
@@ -1680,6 +1689,8 @@ export const BATTLE_LOG = {
   rowsY: 70,            // first row's top
   rowHeight: 32,
   visibleRows: 6,       // more scroll (mouse wheel or the arrows)
+  // The Fish Log tab's grid: fish per row and each one's cell.
+  fishLog: { cols: 6, cellWidth: 70, cellHeight: 90 },
   barX: 136,            // from the row's left
   barWidth: 170,
   // MVP plaque under the wave banner after each wave (doesn't block
@@ -2696,6 +2707,9 @@ export const FISHING = {
     legendary: { any: [['golden_koi', 1]] },
   },
   firstCatchSpice: 1,
+  // Expeditions to `dest` also bring bait [min, max] Bait and at fishChance
+  // one of `fish` (into the hold; it doesn't count as caught).
+  expedition: { dest: 'coral_shallows', bait: [1, 2], fishChance: 0.3, fish: ['sardine', 'mackerel'] },
   holdFish: { x: 22, y: -12, scale: 2 },
   messageMs: 1600,
 };
@@ -2747,7 +2761,7 @@ export const MEALS = {
 // active meal (icon and waves left) under the gold plaque.
 export const GALLEY = {
   tabWidth: 84,
-  spots: { y: 34, width: 66, height: 18, gap: 3 },
+  spots: { y: 36, width: 70, height: 18, gap: 3 },
   recipes: { x: 12, y: 46, cols: 3, cardWidth: 148, cardHeight: 44, gapX: 4, gapY: 4, rows: 4 },
   hud: { x: 401, y: 33 },
 };

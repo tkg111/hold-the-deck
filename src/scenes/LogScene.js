@@ -3,6 +3,8 @@ import { BATTLE_LOG, DISPLAY, ENEMIES, HEROES, UI_KIT } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
 import { applyRenderScale, fillView } from '../display.js';
 import { KINDS, sumCrew, sumHull, totalDamage } from '../systems/BattleStats.js';
+import { FISH_DATA, itemFrame, rarityOf } from '../systems/Fishing.js';
+import { fishingKey } from '../sprites.js';
 import { Button } from '../ui/Button.js';
 import { formatNum } from '../ui/format.js';
 import {
@@ -14,6 +16,7 @@ const TABS = [
   { key: 'last', label: 'Last Wave' },
   { key: 'recent', label: 'Last 5 Waves' },
   { key: 'taken', label: 'Damage Taken' },
+  { key: 'fish', label: 'Fish Log' },
   { key: 'stats', label: 'Stats' },
 ];
 const LEGEND = { attack: 'ATTACKS', ability: 'ABILITIES', effect: 'EFFECTS' };
@@ -33,7 +36,8 @@ const percent = (part, whole) => `${whole > 0 ? Math.round(100 * part / whole) :
 // and Last 5 Waves list each crewmate's damage (a bar split into attacks /
 // abilities / effects, highest first, the top one marked MVP) with their
 // kills, ability uses and support stat; Damage Taken lists the hull damage
-// each enemy type did over the waves kept; Stats lists the voyage's totals.
+// each enemy type did over the waves kept; Fish Log shows every fish and how
+// many have been caught; Stats lists the voyage's totals.
 // Launched with { progress, onClose }.
 export class LogScene extends Phaser.Scene {
   constructor() {
@@ -99,6 +103,8 @@ export class LogScene extends Phaser.Scene {
     const log = this.records;
     if (this.tab === 'stats') {
       this.drawStats();
+    } else if (this.tab === 'fish') {
+      this.drawFishLog();
     } else if (!log.length) {
       this.summary.setText('');
       this.message('NO BATTLES LOGGED YET. SET SAIL!');
@@ -232,12 +238,38 @@ export class LogScene extends Phaser.Scene {
     const stats = [
       ['ENEMIES DEFEATED', defeated],
       ['MERCHANTS PLUNDERED', p.merchantsPlundered],
+      ['FISH CAUGHT', p.fishCaught],
     ];
     this.rows = stats.map(([label, value]) => this.add.container(0, 0, [
       text(this, 4, 10, label, dark()),
       text(this, this.innerWidth - 4, 10, formatNum(value), dark()).setOrigin(1, 0),
     ]));
     this.scrolls = this.rows.length > BATTLE_LOG.visibleRows;
+  }
+
+  // Fish Log: every fish in fishing.json's order, in a grid, with how many
+  // have been caught; one never caught is a dark silhouette and "???".
+  drawFishLog() {
+    const p = this.progress;
+    const { panel: P, rowsY } = BATTLE_LOG;
+    const { cols, cellWidth, cellHeight } = BATTLE_LOG.fishLog;
+    const found = FISH_DATA.fish.filter((f) => p.hasCaught(f.id)).length;
+    this.summary.setText(`${found}/${FISH_DATA.fish.length} FOUND  -  ${formatNum(p.fishCaught)} CAUGHT`);
+    const left = P.x + Math.round((P.width - cols * cellWidth) / 2);
+    FISH_DATA.fish.forEach((f, i) => {
+      const x = left + (i % cols) * cellWidth + cellWidth / 2;
+      const y = rowsY + 4 + Math.floor(i / cols) * cellHeight;
+      const caught = p.hasCaught(f.id);
+      const art = caught
+        ? this.add.image(x, y + 16, fishingKey('fish'), f.index)
+        : this.add.image(x, y + 16, fishingKey('items'), itemFrame('unknown_fish'));
+      this.body.add([
+        art.setScale(2),
+        text(this, x, y + 37, caught ? f.name.toUpperCase() : '???', subText({ align: 'center', wrap: cellWidth - 4 })).setOrigin(0.5, 0),
+        text(this, x, y + 47, caught ? rarityOf(f.id).label.toUpperCase() : '', subText()).setOrigin(0.5, 0),
+        text(this, x, y + 58, caught ? `X${formatNum(p.fishLog[f.id])}` : '', dark()).setOrigin(0.5, 0),
+      ]);
+    });
   }
 
   // A bar_frame w x 10 at (x, y), filled with segments ({ value, color })

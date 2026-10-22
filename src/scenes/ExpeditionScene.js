@@ -4,7 +4,8 @@ import {
 } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
 import { applyRenderScale, fillView } from '../display.js';
-import { mapKey } from '../sprites.js';
+import { fishingKey, mapKey } from '../sprites.js';
+import { fishOf, itemFrame } from '../systems/Fishing.js';
 import * as X from '../systems/Expeditions.js';
 import { saveProgress } from '../systems/Save.js';
 import { materialOf } from '../systems/Parts.js';
@@ -477,6 +478,7 @@ export class ExpeditionScene extends Phaser.Scene {
       if (v.pearls[1]) extras.push(`${formatNum(v.pearls[0])}-${formatNum(v.pearls[1])} PEARLS`);
       if (v.chests) extras.push(`${v.chests} CHEST${v.betterChests ? ', MAYBE RARE+' : ''}`);
       if (v.chestChance) extras.push(v.chestChance >= 1 ? 'A CHEST' : `${Math.round(v.chestChance * 100)}% CHANCE OF A CHEST`);
+      if (v.bait) extras.push(`${v.bait[0]}-${v.bait[1]} BAIT, MAYBE A FISH`);
       this.add2(text(this, tx, B.y + 24, extras.join(', ') || 'GOLD ONLY', subText()));
       this.add2(text(this, tx, B.y + 33, v.bonusChance >= 1 ? 'BONUS FIND GUARANTEED!' : `${Math.round(v.bonusChance * 100)}% CHANCE OF A BONUS FIND`,
         subText({ color: v.bonusChance >= 1 ? '#b8860b' : UI.colors.subText })));
@@ -514,13 +516,15 @@ export class ExpeditionScene extends Phaser.Scene {
   }
 
   // The rewards to flip, in order: gold, Pearls, chests, a boss material,
-  // then the bonus find.
+  // Bait and a fish (Coral Shallows), then the bonus find.
   rewardsOf(entry) {
     const { loot } = entry;
     const list = [{ kind: 'gold', amount: loot.gold }];
     if (loot.pearls) list.push({ kind: 'pearls', amount: loot.pearls });
     for (const tier of loot.chests) list.push({ kind: 'chest', tier });
     if (loot.material) list.push({ kind: 'material', id: loot.material.id, amount: loot.material.count });
+    if (loot.bait) list.push({ kind: 'bait', amount: loot.bait });
+    if (loot.fish) list.push({ kind: 'fish', id: loot.fish, amount: 1 });
     if (loot.bonus) list.push({ ...loot.bonus, bonus: true });
     return list;
   }
@@ -598,6 +602,7 @@ export class ExpeditionScene extends Phaser.Scene {
     if (r.kind === 'chest') return EXPEDITIONS.chests[r.tier].color;
     if (r.kind === 'pearls') return 0xbfe6ff;
     if (r.kind === 'material') return 0xc8ffe0;
+    if (r.kind === 'bait' || r.kind === 'fish') return 0xff8a9a;
     return 0xffd86a;
   }
 
@@ -605,6 +610,8 @@ export class ExpeditionScene extends Phaser.Scene {
   // icon at 2x).
   rewardArt(r) {
     if (r.kind === 'material') return materialIcon(this, 0, -14, r.id).setScale(2);
+    if (r.kind === 'bait') return this.add.image(0, -14, fishingKey('items'), itemFrame('bait')).setScale(2);
+    if (r.kind === 'fish') return this.add.image(0, -14, fishingKey('fish'), fishOf(r.id)?.index ?? 0).setScale(2);
     const name = r.kind === 'chest' ? 'chest' : r.kind === 'pearls' ? 'pearl' : 'gold';
     return icon(this, 0, -14, name).setScale(3);
   }
@@ -623,6 +630,12 @@ export class ExpeditionScene extends Phaser.Scene {
     } else if (r.kind === 'material') {
       amount = `+${formatNum(r.amount)}`;
       label = (materialOf(r.id)?.name ?? '').toUpperCase();
+    } else if (r.kind === 'bait') {
+      amount = `+${formatNum(r.amount)}`;
+      label = 'BAIT';
+    } else if (r.kind === 'fish') {
+      amount = '+1';
+      label = (fishOf(r.id)?.name ?? '').toUpperCase();
     } else {
       amount = '+1';
       label = EXPEDITIONS.chests[r.tier].label.toUpperCase();

@@ -358,6 +358,16 @@ function createGalleyAnimations(scene) {
     make(merchantKey('loot_crate'), 'loop', range(ships.loot_crate.frames), 4);
   }
   const fishing = scene.cache.json.get(FISHING_JSON_KEY);
+  // icons12.png's icons each as a texture of its own, fishingKey('icon_<name>')
+  // (the UI kit's buttons take a texture key).
+  if (fishing && scene.textures.exists(fishingKey('icons'))) {
+    fishing.icons12.order.forEach((name, frame) => {
+      const key = fishingKey(`icon_${name}`);
+      if (scene.textures.exists(key)) return;
+      const [w, h] = fishing.icons12.frame;
+      scene.textures.createCanvas(key, w, h).drawFrame(fishingKey('icons'), frame).refresh();
+    });
+  }
   if (fishing) {
     make(fishingKey('angler'), 'idle', fishing.angler.anims.idle, 2);
     make(fishingKey('bobber'), 'float', fishing.bobber.anims.float, 2);

@@ -453,6 +453,25 @@ class Sfx {
     this.tone({ freq: 900, endFreq: 700, type: 'triangle', start: t + 0.08, duration: 0.25, volume: 0.1 });
   }
 
+  // --- Fishing ---
+
+  // The bobber landing: a small, bright plop.
+  plop() {
+    const t = this.ready();
+    if (t == null) return;
+    this.tone({ freq: 700, endFreq: 260, type: 'sine', start: t, duration: 0.12, volume: 0.22 });
+    this.noise({ start: t, duration: 0.18, volume: 0.12, filterFrom: 3000, filterTo: 1200, q: 1 });
+  }
+
+  // A bite: two quick rising blips.
+  bite() {
+    const t = this.ready();
+    if (t == null) return;
+    [660, 990].forEach((freq, i) => {
+      this.tone({ freq, type: 'square', start: t + i * 0.07, duration: 0.06, volume: 0.09 });
+    });
+  }
+
   // An ability that can't be used right now.
   denied() {
     const t = this.ready();

@@ -1024,6 +1024,11 @@ export class Progress {
     return { isNew, spice };
   }
 
+  // Fish into the hold without catching it (an expedition's).
+  addFish(id, n = 1) {
+    this.fish[id] = this.fishCount(id) + n;
+  }
+
   fishCount(id) { return this.fish[id] ?? 0; }
   hasCaught(id) { return (this.fishLog[id] ?? 0) > 0; }
   pantryCount(id) { return this.pantry[id] ?? 0; }

@@ -9,7 +9,7 @@ import {
 } from '../display.js';
 import { Scenery } from '../scenery.js';
 import {
-  ABYSS_JSON_KEY, createAnimations, CURRENTS_KEY, DEPTH_ICON_KEY, mapKey, preloadSprites,
+  ABYSS_JSON_KEY, createAnimations, CURRENTS_KEY, DEPTH_ICON_KEY, FISHING_JSON_KEY, fishingKey, mapKey, preloadSprites,
 } from '../sprites.js';
 import { Storm } from '../storm.js';
 import { Weather } from '../weather.js';
@@ -30,6 +30,7 @@ import {
 import { BattleStats, mvpOf } from '../systems/BattleStats.js';
 import { initParts, materialOf, PARTS_JSON_KEY } from '../systems/Parts.js';
 import { initPacks, packOf, PACKS_JSON_KEY } from '../systems/Packs.js';
+import { initFishing } from '../systems/Fishing.js';
 import { ShipParts } from '../systems/ShipParts.js';
 import { Merchants } from '../systems/Merchants.js';
 import { MealEffects } from '../systems/Meals.js';
@@ -79,6 +80,7 @@ export class GameScene extends Phaser.Scene {
     Expeditions.initExpeditions(this.cache.json.get(EXPEDITION_JSON_KEY));
     initParts(this.cache.json.get(PARTS_JSON_KEY));
     initPacks(this.cache.json.get(PACKS_JSON_KEY));
+    initFishing(this.cache.json.get(FISHING_JSON_KEY));
     this.progress = loadProgress();
     Expeditions.tick(this.progress);
     this.expeditionClock = 0;   // real ms since expeditions were last checked
@@ -283,37 +285,49 @@ export class GameScene extends Phaser.Scene {
 
     if (DEV_TOOLS) import('../dev/devTools.js').then((m) => m.installDevTools(this));
 
-    // The bottom bar, left to right: Log, Map, Voyage, SET SAIL!, Chests,
-    // Crew, Wanted. Count badges sit in the top-right corners above the
-    // labels (hence the height).
+    // The bottom bar, left to right: Log, Map (icons only), Voyage, Galley,
+    // SET SAIL!, Chests, Crew, Wanted, each as wide as its icon and label
+    // need (UI_KIT.bottomBar), from the left edge. Count badges sit in the
+    // top-right corners above the labels (hence the height).
     const barY = BOTTOM_BAR_Y;
     const barH = UI_KIT.bottomButtonHeight;
-    this.startButton = new Button(this, 226, barY, {
-      width: 108, height: barH, style: 'gold', font: 'big', label: 'SET SAIL!', onClick: () => this.startWave(),
-    });
-    // Chests (badge: chests you can open, free or with Pearls).
-    this.packButton = new Button(this, 314, barY, {
-      width: 64, height: barH, icon: 'chest', label: 'Chests', onClick: () => this.openPacks(),
-    });
-    this.collectionButton = new Button(this, 376, barY, {
-      width: 56, height: barH, icon: 'book', label: 'Crew', onClick: () => this.openCollection(),
-    });
-    // The Wanted Board (badge: posters not opened yet).
-    this.wantedButton = new Button(this, 441, barY, {
-      width: 70, height: barH, icon: wantedKey('icon_wanted'), label: 'Wanted', onClick: () => this.openWanted(),
+    const { widths, gap, left } = UI_KIT.bottomBar;
+    let barX = left;
+    const slot = (key) => {
+      const x = barX + Math.floor(widths[key] / 2);
+      barX += widths[key] + gap;
+      return x;
+    };
+    // The Captain's Log (battle stats of the last waves).
+    this.logButton = new Button(this, slot('log'), barY, {
+      width: widths.log, height: barH, icon: 'book', onClick: () => this.openLog(),
     });
     // The world map, once an island is cleared (red dot: not opened since).
-    this.mapButton = new Button(this, 74, barY, {
-      width: 48, height: barH, icon: mapKey('ship_token'), label: 'Map', onClick: () => this.openMap(),
+    this.mapButton = new Button(this, slot('map'), barY, {
+      width: widths.map, height: barH, icon: mapKey('ship_token'), onClick: () => this.openMap(),
     });
-    // The Captain's Log (battle stats of the last waves), left of Map.
-    this.logButton = new Button(this, 26, barY, {
-      width: 44, height: barH, icon: 'book', label: 'Log', onClick: () => this.openLog(),
+    // Expeditions ("Voyage") (badge: the ones back). Greyed out until
+    // unlocked; tapping it then says how to unlock it.
+    this.expeditionButton = new Button(this, slot('voyage'), barY, {
+      width: widths.voyage, height: barH, icon: expeditionKey('icon_expedition'), label: 'Voyage', onClick: () => this.openExpeditions(),
     });
-    // Expeditions ("Voyage"), left of SET SAIL! (badge: the ones back).
-    // Greyed out until unlocked; tapping it then says how to unlock it.
-    this.expeditionButton = new Button(this, 135, barY, {
-      width: 70, height: barH, icon: expeditionKey('icon_expedition'), label: 'Voyage', onClick: () => this.openExpeditions(),
+    // The Galley: fishing and cooking.
+    this.galleyButton = new Button(this, slot('galley'), barY, {
+      width: widths.galley, height: barH, icon: fishingKey('icon_pot'), label: 'Galley', onClick: () => this.openGalley(),
+    });
+    this.startButton = new Button(this, slot('start'), barY, {
+      width: widths.start, height: barH, style: 'gold', font: 'big', label: 'SET SAIL!', onClick: () => this.startWave(),
+    });
+    // Chests (badge: chests you can open, free or with Pearls).
+    this.packButton = new Button(this, slot('chests'), barY, {
+      width: widths.chests, height: barH, icon: 'chest', label: 'Chests', onClick: () => this.openPacks(),
+    });
+    this.collectionButton = new Button(this, slot('crew'), barY, {
+      width: widths.crew, height: barH, icon: 'crew', label: 'Crew', onClick: () => this.openCollection(),
+    });
+    // The Wanted Board (badge: posters not opened yet).
+    this.wantedButton = new Button(this, slot('wanted'), barY, {
+      width: widths.wanted, height: barH, icon: wantedKey('icon_wanted'), label: 'Wanted', onClick: () => this.openWanted(),
     });
     this.expeditionButton.bg.on('pointerdown', () => {
       if (this.expeditionButton.enabled) return;
@@ -331,7 +345,7 @@ export class GameScene extends Phaser.Scene {
     });
     this.abilityBar.setCrew(this.heroes.map((h) => h.id));
     this.bottomBar = group(
-      this.logButton, this.mapButton, this.expeditionButton, this.startButton, this.packButton, this.collectionButton, this.wantedButton, this.speedButton,
+      this.logButton, this.mapButton, this.expeditionButton, this.galleyButton, this.startButton, this.packButton, this.collectionButton, this.wantedButton, this.speedButton,
     );
     // NEW ENEMY! alert and bounty toasts.
     this.notices = new Notices(this, this.progress);
@@ -395,7 +409,7 @@ export class GameScene extends Phaser.Scene {
       this.enemiesBar.setValue(left / Math.max(1, this.waves.total), `${left} ENEMIES LEFT`);
     }
 
-    for (const b of [this.startButton, this.packButton, this.collectionButton, this.wantedButton, this.logButton]) {
+    for (const b of [this.startButton, this.packButton, this.collectionButton, this.wantedButton, this.logButton, this.galleyButton]) {
       b.setVisible(idle);
     }
     this.mapButton.setVisible(idle && p.mapUnlocked).setDot(!p.mapSeen);
@@ -710,6 +724,15 @@ export class GameScene extends Phaser.Scene {
         this.save();  // posters opened
       },
     });
+  }
+
+  // The Galley: fishing and cooking. Eating a meal changes the crew and
+  // hull, so both are rebuilt after.
+  openGalley() {
+    if (this.state !== STATE.IDLE) return;
+    if (this.heroPicker.visible) this.heroPicker.close();
+    sfx.click();
+    this.scene.launch('GalleyScene', { progress: this.progress, onClose: () => this.onUpgradePurchased() });
   }
 
   // The Captain's Log: what the crew did in the last few waves.

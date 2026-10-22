@@ -1,5 +1,5 @@
 import {
-  EXPEDITIONS, HEROES, ISLANDS, PARTS, SPRITES,
+  EXPEDITIONS, FISHING, HEROES, ISLANDS, PARTS, SPRITES,
 } from '../config.js';
 import { islandContent, waveGold } from './WaveManager.js';
 import {
@@ -16,7 +16,8 @@ import {
 // advanced, loot: { gold, pearls, chests: [tiers], bonus, material: { id,
 // count } or null }, story, from:
 // { heroId: the ship slot they left } }. Loot is rolled when the party sets
-// out, so reloading can't re-roll it.
+// out, so reloading can't re-roll it. Coral Shallows' loot also has bait
+// (a count) and fish (a fishing.json id or null; FISHING.expedition).
 
 // expedition.json (destinations, crew traits, trait icon order), set by
 // initExpeditions() before the save is loaded.
@@ -134,9 +135,12 @@ export function preview(progress, destId, party, durationId) {
   const pearls = EXPEDITIONS.pearls * duration.mult * focus.pearls * bonus.multiplier;
   const s = EXPEDITIONS.spread;
   const range = (v) => [Math.round(v * (1 - s)), Math.round(v * (1 + s))];
+  const fishing = FISHING.expedition.dest === destId ? FISHING.expedition : null;
   return {
     gold: range(gold),
     pearls: pearls > 0 ? range(pearls).map((n) => Math.max(1, n)) : [0, 0],
+    bait: fishing ? fishing.bait : null,
+    fishChance: fishing ? fishing.fishChance : 0,
     chests: focus.chest ?? 0,
     chestChance: focus.chestChance ? Math.min(1, focus.chestChance * duration.mult) : 0,
     betterChests: !!duration.betterChests,
@@ -196,6 +200,11 @@ export function rollLoot(progress, destId, party, durationId, random = Math.rand
     }
   }
   loot.material = rollMaterial(progress, dest, random);
+  if (p.bait) {
+    const { fish } = FISHING.expedition;
+    loot.bait = between(p.bait);
+    loot.fish = random() < p.fishChance ? fish[Math.floor(random() * fish.length)] : null;
+  }
   return loot;
 }
 
@@ -265,6 +274,8 @@ export function collect(progress, slot) {
   if (loot.bonus?.kind === 'chest') chests.push(loot.bonus.tier);
   for (const tier of chests) progress.addFreeChest(tier);
   if (loot.material) progress.addMaterial(loot.material.id, loot.material.count);
+  if (loot.bait) progress.addBait(loot.bait);
+  if (loot.fish) progress.addFish(loot.fish);
   for (const id of e.party) {
     if (!progress.isOwned(id) || progress.slotOf(id) >= 0) continue;
     const at = e.from[id];
@@ -316,6 +327,8 @@ export function entryFromSave(r, progress, taken, now = Date.now()) {
       chests: Array.isArray(loot.chests) ? loot.chests.filter(tier).slice(0, 5) : [],
       bonus,
       material,
+      bait: count(loot.bait),
+      fish: typeof loot.fish === 'string' && FISHING.expedition.fish.includes(loot.fish) ? loot.fish : null,
     },
     story: typeof r.story === 'string' ? r.story.slice(0, 200) : '',
     from,
