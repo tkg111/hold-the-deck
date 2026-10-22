@@ -15,6 +15,7 @@ import {
 } from '../systems/Fishing.js';
 import { overlayKey, PART_DATA, partOf } from '../systems/Parts.js';
 import { saveProgress } from '../systems/Save.js';
+import { tutorial } from '../tutorial/TutorialManager.js';
 import { Button } from '../ui/Button.js';
 import { ConfirmDialog } from '../ui/ConfirmDialog.js';
 import { fmtClock, formatNum } from '../ui/format.js';
@@ -39,7 +40,10 @@ const TIP_OF_FRAME = ['idle0', 'idle1', 'cast0', 'cast1', 'wait', 'tug', 'hold']
 // backdrop (the islands reached, and the Abyss once open) with the ship as
 // it is and the angler in deck 1's forward slot, no crew, enemies or
 // hazards; a cast costs a Bait (FISHING). Cooking turns fish and Spice into
-// meals. Launched over GameScene with { progress, onClose }.
+// meals. Launched over GameScene with { progress, onClose }. The scene hears
+// 'fishing-cast', 'fishing-bite', 'reel-started' and 'fish-landed' { id };
+// the cast button, the bobber and the reel are the tutorial's targets, and
+// rigCatch() fixes the next catch (the tutorial's first cast).
 export class GalleyScene extends Phaser.Scene {
   constructor() {
     super('GalleyScene');
@@ -71,6 +75,7 @@ export class GalleyScene extends Phaser.Scene {
     this.createUi();
     this.state = S.IDLE;
     this.timers = [];
+    this.rig = null;
     this.select(this.tab, { quiet: true });
     this.events.on('view-resize', (view) => this.layoutUi(view));
     this.layoutUi(this.view);
@@ -192,9 +197,21 @@ export class GalleyScene extends Phaser.Scene {
     this.zoneRect = this.add.rectangle(0, this.barTop + 1, 10, R.height - 2, R.zone).setOrigin(0);
     this.marker = this.add.image(0, this.barTop - 1, fishingKey('reel_marker')).setOrigin(0.5, 0);
     this.pips = this.add.graphics();
-    this.bar.add([nineSlice(this, this.barLeft, this.barTop, R.width, R.height, 'bar_frame'), this.zoneRect, this.marker, this.pips]);
+    this.barFrame = nineSlice(this, this.barLeft, this.barTop, R.width, R.height, 'bar_frame');
+    this.bar.add([this.barFrame, this.zoneRect, this.marker, this.pips]);
 
     this.refreshBait();
+
+    tutorial.registerTarget('galleyCast', this.castButton);
+    tutorial.registerTarget('galleyBobber', this.bobber);
+    tutorial.registerTarget('galleyReel', this.barFrame);
+  }
+
+  // The next catch is this one ({ fish, rarity, zone }: the fish, its
+  // rarity and the catch zone's share of the bar): no fake nibble, it
+  // doesn't get away, and misses on the reel don't count.
+  rigCatch(rig) {
+    this.rig = rig;
   }
 
   layoutUi(view) {
@@ -443,6 +460,7 @@ export class GalleyScene extends Phaser.Scene {
     this.state = S.CASTING;
     this.refreshSpots();
     this.refreshBait();
+    this.events.emit('fishing-cast');
     const { cast } = FISHING;
     this.pose('cast_back');
     this.later(cast.castBackMs, () => {
@@ -478,7 +496,7 @@ export class GalleyScene extends Phaser.Scene {
     this.state = S.WAITING;
     const w = FISHING.wait;
     const ms = Phaser.Math.Between(w.min, w.max);
-    if (Math.random() < w.nibbleChance) {
+    if (!this.rig && Math.random() < w.nibbleChance) {
       const at = Phaser.Math.Between(400, Math.max(400, ms - w.nibbleMs - 400));
       this.later(at, () => this.dip(w.nibbleMs));
     }
@@ -504,12 +522,14 @@ export class GalleyScene extends Phaser.Scene {
   bite() {
     if (this.state !== S.WAITING) return;
     this.state = S.BITE;
-    this.rarity = rollRarity();
-    this.fishId = rollFish(this.spotId, this.rarity);
+    this.rarity = this.rig?.rarity ?? rollRarity();
+    this.fishId = this.rig?.fish ?? rollFish(this.spotId, this.rarity);
     this.bobber.stop().setFrame(this.json.bobber.anims.dip[0]);
     this.splash();
     this.alert.setVisible(true);
     sfx.bite();
+    this.events.emit('fishing-bite');
+    if (this.rig) return;
     this.later(FISHING.bite.ms, () => {
       if (this.state === S.BITE) this.finish([['IT GOT AWAY...', UI.colors.warn]]);
     });
@@ -538,12 +558,13 @@ export class GalleyScene extends Phaser.Scene {
     this.bobber.setFrame(this.json.bobber.anims.under[0]);
     const spec = reelSpec(this.rarity);
     this.reel = {
-      hits: 0, strikes: 0, need: hitsToLand(this.rarity), pos: 0, dir: 1, sweepMs: spec.sweepMs, zoneW: spec.zone,
+      hits: 0, strikes: 0, need: hitsToLand(this.rarity), pos: 0, dir: 1, sweepMs: spec.sweepMs, zoneW: this.rig?.zone ?? spec.zone,
     };
     this.moveZone();
     this.bar.setVisible(true);
     this.drawPips();
     sfx.click();
+    this.events.emit('reel-started');
   }
 
   get barInner() { return FISHING.reel.width - 2; }
@@ -573,7 +594,7 @@ export class GalleyScene extends Phaser.Scene {
       r.sweepMs /= 1 + R.speedUp;
       this.moveZone();
     } else {
-      r.strikes++;
+      if (!this.rig) r.strikes++;
       sfx.denied();
       this.cameras.main.shake(80, 0.003);
       if (r.strikes >= R.strikes) {
@@ -610,6 +631,7 @@ export class GalleyScene extends Phaser.Scene {
     const fish = fishOf(id);
     const { isNew, spice } = this.progress.catchFish(id);
     saveProgress(this.progress);
+    this.rig = null;
     this.pose('hold_up');
     this.heldFish.setFrame(fish.index).setVisible(true);
     this.splash();
@@ -617,6 +639,7 @@ export class GalleyScene extends Phaser.Scene {
     const lines = [[fish.name.toUpperCase(), reelSpec(fish.rarity).color]];
     if (isNew) lines.push([`NEW!${spice ? `  +${spice} SPICE` : ''}`, '#ffd86a', 'small']);
     this.finish(lines);
+    this.events.emit('fish-landed', { id });
   }
 
   update(_time, delta) {

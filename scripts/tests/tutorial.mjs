@@ -275,6 +275,127 @@ test('tips off: no tips', () => {
   assert.deepEqual(p.tutorial.tipsSeen, []);
 });
 
+// A save done with the onboarding, its tips all ahead of it.
+function veteranSetup() {
+  const p = new Progress();
+  p.tutorial.onboarding = DONE;
+  return setup(p);
+}
+
+test('the first merchant: a Trade Cog, guided at half speed, then a word', () => {
+  const { manager, host, view } = veteranSetup();
+  assert.equal(host.forced, 'trade_cog');
+  host.startWave();
+  manager.emit('merchant-tappable', {});
+  assert.equal(showing(view), 'guided:merchant');
+  assert.equal(host.slow, true);
+  assert.equal(host.paused.size, 0, 'the battle goes on');
+  manager.emit('merchant-plundered', {});
+  assert.equal(host.slow, false);
+  assert.equal(showing(view), 'dialog:-');
+  assert.match(view.step.lines[0].text, /Free gold/);
+  view.tapThrough();
+  assert.equal(view.step, null);
+  manager.emit('merchant-tappable', {});
+  assert.equal(view.step, null, 'once');
+});
+
+test('a merchant that sails off ends its tip', () => {
+  const { manager, host, view } = veteranSetup();
+  host.startWave();
+  manager.emit('merchant-tappable', {});
+  manager.emit('merchant-gone', {});
+  assert.equal(view.step, null);
+  assert.equal(host.slow, false);
+  assert.ok(host.progress.tutorial.tipsSeen.includes('merchant'));
+});
+
+test('the first Galley cast is guided and rigged, then the recipe banner', () => {
+  const { manager, host, view } = veteranSetup();
+  const p = host.progress;
+  host.overlay = 'GalleyScene';
+  manager.emit('scene-open', { key: 'GalleyScene' });
+  assert.equal(showing(view), 'guided:galleyCast');
+  assert.ok(host.rigged, 'a Sardine with a wide zone');
+  manager.emit('fishing-cast', {});
+  assert.equal(view.step, null);
+  manager.emit('fishing-bite', {});
+  assert.equal(showing(view), 'guided:galleyBobber');
+  manager.emit('reel-started', {});
+  assert.equal(showing(view), 'look:galleyReel');
+  assert.ok(host.paused.has('GalleyScene'), 'the reel waits');
+  view.tapThrough();
+  assert.equal(host.paused.size, 0);
+  p.catchFish('sardine');
+  manager.emit('fish-landed', { id: 'sardine' });
+  assert.equal(showing(view), 'dialog:-');
+  assert.match(view.step.lines[0].text, /A Sardine/);
+  view.tapThrough();
+  assert.deepEqual(view.banners, ['New recipe! Eat a meal for a boost that lasts 10 waves.']);
+});
+
+test('closing the Galley mid-tip ends it', () => {
+  const { manager, host, view } = veteranSetup();
+  host.overlay = 'GalleyScene';
+  manager.emit('scene-open', { key: 'GalleyScene' });
+  manager.emit('fishing-cast', {});
+  host.overlay = null;
+  manager.emit('scene-close', { key: 'GalleyScene' });
+  host.overlay = 'GalleyScene';
+  manager.emit('scene-open', { key: 'GalleyScene' });
+  manager.emit('fishing-bite', {});
+  assert.equal(view.step, null);
+  assert.ok(host.progress.tutorial.tipsSeen.includes('galley'));
+});
+
+test('expeditions: board, slot, crew, Send; no crew off the ship moves on', () => {
+  const p = new Progress();
+  p.tutorial.onboarding = DONE;
+  p.tutorial.tipsSeen = ['chest'];
+  p.islands.skull_cove.best = 10;
+  const { manager, host, view } = setup(p);
+  manager.tick(16);
+  manager.tick(AFTER_WAVE);
+  assert.equal(showing(view), 'guided:voyage');
+  host.overlay = 'ExpeditionScene';
+  manager.emit('scene-open', { key: 'ExpeditionScene' });
+  assert.equal(showing(view), 'guided:expeditionSlot');
+  manager.emit('expedition-plan', {});
+  host.hidden.add('expeditionCrew');
+  assert.equal(showing(view), 'guided:expeditionCrew');
+  assert.match(view.step.lines[0].text, /Match their traits/);
+  manager.tick(1100);
+  assert.equal(showing(view), 'guided:expeditionSend');
+  host.hidden.add('expeditionSend');   // nobody picked: Send is disabled
+  manager.tick(1100);
+  assert.equal(view.step, null);
+});
+
+test('arriving at a new island: its dialog, once', () => {
+  const { manager, host, view } = veteranSetup();
+  manager.emit('island-arrived', { id: 'frostbite_reef' });
+  manager.tick(16);
+  assert.equal(showing(view), 'dialog:-');
+  assert.match(view.step.lines[0].text, /Frostbite Reef/);
+  assert.equal(view.step.lines.length, 2);
+  view.tapThrough();
+  manager.emit('island-arrived', { id: 'frostbite_reef' });
+  manager.tick(16);
+  assert.equal(view.step, null);
+  host.startWave();
+});
+
+test('turning tips off mid-guided lets that step finish, then stops', () => {
+  const { manager, host, view } = veteranSetup();
+  host.startWave();
+  manager.emit('merchant-tappable', {});
+  manager.setTipsOn(false);
+  assert.equal(showing(view), 'guided:merchant');
+  manager.emit('merchant-plundered', {});
+  assert.equal(view.step, null, 'no follow-up');
+  assert.equal(host.forced, null);
+});
+
 // --- Saves ---
 
 // A save as an older version of the game wrote it: Progress' shape minus
@@ -309,6 +430,35 @@ test('an old save past wave 1 gets no onboarding and no tips for what it has see
   host.endWave(false);
   manager.tick(AFTER_WAVE);
   assert.equal(view.step, null, 'no first-loss tip');
+});
+
+test('an old save gets no tips for features it already has, and the rest still come', () => {
+  const p = load(oldSave((d) => {
+    d.islands.skull_cove = { ...d.islands.skull_cove, wave: 50, best: 50, cleared: true };
+    d.islands.ember_isle = { wave: 3, best: 2, cleared: false, bossPaid: 0, dropsPaid: {} };
+    d.island = 'ember_isle';
+    d.owned = ['cabinBoy', 'shipsCook'];
+    d.defeats = { kraken: 1 };
+    d.materials = { kraken_ink: 2 };
+    d.merchantsPlundered = 3;
+    d.fishCaught = 4;
+    d.fishLog = { sardine: 4 };
+  }));
+  const seen = p.tutorial.tipsSeen;
+  for (const id of ['first_loss', 'log', 'merchant', 'boss_incoming', 'boss_material', 'boss_hunts', 'chest',
+    'expeditions', 'galley', 'cooking', 'ember', 'finale']) assert.ok(seen.includes(id), `${id} seen`);
+  for (const id of ['frost', 'fog', 'abyss', 'ship_parts']) assert.ok(!seen.includes(id), `${id} still to come`);
+  const { manager, host, view } = setup(p);
+  manager.tick(16);
+  manager.tick(AFTER_WAVE);
+  assert.equal(view.step, null, 'nothing on load');
+  manager.emit('island-arrived', { id: 'ember_isle' });
+  manager.tick(16);
+  assert.equal(view.step, null, 'Ember Isle already reached');
+  manager.emit('island-arrived', { id: 'frostbite_reef' });
+  manager.tick(16);
+  assert.match(view.step.lines[0].text, /Frostbite Reef/);
+  host.startWave();
 });
 
 test('an old save still at wave 1 gets the onboarding', () => {

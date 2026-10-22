@@ -8,6 +8,7 @@ import { fishingKey, mapKey } from '../sprites.js';
 import { fishOf, itemFrame } from '../systems/Fishing.js';
 import * as X from '../systems/Expeditions.js';
 import { saveProgress } from '../systems/Save.js';
+import { tutorial } from '../tutorial/TutorialManager.js';
 import { materialOf } from '../systems/Parts.js';
 import { materialIcon } from '../ui/parts.js';
 import { Button } from '../ui/Button.js';
@@ -39,6 +40,9 @@ const PLAN = {
 // the reveal after collecting (the party, a line of story, then each reward
 // flipping over, a bonus find last). Times are real time (Date.now; see
 // Expeditions.tick), so the countdowns keep going while the game is closed.
+// The scene hears 'expedition-plan', 'expedition-crew' (one added to the
+// party) and 'expedition-sent'; the first empty slot's Send, the first
+// crewmate off the ship and the plan's Send are the tutorial's targets.
 export class ExpeditionScene extends Phaser.Scene {
   constructor() {
     super('ExpeditionScene');
@@ -92,6 +96,7 @@ export class ExpeditionScene extends Phaser.Scene {
   showBoard() {
     this.reset();
     this.mode = 'board';
+    tutorial.registerTarget('expeditionSlot', null);
     const p = this.progress;
     this.titlePlate('EXPEDITIONS');
     this.add2(new Button(this, DISPLAY.width - 30, 16, {
@@ -127,9 +132,10 @@ export class ExpeditionScene extends Phaser.Scene {
       zone.on('pointerdown', () => this.showPlan(i));
       this.plate(cx, y, w, `SLOT ${i + 1}`);
       this.add2(icon(this, cx, y + 62, expeditionKey('icon_expedition')).setScale(3));
-      this.add2(new Button(this, cx, y + 112, {
+      const send = this.add2(new Button(this, cx, y + 112, {
         width: 104, height: 28, style: 'gold', label: '+ Send', onClick: () => this.showPlan(i),
       }));
+      if (!tutorial.target('expeditionSlot')) tutorial.registerTarget('expeditionSlot', send);
       this.add2(text(this, cx, y + 136, `SEND UP TO ${EXPEDITIONS.maxParty} CREW`, subText()).setOrigin(0.5, 0));
       this.add2(text(this, cx, y + 148, 'TO BRING BACK LOOT', subText()).setOrigin(0.5, 0));
       return;
@@ -227,6 +233,7 @@ export class ExpeditionScene extends Phaser.Scene {
       focus: null,    // the crewmate whose details show
     };
     this.drawPlan();
+    this.events.emit('expedition-plan');
   }
 
   drawPlan() {
@@ -354,6 +361,7 @@ export class ExpeditionScene extends Phaser.Scene {
     this.add2(text(this, C.x + 10 + 50, C.gridY + 36, 'YOUR PARTY', subText()).setOrigin(0.5, 0));
 
     // Everyone else, favoured trait first.
+    tutorial.registerTarget('expeditionCrew', null);
     this.sortedCrew(dest).forEach((id, i) => {
       const tx = C.gridX + (i % C.cols) * C.pitch;
       const ty = C.gridY + Math.floor(i / C.cols) * C.pitch;
@@ -402,6 +410,8 @@ export class ExpeditionScene extends Phaser.Scene {
     }
     const zone = this.add2(this.add.zone(x, y, s, s).setOrigin(0).setInteractive({ useHandCursor: true }));
     zone.on('pointerdown', () => this.toggleCrew(id));
+    // The tutorial's pick: the first one free and off the ship.
+    if (!entry && !inParty && p.slotOf(id) < 0 && !tutorial.target('expeditionCrew')) tutorial.registerTarget('expeditionCrew', zone);
   }
 
   // The tapped crewmate: level, stars, trait and where they are.
@@ -442,6 +452,7 @@ export class ExpeditionScene extends Phaser.Scene {
     } else {
       sfx.click();
       party.push(id);
+      this.events.emit('expedition-crew', { id });
     }
     this.drawPlan();
   }
@@ -487,6 +498,7 @@ export class ExpeditionScene extends Phaser.Scene {
       width: 80, height: 28, style: 'gold', label: 'Send', onClick: () => this.send(),
     }));
     send.setEnabled(!problem);
+    tutorial.registerTarget('expeditionSend', send);
   }
 
   send() {
@@ -501,6 +513,7 @@ export class ExpeditionScene extends Phaser.Scene {
     saveProgress(p);
     sfx.flip();
     this.showBoard();
+    this.events.emit('expedition-sent');
   }
 
   // --- Collecting: the reveal ---

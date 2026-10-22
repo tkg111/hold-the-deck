@@ -204,11 +204,13 @@ export class TutorialManager {
     });
   }
 
-  // Show what's ready: banners whenever nothing else is up, and one step
-  // at a time.
+  // Show what's ready, one step at a time (banners too, whenever nothing
+  // else is up), the onboarding's before any tip.
   pump() {
+    const ready = (item) => this.clock >= item.at && this.host.isReady(item.step.needs ?? (item.step.mode === 'banner' ? 'any' : 'idle'));
     for (let guard = 0; guard < 50 && !this.active; guard++) {
-      const i = this.queue.findIndex((item) => this.clock >= item.at && this.host.isReady(item.step.needs ?? (item.step.mode === 'banner' ? 'any' : 'idle')));
+      let i = this.queue.findIndex((item) => item.script.onboarding && ready(item));
+      if (i < 0) i = this.queue.findIndex(ready);
       if (i < 0) return;
       const [item] = this.queue.splice(i, 1);
       this.show(item);

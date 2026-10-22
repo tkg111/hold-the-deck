@@ -1,5 +1,5 @@
 import {
-  ECONOMY, ENEMIES, FISHING, ISLANDS,
+  ABYSS, ECONOMY, ENEMIES, EXPEDITIONS, FISHING, ISLANDS, MEALS, STARTING_HEROES,
 } from '../config.js';
 import { Progress } from './Progress.js';
 import { enemyFirstWave } from './WaveManager.js';
@@ -99,11 +99,31 @@ function addIslands(data) {
 }
 
 // v19 the Captain's tutorial: a save past wave 1 has learned the ropes (its
-// onboarding is done), and doesn't get tips for what it has already seen.
+// onboarding is done), and doesn't get tips for what it already has: each
+// tip's test of a v18 save.
+const TIPS_HAD = {
+  first_loss: (d, veteran) => veteran,
+  log: (d, veteran) => veteran,
+  merchant: (d) => (d.merchantsPlundered ?? 0) > 0,
+  boss_incoming: (d) => Object.keys(d.defeats ?? {}).some((k) => ENEMIES[k]?.boss && d.defeats[k] > 0),
+  boss_material: (d) => Object.keys(d.materials ?? {}).length > 0 || Object.keys(d.parts ?? {}).length > 0,
+  ship_parts: (d) => Object.keys(d.parts ?? {}).length > 0,
+  boss_hunts: (d) => ISLANDS.some((i) => d.islands?.[i.id]?.cleared),
+  chest: (d) => (d.owned ?? []).length > STARTING_HEROES.length,
+  expeditions: (d) => (d.islands?.[EXPEDITIONS.unlock.island]?.best ?? 0) >= EXPEDITIONS.unlock.wave,
+  galley: (d) => (d.fishCaught ?? 0) > 0,
+  cooking: (d) => Object.values(MEALS.list).some((m) => Object.keys(m.needs).every((id) => id === 'spice' || (d.fishLog?.[id] ?? 0) > 0)),
+  ember: (d) => !!d.islands?.ember_isle,
+  frost: (d) => !!d.islands?.frostbite_reef,
+  fog: (d) => !!d.islands?.fogbound_isle,
+  finale: (d) => ISLANDS.some((i) => d.islands?.[i.id]?.cleared),
+  abyss: (d) => !!d.abyss?.revealed || !!d.islands?.[ABYSS.unlockIsland]?.cleared,
+};
+
 export function addTutorial(data) {
   const records = Object.values(data.islands ?? {}).filter((r) => r && typeof r === 'object');
   const veteran = records.some((r) => (r.wave ?? 1) > 1 || (r.best ?? 0) > 0);
-  const tipsSeen = veteran ? ['first_loss'] : [];
+  const tipsSeen = Object.keys(TIPS_HAD).filter((id) => TIPS_HAD[id](data, veteran));
   return {
     ...data,
     tutorial: { onboarding: veteran ? 'done' : 'O1', tipsSeen, tipsOn: true },

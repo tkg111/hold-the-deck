@@ -33,7 +33,8 @@ import { TUTORIAL } from '../config.js';
 
 const line = (face, text) => ({ face, text });
 
-// After a wave: once its CLEARED / SUNK banner has shown.
+// After a wave (or at an idle that may follow one): once its CLEARED /
+// SUNK banner has shown.
 const afterWave = TUTORIAL.waveDelayMs;
 
 // The onboarding (new saves, and Replay tutorial in Settings). Its progress
@@ -186,4 +187,175 @@ export const TIPS = {
       line('talk0', "Don't fret, we keep every coin. Spend it at the Shipwright and try again."),
     ],
   }],
+  merchant: [
+    {
+      // The first one is always a Trade Cog (TutorialManager.prepareMerchant),
+      // and the battle runs at TUTORIAL.merchantSpeed until it's plundered or gone.
+      trigger: 'merchant-tappable',
+      needs: 'wave',
+      mode: 'guided',
+      target: 'merchant',
+      action: 'merchant-plundered',
+      slow: true,
+      abortOn: ['merchant-gone', 'wave-ended'],
+      lines: [line('point', 'A fat merchant ship! Tap it, quick!')],
+    },
+    {
+      needs: 'wave',
+      mode: 'dialog',
+      lines: [line('laugh', 'Har! Free gold. Keep an eye on the horizon.')],
+    },
+  ],
+  boss_incoming: [{
+    trigger: 'wave-started',
+    when: (g, d) => d.boss && !d.hunt && !d.dive,
+    needs: 'wave',
+    mode: 'dialog',
+    lines: [
+      line('worried', "Something big's stirring under the water..."),
+      line('worried', 'Brace yourselves!'),
+    ],
+  }],
+  boss_material: [{
+    trigger: 'boss-material',
+    mode: 'banner',
+    lines: [line('talk0', 'It dropped something! Take it to the Shipwright.')],
+  }],
+  ship_parts: [{
+    trigger: 'scene-open',
+    when: (g, d) => d.key === 'ShipyardScene',
+    needs: 'ShipyardScene',
+    mode: 'dialog',
+    lines: [line('point', 'Boss materials make ship parts. They show right on our hull!')],
+  }],
+  boss_hunts: [{
+    trigger: 'idle',
+    when: (g) => g.huntsUnlocked,
+    delayMs: afterWave,
+    mode: 'banner',
+    lines: [line('talk0', 'Need more materials? Hunt that boss again!')],
+  }],
+  chest: [{
+    trigger: 'idle',
+    when: (g) => g.progress.canOpenPack,
+    delayMs: afterWave,
+    mode: 'guided',
+    target: 'chests',
+    action: 'scene-open',
+    actionWhen: (d) => d.key === 'PackScene',
+    lines: [line('happy', "A Sea Dog Chest! There's new crew inside.")],
+  }],
+  expeditions: [
+    {
+      trigger: 'idle',
+      when: (g) => g.expeditionsUnlocked,
+      delayMs: afterWave,
+      mode: 'guided',
+      target: 'voyage',
+      action: 'scene-open',
+      actionWhen: (d) => d.key === 'ExpeditionScene',
+      lines: [line('point', "Crew who aren't fighting can still earn. Send 'em on a voyage!")],
+    },
+    {
+      needs: 'ExpeditionScene',
+      mode: 'guided',
+      target: 'expeditionSlot',
+      action: 'expedition-plan',
+    },
+    {
+      // A crewmate off the ship (none: the step moves on, see missingMs).
+      needs: 'ExpeditionScene',
+      mode: 'guided',
+      target: 'expeditionCrew',
+      action: 'expedition-crew',
+      lines: [line('talk0', 'Match their traits to the place for better loot.')],
+    },
+    {
+      needs: 'ExpeditionScene',
+      mode: 'guided',
+      target: 'expeditionSend',
+      action: 'expedition-sent',
+    },
+  ],
+  galley: [
+    {
+      // The first cast is rigged (TUTORIAL.galleyRig): a Sardine with a
+      // wide catch zone that can't get away.
+      trigger: 'scene-open',
+      when: (g, d) => d.key === 'GalleyScene',
+      needs: 'GalleyScene',
+      mode: 'guided',
+      target: 'galleyCast',
+      action: 'fishing-cast',
+      prepare: (g) => g.rigCatch(),
+      lines: [line('point', 'Every pirate needs a hot meal. Cast your line!')],
+    },
+    {
+      trigger: 'fishing-bite',
+      needs: 'GalleyScene',
+      mode: 'guided',
+      target: 'galleyBobber',
+      action: 'reel-started',
+      lines: [line('point', 'There! Tap now!')],
+    },
+    {
+      // The reel waits while the Captain talks.
+      needs: 'GalleyScene',
+      mode: 'look',
+      target: 'galleyReel',
+      lines: [line('point', "Tap when the hook's in the green!")],
+    },
+    {
+      trigger: 'fish-landed',
+      needs: 'GalleyScene',
+      mode: 'dialog',
+      lines: [line('happy', 'A Sardine! Three of those make a fine stew.')],
+    },
+  ],
+  cooking: [{
+    trigger: ['fish-landed', 'idle', 'scene-open'],
+    when: (g) => g.anyRecipeKnown,
+    mode: 'banner',
+    lines: [line('talk0', 'New recipe! Eat a meal for a boost that lasts 10 waves.')],
+  }],
+  ember: [islandTip('ember_isle', [line('worried', 'Ember Isle. Watch the sky, lava bombs!')])],
+  frost: [islandTip('frostbite_reef', [
+    line('worried', 'Frostbite Reef. Blizzards freeze the crew stiff.'),
+    line('talk0', 'A hot chowder would help...'),
+  ])],
+  fog: [islandTip('fogbound_isle', [
+    line('worried', 'Fogbound Isle... hear that singing?'),
+    line('talk0', "Don't let the Siren charm our crew."),
+  ])],
+  finale: [{
+    trigger: 'wave-started',
+    when: (g, d) => d.finale && !d.hunt && !d.dive,
+    mode: 'banner',
+    lines: [line('talk0', "Two of 'em at once?! All hands on deck!")],
+  }],
+  abyss: [{
+    trigger: 'idle',
+    when: (g) => g.progress.abyssUnlocked && g.progress.abyss.revealed,
+    mode: 'dialog',
+    lines: [
+      line('worried', 'The Abyss. No bottom, no end.'),
+      line('laugh', 'Every depth gets meaner. So do we!'),
+    ],
+  }],
+  log: [{
+    trigger: 'scene-open',
+    when: (g, d) => d.key === 'LogScene',
+    mode: 'banner',
+    lines: [line('talk0', "My log! Stats, bounties and every fish you've caught.")],
+  }],
 };
+
+// Arriving at an island (sailing there from the map).
+function islandTip(islandId, lines) {
+  return {
+    trigger: 'island-arrived',
+    when: (g, d) => d.id === islandId,
+    mode: 'dialog',
+    lines,
+  };
+}
