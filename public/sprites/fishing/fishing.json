@@ -1,0 +1,258 @@
+{
+ "fish": {
+  "frame": [
+   16,
+   16
+  ],
+  "order": [
+   {
+    "id": "sardine",
+    "name": "Sardine",
+    "rarity": "common",
+    "home": "any"
+   },
+   {
+    "id": "mackerel",
+    "name": "Mackerel",
+    "rarity": "common",
+    "home": "any"
+   },
+   {
+    "id": "red_snapper",
+    "name": "Red Snapper",
+    "rarity": "uncommon",
+    "home": "any"
+   },
+   {
+    "id": "pufferfish",
+    "name": "Pufferfish",
+    "rarity": "uncommon",
+    "home": "any"
+   },
+   {
+    "id": "moonfish",
+    "name": "Moonfish",
+    "rarity": "rare",
+    "home": "skull_cove"
+   },
+   {
+    "id": "swordfish",
+    "name": "Swordfish",
+    "rarity": "rare",
+    "home": "any"
+   },
+   {
+    "id": "ember_eel",
+    "name": "Ember Eel",
+    "rarity": "uncommon",
+    "home": "ember_isle"
+   },
+   {
+    "id": "ice_cod",
+    "name": "Ice Cod",
+    "rarity": "uncommon",
+    "home": "frostbite_reef"
+   },
+   {
+    "id": "ghost_carp",
+    "name": "Ghost Carp",
+    "rarity": "uncommon",
+    "home": "fogbound_isle"
+   },
+   {
+    "id": "abyss_angler",
+    "name": "Abyss Angler",
+    "rarity": "rare",
+    "home": "abyss"
+   },
+   {
+    "id": "golden_koi",
+    "name": "Golden Koi",
+    "rarity": "legendary",
+    "home": "any"
+   },
+   {
+    "id": "old_boot",
+    "name": "Old Boot",
+    "rarity": "junk",
+    "home": "any"
+   }
+  ]
+ },
+ "meals": {
+  "frame": [
+   16,
+   16
+  ],
+  "order": [
+   {
+    "id": "fish_stew",
+    "name": "Fish Stew"
+   },
+   {
+    "id": "grilled_mackerel",
+    "name": "Grilled Mackerel"
+   },
+   {
+    "id": "snapper_curry",
+    "name": "Snapper Curry"
+   },
+   {
+    "id": "puffer_sashimi",
+    "name": "Puffer Sashimi"
+   },
+   {
+    "id": "moonfish_pie",
+    "name": "Moonfish Pie"
+   },
+   {
+    "id": "swordfish_steak",
+    "name": "Swordfish Steak"
+   },
+   {
+    "id": "ember_eel_skewers",
+    "name": "Ember Eel Skewers"
+   },
+   {
+    "id": "ice_cod_chowder",
+    "name": "Ice Cod Chowder"
+   },
+   {
+    "id": "ghost_carp_soup",
+    "name": "Ghost Carp Soup"
+   },
+   {
+    "id": "angler_bake",
+    "name": "Abyss Angler Bake"
+   },
+   {
+    "id": "golden_koi_feast",
+    "name": "Golden Koi Feast"
+   },
+   {
+    "id": "boot_soup",
+    "name": "Boot Soup"
+   }
+  ]
+ },
+ "items": {
+  "frame": [
+   16,
+   16
+  ],
+  "order": [
+   "bait",
+   "spice",
+   "unknown_fish"
+  ],
+  "note": "unknown_fish = dark silhouette for uncaught entries in the Fish Log"
+ },
+ "icons12": {
+  "frame": [
+   12,
+   12
+  ],
+  "order": [
+   "fish",
+   "pot",
+   "bait"
+  ]
+ },
+ "angler": {
+  "frame": [
+   32,
+   32
+  ],
+  "faces": "right",
+  "feet_y": 30,
+  "anims": {
+   "idle": [
+    0,
+    1
+   ],
+   "cast_back": [
+    2
+   ],
+   "cast_throw": [
+    3
+   ],
+   "wait": [
+    4
+   ],
+   "tug": [
+    5
+   ],
+   "hold_up": [
+    6
+   ]
+  },
+  "rod_tip": {
+   "idle0": [
+    30,
+    4
+   ],
+   "idle1": [
+    30,
+    5
+   ],
+   "cast0": [
+    3,
+    1
+   ],
+   "cast1": [
+    31,
+    15
+   ],
+   "wait": [
+    30,
+    4
+   ],
+   "tug": [
+    29,
+    4
+   ],
+   "hold": null
+  },
+  "note": "rod_tip is frame-local; draw the fishing line from rod_tip to the bobber in code (1px #e8eef2). hold_up: draw the caught fish at 2x scale above the raised hand, centre at (22, -12) frame-local (above the raised hand)."
+ },
+ "bobber": {
+  "frame": [
+   8,
+   8
+  ],
+  "anims": {
+   "float": [
+    0,
+    1
+   ],
+   "dip": [
+    2
+   ],
+   "under": [
+    3
+   ]
+  },
+  "waterline_y": 6
+ },
+ "splash": {
+  "frame": [
+   16,
+   16
+  ],
+  "frames": 3,
+  "anchor": "bottom-centre at the water surface"
+ },
+ "alert": {
+  "size": [
+   8,
+   12
+  ],
+  "note": "show above the angler's head when a fish bites"
+ },
+ "reel_marker": {
+  "size": [
+   7,
+   10
+  ]
+ }
+}

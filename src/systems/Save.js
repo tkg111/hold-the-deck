@@ -1,4 +1,6 @@
-import { ECONOMY, ENEMIES, ISLANDS } from '../config.js';
+import {
+  ECONOMY, ENEMIES, FISHING, ISLANDS,
+} from '../config.js';
 import { Progress } from './Progress.js';
 import { enemyFirstWave } from './WaveManager.js';
 
@@ -7,7 +9,7 @@ export const SAVE_KEY = 'kampung-defense/save';
 const CORRUPT_BACKUP_KEY = 'kampung-defense/save-corrupt-backup';
 
 // Bump when the saved shape changes, and add a migration from the old version.
-export const SAVE_VERSION = 17;
+export const SAVE_VERSION = 18;
 
 // v5 pirate reskin: old hero IDs -> new hero IDs.
 const V5_HERO_IDS = {
@@ -160,6 +162,21 @@ const MIGRATIONS = {
   // a save has already unlocked get their "NEW PACK" banner and dot.
   16: (data) => ({
     ...data, lastPack: null, packsSeen: [], packsAnnounced: [],
+  }),
+  // v18: the Galley (merchants, fishing and meals): fish held, Spice, Bait
+  // (full, its regen clock from now), the Pantry, the active meal, the Fish
+  // Log and the Captain's Log totals, all starting empty.
+  17: (data) => ({
+    ...data,
+    fish: {},
+    spice: 0,
+    bait: FISHING.bait.cap,
+    baitAt: Date.now(),
+    pantry: {},
+    meal: null,
+    fishLog: {},
+    merchantsPlundered: 0,
+    fishCaught: 0,
   }),
 };
 

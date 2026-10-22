@@ -1,13 +1,14 @@
 import {
-  ABILITY_SCALING, ABYSS, BATTLE_LOG, ECONOMY, ENEMIES, EXPEDITIONS, HEROES, HUNTS, ISLANDS, PARTS, SHIP, PACKS, RARITY,
-  STARTING_HEROES, UI_KIT, UPGRADES, WANTED, WAVES,
+  ABILITY_SCALING, ABYSS, BATTLE_LOG, ECONOMY, ENEMIES, EXPEDITIONS, FISHING, HEROES, HUNTS, ISLANDS, MEALS, PARTS, SHIP,
+  PACKS, RARITY, STARTING_HEROES, UI_KIT, UPGRADES, WANTED, WAVES,
 } from '../config.js';
 import { clearBonus, enemyFirstWave, islandContent } from './WaveManager.js';
 import {
   checkpoints, depthClearBonus, depthGold, depthOptions, milestoneOf, newSeed,
 } from './Abyss.js';
 import { totalDamage } from './BattleStats.js';
-import { entryFromSave, maxSlots } from './Expeditions.js';
+import { entryFromSave, maxSlots, traitOf } from './Expeditions.js';
+import { FISH_DATA, fishOf, mealFish, mealModifiers } from './Fishing.js';
 import {
   gameParts, materialOf, materialOfBoss, PART_DATA, partCost, partInGame, partOf, partValue,
 } from './Parts.js';
@@ -103,6 +104,21 @@ export class Progress {
     // this depth already paid.
     this.abyss = newAbyss();
 
+    // The Galley (see Fishing.js; Merchants.js for plunder): fish held, by
+    // fishing.json id; Spice; Bait, and the time the next one started
+    // coming back (Date.now() ms; see tickBait); meals cooked (the Pantry,
+    // by meal id); the active meal ({ id, wavesLeft } or null); every fish
+    // ever caught (the Fish Log, by id); and totals for the Captain's Log.
+    this.fish = {};
+    this.spice = 0;
+    this.bait = FISHING.bait.cap;
+    this.baitAt = Date.now();
+    this.pantry = {};
+    this.meal = null;
+    this.fishLog = {};
+    this.merchantsPlundered = 0;
+    this.fishCaught = 0;
+
     this.muted = false;             // sound effects off
     this.autoAbilities = false;     // ability bar's Auto toggle
     // The Shipwright: how many levels a buy button buys (UI_KIT.buyAmounts:
@@ -167,6 +183,15 @@ export class Progress {
           dropsPaid: [...this.abyss.run.dropsPaid],
         },
       },
+      fish: { ...this.fish },
+      spice: this.spice,
+      bait: this.bait,
+      baitAt: this.baitAt,
+      pantry: { ...this.pantry },
+      meal: this.meal && { ...this.meal },
+      fishLog: { ...this.fishLog },
+      merchantsPlundered: this.merchantsPlundered,
+      fishCaught: this.fishCaught,
     };
   }
 
@@ -268,6 +293,24 @@ export class Progress {
       if (ENEMIES[boss]?.boss) p.huntWins[boss] = int(n, 0, HUNTS.dailyDoubles);
     }
     p.abyss = abyssFromSave(data.abyss, int, knownMaterial);
+
+    // The Galley. Before fishing.json is loaded (it always is in the game)
+    // any fish id is kept.
+    const knownFish = (id) => (FISH_DATA.loaded ? !!fishOf(id) : true);
+    const counts = (obj, known) => Object.fromEntries(Object.entries(obj && typeof obj === 'object' ? obj : {})
+      .filter(([id, n]) => known(id) && Number.isFinite(n) && n > 0).map(([id, n]) => [id, int(n, 0)]));
+    p.fish = counts(data.fish, knownFish);
+    p.fishLog = counts(data.fishLog, knownFish);
+    p.pantry = counts(data.pantry, (id) => id in MEALS.list);
+    p.spice = int(data.spice, 0);
+    p.bait = int(data.bait, 0, Infinity, p.bait);
+    if (Number.isFinite(data.baitAt)) p.baitAt = data.baitAt;
+    const m = data.meal;
+    if (m && typeof m === 'object' && m.id in MEALS.list && Number.isFinite(m.wavesLeft) && m.wavesLeft >= 1) {
+      p.meal = { id: m.id, wavesLeft: int(m.wavesLeft, 1) };
+    }
+    p.merchantsPlundered = int(data.merchantsPlundered, 0);
+    p.fishCaught = int(data.fishCaught, 0);
 
     if (Array.isArray(data.slots)) {
       const seen = new Set(away);
@@ -426,9 +469,11 @@ export class Progress {
 
   get hullMaxHp() { return this.hullMaxHpAt(this.hullHpLevel); }
 
+  // With the active meal's max hull change.
   hullMaxHpAt(hpLevel) {
-    return Math.round(SHIP.baseHp * UPGRADES.hullHp.hpGrowth ** hpLevel)
-      + (this.decks - 1) * UPGRADES.deck.hpPerDeck;
+    const base = Math.round(SHIP.baseHp * UPGRADES.hullHp.hpGrowth ** hpLevel) + (this.decks - 1) * UPGRADES.deck.hpPerDeck;
+    const { hull } = this.mealMods;
+    return hull === 1 ? base : Math.round(base * hull);
   }
 
   get canBuildDeck() { return this.decks < SHIP.maxDecks; }
@@ -472,9 +517,17 @@ export class Progress {
     const active = this.activeHeroes;
     // Ghostweave Sails: the whole crew attacks faster.
     const sails = this.partEffect('ghostweave_sails');
+    // The active meal: crew damage, attack speed and damage to bosses.
+    const meal = this.mealMods;
     for (const { id, slot } of active) {
       // The Abyss Tide: crew damage grows through a dive.
-      buffs[slot] = { damage: this.tideDamage, attackSpeed: this.heroAttackSpeed(id), buffed: false, aura: null };
+      buffs[slot] = {
+        damage: this.tideDamage * meal.damage,
+        attackSpeed: this.heroAttackSpeed(id) * meal.attackSpeed,
+        bossDamage: meal.bossDamage,
+        buffed: false,
+        aura: null,
+      };
       if (sails) buffs[slot].attackSpeed *= 1 + partValue(PARTS.effects.ghostweave_sails.attackSpeedAtMax, sails);
     }
     for (const src of active) {
@@ -531,6 +584,7 @@ export class Progress {
       this.record.cleared = true;
     }
     this.pearls += pearls;
+    this.mealWaveDone();
     this.advanceWave();
     // A save from before islands that had sailed past the finale wave
     // (see Save.js) picks up where it was.
@@ -695,10 +749,11 @@ export class Progress {
     return true;
   }
 
-  // Gold from kills, wave clears and hunts, with the Blackbones' Lantern.
+  // Gold from kills, wave clears and hunts, with the Blackbones' Lantern
+  // and the active meal.
   get goldMult() {
     const lantern = this.partEffect('blackbones_lantern');
-    return lantern ? 1 + lantern * PARTS.effects.blackbones_lantern.goldPerLevel : 1;
+    return (lantern ? 1 + lantern * PARTS.effects.blackbones_lantern.goldPerLevel : 1) * this.mealMods.gold;
   }
   boostGold(amount) {
     const mult = this.goldMult;
@@ -780,6 +835,7 @@ export class Progress {
     }
     this.huntWins[boss] = Math.min(HUNTS.dailyDoubles, (this.huntWins[boss] ?? 0) + 1);
     this.huntLevels[boss] = level + 1;
+    this.mealWaveDone();
     return {
       material: drop.material, count, doubled, gold, level,
     };
@@ -830,7 +886,10 @@ export class Progress {
   get tideDamage() { return 1 + (this.abyss.run?.tide ?? 0) * ABYSS.tide.damage; }
 
   // What the current depth is fought with (Abyss.depthOptions).
-  get abyssOptions() { return depthOptions(this.abyss.run.seed, this.abyss.run.depth); }
+  // (The active meal's Abyss Angler Bake calms the rising tide.)
+  get abyssOptions() {
+    return depthOptions(this.abyss.run.seed, this.abyss.run.depth, { growth: this.mealMods.abyssGrowth });
+  }
 
   // Gold earned during the dive (kills), for the end-of-run screen.
   noteDiveGold(n) {
@@ -861,6 +920,7 @@ export class Progress {
       this.pearls += milestone.pearls;
     }
     this.abyss.best = Math.max(this.abyss.best, depth);
+    this.mealWaveDone();
     run.depth++;
     run.tide++;
     run.dropsPaid = [];
@@ -896,6 +956,135 @@ export class Progress {
     this.addMaterial(m.id, count);
     run.materials[m.id] = (run.materials[m.id] ?? 0) + count;
     return { material: m.id, count };
+  }
+
+  // --- The Galley: merchants, Bait, fish and meals ---
+
+  // Bait comes back on its own up to this (more with the Whaler in the crew).
+  get baitCap() {
+    const { cap, capWithWhaler, whaler } = FISHING.bait;
+    return this.owned.includes(whaler) ? capWithWhaler : cap;
+  }
+
+  // Bait back since it was last checked: one per FISHING.bait.regenMs of
+  // real time (offline too) up to the cap; at or over the cap the clock
+  // waits. The clock going backwards gives none and takes none away.
+  tickBait(now = Date.now()) {
+    if (this.bait >= this.baitCap || now < this.baitAt) {
+      this.baitAt = this.bait >= this.baitCap ? now : Math.min(this.baitAt, now);
+      return;
+    }
+    const n = Math.floor((now - this.baitAt) / FISHING.bait.regenMs);
+    this.bait = Math.min(this.baitCap, this.bait + n);
+    this.baitAt = this.bait >= this.baitCap ? now : this.baitAt + n * FISHING.bait.regenMs;
+  }
+
+  // ms until the next Bait comes back (null at or over the cap).
+  baitTimeLeft(now = Date.now()) {
+    this.tickBait(now);
+    if (this.bait >= this.baitCap) return null;
+    return Math.max(0, FISHING.bait.regenMs - (now - this.baitAt));
+  }
+
+  // One cast: spends a Bait (the regen clock starts if it was full).
+  useBait(now = Date.now()) {
+    this.tickBait(now);
+    if (this.bait < 1) return false;
+    if (this.bait >= this.baitCap) this.baitAt = now;
+    this.bait--;
+    return true;
+  }
+
+  // Bait from merchants and expeditions, which may go over the cap.
+  addBait(n) {
+    if (n > 0) this.bait += n;
+  }
+
+  // A merchant's plunder ({ gold, spice, bait, material: { id, count } or
+  // null }), already rolled (Merchants.js): paid, and counted.
+  plunder({
+    gold = 0, spice = 0, bait = 0, material = null,
+  }) {
+    this.earnGold(gold);
+    this.spice += spice;
+    this.addBait(bait);
+    if (material) this.addMaterial(material.id, material.count);
+    this.merchantsPlundered++;
+  }
+
+  // A fish landed: into the hold and the Fish Log; the first of its kind
+  // pays FISHING.firstCatchSpice. Returns { isNew, spice }.
+  catchFish(id) {
+    const isNew = !this.hasCaught(id);
+    this.fish[id] = this.fishCount(id) + 1;
+    this.fishLog[id] = (this.fishLog[id] ?? 0) + 1;
+    this.fishCaught++;
+    const spice = isNew ? FISHING.firstCatchSpice : 0;
+    this.spice += spice;
+    return { isNew, spice };
+  }
+
+  fishCount(id) { return this.fish[id] ?? 0; }
+  hasCaught(id) { return (this.fishLog[id] ?? 0) > 0; }
+  pantryCount(id) { return this.pantry[id] ?? 0; }
+
+  // A recipe shows once each of its fish has been caught.
+  isRecipeKnown(mealId) {
+    const meal = MEALS.list[mealId];
+    return !!meal && mealFish(meal).every(([id]) => this.hasCaught(id));
+  }
+
+  // Whether the hold has a meal's fish and Spice.
+  hasIngredients(mealId) {
+    return Object.entries(MEALS.list[mealId].needs).every(([id, n]) => (id === 'spice' ? this.spice : this.fishCount(id)) >= n);
+  }
+  canCook(mealId) { return this.isRecipeKnown(mealId) && this.hasIngredients(mealId); }
+
+  // Cook a meal into the Pantry, using up its fish and Spice.
+  cook(mealId) {
+    if (!this.canCook(mealId)) return false;
+    for (const [id, n] of Object.entries(MEALS.list[mealId].needs)) {
+      if (id === 'spice') this.spice -= n;
+      else this.fish[id] -= n;
+    }
+    this.pantry[mealId] = this.pantryCount(mealId) + 1;
+    return true;
+  }
+
+  // How many waves a meal eaten now lasts: its own, plus
+  // MEALS.caretakerWaves with a Caretaker on the ship.
+  mealWaves(mealId) {
+    const caretaker = this.activeHeroes.some(({ id }) => traitOf(id) === MEALS.caretakerTrait);
+    return MEALS.list[mealId].waves + (caretaker ? MEALS.caretakerWaves : 0);
+  }
+
+  // Eat a meal from the Pantry: it becomes the active meal (replacing any).
+  eat(mealId) {
+    if (this.pantryCount(mealId) < 1) return false;
+    this.pantry[mealId]--;
+    this.meal = { id: mealId, wavesLeft: this.mealWaves(mealId) };
+    return true;
+  }
+
+  // The active meal's effects (Fishing.mealModifiers; all 1 with none).
+  get mealMods() { return mealModifiers(this.meal); }
+
+  // A wave was cleared (an island wave, an Abyss depth or a Boss Hunt):
+  // the active meal has one wave less. Returns whether it just ran out.
+  mealWaveDone() {
+    if (!this.meal) return false;
+    this.meal.wavesLeft--;
+    if (this.meal.wavesLeft > 0) return false;
+    this.meal = null;
+    return true;
+  }
+
+  // The battlefield's basic enemy (ENEMIES key: its first formation's
+  // first member; in the Abyss, its start island's), for the merchants'
+  // plunder floor.
+  get basicEnemy() {
+    const island = this.inAbyss ? ISLANDS.find((d) => d.id === ABYSS.start.island) : this.island;
+    return islandContent(island).formations[0].members[0];
   }
 
   // --- Packs ---

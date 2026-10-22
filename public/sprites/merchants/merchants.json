@@ -1,0 +1,98 @@
+{
+ "ships": {
+  "trade_cog": {
+   "frame": [
+    48,
+    32
+   ],
+   "faces": "left",
+   "anims": {
+    "sail": [
+     0,
+     1,
+     2
+    ],
+    "struck": [
+     3
+    ]
+   },
+   "waterline_y": 27,
+   "wake_anchor": [
+    34,
+    25
+   ]
+  },
+  "spice_runner": {
+   "frame": [
+    48,
+    32
+   ],
+   "faces": "left",
+   "anims": {
+    "sail": [
+     0,
+     1,
+     2
+    ],
+    "struck": [
+     3
+    ]
+   },
+   "waterline_y": 26,
+   "wake_anchor": [
+    34,
+    24
+   ]
+  },
+  "treasure_galleon": {
+   "frame": [
+    64,
+    40
+   ],
+   "faces": "left",
+   "anims": {
+    "sail": [
+     0,
+     1,
+     2
+    ],
+    "struck": [
+     3
+    ]
+   },
+   "waterline_y": 36,
+   "wake_anchor": [
+    50,
+    34
+   ]
+  }
+ },
+ "wake": {
+  "frame": [
+   24,
+   6
+  ],
+  "frames": 3
+ },
+ "cannonball": {
+  "size": [
+   4,
+   4
+  ]
+ },
+ "hit_puff": {
+  "frame": [
+   16,
+   16
+  ],
+  "frames": 3
+ },
+ "loot_crate": {
+  "frame": [
+   12,
+   12
+  ],
+  "frames": 2
+ },
+ "note": "Ships are frame-local: waterline_y is the row that sits on the sea. Sail lane: waterline at screen y 158-166 (just below HORIZON 150, behind the island). They face left; flipX to sail right."
+}

@@ -51,8 +51,9 @@ export class Mists {
   // A wave starts. options: Progress.waveOptions.
   start(wave, { island = null, finale = null } = {}) {
     this.stop();
+    // The Blackbones' Lantern and the active meal's Ghost Carp Soup ease it.
     const lantern = this.scene.progress?.partEffect('blackbones_lantern');
-    this.penalty = lantern ? PARTS.effects.blackbones_lantern.fogPenalty : 1;
+    this.penalty = (lantern ? PARTS.effects.blackbones_lantern.fogPenalty : 1) * (this.scene.progress?.mealMods.fog ?? 1);
     const spec = island?.fogBank;
     if (!spec) return;
     if (finale?.weather === 'fog') {

@@ -31,6 +31,8 @@ import { BattleStats, mvpOf } from '../systems/BattleStats.js';
 import { initParts, materialOf, PARTS_JSON_KEY } from '../systems/Parts.js';
 import { initPacks, packOf, PACKS_JSON_KEY } from '../systems/Packs.js';
 import { ShipParts } from '../systems/ShipParts.js';
+import { Merchants } from '../systems/Merchants.js';
+import { MealEffects } from '../systems/Meals.js';
 import { AbilityBar } from '../ui/AbilityBar.js';
 import { Button } from '../ui/Button.js';
 import { ConfirmDialog } from '../ui/ConfirmDialog.js';
@@ -113,6 +115,14 @@ export class GameScene extends Phaser.Scene {
     this.mists = new Mists(this);       // Fogbound Isle's fog banks and graves
     this.currents = new Currents(this); // the Abyss's currents
     this.shipParts = new ShipParts(this);   // the equipped ship parts' effects
+    this.meals = new MealEffects(this);     // the active meal's heal
+    // Passing merchant ships to plunder.
+    this.merchants = new Merchants(this, {
+      onPlunder: () => {
+        this.refreshUi();
+        this.save();
+      },
+    });
     this.hunt = null;   // the Boss Hunt being fought: { boss, island, level }
     // Scene events outlive a restart, so unhook on shutdown to avoid double handlers.
     const handlers = {
@@ -149,6 +159,11 @@ export class GameScene extends Phaser.Scene {
     this.announcePacks();
     // A dive left mid-depth picks up at that depth's start.
     if (this.progress.inAbyss) this.showBanner(ABYSS.name.toUpperCase(), { detail: `BACK AT DEPTH ${formatNum(this.progress.depth)}` });
+  }
+
+  // Another scene (a menu or overlay) is open over the battle.
+  get overlayOpen() {
+    return this.scene.manager.getScenes(true).some((s) => s !== this);
   }
 
   // Every island weather (each shows where its island has its flag).
@@ -531,6 +546,7 @@ export class GameScene extends Phaser.Scene {
     for (const bounty of this.progress.recordDefeat(enemy.key)) this.notices.bounty(enemy.key, bounty);
     const gold = this.progress.earnGold(this.progress.boostGold(enemy.gold));
     this.waveGold += gold;
+    this.merchants.noteGold(gold);
     this.progress.noteDiveGold(gold);
     const top = enemy.y - enemy.def.height / 2;
     this.floatText(enemy.x, top - 6, `+${formatNum(gold)}`, GOLD_TEXT);
@@ -606,6 +622,7 @@ export class GameScene extends Phaser.Scene {
         attackInterval: (HEROES[id].attackInterval ?? 0) / buff.attackSpeed,
         buffed: buff.buffed,
         aura: buff.aura,
+        bossDamage: buff.bossDamage,
       });
     });
     this.abilities.setCrew(this.heroes, p);
@@ -729,6 +746,7 @@ export class GameScene extends Phaser.Scene {
   startDive({ from, seed }) {
     const gold = this.progress.startDive(from, seed);
     if (gold == null) return;
+    this.merchants.reset();
     this.showBattlefield();
     this.rebuildHeroes();   // the Tide's skipped stacks
     const { skipped, depth } = this.progress.abyss.run;
@@ -742,6 +760,7 @@ export class GameScene extends Phaser.Scene {
   // The dive ended from the map (sailing to an island, or a hunt): back to
   // the island, saying how deep it went. summary: Progress.endDive's.
   leftAbyss(summary) {
+    this.merchants.reset();
     this.showBattlefield();
     this.rebuildHeroes();   // no more Tide
     const record = summary.newRecord ? `NEW RECORD - DEPTH ${formatNum(summary.depth)}` : `LEFT AT DEPTH ${formatNum(summary.depth)}`;
@@ -770,6 +789,7 @@ export class GameScene extends Phaser.Scene {
   // backdrop and weather, and a banner.
   arriveAtIsland() {
     const { island } = this.progress;
+    this.merchants.reset();
     this.showBattlefield();
     this.showBanner(`SAILING TO ${island.name.toUpperCase()}`);
   }
@@ -840,6 +860,7 @@ export class GameScene extends Phaser.Scene {
     this.mists.start(wave, options);      // and its fog bank
     this.currents.start(options);
     this.shipParts.start(p);
+    this.meals.start(p);
     this.abilities.resetCooldowns();
     const { finale, island } = options;
     const boss = !dive && isBossWave(wave) ? ENEMIES[hunt ? hunt.boss : bossOf(wave, island)] : null;
@@ -903,6 +924,7 @@ export class GameScene extends Phaser.Scene {
     this.mists.stop();
     this.currents.stop();
     this.shipParts.stop();
+    this.meals.stop();
     this.abilities.clear();
     for (const h of this.heroes) h.clearAbilities();
     for (const e of this.enemies) e.destroy();
@@ -914,6 +936,7 @@ export class GameScene extends Phaser.Scene {
     this.ashfall.calm();
     this.snowfall.calm();
     let summary = null;   // a dive that just ended (Progress.endDive)
+    const meal = this.progress.meal?.id;
     if (hunt) {
       this.endHunt(hunt, won);
     } else if (dive) {
@@ -922,6 +945,7 @@ export class GameScene extends Phaser.Scene {
       const wave = this.progress.wave;
       const { gold, pearls, finale } = this.progress.winWave();
       this.waveGold += gold;
+      this.merchants.noteGold(gold);
       this.endingDue = !!finale?.ending;
       if (finale) {
         // The island is cleared: its reward, and what it unlocks (the world
@@ -944,6 +968,11 @@ export class GameScene extends Phaser.Scene {
     }
     // Won or lost, the wave's gold per minute counts toward expeditions'.
     if (!hunt) this.progress.logGold(this.waveGold, this.waveTime);
+    // The meal ran out with this win: the crew and hull without it.
+    if (meal && !this.progress.meal) {
+      this.ship.sync(this.progress);
+      this.rebuildHeroes();
+    }
     const mvp = record && mvpOf(record);
     if (mvp) this.notices.mvp(mvp.id, mvp.damage);
     this.ship.restore();
@@ -977,6 +1006,7 @@ export class GameScene extends Phaser.Scene {
       this.showBanner(summary.newRecord ? `NEW RECORD - DEPTH ${formatNum(summary.depth)}` : 'SHIP SUNK!', {
         detail: `THE ABYSS TOOK YOU AT DEPTH ${formatNum(summary.depth)}`, color: summary.newRecord ? UI.colors.text : UI.colors.warn,
       });
+      this.merchants.reset();
       this.showBattlefield();
       this.rebuildHeroes();   // no more Tide
       return summary;
@@ -984,6 +1014,7 @@ export class GameScene extends Phaser.Scene {
     const { depth, gold, milestone } = p.winDepth();
     this.rebuildHeroes();   // one more Tide stack
     this.waveGold += gold;
+    this.merchants.noteGold(gold);
     const parts = [`+${formatNum(gold)} GOLD`];
     if (milestone) {
       sfx.reveal('legendary', true);
@@ -1067,6 +1098,8 @@ export class GameScene extends Phaser.Scene {
 
   update(_time, delta) {
     this.notices.update(Math.min(delta, 100));
+    // A merchant sails on at the battle's speed (1x between waves).
+    this.merchants.update(Math.min(delta, 100) * this.time.timeScale);
     this.storm.update(Math.min(delta, 100));
     for (const w of this.weathers) w.update(Math.min(delta, 100));
     this.watchExpeditions(delta);
@@ -1115,7 +1148,13 @@ export class GameScene extends Phaser.Scene {
     this.mists.update(dt);
     this.currents.update(dt);
     this.shipParts.update(dt);
+    this.meals.update(dt);
     this.abilities.update(dt, this.progress.autoAbilities);
+    // Merchants: not in a hunt, nor while a boss is alive or an overlay is open.
+    if (!this.hunt) {
+      const bossAlive = this.enemies.some((e) => e.alive && e.def.boss);
+      this.merchants.tick(dt, { canSail: !bossAlive && !this.overlayOpen, bossAlive });
+    }
 
     for (const h of this.heroes) {
       const shot = h.update(dt, this.enemies);

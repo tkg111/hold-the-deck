@@ -3,14 +3,15 @@ import { LAYOUT } from '../layout.js';
 import { SHIP_SLOTS_KEY, shipFrontKey, shipStageKey } from '../sprites.js';
 import { overlayKey, PART_DATA, partOf } from '../systems/Parts.js';
 
-// Draw order, back to front, as layout.json's drawOrder: background (and the
-// Frost Wyrm on its iceberg), ship, crew, enemies, The Kraken (and its
+// Draw order, back to front, as layout.json's drawOrder: background (a
+// passing merchant ship just over it, and the Frost Wyrm on its iceberg), ship, crew, enemies, The Kraken (and its
 // splash), the animated foreground, an island's front layer (Frostbite Reef's
 // pines), then the ship's front railing layer. Flying enemies are in front of
 // all that (they dive at the decks); slot markers and enemy HP bars go on top
 // of the scene; projectiles and UI stay above all of these.
 export const DEPTH = {
   background: -20,
+  merchant: -19.8,     // passing merchant ships (Merchants.js), on the far sea
   perch: -19.5,        // the Frost Wyrm, in the background
   ship: -19,
   shipParts: -18.9,    // the equipped parts' overlays, over the ship and under the crew

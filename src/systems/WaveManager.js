@@ -283,7 +283,9 @@ export class WaveManager {
     this.spawned = [];
     this.total = this.queue.length;  // for the enemies-left bar
     const { abyss } = options;
-    this.scaling = abyss ? depthScaling(abyss.depth, abyss.currents) : waveScaling(wave + (options.offset ?? 0), options.island);
+    this.scaling = abyss
+      ? depthScaling(abyss.depth, abyss.currents, abyss.growth)
+      : waveScaling(wave + (options.offset ?? 0), options.island);
     this.eliteStyle = abyss ? ABYSS.elites : null;
     this.hullShare = abyss ? ABYSS.hullShare : 1;
     this.island = options.island ?? null;

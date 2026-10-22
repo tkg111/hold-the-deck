@@ -14,6 +14,7 @@ const TABS = [
   { key: 'last', label: 'Last Wave' },
   { key: 'recent', label: 'Last 5 Waves' },
   { key: 'taken', label: 'Damage Taken' },
+  { key: 'stats', label: 'Stats' },
 ];
 const LEGEND = { attack: 'ATTACKS', ability: 'ABILITIES', effect: 'EFFECTS' };
 
@@ -28,12 +29,12 @@ const SUPPORT_LABEL = {
 const plural = (n, word) => `${formatNum(n)} ${word}${n === 1 ? '' : 'S'}`;
 const percent = (part, whole) => `${whole > 0 ? Math.round(100 * part / whole) : 0}%`;
 
-// The Captain's Log (battle stats): a parchment panel with three tabs. Last
-// Wave and Last 5 Waves list each crewmate's damage (a bar split into
-// attacks / abilities / effects, highest first, the top one marked MVP) with
-// their kills, ability uses and support stat; Damage Taken lists the hull
-// damage each enemy type did over the waves kept. Launched with
-// { progress, onClose }.
+// The Captain's Log (battle stats): a parchment panel with tabs. Last Wave
+// and Last 5 Waves list each crewmate's damage (a bar split into attacks /
+// abilities / effects, highest first, the top one marked MVP) with their
+// kills, ability uses and support stat; Damage Taken lists the hull damage
+// each enemy type did over the waves kept; Stats lists the voyage's totals.
+// Launched with { progress, onClose }.
 export class LogScene extends Phaser.Scene {
   constructor() {
     super('LogScene');
@@ -96,7 +97,9 @@ export class LogScene extends Phaser.Scene {
     this.rows = [];
     this.scrolls = false;
     const log = this.records;
-    if (!log.length) {
+    if (this.tab === 'stats') {
+      this.drawStats();
+    } else if (!log.length) {
       this.summary.setText('');
       this.message('NO BATTLES LOGGED YET. SET SAIL!');
     } else if (this.tab === 'taken') {
@@ -108,16 +111,22 @@ export class LogScene extends Phaser.Scene {
     this.layoutRows();
   }
 
-  // The tab buttons along the top of the parchment: gold for the open one.
+  // The tab buttons along the top of the parchment, each as wide as its
+  // label needs (at least BATTLE_LOG.tabWidth): gold for the open one.
   drawTabs() {
     const P = BATTLE_LOG.panel;
-    const w = BATTLE_LOG.tabWidth;
     this.tabs.removeAll(true);
-    TABS.forEach(({ key, label }, i) => {
-      this.tabs.add(new Button(this, P.x + 10 + w / 2 + i * (w + 4), P.y + 14, {
+    let x = P.x + 10;
+    for (const { key, label } of TABS) {
+      // (Measured in the light font: wood tabs' outlined text is wider.)
+      const probe = text(this, 0, 0, label, light());
+      const w = Math.max(BATTLE_LOG.tabWidth, probe.inkWidth + 10);
+      probe.destroy();
+      this.tabs.add(new Button(this, x + w / 2, P.y + 14, {
         width: w, height: 18, label, style: key === this.tab ? 'gold' : 'wood', onClick: () => this.select(key),
       }));
-    });
+      x += w + 4;
+    }
   }
 
   message(str) {
@@ -213,6 +222,22 @@ export class LogScene extends Phaser.Scene {
     this.scrolls = this.rows.length > BATTLE_LOG.visibleRows;
     const n = records.length;
     this.drawLegend([{ label: n === 1 ? 'HULL DAMAGE, LAST WAVE' : `HULL DAMAGE, LAST ${n} WAVES` }]);
+  }
+
+  // Stats: the voyage's totals, a row each.
+  drawStats() {
+    const p = this.progress;
+    this.summary.setText('THE VOYAGE SO FAR');
+    const defeated = Object.values(p.defeats).reduce((s, n) => s + n, 0);
+    const stats = [
+      ['ENEMIES DEFEATED', defeated],
+      ['MERCHANTS PLUNDERED', p.merchantsPlundered],
+    ];
+    this.rows = stats.map(([label, value]) => this.add.container(0, 0, [
+      text(this, 4, 10, label, dark()),
+      text(this, this.innerWidth - 4, 10, formatNum(value), dark()).setOrigin(1, 0),
+    ]));
+    this.scrolls = this.rows.length > BATTLE_LOG.visibleRows;
   }
 
   // A bar_frame w x 10 at (x, y), filled with segments ({ value, color })

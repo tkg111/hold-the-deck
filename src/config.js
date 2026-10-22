@@ -1675,7 +1675,7 @@ export const BATTLE_LOG = {
   colors: { attack: '#c0582c', ability: '#3d78c2', effect: '#5e9e3a' },
   // The panel (base pixels): parchment, tab buttons, rows.
   panel: { x: 16, y: 30, width: 448, height: 236 },
-  tabWidth: 92,
+  tabWidth: 60,         // at least; wider where the label needs it
   infoY: 60,            // the line under the tabs: summary and bar legend
   rowsY: 70,            // first row's top
   rowHeight: 32,
@@ -2570,6 +2570,186 @@ export const MOTES = {
   fps: 5,
   fadeMs: 1200,
   heavy: { tint: 0x000000, tintAlpha: 0, layers: 0, drift: { x: 0, y: 0 }, fadeMs: 1200 },
+};
+
+// Passing merchant ships (src/systems/Merchants.js; art and frame data in
+// public/sprites/merchants/, merchants.json). During island waves and Abyss
+// depths (not Boss Hunts, not while a boss is alive or an overlay is open)
+// a merchant sails across the far sea, behind the ship; tapping it fires a
+// cannonball at it for plunder. Never required: one nobody taps just leaves.
+//   firstAt / every: [min, max] game ms of battle (waves only; the clock
+//          carries over between waves) before the first ship, then between
+//          ships. One on screen at a time.
+//   types: weight (chance), speed (px/s) and plunder of each ship: gold x G
+//          (G = goldSeconds of the player's gold income: gold per second
+//          of battle over the last goldWindowMs, at least floorKills kills
+//          of the wave's basic enemy), Spice (spiceChance of one more),
+//          Bait, and materialChance of one random boss material from a boss
+//          already beaten.
+//   lane: the ship's waterline on screen (waterY) and where its bow starts
+//          fading out (fadeX), over fadeMs; `lanes` overrides it per
+//          battlefield (island id, or the Abyss's) where the backdrop has
+//          something in the way (Frostbite Reef's iceberg, Fogbound Isle's
+//          wreck, the Abyss's pillar), so a merchant is gone before it.
+//   bobFps: its sail frames (0-2); hitPad: px round the frame that still
+//          count as a tap on it.
+//   shot: a cannonball from the bow (ship image pixels) in an arc of
+//          arcHeight px over ms. On a hit: the struck frame, speed x slow,
+//          a loot crate rising crateRise px while the plunder text rises,
+//          both fading over crateMs, and the ship fading over fadeMs.
+export const MERCHANTS = {
+  path: 'merchants/',   // under SPRITES.path
+  firstAt: [45000, 75000],
+  every: [70000, 130000],
+  types: {
+    trade_cog: { name: 'Trade Cog', weight: 0.7, speed: 24, gold: 1 },
+    spice_runner: {
+      name: 'Spice Runner', weight: 0.22, speed: 34, gold: 0.5, spice: 1, spiceChance: 0.3, bait: 1,
+    },
+    treasure_galleon: {
+      name: 'Treasure Galleon', weight: 0.08, speed: 18, gold: 3, spice: 2, bait: 2, materialChance: 0.15,
+    },
+  },
+  goldSeconds: 10,
+  goldWindowMs: 60000,
+  floorKills: 5,
+  lane: { waterY: 160, fadeX: 360, fadeMs: 1000 },
+  lanes: {
+    frostbite_reef: { fadeX: 195 },
+    fogbound_isle: { fadeX: 232 },
+    abyss: { waterY: 156, fadeX: 195 },
+  },
+  bobFps: 3,
+  hitPad: 6,
+  shot: { from: { x: 150, y: 100 }, ms: 500, arcHeight: 28 },
+  slow: 0.4,
+  fadeMs: 2000,
+  crateRise: 20,
+  crateMs: 1400,
+  // Plunder text colours (over the scene): gold, Spice, Bait, materials.
+  colors: { gold: '#ffd86a', spice: '#ff9a4a', bait: '#ff8a9a', material: '#c8ffe0' },
+};
+
+// Fishing (GalleyScene's Fishing tab, src/systems/Fishing.js). Art and the
+// fish list (ids, names, rarities, home island) in public/sprites/fishing/,
+// fishing.json. The angler stands in deck 1's forward slot: his frame's
+// top-left at the ship's position + angler, between the ship and its front
+// railing.
+//   bait: a cast costs one. Up to cap (capWithWhaler once the Whaler is in
+//          the crew) come back on their own, one per regenMs of real time
+//          (offline too); merchants and expeditions can bring more than
+//          that. A new save starts full.
+//   cast: the wind-up (castBackMs), then the bobber flies over flightMs in an
+//          arc arcHeight px high to a random x in bobberX, its waterline
+//          on layout.waterY. lineColor: the line, from the rod tip.
+//   wait: [min, max] ms before the bite; nibbleChance of a fake nibble first
+//          (the bobber dips for nibbleMs, no "!"; tapping then reels in
+//          early and the bait is gone).
+//   bite: biteMs to tap once the "!" shows, or it gets away.
+//   reel: the timing bar (bar_frame, width x height) with its catch zone
+//          and marker sweeping across it (rarities: zone width share and
+//          one sweep's ms). hits to land it (legendaryHits for a
+//          Legendary), strikes misses and it escapes; every hit moves the
+//          zone and speeds the marker up by speedUp.
+//   rarities: chance of each (rolled at the bite, not shown), and the
+//          name's colour.
+//   pools: the fish of each rarity by spot (an island id, the Abyss's, or
+//          `any`): [fish id, weight] pairs. An island's own uncommon fish
+//          is `local` of its uncommon rolls (the rest split the plain ones).
+//   firstCatchSpice: Spice for the first ever catch of each fish.
+//   holdFish: the fish shown at 2x when it's held up, centred here in the
+//          angler's frame.
+export const FISHING = {
+  path: 'fishing/',     // under SPRITES.path
+  bait: { cap: 6, capWithWhaler: 8, whaler: 'whaler', regenMs: 20 * 60e3 },
+  angler: { x: 110, y: 73 },
+  cast: { castBackMs: 250, flightMs: 600, arcHeight: 36, bobberX: [250, 330], lineColor: 0xe8eef2, sag: 3 },
+  wait: { min: 2000, max: 6000, nibbleChance: 0.3, nibbleMs: 200 },
+  bite: { ms: 800 },
+  reel: {
+    width: 140, height: 12, y: 196, hits: 3, legendaryHits: 4, strikes: 2, speedUp: 0.15,
+    zone: 0x3fae3f, hitColor: '#7fd36a', missColor: '#ff6a5a',
+  },
+  rarities: {
+    junk: { chance: 0.08, zone: 0.35, sweepMs: 1200, color: '#a8a8a8', label: 'Junk' },
+    common: { chance: 0.52, zone: 0.30, sweepMs: 1100, color: '#fff3d6', label: 'Common' },
+    uncommon: { chance: 0.28, zone: 0.22, sweepMs: 1000, color: '#7fd36a', label: 'Uncommon' },
+    rare: { chance: 0.11, zone: 0.15, sweepMs: 900, color: '#5aa9f0', label: 'Rare' },
+    legendary: { chance: 0.01, zone: 0.10, sweepMs: 800, color: '#ffb03a', label: 'Legendary' },
+  },
+  pools: {
+    junk: { any: [['old_boot', 1]] },
+    common: { any: [['sardine', 1], ['mackerel', 1]] },
+    uncommon: {
+      any: [['red_snapper', 1], ['pufferfish', 1]],
+      local: 0.5,
+      ember_isle: [['ember_eel', 1]],
+      frostbite_reef: [['ice_cod', 1]],
+      fogbound_isle: [['ghost_carp', 1]],
+      abyss: [['red_snapper', 1], ['pufferfish', 1], ['ember_eel', 1], ['ice_cod', 1], ['ghost_carp', 1]],
+    },
+    rare: {
+      any: [['swordfish', 1]],
+      skull_cove: [['moonfish', 1], ['swordfish', 1]],
+      abyss: [['abyss_angler', 0.6], ['swordfish', 0.4]],
+    },
+    legendary: { any: [['golden_koi', 1]] },
+  },
+  firstCatchSpice: 1,
+  holdFish: { x: 22, y: -12, scale: 2 },
+  messageMs: 1600,
+};
+
+// Meals (GalleyScene's Cooking tab): a recipe shows once each of its fish
+// has been caught; cooking puts the meal in the Pantry, Eat makes it the
+// active meal (one at a time) for `waves` cleared waves (an Abyss depth and
+// a Boss Hunt count as one), caretakerWaves more if anyone on the ship has
+// the Caretaker trait. needs: fish (fishing.json ids) and Spice. Effects
+// (shares, e.g. 0.1 = +10%):
+//   gold: gold from kills, wave clears, depths and hunts
+//   damage / attackSpeed: the crew's
+//   hull: max hull HP
+//   heal: max hull mended every healEveryMs of a wave (the hull is full when
+//         each wave starts)
+//   bossDamage: crew attacks on bosses
+//   lavaDamage: lava bomb hits (negative = less)
+//   freeze: how long blizzard freezes last (Frostbite Reef's and the
+//         Abyss's), negative = shorter
+//   charm / fog: Siren charms' length (the Siren Queen's, Siren's Call) and
+//         a fog bank's range penalty, negative = less
+//   abyssGrowth: the Abyss's rising tide (enemy HP and damage growth per
+//         depth) counts this much lower
+// note: an extra line on the recipe card.
+export const MEALS = {
+  caretakerWaves: 5,
+  caretakerTrait: 'caretaker',
+  healEveryMs: 10000,
+  list: {
+    fish_stew: { needs: { sardine: 3 }, waves: 10, gold: 0.1 },
+    grilled_mackerel: { needs: { mackerel: 3 }, waves: 10, attackSpeed: 0.08 },
+    snapper_curry: { needs: { red_snapper: 2, spice: 1 }, waves: 10, damage: 0.12 },
+    puffer_sashimi: { needs: { pufferfish: 2 }, waves: 10, damage: 0.25, hull: -0.15 },
+    moonfish_pie: { needs: { moonfish: 1, sardine: 2 }, waves: 10, heal: 0.02 },
+    swordfish_steak: { needs: { swordfish: 1, spice: 1 }, waves: 10, bossDamage: 0.2 },
+    ember_eel_skewers: { needs: { ember_eel: 2, spice: 1 }, waves: 10, lavaDamage: -0.5, damage: 0.05 },
+    ice_cod_chowder: { needs: { ice_cod: 2, spice: 1 }, waves: 10, freeze: -0.5, hull: 0.1 },
+    ghost_carp_soup: { needs: { ghost_carp: 2, spice: 1 }, waves: 10, charm: -0.5, fog: -0.5 },
+    angler_bake: { needs: { abyss_angler: 1, spice: 2 }, waves: 10, abyssGrowth: -0.25 },
+    golden_koi_feast: {
+      needs: { golden_koi: 1, spice: 2 }, waves: 20, gold: 0.4, damage: 0.1, attackSpeed: 0.1,
+    },
+    boot_soup: { needs: { old_boot: 3 }, waves: 10, gold: 0.01, note: 'It tastes awful.' },
+  },
+};
+
+// The Galley screen (GalleyScene, base pixels): its tabs, the fishing
+// spot picker and the cooking tab's recipe grid; and the battle HUD's
+// active meal (icon and waves left) under the gold plaque.
+export const GALLEY = {
+  tabWidth: 84,
+  spots: { y: 34, width: 66, height: 18, gap: 3 },
+  recipes: { x: 12, y: 46, cols: 3, cardWidth: 148, cardHeight: 44, gapX: 4, gapY: 4, rows: 4 },
+  hud: { x: 401, y: 33 },
 };
 
 // Upgrade cost at level L: round(baseCost * costGrowth ^ L)

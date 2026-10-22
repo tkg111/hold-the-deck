@@ -60,12 +60,13 @@ export class Volcano {
       const deck = decks[i % decks.length];
       const spot = ship.deckSpot(deck);
       const jitter = i < decks.length ? 0 : (Math.random() * 2 - 1) * spec.jitter;
-      // Not scaled by the wave: its hit is a share of the hull, and any
-      // anti-air hit pops it.
+      // Not scaled by the wave: its hit is a share of the hull (less with
+      // the active meal's Ember Eel Skewers), and any anti-air hit pops it.
       scene.enemies.push(new Enemy(scene, ENEMIES.lavaBomb, {
         x: Math.round(spot.x + jitter),
         hpMultiplier: 1,
         damageMultiplier: 1,
+        hullShare: scene.progress?.mealMods.lavaDamage ?? 1,
         gold: 0,
         fall: { deck, feetY: spot.feetY, fromY: spec.fromY, ms: spec.warnMs },
       }));

@@ -1,5 +1,5 @@
 import {
-  ABYSS, ASHFALL, ENEMIES, FX, ISLANDS, MAP, MIST, MOTES, PACKS, PARTS, SHIP, SNOWFALL, SPRITES, STORM,
+  ABYSS, ASHFALL, ENEMIES, FISHING, FX, ISLANDS, MAP, MERCHANTS, MIST, MOTES, PACKS, PARTS, SHIP, SNOWFALL, SPRITES, STORM,
 } from './config.js';
 import { initLayout, LAYOUT } from './layout.js';
 import {
@@ -143,6 +143,54 @@ function preloadAbyss(load) {
   load.image(mapKey(ABYSS.id), `${path}${ABYSS.map.file}`);
 }
 
+// Passing merchant ships (MERCHANTS.path, merchants.json: each ship's frame
+// size, frames, waterline and wake anchor, and the effects' frames): a
+// sheet per ship, the wake, hit puff and loot crate sheets and the
+// cannonball. Ships animate as merchantKey(<ship>) + '_sail'.
+export const MERCHANTS_JSON_KEY = 'merchants';
+export const merchantKey = (name) => `merchant_${name}`;
+
+function preloadMerchants(load) {
+  const { path } = MERCHANTS;
+  load.json(MERCHANTS_JSON_KEY, `${path}merchants.json`);
+  load.once(`filecomplete-json-${MERCHANTS_JSON_KEY}`, (key, type, data) => {
+    const sheet = (name, file, [frameWidth, frameHeight]) => load.spritesheet(merchantKey(name), `${path}${file}`, { frameWidth, frameHeight });
+    for (const [id, ship] of Object.entries(data.ships)) sheet(id, `${id}_sheet.png`, ship.frame);
+    for (const name of ['wake', 'hit_puff', 'loot_crate']) sheet(name, `${name}_sheet.png`, data[name].frame);
+  });
+  load.image(merchantKey('cannonball'), `${path}cannonball.png`);
+}
+
+// Fishing and the Galley (FISHING.path, fishing.json: the fish and meals in
+// their sheets' order, the angler's poses and rod tips, the bobber's frames
+// and waterline): a sheet per name in FISHING_SHEETS (texture
+// fishingKey(name)), the alert and the reel marker.
+export const FISHING_JSON_KEY = 'fishing';
+export const fishingKey = (name) => `fishing_${name}`;
+// Sheet name -> [fishing.json entry, file].
+const FISHING_SHEETS = {
+  fish: ['fish', 'fish_sheet.png'],
+  meals: ['meals', 'meals_sheet.png'],
+  items: ['items', 'items_sheet.png'],
+  icons: ['icons12', 'icons12.png'],
+  angler: ['angler', 'angler_sheet.png'],
+  bobber: ['bobber', 'bobber_sheet.png'],
+  splash: ['splash', 'splash_sheet.png'],
+};
+
+function preloadFishing(load) {
+  const { path } = FISHING;
+  load.json(FISHING_JSON_KEY, `${path}fishing.json`);
+  load.once(`filecomplete-json-${FISHING_JSON_KEY}`, (key, type, data) => {
+    for (const [name, [entry, file]] of Object.entries(FISHING_SHEETS)) {
+      const [frameWidth, frameHeight] = data[entry].frame;
+      load.spritesheet(fishingKey(name), `${path}${file}`, { frameWidth, frameHeight });
+    }
+  });
+  load.image(fishingKey('alert'), `${path}alert.png`);
+  load.image(fishingKey('reel_marker'), `${path}reel_marker.png`);
+}
+
 function preloadMap(load) {
   load.image(mapKey('bg'), `${MAP.path}map_bg.png`);
   load.image(mapKey('flag'), `${MAP.path}flag_cleared.png`);
@@ -217,6 +265,8 @@ export function preloadSprites(scene) {
   preloadMap(load);
   preloadParts(load);
   preloadPacks(load);
+  preloadMerchants(load);
+  preloadFishing(load);
   for (const { key: file, dir } of ANIMATION_FILES) {
     load.json(file, `${dir}${file}.json`);
     load.once(`filecomplete-json-${file}`, (key, type, data) => {
@@ -259,6 +309,7 @@ export function createAnimations(scene) {
       repeat: -1,
     });
   }
+  createGalleyAnimations(scene);
   // Effects with more than one frame animate as fx_<name>; repeat 0 ones
   // play once and hold their last frame.
   const effects = FX_FILES.flatMap(({ key }) => Object.entries(scene.cache.json.get(key) ?? {}));
@@ -286,6 +337,31 @@ export function createAnimations(scene) {
         repeat,
       });
     }
+  }
+}
+
+// The merchants' (a ship's sail bob, the wake, the hit puff, the loot
+// crate) and fishing's (the angler's idle, the bobber floating, the splash)
+// animations: "<texture>_<anim>".
+function createGalleyAnimations(scene) {
+  const make = (texture, anim, frames, frameRate, repeat = -1) => {
+    const key = `${texture}_${anim}`;
+    if (scene.anims.exists(key) || !scene.textures.exists(texture)) return;
+    scene.anims.create({ key, frames: scene.anims.generateFrameNumbers(texture, { frames }), frameRate, repeat });
+  };
+  const ships = scene.cache.json.get(MERCHANTS_JSON_KEY);
+  if (ships) {
+    for (const [id, ship] of Object.entries(ships.ships)) make(merchantKey(id), 'sail', ship.anims.sail, MERCHANTS.bobFps);
+    const range = (n) => [...Array(n).keys()];
+    make(merchantKey('wake'), 'loop', range(ships.wake.frames), 6);
+    make(merchantKey('hit_puff'), 'pop', range(ships.hit_puff.frames), 10, 0);
+    make(merchantKey('loot_crate'), 'loop', range(ships.loot_crate.frames), 4);
+  }
+  const fishing = scene.cache.json.get(FISHING_JSON_KEY);
+  if (fishing) {
+    make(fishingKey('angler'), 'idle', fishing.angler.anims.idle, 2);
+    make(fishingKey('bobber'), 'float', fishing.bobber.anims.float, 2);
+    make(fishingKey('splash'), 'pop', [...Array(fishing.splash.frames).keys()], 12, 0);
   }
 }
 

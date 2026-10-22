@@ -95,13 +95,19 @@ export function depthCurrents(seed, depth) {
 // active ones; Armoured adds HP). HP also grows ABYSS.hpGrowth per depth on
 // top of the wave curve (against the Abyss Tide). Damage: depth 1's (the start wave's, capped
 // as on its island) growing ABYSS.damageGrowth per depth with no cap.
-export function depthScaling(depth, currents = []) {
+// growth: those two per-depth growths count as if only this share of the
+// depths past the first had gone by (the Abyss Angler Bake; 1 = all).
+export function depthScaling(depth, currents = [], growth = 1) {
   const island = startIsland();
   const s = waveScaling(depthScalingWave(depth), island);
   const first = waveScaling(depthScalingWave(1), island).damage;
   const armoured = currents.includes('armoured') ? ABYSS.currents.armoured.hp : 1;
-  const deeper = (1 + ABYSS.hpGrowth) ** (depth - 1);
-  return { hp: s.hp * armoured * deeper, damage: first * (1 + ABYSS.damageGrowth) ** (depth - 1), gold: s.gold * ABYSS.goldMult };
+  const deeper = (depth - 1) * growth;
+  return {
+    hp: s.hp * armoured * (1 + ABYSS.hpGrowth) ** deeper,
+    damage: first * (1 + ABYSS.damageGrowth) ** deeper,
+    gold: s.gold * ABYSS.goldMult,
+  };
 }
 
 // A depth's spawn plan (WaveManager's composeWave shape): groups of its
@@ -199,8 +205,9 @@ export function abyssIsland(currents = []) {
 }
 
 // What a depth is fought with: Progress.waveOptions' shape, plus wave (the
-// island wave it plays like) and abyss { seed, depth, currents, fresh }.
-export function depthOptions(seed, depth) {
+// island wave it plays like) and abyss { seed, depth, currents, fresh,
+// growth (see depthScaling) }.
+export function depthOptions(seed, depth, { growth = 1 } = {}) {
   const { active, fresh } = depthCurrents(seed, depth);
   const island = abyssIsland(active);
   return {
@@ -210,7 +217,7 @@ export function depthOptions(seed, depth) {
     finale: null,
     countFactor: 1,
     abyss: {
-      seed, depth, currents: active, fresh,
+      seed, depth, currents: active, fresh, growth,
     },
   };
 }

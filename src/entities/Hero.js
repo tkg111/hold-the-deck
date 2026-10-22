@@ -11,11 +11,12 @@ import {
 export class Hero {
   // damage and attackInterval come from Progress (level, stars, deck buffs);
   // aura ({ from, damage, speed }): The Captain's deck buff, if he buffs
-  // this crewmate (for the Captain's Log).
+  // this crewmate (for the Captain's Log); bossDamage: x damage of its
+  // attacks on bosses (the active meal's).
   // The hero stands with its feet at (x, feetY); this.y is the middle of its
   // body, where shots start.
   constructor(scene, id, { index, x, feetY }, {
-    damage, attackInterval, buffed = false, aura = null,
+    damage, attackInterval, buffed = false, aura = null, bossDamage = 1,
   }) {
     this.scene = scene;
     this.id = id;
@@ -28,6 +29,7 @@ export class Hero {
       attack: damageSource(id, 'attack'), ability: damageSource(id, 'ability'), effect: damageSource(id, 'effect'),
     };
     this.baseDamage = damage;
+    this.bossDamage = bossDamage;
     this.attackInterval = attackInterval;
     this.cooldown = 0;
     // Abilities: attack speed and damage boosts ({ kind, mult, time, fx }:
@@ -204,10 +206,10 @@ export class Hero {
   // Charmed for ms by `charmer` (the Siren Queen): it turns to face the ship
   // and its attacks hit the hull (see attackOwnShip), with CHARM.status
   // looping over its head. Not while still immune from the last one (see
-  // canBeCharmed).
+  // canBeCharmed). Shorter with the active meal's Ghost Carp Soup.
   charm(ms, charmer = null) {
     if (!this.canBeCharmed) return;
-    this.charmTime = Math.max(this.charmTime, ms);
+    this.charmTime = Math.max(this.charmTime, ms * (this.scene.progress?.mealMods.charm ?? 1));
     this.charmer = charmer;
     if (!this.charmMark) {
       this.charmMark = fxSprite(this.scene, CHARM.status, Math.round(this.x), Math.round(this.top) - FX.statusGap)
@@ -411,7 +413,8 @@ export class Hero {
     let damage = this.damage;
     for (const e of targets) {
       playFx(this.scene, chain.impact, e.x, e.y);
-      e.takeDamage(damage * (e.def.flies ? this.def.flyerBonus ?? 1 : 1), { source: this.source.attack });
+      const bonus = (e.def.flies ? this.def.flyerBonus ?? 1 : 1) * (e.def.boss ? this.bossDamage : 1);
+      e.takeDamage(damage * bonus, { source: this.source.attack });
       damage *= chain.falloff;
     }
     return new ChainLightning(this.scene, { points, sprite: chain.segment, showMs: chain.segmentMs });
@@ -495,6 +498,7 @@ export class Hero {
       }
       if (lunge) playFx(this.scene, lunge.impact, e.x, e.y, FX_DEPTH + 1);
       if (flyerBonus && e.def.flies) damage *= flyerBonus;
+      if (e.def.boss) damage *= this.bossDamage;
       e.takeDamage(damage, {
         lobbed: !!lob, throughShield: !!passesShields, ignoreArmor: !!ignoresArmor, source,
       });

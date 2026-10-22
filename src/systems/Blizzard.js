@@ -74,11 +74,13 @@ export class Blizzard {
     this.freezeSomeone();
   }
 
-  // A random crewmate not frozen yet freezes.
+  // A random crewmate not frozen yet freezes (for less with the active
+  // meal's Ice Cod Chowder).
   freezeSomeone() {
     const crew = this.scene.heroes.filter((h) => !h.isFrozen);
     if (!crew.length) return;
-    crew[Math.floor(Math.random() * crew.length)].freeze(this.spec.freezeMs, 'blizzard');
+    const ms = this.spec.freezeMs * (this.scene.progress?.mealMods.freeze ?? 1);
+    crew[Math.floor(Math.random() * crew.length)].freeze(ms, 'blizzard');
   }
 
   // The wave is over: the blizzard blows out.

@@ -42,6 +42,7 @@ import { WaveManager } from '../../src/systems/WaveManager.js';
 import { initParts, partOf } from '../../src/systems/Parts.js';
 import { initPacks, packOf } from '../../src/systems/Packs.js';
 import { ShipParts } from '../../src/systems/ShipParts.js';
+import { MealEffects } from '../../src/systems/Meals.js';
 
 const RUNS = Number(process.argv[2] ?? 5);
 const MAX_WAVE = Number(process.argv[3] ?? 50);
@@ -191,7 +192,7 @@ Hero.prototype.charm = function charmAndMaybeTap(ms, charmer) {
 // current depth (a win: Progress.winDepth; a loss is for the caller to end).
 export function playWave(scene, progress, onStep = null, { hunt = null } = {}) {
   const {
-    ship, waves, volcano, blizzard, mists, currents, abilities, shipParts,
+    ship, waves, volcano, blizzard, mists, currents, abilities, shipParts, meals,
   } = scene;
   const dive = progress.inAbyss && !hunt;
   const options = hunt ? progress.huntOptions(hunt, progress.islandId) : dive ? progress.abyssOptions : progress.waveOptions;
@@ -207,6 +208,7 @@ export function playWave(scene, progress, onStep = null, { hunt = null } = {}) {
   mists.start(wave, options);
   currents.start(options);
   shipParts.start(progress);
+  meals.start(progress);
   abilities.resetCooldowns();
   let time = 0;
   let won = false;
@@ -221,6 +223,7 @@ export function playWave(scene, progress, onStep = null, { hunt = null } = {}) {
     mists.update(DT);
     currents.update(DT);
     shipParts.update(DT);
+    meals.update(DT);
     abilities.update(DT, true);
     for (const h of scene.heroes) {
       const shot = h.update(DT, scene.enemies);
@@ -248,6 +251,7 @@ export function playWave(scene, progress, onStep = null, { hunt = null } = {}) {
   mists.stop();
   currents.stop();
   shipParts.stop();
+  meals.stop();
   abilities.clear();
   for (const h of scene.heroes) h.clearAbilities();
   if (won && hunt) progress.winHunt(hunt, progress.islandId);
@@ -262,6 +266,7 @@ function rebuildHeroes(scene, p) {
     damage: p.heroDamage(id) * buffs[slot].damage,
     attackInterval: (HEROES[id].attackInterval ?? 0) / buffs[slot].attackSpeed,
     buffed: buffs[slot].buffed,
+    bossDamage: buffs[slot].bossDamage,
   }));
   scene.abilities.setCrew(scene.heroes, p);
 }
@@ -336,6 +341,7 @@ export function makeBattle(progress) {
   scene.currents = new Currents(scene);
   scene.abilities = new AbilitySystem(scene);
   scene.shipParts = new ShipParts(scene);
+  scene.meals = new MealEffects(scene);
   return scene;
 }
 
