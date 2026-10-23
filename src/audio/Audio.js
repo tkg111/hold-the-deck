@@ -48,7 +48,9 @@ class AudioEngine {
       if (!Ctx) return;
       this.start(new Ctx());
     }
-    if (this.ctx.state !== 'running' && !document.hidden) this.ctx.resume().catch(() => {});
+    // (A context made while the tab is hidden starts running: hush it.)
+    if (document.hidden) this.ctx.suspend().catch(() => {});
+    else if (this.ctx.state !== 'running') this.ctx.resume().catch(() => {});
   }
 
   // Build the graph on ctx (the headless tests pass a fake one).

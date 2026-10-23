@@ -29,6 +29,14 @@ Passion project — no real money, no ads. Everything is earned through play and
 - **Hero cards** (chest reveal, new-crewmate splash, Crew Roster): parchment under a wood plate naming the rarity, the hero's single `<name>.png` at 2x (scaled art is kept to whole-number scales: hero cards, the expedition screens' destination pictures at 2x and their 12px icons at 3x), name, pixel stars (with "+N" after them for Bonus Levels), level and (on the large card) effect, with the hero's **trait icon** (see Expeditions) in the top-left corner under the plate. A crewmate away on an expedition gets a dark band over their feet with the hourglass and the time left. Heroes not collected yet are a wood card with a black silhouette of their sprite and "???".
 - **Crew faces:** the Shipwright, hero picker, ability bar, Captain's Log, MVP plaque, chest reveal and expedition screens show each hero's face: a 16x14 crop of their single sprite starting at `faceTop` (`SPRITES.heroes` in config), set so tall hats (The Captain's tricorn, the Ship's Cook's toque, the Voodoo Priestess's headdress, the Duelist's plume, the Storm Caller's hood) are cut off and the eyes sit about halfway down. A face whose sprite isn't loaded falls back to a square in the hero's colour (never Phaser's black-and-green "missing" texture).
 
+## Title Screen
+
+Shown on every load (`TitleScene`, the first scene; numbers in `TITLE`, positions in `sprites/title/title.json`). It loads everything the game needs, so the battle starts at once after it.
+
+- **Layout:** the battle's tall layout: `title_bg.png` is 480x430 and its rows 100..369 are the 480x270 safe view, so a taller view shows more sky and sea. Back to front: the background; 3 gulls drifting left to right across y 120-220 (6-12 px/s each, wrapping) and flapping at 4 fps; `ship_stage3.png` and its front railings at (120, 196), bobbing 1px every 2.4 s; the waves (`title_sea_sheet.png`, 3 frames at 4 fps) at y 330 over the hull; `logo.png` centred at (240, 150), dropping in from above the view over 0.6 s (Back.easeOut) and then floating 2px; **TAP TO START** centred at (240, 354) in the main font, light with a dark 1px shadow, blinking 0.6 s on / 0.4 s off; and the version (`v` + package.json's) in the small font in the safe view's bottom-left corner.
+- **Tap to start:** any tap or key unlocks sound (it's the player's first input), clicks, and starts the `title` music; the logo, prompt and version fade out over 0.3 s and the game goes where it always opened: the battle (a new save's onboarding then starts with O1). Offline gains (Bait coming back, expeditions) are applied as before when the battle loads.
+- **Reduced motion** (`prefers-reduced-motion`): the logo is just there (no drop, no float) and TAP TO START blinks slower (1 s on, 1 s off); everything else is the same.
+
 ## Core Loop
 
 1. Player presses **Start Wave**. Hull HP is refilled to full before every wave.
@@ -660,7 +668,7 @@ The Captain (a pirate with a talking portrait) teaches a new save the basics and
 
 Music and sound effects, all numbers in `AUDIO` (config).
 
-- **Unlocking:** browsers only allow sound after the player's first input, so the game makes its AudioContext on the first pointer or key event anywhere (`src/audio/Audio.js`); Phaser's own sound is off (`audio.noAudio`), so nothing makes a context earlier and the browser never warns about one. A track asked for before that starts then. The context is suspended while the tab is hidden and resumed when it's shown again.
+- **Unlocking:** browsers only allow sound after the player's first input (normally the title's TAP TO START), so the game makes its AudioContext on the first pointer or key event anywhere (`src/audio/Audio.js`); Phaser's own sound is off (`audio.noAudio`), so nothing makes a context earlier and the browser never warns about one. A track asked for before that starts then. The context is suspended while the tab is hidden and resumed when it's shown again.
 - **Buses:** music and sound effects each have a bus whose gain is its slider squared x its bus gain (music 0.6, effects 0.9), both through a limiter (a DynamicsCompressor: threshold -6 dB, ratio 12) so a busy wave doesn't clip.
 - **Settings** (the gear): **Music** and **Sound effects** sliders (0-100, defaults 60 and 80; press or drag, applied as they move, saved when let go) and **Sound ON / OFF** (the `sound_on` / `sound_off` icons; the HUD's sound button toggles the same setting). Mute silences both buses and keeps the sliders. All three are saved with progress.
 

@@ -11,6 +11,7 @@ import { LogScene } from './scenes/LogScene.js';
 import { MapScene } from './scenes/MapScene.js';
 import { PackScene } from './scenes/PackScene.js';
 import { ShipyardScene } from './scenes/ShipyardScene.js';
+import { TitleScene } from './scenes/TitleScene.js';
 import { TutorialScene, TutorialView } from './scenes/TutorialScene.js';
 import { WantedScene } from './scenes/WantedScene.js';
 import { TutorialHost } from './tutorial/TutorialHost.js';
@@ -37,7 +38,8 @@ loadUiSpec().then(() => {
     // first input (src/audio/Audio.js), so the browser never has one to
     // block and warn about.
     audio: { noAudio: true },
-    scene: [GameScene, PackScene, CollectionScene, WantedScene, MapScene, LogScene, EndingScene, ExpeditionScene, ShipyardScene, AbyssEndScene, GalleyScene,
+    // First: the title, which loads everything and then starts the battle.
+    scene: [TitleScene, GameScene, PackScene, CollectionScene, WantedScene, MapScene, LogScene, EndingScene, ExpeditionScene, ShipyardScene, AbyssEndScene, GalleyScene,
       // Last: over every other scene.
       TutorialScene],
   });

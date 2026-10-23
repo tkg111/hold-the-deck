@@ -4,4 +4,5 @@
 import { register } from 'node:module';
 
 globalThis.__ASSET_VERSION__ = 'sim';
+globalThis.__APP_VERSION__ = 'sim';
 register('./hooks.mjs', import.meta.url);

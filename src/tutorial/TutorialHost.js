@@ -39,7 +39,7 @@ export class TutorialHost {
   install() {
     for (const scene of this.game.scene.scenes) {
       const { key } = scene.sys.settings;
-      if (key === TUTORIAL_SCENE) continue;
+      if (key === TUTORIAL_SCENE || key === 'TitleScene') continue;
       const events = scene.sys.events;
       events.on('create', () => this.manager.emit(key === 'GameScene' ? 'battle-ready' : 'scene-open', { key }));
       events.on('shutdown', () => this.manager.emit('scene-close', { key }));

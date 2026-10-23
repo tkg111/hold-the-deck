@@ -5,3 +5,7 @@
 export const ASSET_VERSION = __ASSET_VERSION__;
 
 export const versioned = (url) => `${url}${url.includes('?') ? '&' : '?'}v=${ASSET_VERSION}`;
+
+// package.json's version (the title screen shows it).
+// eslint-disable-next-line no-undef
+export const APP_VERSION = __APP_VERSION__;

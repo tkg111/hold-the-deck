@@ -1,0 +1,62 @@
+{
+ "title_bg": {
+  "size": [
+   480,
+   430
+  ],
+  "note": "same tall layout as bg_tall.png: the 480x270 safe view is y=100..369"
+ },
+ "title_sea": {
+  "frame": [
+   480,
+   40
+  ],
+  "frames": 3,
+  "pos": [
+   0,
+   330
+  ],
+  "fps": 4,
+  "note": "draw over the ship so the hull sits in the waves"
+ },
+ "ship": {
+  "image": "ship_stage3.png + ship_stage3_front.png",
+  "pos": [
+   120,
+   196
+  ],
+  "bob_px": 1,
+  "bob_period_s": 2.4
+ },
+ "logo": {
+  "size": [
+   143,
+   84
+  ],
+  "centre": [
+   240,
+   150
+  ],
+  "note": "drop in from above on load (0.6 s, Back.easeOut), then float 2px"
+ },
+ "gulls": {
+  "frame": [
+   11,
+   7
+  ],
+  "frames": 2,
+  "count": 3,
+  "band_y": [
+   120,
+   220
+  ],
+  "note": "drift slowly across, flap at ~4 fps"
+ },
+ "tap_to_start": {
+  "centre": [
+   240,
+   354
+  ],
+  "note": "main bitmap font, blink 0.6 s on / 0.4 s off"
+ }
+}
