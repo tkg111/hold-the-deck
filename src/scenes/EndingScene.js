@@ -64,7 +64,7 @@ export class EndingScene extends Phaser.Scene {
     const shown = [plate, title, line, button];
     for (const o of shown) o.setAlpha(0);
     this.tweens.add({ targets: shown, alpha: 1, delay: ENDING.textAt, duration: ENDING.fadeMs });
-    sfx.reveal('legendary', true);
+    sfx.play('island_clear');
   }
 
   // The ship token sails the route (MAP.shipTokenOffset off it, as it sits by
@@ -114,12 +114,12 @@ export class EndingScene extends Phaser.Scene {
       if (f.passed || !f.flag || shipX < f.spot.x) continue;
       f.passed = true;
       this.tweens.add({ targets: f.flag, y: f.flag.y - 4, duration: 180, yoyo: true, ease: 'Quad.easeOut' });
-      sfx.click();
+      sfx.play('ui_click');
     }
   }
 
   close() {
-    sfx.click();
+    sfx.play('ui_click');
     this.scene.stop();
     this.onClose?.();
   }

@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { PARTS } from '../config.js';
+import { AUDIO, PARTS } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
 import { DEPTH } from '../entities/Ship.js';
 import { LobProjectile, nearestLiving, PiercingProjectile } from '../entities/Projectile.js';
@@ -160,7 +160,7 @@ export class ShipParts {
       target.setFlash(true);
       this.scene.time.delayedCall(spec.slapMs / 2, () => target.alive && target.setFlash(false));
     }
-    sfx.splat();
+    sfx.play('hit_heavy');
     return true;
   }
 
@@ -199,7 +199,7 @@ export class ShipParts {
     const hit = target.def.damage * target.hpMultiplier * spec.hitScale;
     if (!target.charm(spec.charm + (level - 1) * spec.charmPerLevel, hit)) return false;
     playFx(this.scene, 'charm_note', Math.round(target.x), Math.round(target.y));
-    sfx.charm();
+    sfx.play('siren_song', { volume: AUDIO.quiet });
     return true;
   }
 
@@ -234,7 +234,7 @@ export class ShipParts {
       },
     }));
     playFx(this.scene, 'muzzle_flash', x, y);
-    sfx.spit();
+    sfx.play('cannon_small');
     return true;
   }
 
@@ -260,7 +260,7 @@ export class ShipParts {
       },
     }));
     playFx(this.scene, 'muzzle_flash', x, y);
-    sfx.frostHit();
+    sfx.play('cannon_small');
     return true;
   }
 }

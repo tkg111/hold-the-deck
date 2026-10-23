@@ -152,6 +152,7 @@ export class Merchants {
     if (!s.tappable && !s.struck && !s.fading && s.x + s.w / 2 >= MERCHANTS.tapFromX) {
       s.tappable = true;
       s.sprite.setInteractive();
+      sfx.play('merchant_bell');
       this.scene.events.emit('merchant-tappable');
     }
     if (!s.fading && s.x + s.w >= this.lane.fadeX) this.fadeOut(this.lane.fadeMs);
@@ -193,7 +194,7 @@ export class Merchants {
     const to = { x: s.x + s.w / 2 + s.speed * shot.ms / 1000, y: s.sprite.y + s.h / 2 };
     const { scene } = this;
     const ball = scene.add.image(from.x, from.y, merchantKey('cannonball')).setDepth(FX_DEPTH);
-    sfx.musket();
+    sfx.play('cannon');
     scene.tweens.addCounter({
       from: 0,
       to: 1,
@@ -213,7 +214,7 @@ export class Merchants {
   // a loot crate rises out of it with the plunder.
   hit(s, at) {
     const { scene } = this;
-    sfx.boom();
+    sfx.play('hit_heavy');
     const puff = scene.add.sprite(Math.round(at.x), Math.round(at.y), merchantKey('hit_puff')).setDepth(FX_DEPTH);
     puff.play(`${merchantKey('hit_puff')}_pop`).once('animationcomplete', () => puff.destroy());
     s.sprite.stop().setFrame(s.spec.anims.struck[0]);
@@ -239,7 +240,7 @@ export class Merchants {
     const labels = lines.map(([str, color], i) => text(scene, x, y - 12 - (lines.length - 1 - i) * 9, str, light({ font: 'small', color }))
       .setOrigin(0.5).setDepth(FX_DEPTH + 1));
     const starts = labels.map((t) => t.anchorY);
-    sfx.loot('gold');
+    sfx.play('plunder');
     scene.tweens.addCounter({
       from: 0,
       to: 1,

@@ -89,11 +89,11 @@ export class AbyssEndScene extends Phaser.Scene {
     new Button(this, cx + 56, y + H - 20, {
       width: 100, height: 24, label: 'Map', onClick: () => this.close(this.onMap),
     });
-    if (s.newRecord) sfx.reveal('epic', true);
+    if (s.newRecord) sfx.play('legendary');
   }
 
   close(then) {
-    sfx.click();
+    sfx.play('ui_click');
     this.scene.stop();
     then?.();
   }

@@ -117,7 +117,7 @@ export class Storm {
       .setOrigin(0.5, 0).setDepth(DEPTH.storm + 0.2).play(stormKey('lightning'));
     bolt.once('animationcomplete', () => bolt.destroy());
     this.flashTime = STORM.flashMs;
-    sfx.thunder();
+    sfx.play('thunder');
   }
 
   // Wave over (or scene closing): clear at once.

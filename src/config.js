@@ -299,6 +299,8 @@ export const RARITY = {
 //                                     per second (burns and poison both tick)
 //   chill:  { factor, duration }    — slows like slow, without a net (flyers
 //                                     stay in the air)
+//   shotSound: name                 — its shot's sound effect (AUDIO.sfx;
+//                                     cannon_small if not set)
 export const HEROES = {
   cabinBoy: {
     name: 'Cabin Boy',
@@ -387,6 +389,7 @@ export const HEROES = {
     name: 'Cannoneer',
     shortName: 'Cannon',
     rarity: 'epic',
+    shotSound: 'cannon',
     color: 0x8d6e63,
     damage: 24,
     attackInterval: 3200,
@@ -513,6 +516,7 @@ export const HEROES = {
     name: 'Powder Monkey',
     shortName: 'Powder',
     rarity: 'common',
+    shotSound: 'cannon',
     color: 0x8d6e4a,
     damage: 6,
     attackInterval: 1000,
@@ -527,6 +531,7 @@ export const HEROES = {
     name: 'Fire Breather',
     shortName: 'Fire',
     rarity: 'rare',
+    shotSound: 'cook',
     color: 0xe65100,
     damage: 9,
     attackInterval: 800,
@@ -2839,4 +2844,114 @@ export const UPGRADES = {
     baseCost: 15,
     costGrowth: 1.22,
   },
+};
+
+// Sound and music (src/audio/). Files under `path` (public/audio/): the
+// music as note data (music/<track>.json, played live by the synth in
+// src/audio/Music.js), and each sound effect as sfx/<name>.ogg and .mp3.
+// Volumes are the Settings sliders (0-100); a slider at v plays its bus at
+// (v / 100)^2 x the bus's gain. Mute silences both buses and keeps the
+// sliders. Both buses go through a limiter (DynamicsCompressor) so busy
+// waves don't clip.
+export const AUDIO = {
+  path: 'audio/',
+  defaults: { music: 60, sfx: 80 },
+  musicGain: 0.6,
+  sfxGain: 0.9,
+  limiter: { threshold: -6, knee: 0, ratio: 12, attack: 0.003, release: 0.15 },
+  music: {
+    crossfadeSec: 0.8,
+    // The lookahead scheduler: every intervalMs, notes due in the next
+    // lookaheadSec are scheduled on the AudioContext's clock.
+    intervalMs: 25,
+    lookaheadSec: 0.15,
+    startDelaySec: 0.05,      // a new track's first note, after it's asked for
+    pulseHarmonics: 32,       // terms in the pulse waves' Fourier series
+    noiseSec: 1,              // the drums' shared white-noise buffer
+    // Which track plays where (GameScene.syncMusic): the island's own in
+    // battle, boss while a boss is alive and through a Boss Hunt, abyss on
+    // a dive; title on the title screen, the map and the ending; galley in
+    // the Galley.
+    islands: {
+      skull_cove: 'skull_cove', ember_isle: 'ember_isle', frostbite_reef: 'frostbite_reef', fogbound_isle: 'fogbound_isle',
+    },
+    title: 'title',
+    boss: 'boss',
+    abyss: 'abyss',
+    galley: 'galley',
+    tracks: ['title', 'skull_cove', 'ember_isle', 'frostbite_reef', 'fogbound_isle', 'boss', 'abyss', 'galley'],
+  },
+  // Each sound effect: its volume (the files are all normalised to the
+  // same peak); gapMs, the least time between two plays of it (closer ones
+  // are skipped); jitter, a random +-share of playback rate.
+  maxCopies: 4,               // of one sound playing at once
+  sfx: {
+    ui_click: { volume: 0.45 },
+    ui_back: { volume: 0.45 },
+    ui_open: { volume: 0.45 },
+    ui_error: { volume: 0.45 },
+    buy: { volume: 0.55 },
+    upgrade: { volume: 0.65 },
+    deck_build: { volume: 0.8 },
+    chest_open: { volume: 0.75 },
+    legendary: { volume: 0.85 },
+    cannon: { volume: 0.5, gapMs: 40 },
+    cannon_small: { volume: 0.28, gapMs: 50 },
+    hit: { volume: 0.3, gapMs: 40, jitter: 0.06 },
+    hit_heavy: { volume: 0.45, gapMs: 40 },
+    enemy_die: { volume: 0.35, gapMs: 30 },
+    coin: { volume: 0.3, gapMs: 40, jitter: 0.06 },
+    hull_hit: { volume: 0.45, gapMs: 60 },
+    wave_start: { volume: 0.7 },
+    wave_clear: { volume: 0.7 },
+    island_clear: { volume: 0.85 },
+    defeat: { volume: 0.8 },
+    boss_roar: { volume: 0.85 },
+    boss_die: { volume: 0.85 },
+    lava_bomb: { volume: 0.6 },
+    freeze: { volume: 0.6 },
+    thunder: { volume: 0.75 },
+    siren_song: { volume: 0.6 },
+    merchant_bell: { volume: 0.55 },
+    plunder: { volume: 0.7 },
+    cast: { volume: 0.55 },
+    splash: { volume: 0.55 },
+    bite: { volume: 0.65 },
+    reel_hit: { volume: 0.6 },
+    reel_miss: { volume: 0.6 },
+    reel_tick: { volume: 0.25 },
+    fish_escape: { volume: 0.7 },
+    fish_catch: { volume: 0.75 },
+    fish_legendary: { volume: 0.85 },
+    cook: { volume: 0.65 },
+    eat: { volume: 0.65 },
+    captain_blip: { volume: 0.3, jitter: 0.04 },
+    tip: { volume: 0.55 },
+  },
+  blipEvery: 2,               // the Captain's typing: a blip every Nth character
+  // Crew who attack faster than this (ms between shots) play their shot at
+  // rapidVolume x its volume.
+  rapidShotMs: 600,
+  rapidVolume: 0.5,
+  // A lava bomb's sound (a whistle, then the boom) starts this long (game
+  // time) before the bomb lands, so the boom lands with it.
+  lavaBombLeadMs: 300,
+  // Events with no sound of their own play the closest one, at volume x
+  // its volume (see DESIGN.md).
+  quiet: 0.6,
+};
+
+// The title screen (src/scenes/TitleScene.js). Positions come from
+// sprites/title/title.json, in title_bg.png's 480x430 space, whose rows
+// SCENERY.originY.. are the 480x270 safe view (the battle's tall layout).
+export const TITLE = {
+  path: 'title/',              // under SPRITES.path
+  logoDropMs: 600,             // from above the view, Back.easeOut
+  logoFloat: { px: 2, ms: 1600 },
+  blink: { onMs: 600, offMs: 400, reducedMs: 1000 },
+  fadeMs: 300,                 // the logo and TAP TO START, on the tap
+  gullSpeed: [6, 12],          // px/s, each gull picks one
+  gullFps: 4,
+  shadow: '#2a170a',           // TAP TO START's 1px drop shadow
+  version: { x: 4, y: 4 },     // the version label, from the safe view's bottom-left
 };

@@ -1,5 +1,5 @@
 import {
-  ABILITY_SCALING, ABYSS, BATTLE_LOG, ECONOMY, ENEMIES, EXPEDITIONS, FISHING, HEROES, HUNTS, ISLANDS, MEALS, PARTS, SHIP,
+  ABILITY_SCALING, ABYSS, AUDIO, BATTLE_LOG, ECONOMY, ENEMIES, EXPEDITIONS, FISHING, HEROES, HUNTS, ISLANDS, MEALS, PARTS, SHIP,
   PACKS, RARITY, STARTING_HEROES, UI_KIT, UPGRADES, WANTED, WAVES,
 } from '../config.js';
 import { clearBonus, enemyFirstWave, islandContent } from './WaveManager.js';
@@ -121,7 +121,10 @@ export class Progress {
     this.merchantsPlundered = 0;
     this.fishCaught = 0;
 
-    this.muted = false;             // sound effects off
+    this.muted = false;             // music and sound effects off
+    // The Settings' volume sliders (0-100); muting keeps them.
+    this.musicVolume = AUDIO.defaults.music;
+    this.sfxVolume = AUDIO.defaults.sfx;
     this.autoAbilities = false;     // ability bar's Auto toggle
     // The Shipwright: how many levels a buy button buys (UI_KIT.buyAmounts:
     // '1', '10' or 'max'), and whether the panel is out (or slid away).
@@ -158,6 +161,8 @@ export class Progress {
       heroBonus: ownedOnly(this.heroBonus),
       slots: this.slots.map((id) => (id && owned.includes(id) ? id : null)),
       muted: this.muted,
+      musicVolume: this.musicVolume,
+      sfxVolume: this.sfxVolume,
       autoAbilities: this.autoAbilities,
       buyAmount: this.buyAmount,
       shipwrightOpen: this.shipwrightOpen,
@@ -232,6 +237,8 @@ export class Progress {
     p.hullHpLevel = int(data.hullHpLevel, 0);
     p.decks = int(data.decks, SHIP.startingDecks, SHIP.maxDecks);
     p.muted = data.muted === true;
+    p.musicVolume = int(data.musicVolume, 0, 100, AUDIO.defaults.music);
+    p.sfxVolume = int(data.sfxVolume, 0, 100, AUDIO.defaults.sfx);
     p.autoAbilities = data.autoAbilities === true;
     if (UI_KIT.buyAmounts.includes(data.buyAmount)) p.buyAmount = data.buyAmount;
     p.shipwrightOpen = data.shipwrightOpen !== false;

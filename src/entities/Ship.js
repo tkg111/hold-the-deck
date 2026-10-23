@@ -1,4 +1,5 @@
 import { PARTS, SHIP, SPRITES } from '../config.js';
+import { sfx } from '../audio/Sfx.js';
 import { LAYOUT } from '../layout.js';
 import { SHIP_SLOTS_KEY, shipFrontKey, shipStageKey } from '../sprites.js';
 import { overlayKey, PART_DATA, partOf } from '../systems/Parts.js';
@@ -159,6 +160,7 @@ export class Ship {
     if (enemy) this.scene.stats?.hullHit(enemy, Math.min(amount, this.hp));
     this.hp = Math.max(0, this.hp - amount);
     this.scene.cameras.main.shake(80, 0.003);
+    if (amount > 0) sfx.play('hull_hit');
   }
 
   restore() {

@@ -68,12 +68,12 @@ export class AbilitySystem {
     const s = this.slots[i];
     if (!s || s.cooldown > 0) return false;
     if (!this.hasTarget(s, auto)) {
-      if (!auto) sfx.denied();
+      if (!auto) sfx.play('ui_error');
       return false;
     }
     s.cooldown = s.def.cooldown;
     this.scene.stats?.abilityUsed(s.id);
-    sfx.ability(s.id);
+    sfx.play('ui_open');
     const { hero } = s;
     this.scene.floatText(hero.x, hero.y - 22, s.def.name.toUpperCase(), cssColor(s.def.color));
     ACTIONS[s.id](this, s);
@@ -152,7 +152,7 @@ const ACTIONS = {
           sys.scene.stats?.add(hero.id, 'stuns');
         }
         playFx(sys.scene, def.impact, x, y);
-        sfx.splat();
+        sfx.play('hit_heavy');
       },
     });
   },
@@ -180,7 +180,7 @@ const ACTIONS = {
       onLand: (x, y) => {
         playFx(sys.scene, def.impact, x, y);
         sys.effects.push(new Puddle(sys, x, def, hero.damage * def.damagePerSecond, def.duration * scale, hero.source.effect));
-        sfx.crash();
+        sfx.play('hit_heavy');
       },
     });
   },
@@ -267,7 +267,7 @@ const ACTIONS = {
   // Inferno: a wall of fire on the lane that burns walkers going through.
   fireBreather(sys, { hero, def, scale }) {
     sys.effects.push(new InfernoWall(sys, def, hero.damage * def.damagePerSecond, def.duration * scale, hero.source.effect));
-    sfx.crash();
+    sfx.play('cook');
   },
 
   // Temper Steel: the whole crew hits harder for a while.
@@ -285,7 +285,7 @@ const ACTIONS = {
         hit.takeDamage(hero.damage * def.damage, { ignoreArmor: true, source: hero.source.ability });
         playFx(scene, def.impact, x, y);
         shake(scene, def.shake);
-        sfx.boom();
+        sfx.play('cannon');
       },
       findTarget: () => toughest(),
     }));
@@ -301,7 +301,7 @@ const ACTIONS = {
     }
     sys.scene.stats?.add(hero.id, 'stuns', frozen);
     sys.effects.push(new AuroraVeil(sys.scene, def, duration));
-    sfx.freeze();
+    sfx.play('freeze');
   },
 
   // Wail: a shriek from the ship hits, shoves back and scares what's near.
@@ -382,7 +382,7 @@ class AnchorDrop {
         }
       }
       shake(this.sys.scene, def.shake);
-      sfx.boom();
+      sfx.play('cannon');
     }
     return this.time < this.showMs;
   }
@@ -430,7 +430,7 @@ class PowderBarrage {
       }
     }
     playFx(sys.scene, def.impact, x, y - 8);
-    sfx.crash();
+    sfx.play('hit_heavy');
   }
 
   destroy() {}
@@ -585,7 +585,7 @@ class Deadeye {
       },
       findTarget: (x, y) => nearestLiving(scene.enemies, x, y, (o) => hero.canHit(o)),
     }));
-    sfx.boom();
+    sfx.play('cannon');
     return false;
   }
 
@@ -822,7 +822,7 @@ class Broadside {
     }
     playFx(this.sys.scene, def.impact, x, y - 12);
     shake(this.sys.scene, def.shake);
-    sfx.boom();
+    sfx.play('cannon');
   }
 
   destroy() {

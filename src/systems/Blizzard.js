@@ -50,7 +50,7 @@ export class Blizzard {
     this.timeLeft = ms;
     this.freezeTimer = this.spec.freezeEvery;
     this.scene.snowfall?.worsen();
-    sfx.wind();
+    sfx.play('cast');
   }
 
   update(dt) {

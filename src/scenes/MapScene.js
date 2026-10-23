@@ -117,7 +117,6 @@ export class MapScene extends Phaser.Scene {
       .setOrigin(1, 0).setVisible(false);
     this.expeditionButton.bg.on('pointerdown', () => {
       if (this.expeditionButton.enabled) return;
-      sfx.denied();
       this.expeditionHint.setVisible(true);
     });
     this.refreshExpeditions();
@@ -160,7 +159,7 @@ export class MapScene extends Phaser.Scene {
     const plate = panel(this, cx - line.inkWidth / 2 - 10, 42, line.inkWidth + 20, 20, 'wood');
     this.children.bringToTop(line);
     for (const o of [plate, line]) o.setAlpha(0);
-    sfx.reveal('legendary', true);
+    sfx.play('legendary');
     this.tweens.add({ targets: this.world, x: tx, y: ty, scale: zoom, duration: zoomMs, ease: 'Sine.easeInOut' });
     this.tweens.addCounter({
       from: 0, to: 1, delay: zoomMs / 2, duration: fadeMs,
@@ -265,7 +264,7 @@ export class MapScene extends Phaser.Scene {
 
   // A dotted gold ring round the selected island, and its card.
   select(id, { quiet = false } = {}) {
-    if (!quiet) sfx.click();
+    if (!quiet) sfx.play('ui_click');
     if (id !== this.selected) this.tab = 'island';
     this.selected = id;
     const spot = id === ABYSS.id ? ABYSS.map : this.islands.find((i) => i.def.id === id).spot;
@@ -405,14 +404,14 @@ export class MapScene extends Phaser.Scene {
 
   // Skip the shallows on or off (saved with the Abyss record).
   toggleSkip() {
-    sfx.click();
+    sfx.play('ui_click');
     this.progress.abyss.skipShallows = !this.progress.abyss.skipShallows;
     this.drawCard();
   }
 
   pickStart(depth) {
     if (depth === this.diveFrom) return;
-    sfx.click();
+    sfx.play('ui_click');
     this.diveFrom = depth;
     this.drawCard();
   }
@@ -420,7 +419,7 @@ export class MapScene extends Phaser.Scene {
   // Start a dive (from the island the ship is at; it stays there for when
   // the dive ends).
   dive() {
-    sfx.click();
+    sfx.play('ui_click');
     this.scene.stop();
     this.onClose?.(false, null, { dive: { from: this.diveFrom, seed: this.diveSeed } });
   }
@@ -442,7 +441,7 @@ export class MapScene extends Phaser.Scene {
 
   setTab(tab) {
     if (tab === this.tab) return;
-    sfx.click();
+    sfx.play('ui_click');
     this.tab = tab;
     this.drawCard();
   }
@@ -486,7 +485,7 @@ export class MapScene extends Phaser.Scene {
 
   // Sail to the island if the ship isn't there, and start a Boss Hunt.
   hunt(boss, id) {
-    sfx.click();
+    sfx.play('wave_start');
     this.leaveDive((left) => {
       const sailed = id !== this.progress.islandId && this.progress.sailTo(id);
       this.scene.stop();
@@ -496,7 +495,7 @@ export class MapScene extends Phaser.Scene {
 
   // Sail to the island (or, if the ship is already there, just back to it).
   setSail(id) {
-    sfx.click();
+    sfx.play('ui_click');
     this.leaveDive((left) => {
       const sailed = id !== this.progress.islandId && this.progress.sailTo(id);
       this.scene.stop();
@@ -505,7 +504,7 @@ export class MapScene extends Phaser.Scene {
   }
 
   close() {
-    sfx.click();
+    sfx.play('ui_back');
     this.scene.stop();
     this.onClose?.(false);
   }

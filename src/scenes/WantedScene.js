@@ -93,7 +93,7 @@ export class WantedScene extends Phaser.Scene {
   turnPage(step) {
     const page = Phaser.Math.Clamp(this.posterPage + step, 0, this.pages - 1);
     if (page === this.posterPage) return;
-    sfx.click();
+    sfx.play('ui_click');
     this.posterPage = page;
     this.drawPosters();
   }
@@ -138,7 +138,7 @@ export class WantedScene extends Phaser.Scene {
   }
 
   select(id) {
-    sfx.click();
+    sfx.play('ui_click');
     this.selected = id;
     this.progress.markPosterSeen(id);
     this.drawPosters();
@@ -257,7 +257,7 @@ export class WantedScene extends Phaser.Scene {
   }
 
   close() {
-    sfx.click();
+    sfx.play('ui_back');
     this.scene.stop();
     this.onClose?.();
   }

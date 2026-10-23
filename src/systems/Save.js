@@ -1,5 +1,5 @@
 import {
-  ABYSS, ECONOMY, ENEMIES, EXPEDITIONS, FISHING, ISLANDS, MEALS, STARTING_HEROES,
+  ABYSS, AUDIO, ECONOMY, ENEMIES, EXPEDITIONS, FISHING, ISLANDS, MEALS, STARTING_HEROES,
 } from '../config.js';
 import { Progress } from './Progress.js';
 import { enemyFirstWave } from './WaveManager.js';
@@ -9,7 +9,7 @@ export const SAVE_KEY = 'kampung-defense/save';
 const CORRUPT_BACKUP_KEY = 'kampung-defense/save-corrupt-backup';
 
 // Bump when the saved shape changes, and add a migration from the old version.
-export const SAVE_VERSION = 19;
+export const SAVE_VERSION = 20;
 
 // v5 pirate reskin: old hero IDs -> new hero IDs.
 const V5_HERO_IDS = {
@@ -212,6 +212,8 @@ const MIGRATIONS = {
   }),
   // v19: the Captain's tutorial (onboarding progress, tips seen, tips on).
   18: addTutorial,
+  // v20: the Settings' music and sound effects volumes, at their defaults.
+  19: (data) => ({ ...data, musicVolume: AUDIO.defaults.music, sfxVolume: AUDIO.defaults.sfx }),
 };
 
 function migrate(save) {
@@ -278,5 +280,19 @@ export function clearSave() {
     storage()?.removeItem(SAVE_KEY);
   } catch (err) {
     console.warn('[save] could not clear save:', err);
+  }
+}
+
+// Just the sound settings ({ music, sfx, muted }) from the save, for the
+// title screen (before the battle loads the rest); defaults without one.
+export function loadAudioSettings() {
+  const { music, sfx } = AUDIO.defaults;
+  try {
+    const data = JSON.parse(storage()?.getItem(SAVE_KEY) ?? 'null')?.data;
+    if (!data || typeof data !== 'object') return { music, sfx, muted: false };
+    const volume = (v, fallback) => (Number.isFinite(v) ? Math.min(100, Math.max(0, Math.floor(v))) : fallback);
+    return { music: volume(data.musicVolume, music), sfx: volume(data.sfxVolume, sfx), muted: data.muted === true };
+  } catch {
+    return { music, sfx, muted: false };
   }
 }

@@ -167,13 +167,13 @@ export class ShipyardScene extends Phaser.Scene {
   }
 
   openSlot(slot) {
-    sfx.click();
+    sfx.play('ui_click');
     this.slot = slot;
     this.redraw();
   }
 
   backToCards() {
-    sfx.click();
+    sfx.play('ui_back');
     this.slot = null;
     this.redraw();
   }
@@ -269,16 +269,16 @@ export class ShipyardScene extends Phaser.Scene {
   upgrade(id) {
     const crafting = this.progress.partLevel(id) === 0;
     if (!this.progress.upgradePart(id)) {
-      sfx.denied();
+      sfx.play('ui_error');
       return;
     }
-    sfx.loot(crafting ? 'rare' : 'gold');
+    sfx.play('upgrade');
     this.changed();
   }
 
   equip(id, on) {
     if (!this.progress.equipPart(id, on)) return;
-    sfx.click();
+    sfx.play('ui_click');
     this.changed();
   }
 
@@ -325,7 +325,7 @@ export class ShipyardScene extends Phaser.Scene {
   }
 
   close() {
-    sfx.click();
+    sfx.play('ui_back');
     this.scene.stop();
     this.onClose?.();
   }

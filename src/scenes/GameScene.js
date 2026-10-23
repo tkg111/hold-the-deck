@@ -1,8 +1,11 @@
 import Phaser from 'phaser';
 import {
-  ABYSS, ASHFALL, DISPLAY, ENDING, ENEMIES, EXPEDITIONS, GALLEY, GAME_SPEEDS, HEROES, MOTES, PACKS, SCENERY, SIM, SNOWFALL,
+  ABYSS, ASHFALL, AUDIO, DISPLAY, ENDING, ENEMIES, EXPEDITIONS, GALLEY, GAME_SPEEDS, HEROES, MOTES, PACKS, SCENERY, SIM, SNOWFALL,
   UI_KIT,
 } from '../config.js';
+import { audio } from '../audio/Audio.js';
+import { initAudio, preloadAudio } from '../audio/load.js';
+import { music } from '../audio/Music.js';
 import { sfx } from '../audio/Sfx.js';
 import { DEV_TOOLS } from '../devFlag.js';
 import {
@@ -71,6 +74,7 @@ export class GameScene extends Phaser.Scene {
 
   preload() {
     preloadSprites(this);
+    preloadAudio(this);
   }
 
   create() {
@@ -80,6 +84,7 @@ export class GameScene extends Phaser.Scene {
     // depends on the view's size.
     applyRenderScale(this, { y: SCENERY.skyShare });
     createAnimations(this);
+    initAudio(this);
     // Expedition data first: the save's expeditions are checked against it.
     Expeditions.initExpeditions(this.cache.json.get(EXPEDITION_JSON_KEY));
     initParts(this.cache.json.get(PARTS_JSON_KEY));
@@ -89,8 +94,7 @@ export class GameScene extends Phaser.Scene {
     Expeditions.tick(this.progress);
     this.expeditionClock = 0;   // real ms since expeditions were last checked
     this.expeditionsReady = Expeditions.readyCount(this.progress);
-    sfx.init(this.game);
-    sfx.setMuted(this.progress.muted);
+    this.applyAudioSettings();
     this.state = STATE.IDLE;
     this.speed = this.speed ?? GAME_SPEEDS[0];  // kept across restarts in a session
     this.slowMotion = 1;   // x the battle's speed (the tutorial's first merchant)
@@ -153,7 +157,12 @@ export class GameScene extends Phaser.Scene {
       if (Number.isInteger(n) && n >= 1 && n <= 6) this.useAbility(n - 1, { fromKey: true });
     };
     this.input.keyboard?.on('keydown', onKey);
+    // The music follows the battle every frame, even while the scene is
+    // paused (the Captain talking), so it runs off the game's step.
+    const syncMusic = () => this.syncMusic();
+    this.game.events.on(Phaser.Core.Events.POST_STEP, syncMusic);
     this.events.once('shutdown', () => {
+      this.game.events.off(Phaser.Core.Events.POST_STEP, syncMusic);
       for (const [name, fn] of Object.entries(handlers)) this.events.off(name, fn, this);
       window.removeEventListener('pagehide', onPageHide);
       document.removeEventListener('fullscreenchange', onFullscreenChange);
@@ -166,6 +175,28 @@ export class GameScene extends Phaser.Scene {
     this.announcePacks();
     // A dive left mid-depth picks up at that depth's start.
     if (this.progress.inAbyss) this.showBanner(ABYSS.name.toUpperCase(), { detail: `BACK AT DEPTH ${formatNum(this.progress.depth)}` });
+  }
+
+  // The Settings' volumes and mute, from the save.
+  applyAudioSettings() {
+    const p = this.progress;
+    audio.setSettings({ music: p.musicVolume, sfx: p.sfxVolume, muted: p.muted });
+  }
+
+  // The music for where the player is (AUDIO.music; asking for the track
+  // already playing does nothing): the title's on the map and the ending,
+  // the Galley's in the Galley, boss while a boss is alive and through a
+  // Boss Hunt, abyss on a dive, otherwise the island's own.
+  syncMusic() {
+    const M = AUDIO.music;
+    const open = (key) => this.scene.isActive(key);
+    let track;
+    if (open('MapScene') || open('EndingScene')) track = M.title;
+    else if (open('GalleyScene')) track = M.galley;
+    else if (this.hunt || this.enemies.some((e) => e.alive && e.def.boss)) track = M.boss;
+    else if (this.progress.inAbyss) track = M.abyss;
+    else track = M.islands[this.progress.islandId] ?? M.title;
+    music.play(track);
   }
 
   // Another scene (a menu or overlay) is open over the battle.
@@ -344,7 +375,6 @@ export class GameScene extends Phaser.Scene {
     });
     this.expeditionButton.bg.on('pointerdown', () => {
       if (this.expeditionButton.enabled) return;
-      sfx.denied();
       this.showBanner('EXPEDITIONS', { detail: Expeditions.unlockLabel().toUpperCase() });
     });
     // Battle speed (bottom-right, during waves): shows the current speed.
@@ -529,7 +559,7 @@ export class GameScene extends Phaser.Scene {
   showCurrentNote(id) {
     const c = this.abyssData.currents.order.find((o) => o.id === id);
     if (!c) return;
-    sfx.click();
+    sfx.play('ui_click');
     const y = ABYSS.hud.y + ABYSS.hud.iconSize + 8;
     const name = text(this, 12, y + 4, c.name.toUpperCase(), light({ font: 'small', color: UI.colors.warn }));
     const effect = text(this, 12, y + 13, c.effect.toUpperCase(), light({ font: 'small', wrap: 170 }));
@@ -585,6 +615,7 @@ export class GameScene extends Phaser.Scene {
     if (!isFoe(enemy)) return;   // a lava bomb shot down
     for (const bounty of this.progress.recordDefeat(enemy.key)) this.notices.bounty(enemy.key, bounty);
     const gold = this.progress.earnGold(this.progress.boostGold(enemy.gold));
+    if (gold > 0) sfx.play('coin');
     this.waveGold += gold;
     this.merchants.noteGold(gold);
     this.progress.noteDiveGold(gold);
@@ -623,14 +654,24 @@ export class GameScene extends Phaser.Scene {
     saveProgress(this.progress);
   }
 
-  // Settings (between waves): Captain's tips on or off, Replay tutorial,
-  // and Reset progress.
+  // Settings (between waves): the music and sound effects volumes and
+  // mute (applied as they change, saved once set), Captain's tips on or
+  // off, Replay tutorial, and Reset progress.
   openSettings() {
     if (this.state !== STATE.IDLE) return;
     if (this.heroPicker.visible) this.heroPicker.close();
-    sfx.click();
+    sfx.play('ui_open');
+    const p = this.progress;
     new SettingsDialog(this, {
-      tipsOn: this.progress.tutorial.tipsOn,
+      audio: { music: p.musicVolume, sfx: p.sfxVolume, muted: p.muted },
+      onAudio: ({ music: musicVolume, sfx: sfxVolume, muted }, done) => {
+        Object.assign(p, { musicVolume, sfxVolume, muted });
+        this.applyAudioSettings();
+        if (!done) return;
+        this.refreshUi();   // the mute button
+        this.save();
+      },
+      tipsOn: p.tutorial.tipsOn,
       onTips: (on) => tutorial.setTipsOn(on),
       onReplay: () => tutorial.replay(),
       onReset: () => this.confirmReset(),
@@ -656,7 +697,7 @@ export class GameScene extends Phaser.Scene {
   openShipyard() {
     if (this.state !== STATE.IDLE) return;
     if (this.heroPicker.visible) this.heroPicker.close();
-    sfx.click();
+    sfx.play('ui_open');
     this.scene.launch('ShipyardScene', { progress: this.progress, onClose: () => this.onUpgradePurchased() });
   }
 
@@ -696,7 +737,7 @@ export class GameScene extends Phaser.Scene {
   // Works mid-wave; saved with progress.
   toggleAutoAbilities() {
     this.progress.autoAbilities = !this.progress.autoAbilities;
-    sfx.click();
+    sfx.play('ui_click');
     this.abilityBar.refresh(this.abilities, this.progress.autoAbilities);
     this.save();
   }
@@ -738,28 +779,28 @@ export class GameScene extends Phaser.Scene {
   openCollection() {
     if (this.state !== STATE.IDLE) return;
     if (this.heroPicker.visible) this.heroPicker.close();
-    sfx.click();
+    sfx.play('ui_open');
     this.scene.launch('CollectionScene', { progress: this.progress, onClose: () => this.refreshUi() });
   }
 
   // Works mid-wave too; the setting is saved with progress.
   toggleMute() {
     this.progress.muted = !this.progress.muted;
-    sfx.setMuted(this.progress.muted);
-    sfx.click();
+    this.applyAudioSettings();
+    sfx.play('ui_click');
     this.refreshUi();
     this.save();
   }
 
   toggleFullscreen() {
-    sfx.click();
+    sfx.play('ui_click');
     toggleFullscreen();
   }
 
   openWanted() {
     if (this.state !== STATE.IDLE) return;
     if (this.heroPicker.visible) this.heroPicker.close();
-    sfx.click();
+    sfx.play('ui_open');
     this.scene.launch('WantedScene', {
       progress: this.progress,
       onClose: () => {
@@ -774,7 +815,7 @@ export class GameScene extends Phaser.Scene {
   openGalley() {
     if (this.state !== STATE.IDLE) return;
     if (this.heroPicker.visible) this.heroPicker.close();
-    sfx.click();
+    sfx.play('ui_open');
     this.scene.launch('GalleyScene', { progress: this.progress, onClose: () => this.onUpgradePurchased() });
   }
 
@@ -782,7 +823,7 @@ export class GameScene extends Phaser.Scene {
   openLog() {
     if (this.state !== STATE.IDLE) return;
     if (this.heroPicker.visible) this.heroPicker.close();
-    sfx.click();
+    sfx.play('ui_open');
     this.scene.launch('LogScene', { progress: this.progress, onClose: () => this.refreshUi() });
   }
 
@@ -792,7 +833,7 @@ export class GameScene extends Phaser.Scene {
   openMap() {
     if (this.state !== STATE.IDLE || !this.progress.mapUnlocked) return;
     if (this.heroPicker.visible) this.heroPicker.close();
-    sfx.click();
+    sfx.play('ui_open');
     this.scene.launch('MapScene', {
       progress: this.progress,
       openExpeditions: (onClosed) => this.openExpeditions({ onClosed }),
@@ -831,7 +872,7 @@ export class GameScene extends Phaser.Scene {
     this.rebuildHeroes();   // no more Tide
     const record = summary.newRecord ? `NEW RECORD - DEPTH ${formatNum(summary.depth)}` : `LEFT AT DEPTH ${formatNum(summary.depth)}`;
     this.showBanner(`SAILING TO ${this.progress.island.name.toUpperCase()}`, { detail: record, hold: 2500 });
-    if (summary.newRecord) sfx.reveal('epic', true);
+    if (summary.newRecord) sfx.play('legendary');
   }
 
   // The Expeditions board. Sending crew empties their ship slots and
@@ -840,7 +881,7 @@ export class GameScene extends Phaser.Scene {
   openExpeditions({ onClosed = null } = {}) {
     if (this.state !== STATE.IDLE || !Expeditions.isUnlocked(this.progress)) return;
     if (this.heroPicker.visible) this.heroPicker.close();
-    sfx.click();
+    sfx.play('ui_open');
     this.scene.launch('ExpeditionScene', {
       progress: this.progress,
       onClose: () => {
@@ -864,6 +905,7 @@ export class GameScene extends Phaser.Scene {
   openPacks() {
     if (this.state !== STATE.IDLE) return;
     if (this.heroPicker.visible) this.heroPicker.close();
+    sfx.play('ui_open');
     this.scene.launch('PackScene', { progress: this.progress, onClose: () => this.onRosterChanged() });
   }
 
@@ -876,7 +918,7 @@ export class GameScene extends Phaser.Scene {
     const show = () => {
       this.progress.markPackAnnounced(id);
       this.save();
-      sfx.reveal('epic', true);
+      sfx.play('legendary');
       this.showBanner(`NEW PACK: ${packOf(id).name.toUpperCase()}`, { detail: 'OPEN IT FROM CHESTS', hold: PACKS.newPack.hold });
       this.announcePacks({ after: PACKS.newPack.hold + 400 });
     };
@@ -944,6 +986,7 @@ export class GameScene extends Phaser.Scene {
       // Some bosses announce themselves when they arrive instead.
       if (!boss.bannerOnEntrance) this.showBanner(boss.banner, { color: UI.colors.warn });
     } else if (isSirenWave(this.progress.wave, island)) this.showBanner('A SIREN SINGS!', { color: UI.colors.warn });
+    sfx.play('wave_start');
     this.state = STATE.RUNNING;
     this.simCarry = 0;   // game time not yet simulated (under one step)
     this.waveTime = 0;   // game time simulated this wave
@@ -968,7 +1011,7 @@ export class GameScene extends Phaser.Scene {
     } else if (names.length) {
       this.showBanner('CURRENTS', { detail: names.map((c) => c.name.toUpperCase()).join(' + '), color: UI.colors.warn });
     }
-    if (names.length) sfx.wind();
+    if (names.length) sfx.play('cast');
     const boss = depthBosses(seed, depth).map((k) => ENEMIES[k]).find((def) => !def.bannerOnEntrance);
     if (!boss) return;
     const show = () => this.state === STATE.RUNNING && this.showBanner(boss.banner, { color: UI.colors.warn });
@@ -1019,7 +1062,7 @@ export class GameScene extends Phaser.Scene {
       if (finale) {
         // The island is cleared: its reward, and what it unlocks (the world
         // map, the next island).
-        sfx.reveal('legendary', true);
+        sfx.play('island_clear');
         this.showBanner(finale.clearedTitle, {
           detail: `+${pearlsLabel(pearls).toUpperCase()}  +${finale.legendaryChests} LEGENDARY CHEST${finale.legendaryChests > 1 ? 'S' : ''}  -  ${finale.unlocks}`,
           hold: 4500,
@@ -1027,12 +1070,14 @@ export class GameScene extends Phaser.Scene {
         // ...and a pack it unlocks, after that banner.
         this.announcePacks({ after: PACKS.newPack.afterFinale });
       } else {
+        sfx.play('wave_clear');
         this.showBanner(`WAVE ${formatNum(wave)} CLEARED!`, {
           detail: `+${formatNum(gold)} GOLD${pearls ? `  +${pearlsLabel(pearls).toUpperCase()}` : ''}`,
         });
       }
     } else {
       // Kill gold earned this wave is kept; the wave just doesn't advance.
+      sfx.play('defeat');
       this.showBanner('SHIP SUNK!', { detail: 'UPGRADE AND TRY AGAIN', color: UI.colors.warn });
     }
     // Won or lost, the wave's gold per minute counts toward expeditions'.
@@ -1071,7 +1116,7 @@ export class GameScene extends Phaser.Scene {
     const p = this.progress;
     if (!won) {
       const summary = p.endDive();
-      sfx.denied();
+      sfx.play('defeat');
       this.showBanner(summary.newRecord ? `NEW RECORD - DEPTH ${formatNum(summary.depth)}` : 'SHIP SUNK!', {
         detail: `THE ABYSS TOOK YOU AT DEPTH ${formatNum(summary.depth)}`, color: summary.newRecord ? UI.colors.text : UI.colors.warn,
       });
@@ -1085,8 +1130,8 @@ export class GameScene extends Phaser.Scene {
     this.waveGold += gold;
     this.merchants.noteGold(gold);
     const parts = [`+${formatNum(gold)} GOLD`];
+    sfx.play(milestone ? 'legendary' : 'wave_clear');
     if (milestone) {
-      sfx.reveal('legendary', true);
       for (const [tier, n] of Object.entries(milestone.chests)) {
         const { label } = EXPEDITIONS.chests[tier];
         parts.push(`+${n > 1 ? `${n} ` : ''}${label.toUpperCase()}${n > 1 ? 'S' : ''}`);
@@ -1122,12 +1167,13 @@ export class GameScene extends Phaser.Scene {
   endHunt(hunt, won) {
     const name = ENEMIES[hunt.boss].name.toUpperCase();
     if (!won) {
+      sfx.play('defeat');
       this.showBanner('HUNT FAILED', { detail: `${name} GOT AWAY - TRY AGAIN ANY TIME`, color: UI.colors.warn });
       return;
     }
     const r = this.progress.winHunt(hunt.boss, hunt.island);
     const material = materialOf(r.material)?.name.toUpperCase() ?? '';
-    sfx.loot('bonus');
+    sfx.play('legendary');
     this.showBanner(`${name} HUNTED!`, {
       detail: `+${r.count} ${material}${r.doubled ? ' (2X TODAY)' : ''}  +${formatNum(r.gold)} GOLD  -  NEXT: LV ${formatNum(r.level + 1)}`,
       hold: 3500,
@@ -1158,7 +1204,7 @@ export class GameScene extends Phaser.Scene {
   cycleSpeed() {
     const i = GAME_SPEEDS.indexOf(this.speed);
     this.speed = GAME_SPEEDS[(i + 1) % GAME_SPEEDS.length];
-    sfx.click();
+    sfx.play('ui_click');
     this.applySpeed();
     this.refreshUi();
   }
@@ -1217,6 +1263,8 @@ export class GameScene extends Phaser.Scene {
     const puff = this.battleIsland.spawnPuff;
     if (puff) for (const e of spawned) if (!e.def.wyrm && !e.def.giant) playSpawnPuff(this, puff);
     // The finale: a boss arriving after the other fell comes in enraged.
+    // A boss arriving roars (one that announces itself on arrival roars then).
+    for (const e of spawned) if (e.def.boss && !e.def.bannerOnEntrance) sfx.play('boss_roar');
     for (const e of spawned) if (e.def.boss && e.rage > 1) this.showBanner(`${e.def.name.toUpperCase()} ENRAGES!`, { color: UI.colors.warn });
     for (const e of this.enemies) e.update(dt, this.ship);
     this.volcano.update(dt);

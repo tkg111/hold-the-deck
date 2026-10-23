@@ -1,4 +1,6 @@
-import { CHARM, FREEZE, FX, HEROES, SHIP, SPRITES } from '../config.js';
+import {
+  AUDIO, CHARM, FREEZE, FX, HEROES, SHIP, SPRITES,
+} from '../config.js';
 import { sfx } from '../audio/Sfx.js';
 import { FX_DEPTH, fxSprite, playFx } from '../fx.js';
 import { findAnim, fxKey, sheetKey } from '../sprites.js';
@@ -176,7 +178,7 @@ export class Hero {
     if (!this.iceBlock) {
       this.iceBlock = fxSprite(this.scene, FREEZE.sprite, Math.round(this.x), Math.round(this.feetY))
         .setOrigin(0.5, 1).setDepth(DEPTH.slotMarkers);
-      sfx.freeze();
+      sfx.play('freeze');
     }
     this.body.anims?.pause();
   }
@@ -190,7 +192,7 @@ export class Hero {
     this.iceBlock = null;
     if (!quiet) {
       playFx(this.scene, FREEZE.breakFx, Math.round(this.x), Math.round(this.y));
-      sfx.iceBreak();
+      sfx.play('hit_heavy');
     }
     if (!this.isStunned) this.body.anims?.resume();
     return true;
@@ -215,7 +217,6 @@ export class Hero {
       this.charmMark = fxSprite(this.scene, CHARM.status, Math.round(this.x), Math.round(this.top) - FX.statusGap)
         .setOrigin(0.5, 1).setDepth(DEPTH.slotMarkers);
       this.body.setFlipX?.(true);
-      sfx.charm();
     }
   }
 
@@ -349,7 +350,15 @@ export class Hero {
       lunge.target = target;
       if (--lunge.hits <= 0) this.lunge = null;
     }
+    this.playShot();
     return this.fire(target, lunge);
+  }
+
+  // The shot's sound (its shotSound, or cannon_small), quieter for crew
+  // who fire very rapidly.
+  playShot() {
+    const rapid = this.attackInterval / this.speedMult < AUDIO.rapidShotMs;
+    sfx.play(this.def.shotSound ?? 'cannon_small', { volume: rapid ? AUDIO.rapidVolume : 1 });
   }
 
   // Where shots leave from: the musket's tip for the Sharpshooter (with its
@@ -490,10 +499,13 @@ export class Hero {
 
     const { stats } = this.scene;
     const source = lunge ? this.source.ability : this.source.attack;
+    // One hit sound for the shot: heavy for a crit or a lunge.
+    let heavy = !!lunge;
     for (const e of victims) {
       let damage = this.damage;
       if (crit && (lunge || Math.random() < crit.chance)) {
         damage *= crit.multiplier;
+        heavy = true;
         this.scene.floatText(e.x, e.y - e.def.height / 2 - 13, 'CRIT!', '#ffca28');
       }
       if (lunge) playFx(this.scene, lunge.impact, e.x, e.y, FX_DEPTH + 1);
@@ -518,6 +530,7 @@ export class Hero {
       // The Anchor Bosun's anchor: a shove back (not bosses).
       if (knockback && !e.def.boss) e.pushBack(knockback.px, knockback.speed);
     }
+    if (victims.length) sfx.play(heavy ? 'hit_heavy' : 'hit');
   }
 
   destroy() {

@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import {
-  DISPLAY, EXPEDITIONS, HEROES, PACK_FX, SPRITES, UI_KIT,
+  AUDIO, DISPLAY, EXPEDITIONS, HEROES, PACK_FX, SPRITES, UI_KIT,
 } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
 import { applyRenderScale, fillView } from '../display.js';
@@ -207,7 +207,7 @@ export class ExpeditionScene extends Phaser.Scene {
     X.tick(this.progress);
     if (this.mode === 'board') {
       if (this.timers.some((t) => X.isReturned(t.entry))) {
-        sfx.click();
+        sfx.play('ui_click');
         this.showBoard();
         return;
       }
@@ -220,7 +220,7 @@ export class ExpeditionScene extends Phaser.Scene {
 
   // preset: { dest, party, duration } to start from.
   showPlan(slot, preset = null) {
-    sfx.click();
+    sfx.play('ui_click');
     const p = this.progress;
     const open = EXPEDITION_DESTS().filter((d) => X.isDestinationOpen(p, d));
     const last = preset ?? this.lastPlan ?? {};
@@ -241,7 +241,7 @@ export class ExpeditionScene extends Phaser.Scene {
     this.mode = 'plan';
     this.titlePlate('PLAN EXPEDITION', 170);
     this.add2(new Button(this, DISPLAY.width - 30, 16, {
-      width: 48, height: 24, label: 'Back', onClick: () => { sfx.click(); this.showBoard(); },
+      width: 48, height: 24, label: 'Back', onClick: () => { sfx.play('ui_click'); this.showBoard(); },
     }));
     this.drawDestinations();
     this.drawDestinationInfo();
@@ -282,11 +282,11 @@ export class ExpeditionScene extends Phaser.Scene {
       const zone = this.add2(this.add.zone(cx, cy, cellW, cellH).setOrigin(0).setInteractive({ useHandCursor: true }));
       zone.on('pointerdown', () => {
         if (isOpen) {
-          sfx.click();
+          sfx.play('ui_click');
           this.plan.dest = dest.id;
           this.plan.peek = null;
         } else {
-          sfx.denied();
+          sfx.play('ui_error');
           this.plan.peek = dest.id;
         }
         this.drawPlan();
@@ -443,14 +443,14 @@ export class ExpeditionScene extends Phaser.Scene {
     this.plan.focus = id;
     const party = this.plan.party;
     if (X.entryOf(p, id)) {
-      sfx.denied();
+      sfx.play('ui_error');
     } else if (party.includes(id)) {
-      sfx.click();
+      sfx.play('ui_click');
       party.splice(party.indexOf(id), 1);
     } else if (party.length >= EXPEDITIONS.maxParty) {
-      sfx.denied();
+      sfx.play('ui_error');
     } else {
-      sfx.click();
+      sfx.play('ui_click');
       party.push(id);
       this.events.emit('expedition-crew', { id });
     }
@@ -467,7 +467,7 @@ export class ExpeditionScene extends Phaser.Scene {
       this.add2(new Button(this, B.x + 34 + k * 54, by, {
         width: 50, height: 26, style: selected ? 'gold' : 'wood', label: d.label,
         onClick: () => {
-          sfx.click();
+          sfx.play('ui_click');
           this.plan.duration = d.id;
           this.drawPlan();
         },
@@ -505,13 +505,13 @@ export class ExpeditionScene extends Phaser.Scene {
     const p = this.progress;
     const { slot, dest, party, duration } = this.plan;
     if (!X.send(p, slot, dest, party, duration)) {
-      sfx.denied();
+      sfx.play('ui_error');
       return;
     }
     this.lastPlan = { dest, duration };
     this.changed = true;
     saveProgress(p);
-    sfx.flip();
+    sfx.play('wave_start', { volume: AUDIO.quiet });
     this.showBoard();
     this.events.emit('expedition-sent');
   }
@@ -764,19 +764,19 @@ export class ExpeditionScene extends Phaser.Scene {
       this.add2(text(this, CX, 241, `CHEST${chests > 1 ? 'S' : ''} WAITING IN THE CHEST SCREEN`, light({ font: 'small' })).setOrigin(0.5));
     }
     this.add2(new Button(this, CX - 58, 258, {
-      width: 96, height: 24, label: 'Done', onClick: () => { sfx.click(); this.showBoard(); },
+      width: 96, height: 24, label: 'Done', onClick: () => { sfx.play('ui_click'); this.showBoard(); },
     }));
     // The same party, destination and duration, in one tap.
     const again = this.add2(new Button(this, CX + 58, 258, {
       width: 104, height: 24, style: 'gold', label: 'Send again',
       onClick: () => {
         if (!X.send(p, slot, entry.dest, entry.party, entry.duration)) {
-          sfx.denied();
+          sfx.play('ui_error');
           return;
         }
         this.lastPlan = { dest: entry.dest, duration: entry.duration };
         saveProgress(p);
-        sfx.flip();
+        sfx.play('wave_start', { volume: AUDIO.quiet });
         this.showBoard();
       },
     }));
@@ -784,7 +784,7 @@ export class ExpeditionScene extends Phaser.Scene {
   }
 
   close() {
-    sfx.click();
+    sfx.play('ui_back');
     this.scene.stop();
     this.onClose?.(this.changed);
   }

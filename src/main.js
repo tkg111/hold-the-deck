@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { audio } from './audio/Audio.js';
 import { canvasSize, installScaling } from './display.js';
 import { AbyssEndScene } from './scenes/AbyssEndScene.js';
 import { CollectionScene } from './scenes/CollectionScene.js';
@@ -32,6 +33,10 @@ loadUiSpec().then(() => {
     // No automatic fitting: the canvas is sized to the game area (see
     // display.js), centered by the page's flex layout.
     scale: { mode: Phaser.Scale.NONE },
+    // Phaser's own sound stays off: the game makes its AudioContext on the
+    // first input (src/audio/Audio.js), so the browser never has one to
+    // block and warn about.
+    audio: { noAudio: true },
     scene: [GameScene, PackScene, CollectionScene, WantedScene, MapScene, LogScene, EndingScene, ExpeditionScene, ShipyardScene, AbyssEndScene, GalleyScene,
       // Last: over every other scene.
       TutorialScene],
@@ -41,6 +46,7 @@ loadUiSpec().then(() => {
   if (import.meta.env.DEV) window.game = game;
 
   installScaling(game);
+  audio.install();
 
   // The Captain's tutorial listens to the scenes once they exist.
   game.events.once('ready', () => {

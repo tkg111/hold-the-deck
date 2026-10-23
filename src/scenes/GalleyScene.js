@@ -220,7 +220,7 @@ export class GalleyScene extends Phaser.Scene {
   }
 
   select(tab, { quiet = false } = {}) {
-    if (!quiet) sfx.click();
+    if (!quiet) sfx.play('ui_click');
     if (tab !== 'fishing' && this.state !== S.IDLE) this.reset();
     this.tab = tab;
     this.tabButtons.forEach((b, i) => b.setStyle(TABS[i].key === tab ? 'gold' : 'wood'));
@@ -281,7 +281,7 @@ export class GalleyScene extends Phaser.Scene {
         .setInteractive({ useHandCursor: true });
       hit.on('pointerdown', () => {
         if (this.recipe === meal.id) return;
-        sfx.click();
+        sfx.play('ui_click');
         this.recipe = meal.id;
         this.drawCooking();
       });
@@ -347,7 +347,7 @@ export class GalleyScene extends Phaser.Scene {
 
   cook(id) {
     if (!this.progress.cook(id)) return;
-    sfx.splat();
+    sfx.play('cook');
     saveProgress(this.progress);
     this.drawCooking();
   }
@@ -359,7 +359,7 @@ export class GalleyScene extends Phaser.Scene {
     if (p.pantryCount(id) < 1) return;
     const doEat = () => {
       p.eat(id);
-      sfx.loot('gold');
+      sfx.play('eat');
       saveProgress(p);
       this.drawCooking();
     };
@@ -378,7 +378,7 @@ export class GalleyScene extends Phaser.Scene {
 
   pickSpot(id) {
     if (this.state !== S.IDLE || id === this.spotId) return;
-    sfx.click();
+    sfx.play('ui_click');
     this.spotId = id;
     this.showSpot();
     this.refreshSpots();
@@ -451,11 +451,11 @@ export class GalleyScene extends Phaser.Scene {
     if (this.state !== S.IDLE || this.tab !== 'fishing') return;
     const p = this.progress;
     if (!p.useBait()) {
-      sfx.denied();
+      sfx.play('ui_error');
       return;
     }
     saveProgress(p);
-    sfx.flip();
+    sfx.play('cast');
     this.message.removeAll(true);
     this.state = S.CASTING;
     this.refreshSpots();
@@ -490,7 +490,7 @@ export class GalleyScene extends Phaser.Scene {
   land() {
     if (this.state !== S.CASTING) return;
     this.splash();
-    sfx.plop();
+    sfx.play('splash');
     this.bobber.play(`${fishingKey('bobber')}_float`);
     this.pose('wait');
     this.state = S.WAITING;
@@ -527,11 +527,13 @@ export class GalleyScene extends Phaser.Scene {
     this.bobber.stop().setFrame(this.json.bobber.anims.dip[0]);
     this.splash();
     this.alert.setVisible(true);
-    sfx.bite();
+    sfx.play('bite');
     this.events.emit('fishing-bite');
     if (this.rig) return;
     this.later(FISHING.bite.ms, () => {
-      if (this.state === S.BITE) this.finish([['IT GOT AWAY...', UI.colors.warn]]);
+      if (this.state !== S.BITE) return;
+      sfx.play('fish_escape');
+      this.finish([['IT GOT AWAY...', UI.colors.warn]]);
     });
   }
 
@@ -539,7 +541,7 @@ export class GalleyScene extends Phaser.Scene {
     if (this.tab !== 'fishing') return;
     if (this.state === S.WAITING) {
       // Pulled in too early: the bait is gone.
-      sfx.denied();
+      sfx.play('fish_escape');
       this.finish([['TOO EARLY!', UI.colors.warn], ['THE BAIT IS GONE', UI.colors.text, 'small']]);
     } else if (this.state === S.BITE) {
       this.startReel();
@@ -563,7 +565,7 @@ export class GalleyScene extends Phaser.Scene {
     this.moveZone();
     this.bar.setVisible(true);
     this.drawPips();
-    sfx.click();
+    sfx.play('ui_click');
     this.events.emit('reel-started');
   }
 
@@ -586,7 +588,7 @@ export class GalleyScene extends Phaser.Scene {
     const R = FISHING.reel;
     if (x >= r.zone.left && x <= r.zone.left + r.zone.w) {
       r.hits++;
-      sfx.click();
+      sfx.play('reel_hit');
       if (r.hits >= r.need) {
         this.landFish();
         return;
@@ -595,9 +597,10 @@ export class GalleyScene extends Phaser.Scene {
       this.moveZone();
     } else {
       if (!this.rig) r.strikes++;
-      sfx.denied();
+      sfx.play('reel_miss');
       this.cameras.main.shake(80, 0.003);
       if (r.strikes >= R.strikes) {
+        sfx.play('fish_escape');
         this.bar.setVisible(false);
         this.finish([['IT GOT AWAY!', UI.colors.warn]]);
         return;
@@ -635,7 +638,8 @@ export class GalleyScene extends Phaser.Scene {
     this.pose('hold_up');
     this.heldFish.setFrame(fish.index).setVisible(true);
     this.splash();
-    sfx.reveal(this.rarity === 'junk' ? 'common' : this.rarity === 'uncommon' ? 'rare' : this.rarity === 'rare' ? 'epic' : this.rarity, isNew);
+    sfx.play('splash');
+    sfx.play(fish.rarity === 'legendary' ? 'fish_legendary' : 'fish_catch');
     const lines = [[fish.name.toUpperCase(), reelSpec(fish.rarity).color]];
     if (isNew) lines.push([`NEW!${spice ? `  +${spice} SPICE` : ''}`, '#ffd86a', 'small']);
     this.finish(lines);
@@ -653,6 +657,7 @@ export class GalleyScene extends Phaser.Scene {
       r.pos += r.dir * delta / r.sweepMs;
       if (r.pos >= 1 || r.pos <= 0) {
         r.dir = -r.dir;
+        sfx.play('reel_tick');
         r.pos = Phaser.Math.Clamp(r.pos, 0, 1);
       }
       this.marker.setX(Math.round(this.barLeft + 1 + r.pos * this.barInner));
@@ -677,7 +682,7 @@ export class GalleyScene extends Phaser.Scene {
   }
 
   close() {
-    sfx.click();
+    sfx.play('ui_back');
     this.clearTimers();
     saveProgress(this.progress);
     this.scene.stop();

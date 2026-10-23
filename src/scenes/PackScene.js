@@ -208,7 +208,7 @@ export class PackScene extends Phaser.Scene {
     if (this.busy) return;
     const index = Phaser.Math.Clamp(this.index + step, 0, this.packs.length - 1);
     if (index === this.index && !this.showingResult) return;
-    sfx.click();
+    sfx.play('ui_click');
     this.index = index;
     this.showPack();
   }
@@ -229,7 +229,7 @@ export class PackScene extends Phaser.Scene {
 
   backToPack() {
     if (this.busy || !this.showingResult) return;
-    sfx.click();
+    sfx.play('ui_click');
     this.showPack();
   }
 
@@ -430,7 +430,6 @@ export class PackScene extends Phaser.Scene {
     const to = Phaser.Display.Color.ValueToColor(RARITY[rarity].color);
     const hintStart = 1 - PACK_FX.hintFraction;
 
-    sfx.shake(duration, rarity);
     this.tweens.addCounter({
       from: 0,
       to: 1,
@@ -466,7 +465,7 @@ export class PackScene extends Phaser.Scene {
       stars: result.isNew ? 0 : result.stars, bonus: result.bonus,
     }));
     this.card.setPosition(CARD_X, CHEST_Y + 40).setAlpha(0).setVisible(true);
-    sfx.flip();
+    sfx.play('chest_open');
 
     this.tweens.add({ targets: this.light, alpha: 1, scaleY: 1, duration: 320, ease: 'Quad.easeOut' });
     this.tweens.add({
@@ -482,7 +481,7 @@ export class PackScene extends Phaser.Scene {
   reveal(result) {
     const rarity = HEROES[result.id].rarity;
     const rarityColor = RARITY[rarity].color;
-    sfx.reveal(rarity, result.isNew);
+    sfx.reveal(rarity);
     const flash = PACK_FX.revealFlash[rarity];
     if (flash) this.cameras.main.flash(flash, 255, 236, 179);
 
@@ -547,7 +546,7 @@ export class PackScene extends Phaser.Scene {
     const best = results.reduce((a, r) => (order.indexOf(HEROES[r.id].rarity) > order.indexOf(HEROES[a.id].rarity) ? r : a));
     const bestRarity = HEROES[best.id].rarity;
     const fresh = results.filter((r) => r.isNew);
-    sfx.reveal(bestRarity, fresh.length > 0);
+    sfx.reveal(bestRarity);
     const flash = PACK_FX.revealFlash[bestRarity];
     if (flash) this.cameras.main.flash(flash, 255, 236, 179);
 
@@ -659,7 +658,7 @@ export class PackScene extends Phaser.Scene {
     this.time.delayedCall(600, () => { canDismiss = true; });
     backdrop.on('pointerdown', () => {
       if (!canDismiss) return;
-      sfx.click();
+      sfx.play('ui_back');
       this.tweens.killTweensOf([rays, card, title, quote, where, hint]);
       splash.destroy(true);
       if (onDone) {

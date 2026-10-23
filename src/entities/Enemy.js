@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import {
-  CHARM, DISPLAY, ELITE, ENEMIES, ENEMY_FREEZE, FX, SHIP, SPRITES, WAVES,
+  AUDIO, CHARM, DISPLAY, ELITE, ENEMIES, ENEMY_FREEZE, FX, SHIP, SPRITES, WAVES,
 } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
 import { fxSprite, playFx } from '../fx.js';
@@ -384,7 +384,7 @@ export class Enemy {
       this.fogPuff();
       scene.cameras.main.shake(b.cackle.duration, b.cackle.intensity);
       scene.showBanner?.(def.banner, { color: UI.colors.warn });
-      sfx.cackle();
+      sfx.play('boss_roar');
     } else if (def.falls) {
       // A lava bomb: falls straight down from fall.fromY to land on its deck
       // (feet at fall.feetY) after fall.ms, over the warning shown there.
@@ -920,7 +920,7 @@ export class Enemy {
     this.songTimer = song.interval;
     this.singTime = song.singMs;
     if (this.singAnim) this.body.play(this.singAnim);
-    sfx.sirenSong();
+    sfx.play('siren_song');
 
     const crew = this.scene.heroes;
     if (crew.length) {
@@ -962,7 +962,7 @@ export class Enemy {
     const { scene } = this;
     const g = this.def.galleon;
     if (this.fireAnim) this.body.play(this.fireAnim);
-    sfx.boom();
+    sfx.play('cannon');
     const ports = sheetSpec(scene, this.def.sprite)?.gunPorts ?? [[this.frameW / 2, this.frameH * 0.75]];
     for (const [px, py] of ports) {
       const target = { alive: true, ...ship.hullTarget() };
@@ -1020,6 +1020,11 @@ export class Enemy {
   // whether it landed (and is gone).
   drop(sdt, ship) {
     this.setFeetY(Math.min(this.fall.feetY, this.feetY + this.fallSpeed * sdt / 1000));
+    // Its whistle starts a little before it lands, so the boom lands with it.
+    if (!this.whistled && (this.fall.feetY - this.feetY) / this.fallSpeed * 1000 <= AUDIO.lavaBombLeadMs) {
+      this.whistled = true;
+      sfx.play('lava_bomb');
+    }
     if (this.feetY < this.fall.feetY) return false;
     this.land(ship);
     return true;
@@ -1035,7 +1040,6 @@ export class Enemy {
     for (const h of scene.heroes) if (h.deck === this.fall.deck) h.stun(f.stun);
     playFx(scene, f.impact, this.x, this.feetY).setOrigin(0.5, 1);
     scene.cameras.main.shake(f.shake.duration, f.shake.intensity);
-    sfx.lavaSplash();
     this.removeOverlays();
     this.body.destroy();
   }
@@ -1061,7 +1065,7 @@ export class Enemy {
     const { scene } = this;
     const l = this.def.leviathan;
     if (this.spitAnim) this.body.play(this.spitAnim);
-    sfx.spit();
+    sfx.play('splash', { volume: AUDIO.quiet });
     const [mx, my] = this.mouth;
     const target = { alive: true, ...ship.hullTarget() };
     scene.projectiles.push(new LobProjectile(scene, {
@@ -1072,7 +1076,6 @@ export class Enemy {
       onHit: (_t, x, y) => {
         ship.takeDamage(this.damage, this);
         playFx(scene, l.impact, x, y);
-        sfx.lavaSplash();
       },
     }));
   }
@@ -1082,7 +1085,7 @@ export class Enemy {
     const { scene } = this;
     const l = this.def.leviathan;
     if (this.spitAnim) this.body.play(this.spitAnim);
-    sfx.roar();
+    sfx.play('boss_roar');
     scene.cameras.main.shake(l.roarShake.duration, l.roarShake.intensity);
     scene.volcano?.dropBombs(l.roarBombs);
   }
@@ -1133,7 +1136,7 @@ export class Enemy {
       onHit: (_t, hx, hy) => {
         ship.takeDamage(damage, this);
         playFx(scene, impact, hx, hy);
-        sfx.musket();
+        sfx.play('cannon_small');
       },
     }));
   }
@@ -1152,7 +1155,6 @@ export class Enemy {
       onHit: (_t, hx, hy) => {
         ship.takeDamage(damage, this);
         playFx(scene, impact, hx, hy);
-        sfx.frostHit();
       },
     }));
   }
@@ -1186,7 +1188,7 @@ export class Enemy {
   breakIceShield() {
     this.iceShieldHp = 0;
     playFx(this.scene, this.iceSpec.breakFx, this.x, this.y);
-    sfx.iceBreak();
+    sfx.play('hit_heavy');
   }
 
   // A Sled Penguin at the ship: one ram for rams.mult x its damage, and it's
@@ -1196,7 +1198,6 @@ export class Enemy {
     this.alive = false;
     ship.takeDamage(this.damage * rams.mult, this);
     playFx(this.scene, rams.impact, this.x - this.def.width / 2, this.y);
-    sfx.frostHit();
     this.removeOverlays();
     this.scene.tweens.add({ targets: this.body, alpha: 0, duration: 150, onComplete: () => this.body.destroy() });
   }
@@ -1235,7 +1236,7 @@ export class Enemy {
     }
     this.playAction(this.breathAnim, this.breathTiming.ms);
     this.breathDue = Math.max(1, w.breathAt);
-    sfx.frostBreath();
+    sfx.play('cast');
   }
 
   // The breath lands: frost_breath with its right edge at the mouth, the
@@ -1251,7 +1252,6 @@ export class Enemy {
     ship.takeDamage(this.damage, this);
     scene.cameras.main.shake(w.shake.duration, w.shake.intensity);
     if (++this.breaths % w.freezeEvery === 0) ship.crewNearestBow(scene.heroes)?.freeze(w.freezeMs, 'wyrm');
-    sfx.frostHit();
   }
 
   // Below liftAt of its HP (once): up off the iceberg, out of reach.
@@ -1302,7 +1302,7 @@ export class Enemy {
         this.playAction(this.roarAnim, g.roarMs);
         scene.cameras.main.shake(g.roarShake.duration, g.roarShake.intensity);
         scene.showBanner?.(this.def.banner, { color: UI.colors.warn });
-        sfx.roar();
+        sfx.play('boss_roar');
         return false;
       }
       return true;
@@ -1366,7 +1366,7 @@ export class Enemy {
     this.phase = 'rage';
     this.playAction(this.roarAnim, a.roarMs);
     scene.cameras.main.shake(a.shake.duration, a.shake.intensity);
-    sfx.roar();
+    sfx.play('boss_roar');
     for (let i = 0; i < a.flashes; i++) {
       scene.time.delayedCall(i * a.flashMs, () => this.alive && this.body.setTintFill?.(a.flash[i % a.flash.length]));
     }
@@ -1388,7 +1388,7 @@ export class Enemy {
     const slam = this.framePoint(this.slamPoint);
     playFx(scene, 'ground_quake', slam.x, slam.y).setOrigin(0.5, 1);
     scene.cameras.main.shake(g.smashShake.duration, g.smashShake.intensity);
-    sfx.stomp();
+    sfx.play('hit_heavy');
     if (++this.smashes % g.freezeEvery === 0) ship.crewNearestBow(scene.heroes)?.freeze(g.freezeMs, 'giant');
   }
 
@@ -1422,7 +1422,7 @@ export class Enemy {
     this.fadeTime = w.hideMs;
     this.playAction(this.fadeOutAnim, this.fadeOutMs);
     playFx(this.scene, w.puff, Math.round(this.x), Math.round(this.y), DEPTH.enemy + 0.1);
-    sfx.fogPuff();
+    sfx.play('cast', { volume: AUDIO.quiet });
   }
 
   // A Lantern Ghoul at its spot: from lantern.firstAt, every lantern.every it
@@ -1439,7 +1439,7 @@ export class Enemy {
     this.attackCooldown = l.every;
     this.raisesLeft--;
     this.playAction(this.actAnim, this.actTiming.ms);
-    sfx.wisp();
+    sfx.play('bite', { volume: AUDIO.quiet });
     const [lx, ly] = this.spec?.lantern ?? [6, 13];
     const target = { alive: true, x: grave.x, y: laneFeetY(grave.x) - 6 };
     this.scene.projectiles.push(new Projectile(this.scene, {
@@ -1497,7 +1497,7 @@ export class Enemy {
     this.notesLeft = q.notes;
     this.noteTimer = 0;
     this.playAction(this.singAnim, this.singTiming.ms);
-    sfx.sirenSong();
+    sfx.play('siren_song');
   }
 
   // A charm note from her mouth to the crewmate; the last one charms them.
@@ -1532,12 +1532,12 @@ export class Enemy {
       onHit: () => {
         ship.takeDamage(this.damage, this);
         scene.cameras.main.shake(q.shake.duration, q.shake.intensity);
-        sfx.splash();
+        sfx.play('splash');
       },
     });
     wave.sprite.setOrigin(0.5, 1);
     scene.projectiles.push(wave);
-    sfx.wave();
+    sfx.play('cast');
   }
 
   // Captain Blackbones, out of the fog: down the lane, now and then sinking
@@ -1613,7 +1613,7 @@ export class Enemy {
     this.hideTime = this.def.blackbones.hideMs;
     this.playAction(this.fogSinkAnim, this.fogSinkMs);
     this.fogPuff();
-    sfx.fogPuff();
+    sfx.play('cast', { volume: AUDIO.quiet });
   }
 
   // He steps out of the fog stepPx further on (never past the ship).
@@ -1625,7 +1625,7 @@ export class Enemy {
     this.phase = 'rise';
     this.playAction(this.fogRiseAnim, this.fogRiseMs);
     this.fogPuff();
-    sfx.fogPuff();
+    sfx.play('cast', { volume: AUDIO.quiet });
   }
 
   // The flintlock goes off: a flash at the muzzle and a musket ball in the hull.
@@ -1634,14 +1634,13 @@ export class Enemy {
     const m = this.framePoint(this.muzzle);
     playFx(this.scene, b.flash, m.x, m.y).setOrigin(1, 0.5).setFlipX(true);
     ship.takeDamage(this.damage * b.shotMult, this);
-    sfx.musket();
+    sfx.play('cannon_small');
   }
 
   // The cutlass lands: the hull takes his damage, with a ghostly slash on it.
   slash(ship) {
     ship.takeDamage(this.damage, this);
     playFx(this.scene, this.def.blackbones.slashFx, LAYOUT.shipContactX - 8, Math.round(this.feetY - this.def.height / 2));
-    sfx.slash();
   }
 
   // "summon" (twice through) with summon circles on the lane in front of
@@ -1662,7 +1661,7 @@ export class Enemy {
       this.raiseSpots.push(x);
       this.circles.push(fxSprite(scene, b.circle, Math.round(x), Math.round(laneFeetY(x))).setDepth(DEPTH.enemy - 0.5));
     }
-    sfx.cackle();
+    sfx.play('boss_roar');
   }
 
   raiseCrew() {
@@ -1686,7 +1685,7 @@ export class Enemy {
       if (!this.isRising && this.def.queen) {
         if (this.idleAnim) this.body.play(this.idleAnim);
         this.scene.showBanner?.(this.def.banner, { color: UI.colors.warn });
-        sfx.sirenSong();
+        sfx.play('boss_roar');
       }
       return;
     }
@@ -1700,7 +1699,7 @@ export class Enemy {
       if (!this.isRising) {
         if (this.idleAnim) this.body.play(this.idleAnim);
         this.scene.showBanner?.(this.def.banner, { color: UI.colors.warn });
-        sfx.roar();
+        sfx.play('boss_roar');
       }
       return;
     }
@@ -1816,7 +1815,7 @@ export class Enemy {
     const { blast } = this.def;
     playFx(this.scene, blast.fx, this.x, this.y).setScale(blast.fxScale);
     this.scene.cameras.main.shake(blast.shake.duration, blast.shake.intensity);
-    sfx.boom();
+    sfx.play('cannon');
   }
 
   // amount: the hit's damage. Options:
@@ -1896,7 +1895,7 @@ export class Enemy {
     const { shield } = this.def;
     this.shieldHp = 0;
     playFx(this.scene, shield.fx, this.x + shield.offsetX, this.feetY + shield.offsetY);
-    sfx.shieldBreak();
+    sfx.play('hit_heavy');
     const anim = findAnim(this.scene, this.def.sprite, shield.brokenAnim);
     if (anim) {
       this.walkAnim = anim;
@@ -1933,6 +1932,7 @@ export class Enemy {
     this.killSource = source;
     if (source && !this.def.hazard) this.scene.stats?.kill(source);
     this.scene.events.emit('enemy-killed', this);
+    if (!this.def.hazard) sfx.play(this.def.boss ? 'boss_die' : 'enemy_die');
     this.removeOverlays();
     if (this.def.galleon || this.def.leviathan) {
       this.sink();
@@ -2010,7 +2010,7 @@ export class Enemy {
         const splash = scene.add.sprite(Math.round(this.x), LAYOUT.waterY - w.aboveWater, s.key)
           .setOrigin(0.5, 0).setDepth(DEPTH.splash).play(SPLASH_ANIM);
         scene.time.delayedCall(2 * s.frames * 1000 / s.fps, () => splash.destroy());
-        sfx.splash();
+        sfx.play('splash');
       },
     });
   }
@@ -2025,7 +2025,6 @@ export class Enemy {
     }
     this.body.play(this.shatterAnim);
     this.body.once(`animationcomplete-${this.shatterAnim}`, done);
-    sfx.iceBreak();
   }
 
   // The Siren Queen goes down: "sink", with the Kraken's splash where she
@@ -2037,7 +2036,7 @@ export class Enemy {
     const splash = scene.add.sprite(Math.round(this.x), LAYOUT.waterY - this.def.queen.aboveWater, s.key)
       .setOrigin(0.5, 0).setDepth(DEPTH.splash).play(SPLASH_ANIM);
     scene.time.delayedCall(2 * s.frames * 1000 / s.fps, () => splash.destroy());
-    sfx.splash();
+    sfx.play('splash');
     const done = () => this.body.destroy();
     if (!this.sinkAnim) {
       scene.tweens.add({ targets: this.body, alpha: 0, duration: 400, onComplete: done });
@@ -2062,7 +2061,6 @@ export class Enemy {
     }
     this.body.play(this.deathAnim);
     this.body.once(`animationcomplete-${this.deathAnim}`, fade);
-    sfx.cackle();
   }
 
   // A Keg Runner killed before reaching the ship: its keg goes off where it

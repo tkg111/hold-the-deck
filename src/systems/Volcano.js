@@ -71,7 +71,6 @@ export class Volcano {
         fall: { deck, feetY: spot.feetY, fromY: spec.fromY, ms: spec.warnMs },
       }));
     }
-    sfx.bombWhistle();
   }
 
   // A Magma Crab died at x: its fire puddle (ENEMIES.magmaCrab.firePuddle).

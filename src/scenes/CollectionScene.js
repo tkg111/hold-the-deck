@@ -78,7 +78,7 @@ export class CollectionScene extends Phaser.Scene {
   turnPage(step) {
     const page = Phaser.Math.Clamp(this.page + step, 0, this.pages - 1);
     if (page === this.page) return;
-    sfx.click();
+    sfx.play('ui_click');
     this.page = page;
     this.drawPage();
   }
@@ -123,7 +123,7 @@ export class CollectionScene extends Phaser.Scene {
   // The hero's large card and a parchment panel with its ability; a click
   // anywhere closes it.
   showDetail(id) {
-    sfx.click();
+    sfx.play('ui_click');
     const p = this.progress;
     const cx = DISPLAY.width / 2;
     const cy = DISPLAY.height / 2;
@@ -158,13 +158,13 @@ export class CollectionScene extends Phaser.Scene {
       ]);
     }
     backdrop.once('pointerdown', () => {
-      sfx.click();
+      sfx.play('ui_click');
       for (const o of [backdrop, card, info]) o.destroy();
     });
   }
 
   close() {
-    sfx.click();
+    sfx.play('ui_back');
     this.scene.stop();
     this.onClose?.();
   }

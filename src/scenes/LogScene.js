@@ -88,7 +88,7 @@ export class LogScene extends Phaser.Scene {
 
   select(tab) {
     if (tab === this.tab) return;
-    sfx.click();
+    sfx.play('ui_click');
     this.tab = tab;
     this.offset = 0;
     this.draw();
@@ -317,7 +317,7 @@ export class LogScene extends Phaser.Scene {
   }
 
   close() {
-    sfx.click();
+    sfx.play('ui_back');
     this.scene.stop();
     this.onClose?.();
   }

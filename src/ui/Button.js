@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { UI_KIT } from '../config.js';
+import { sfx } from '../audio/Sfx.js';
 import { hexColor, icon as makeIcon, nineSlice, text, UI } from './kit.js';
 
 // The bottom of each button image is its drop shadow; content centres on the
@@ -18,7 +19,9 @@ const FIT_PAD = 2;
 // alone is never dropped). onClick fires on press, or on release with
 // onRelease: true (browsers only allow fullscreen from a touch once it's
 // released; buttons in a scrolling list wait for the release too, so a drag
-// can cancel them: cancelPress()).
+// can cancel them: cancelPress()). A press plays ui_click, unless onClick
+// plays a sound of its own (a buy, a close); tapping a disabled button plays
+// ui_error.
 export class Button extends Phaser.GameObjects.Container {
   constructor(scene, x, y, {
     width, height = 20, label = '', icon = null, style = 'wood', font = 'main', onClick, onRelease = false,
@@ -48,18 +51,27 @@ export class Button extends Phaser.GameObjects.Container {
     // Every click is also announced on the scene ('button-pressed', button).
     const click = () => {
       scene.events.emit('button-pressed', this);
+      const asked = sfx.requests;
       onClick();
+      if (sfx.requests === asked) sfx.play('ui_click');
     };
     this.bg.setInteractive({ useHandCursor: true });
     this.bg.on('pointerover', () => { this.hovered = true; this.paint(); });
-    this.bg.on('pointerout', () => { this.hovered = false; this.pressed = false; this.paint(); });
+    this.bg.on('pointerout', () => { this.hovered = false; this.pressed = false; this.deniedPress = false; this.paint(); });
     this.bg.on('pointerdown', () => {
-      if (!this.enabled) return;
+      if (!this.enabled) {
+        // (A release button waits: a drag may be scrolling its list.)
+        if (onRelease) this.deniedPress = true;
+        else sfx.play('ui_error');
+        return;
+      }
       this.pressed = true;
       this.paint();
       if (!onRelease) click();
     });
     this.bg.on('pointerup', () => {
+      if (this.deniedPress) sfx.play('ui_error');
+      this.deniedPress = false;
       const clicked = this.pressed && onRelease;
       this.pressed = false;
       this.paint();
@@ -146,6 +158,7 @@ export class Button extends Phaser.GameObjects.Container {
 
   // Let go of a press without clicking (a drag started on the button).
   cancelPress() {
+    this.deniedPress = false;
     if (!this.pressed) return this;
     this.pressed = false;
     this.paint();

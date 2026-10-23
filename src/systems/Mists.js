@@ -1,4 +1,4 @@
-import { ENEMIES, PARTS } from '../config.js';
+import { AUDIO, ENEMIES, PARTS } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
 import { isBossWave } from './WaveManager.js';
 
@@ -70,7 +70,7 @@ export class Mists {
   begin(ms) {
     this.timeLeft = ms;
     this.elapsed = 0;
-    sfx.fogHorn();
+    sfx.play('wave_start', { volume: AUDIO.quiet });
   }
 
   update(dt) {

@@ -138,7 +138,7 @@ export class HeroPicker extends ScrollPanel {
       if (entry) {
         bg.removeInteractive();
         bg.setInteractive();   // no hand cursor
-        bg.on('pointerdown', () => sfx.denied());
+        bg.on('pointerdown', () => sfx.play('ui_error'));
         return row;
       }
     } else {

@@ -108,7 +108,7 @@ export class Shipwright extends ScrollPanel {
 
   setTab(tab) {
     if (tab === this.tab) return;
-    sfx.click();
+    sfx.play('ui_click');
     this.tab = tab;
     this.offset = 0;
     this.paintHeader();
@@ -118,7 +118,7 @@ export class Shipwright extends ScrollPanel {
 
   setAmount(amount) {
     if (amount === this.progress.buyAmount) return;
-    sfx.click();
+    sfx.play('ui_click');
     this.progress.buyAmount = amount;
     this.paintHeader();
     this.refresh();
@@ -156,7 +156,7 @@ export class Shipwright extends ScrollPanel {
   toggleOpen() {
     const p = this.progress;
     p.shipwrightOpen = !p.shipwrightOpen;
-    sfx.click();
+    sfx.play('ui_click');
     this.paintHandle();
     this.scene.tweens.killTweensOf(this);
     if (this.anchor) {
@@ -275,6 +275,7 @@ export class Shipwright extends ScrollPanel {
     let bought = 0;
     while (bought < count && entry.def.buyOne()) bought++;
     if (bought === 0) return;
+    sfx.play(entry.def.kind === 'deck' ? 'deck_build' : 'buy');
     // Something may have just maxed out (the last deck): re-sort.
     if (entry.def.costAt(0) == null) this.rebuild();
     this.onPurchase();

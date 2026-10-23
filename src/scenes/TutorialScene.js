@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
-import { DISPLAY, TUTORIAL, UI_KIT } from '../config.js';
+import {
+  AUDIO, DISPLAY, TUTORIAL, UI_KIT,
+} from '../config.js';
 import { sfx } from '../audio/Sfx.js';
 import { applyRenderScale } from '../display.js';
 import { TUTORIAL_JSON_KEY, tutorialKey } from '../sprites.js';
@@ -11,6 +13,12 @@ import { dark, light, panel, text } from '../ui/kit.js';
 const KEY = 'TutorialScene';
 // The battle's bottom button bar's centre line (GameScene, base layout).
 const BAR_Y = 251;
+
+// The Captain typing: a blip each time the count of characters shown
+// passes a multiple of AUDIO.blipEvery (from was to now).
+function blip(was, now) {
+  if (Math.floor(now / AUDIO.blipEvery) > Math.floor(was / AUDIO.blipEvery)) sfx.play('captain_blip');
+}
 
 // Lays out a line of dialogue into rows no wider than `width` (whole words),
 // so typing it out never makes a word jump to the next row.
@@ -183,12 +191,12 @@ export class TutorialScene extends Phaser.Scene {
       return;
     }
     if (!this.lastLine) {
-      sfx.click();
+      sfx.play('ui_click');
       this.startLine(s.index + 1);
       return;
     }
     if (s.step.mode !== 'guided') {
-      sfx.click();
+      sfx.play('ui_click');
       s.step.onLinesDone();
     }
   }
@@ -342,7 +350,7 @@ export class TutorialScene extends Phaser.Scene {
       from: 0, to: 1, duration: slideMs, onUpdate: (tw) => { this.bannerSlide = tw.getValue(); this.placeBanner(); },
     });
     this.mini.setFrame(this.miniFace(line.face));
-    sfx.click();
+    sfx.play('tip');
   }
 
   miniFace(face) {
@@ -405,7 +413,9 @@ export class TutorialScene extends Phaser.Scene {
     const s = this.state;
     if (s?.lines && s.full != null) {
       if (s.typing) {
+        const was = Math.floor(s.chars);
         s.chars = Math.min(s.full.length, s.chars + delta * TUTORIAL.typeCps / 1000);
+        blip(was, Math.floor(s.chars));
         this.line.setText(s.full.slice(0, Math.floor(s.chars)));
         if (s.chars >= s.full.length) s.typing = false;
       }
@@ -442,7 +452,9 @@ export class TutorialScene extends Phaser.Scene {
     const b = this.bannerLine;
     if (!this.bannerShowing || !b) return;
     if (b.typing) {
+      const was = Math.floor(b.chars);
       b.chars = Math.min(b.text.length, b.chars + delta * TUTORIAL.typeCps / 1000);
+      blip(was, Math.floor(b.chars));
       this.bannerText.setText(b.text.slice(0, Math.floor(b.chars)));
       if (b.chars >= b.text.length) b.typing = false;
       this.mini.setFrame(b.face !== 'worried' && talking ? this.miniFaces.indexOf('talk1') : this.miniFace(b.face));

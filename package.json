@@ -14,7 +14,7 @@
     "sim:abyss": "node --import ./scripts/sim/register.mjs scripts/sim/abyss.mjs",
     "sim:packs": "node --import ./scripts/sim/register.mjs scripts/sim/packs.mjs",
     "sim:stars": "node --import ./scripts/sim/register.mjs scripts/sim/stars.mjs",
-    "test": "node --import ./scripts/sim/register.mjs scripts/tests/tutorial.mjs"
+    "test": "node --import ./scripts/sim/register.mjs scripts/tests/tutorial.mjs && node --import ./scripts/sim/register.mjs scripts/tests/audio.mjs"
   },
   "dependencies": {
     "phaser": "3.90.0"
