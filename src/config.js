@@ -2982,7 +2982,7 @@ export const MOBILE = {
   portrait: { maxWidth: 600, iconScale: 4 },
   offline: {
     emaWeight: 0.2,
-    share: 0.25,
+    share: 0.15,
     capMs: 8 * 60 * 60 * 1000,
     minAwayMs: 2 * 60 * 1000,
     returnAfterMs: 2 * 60 * 1000,

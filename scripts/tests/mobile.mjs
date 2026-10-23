@@ -131,18 +131,19 @@ const NOW = Date.UTC(2026, 9, 23, 12);
 test('offline: away under 2 minutes pays nothing', () => {
   const at = (ms) => awayEarnings({ idleRate: 100, lastSeen: NOW - ms, now: NOW });
   assert.equal(O.minAwayMs, 2 * MIN);
+  assert.equal(O.share, 0.15);
   assert.equal(at(0).gold, 0);
   assert.equal(at(2 * MIN - 1).gold, 0);
-  assert.equal(at(2 * MIN).gold, 100 * 0.25 * 120);
+  assert.equal(at(2 * MIN).gold, 100 * O.share * 120);
 });
 
-test('offline: pays idleRate x 0.25 x time away, up to 8 hours', () => {
+test('offline: pays idleRate x share x time away, up to 8 hours', () => {
   const at = (ms) => awayEarnings({ idleRate: 40, lastSeen: NOW - ms, now: NOW });
-  assert.deepEqual(at(HOUR), { awayMs: HOUR, capped: false, gold: 40 * 0.25 * 3600, backwards: false });
-  assert.equal(at(8 * HOUR).gold, 40 * 0.25 * 8 * 3600);
+  assert.deepEqual(at(HOUR), { awayMs: HOUR, capped: false, gold: 40 * O.share * 3600, backwards: false });
+  assert.equal(at(8 * HOUR).gold, 40 * O.share * 8 * 3600);
   assert.equal(at(8 * HOUR).capped, false);
   const long = at(30 * HOUR);
-  assert.equal(long.gold, 40 * 0.25 * 8 * 3600);
+  assert.equal(long.gold, 40 * O.share * 8 * 3600);
   assert.equal(long.capped, true);
   assert.equal(long.awayMs, 30 * HOUR);
 });
@@ -159,7 +160,7 @@ test('offline: a clock that went backwards pays nothing and resets lastSeen', ()
   assert.equal(p.lastSeen, NOW);
   assert.equal(p.gold, gold);
   // ...and the next return counts from the reset.
-  assert.equal(comeBack(p, NOW + HOUR).gold, 100 * 0.25 * 3600);
+  assert.equal(comeBack(p, NOW + HOUR).gold, 100 * O.share * 3600);
 });
 
 test('offline: a new save pays nothing', () => {
@@ -188,7 +189,7 @@ test('offline: comeBack reports gold, Bait refilled and expeditions back; collec
   p.bait = 2;
   p.baitAt = NOW - 3 * HOUR - 1000;
   const report = comeBack(p, NOW);
-  assert.equal(report.gold, 10 * 0.25 * 3 * 3600);
+  assert.equal(report.gold, 10 * O.share * 3 * 3600);
   assert.equal(report.expeditions, 0);
   assert.equal(report.bait.from, 2);
   assert.equal(report.bait.to, p.bait);
