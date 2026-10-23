@@ -325,7 +325,7 @@ export class TutorialScene extends Phaser.Scene {
     this.bannerText = text(this, 32, 8, '', dark({ lineSpacing: -2 }));
     this.bannerBox = this.add.container(0, 0, [this.bannerBg, this.mini, this.bannerText]).setVisible(false);
     this.bannerBg.setInteractive({ useHandCursor: true });
-    this.bannerBg.on('pointerdown', () => this.dismissBanner());
+    this.bannerBg.on('pointerdown', () => this.dismissBanner(true));
   }
 
   nextBanner() {
@@ -368,9 +368,11 @@ export class TutorialScene extends Phaser.Scene {
     if (this.state) this.drawDim(this.state.rect);
   }
 
-  dismissBanner() {
+  // tapped: by the player (a line with onTap acts on it: the update banner).
+  dismissBanner(tapped = false) {
     if (!this.bannerShowing || this.bannerOut) return;
     this.bannerOut = true;
+    if (tapped) this.bannerLine?.onTap?.();
     this.tweens.addCounter({
       from: this.bannerSlide,
       to: 0,
@@ -462,6 +464,7 @@ export class TutorialScene extends Phaser.Scene {
     }
     this.mini.setFrame(this.miniFace(b.face));
     b.held += delta;
-    if (b.held >= TUTORIAL.banner.holdMs) this.dismissBanner();
+    // A sticky line stays until it's tapped.
+    if (!b.sticky && b.held >= TUTORIAL.banner.holdMs) this.dismissBanner();
   }
 }

@@ -18,10 +18,12 @@ import {
 import { Storm } from '../storm.js';
 import { Weather } from '../weather.js';
 import { Fog } from '../fog.js';
+import { installOption, promptInstall } from '../pwa.js';
 import { Ship } from '../entities/Ship.js';
 import { Hero } from '../entities/Hero.js';
 import { playSpawnPuff } from '../entities/Enemy.js';
 import { clearSave, loadProgress, saveProgress } from '../systems/Save.js';
+import { encodeSave } from '../systems/SaveCode.js';
 import { bossOf, composeWave, isBossWave, isSirenWave, WaveManager } from '../systems/WaveManager.js';
 import { AbilitySystem } from '../systems/Abilities.js';
 import { Volcano } from '../systems/Volcano.js';
@@ -41,6 +43,7 @@ import { MealEffects } from '../systems/Meals.js';
 import { AbilityBar } from '../ui/AbilityBar.js';
 import { Button } from '../ui/Button.js';
 import { ConfirmDialog } from '../ui/ConfirmDialog.js';
+import { SaveCodeDialog } from '../ui/SaveCodeDialog.js';
 import { SettingsDialog } from '../ui/SettingsDialog.js';
 import { formatNum, pearlsLabel } from '../ui/format.js';
 import { HeroPicker } from '../ui/HeroPicker.js';
@@ -675,6 +678,35 @@ export class GameScene extends Phaser.Scene {
       onTips: (on) => tutorial.setTipsOn(on),
       onReplay: () => tutorial.replay(),
       onReset: () => this.confirmReset(),
+      onExport: () => this.exportSave(),
+      onImport: () => this.importSave(),
+      install: installOption(),
+      onInstall: () => promptInstall(),
+    });
+  }
+
+  // Settings' Export save: the code, copied and shown.
+  async exportSave() {
+    this.save();
+    const code = await encodeSave(this.progress);
+    // (Unless the battle restarted or a wave started meanwhile.)
+    if (this.state !== STATE.IDLE || this.sys.settings.status > Phaser.Scenes.PAUSED) return;
+    new SaveCodeDialog(this, { mode: 'export', code });
+  }
+
+  // Settings' Import save: a pasted code replaces the save and the battle
+  // starts over from it. Its time away doesn't count here (the other device
+  // may have earned it already).
+  importSave() {
+    if (this.state !== STATE.IDLE) return;
+    new SaveCodeDialog(this, {
+      mode: 'import',
+      onImport: (progress) => {
+        progress.lastSeen = Date.now();
+        saveProgress(progress);
+        sfx.play('ui_open');
+        this.scene.restart();
+      },
     });
   }
 

@@ -2955,3 +2955,36 @@ export const TITLE = {
   shadow: '#2a170a',           // TAP TO START's 1px drop shadow
   version: { x: 4, y: 4 },     // the version label, from the safe view's bottom-left
 };
+
+// Phones, installing and offline play (src/pwa.js, src/systems/Offline.js).
+//   updateCheckMs: how often a waiting new version looks for a quiet moment
+//     (the battle between waves, nothing open) to show the Captain's banner.
+//   saveCode: the Export / Import save code's prefix (with the format's
+//     version) and the text box's size (art px) in its dialog.
+//   minTap: the smallest tap target (art px); smaller buttons get a bigger
+//     invisible hit area.
+//   portrait: the "Turn your phone sideways" overlay's icon scale (CSS px
+//     per art px) on touch phones held upright.
+//   offline: While you were away. idleRate is an exponential moving average
+//     (weight emaWeight) of the gold per second of battle, sampled at each
+//     wave cleared on an island or in the Abyss (not Boss Hunts); away
+//     earnings are idleRate x share per second away, at most capMs of it,
+//     nothing under minAwayMs. A page hidden for returnAfterMs or more counts
+//     as coming back. The panel's gold counts up over countMs with a coin
+//     tick every tickMs; the ledger opens over openMs.
+export const MOBILE = {
+  updateCheckMs: 1000,
+  saveCode: { prefix: 'HTD1.', rawPrefix: 'HTD0.', box: { width: 216, height: 64 } },
+  minTap: 24,
+  portrait: { iconScale: 4 },
+  offline: {
+    emaWeight: 0.2,
+    share: 0.25,
+    capMs: 8 * 60 * 60 * 1000,
+    minAwayMs: 2 * 60 * 1000,
+    returnAfterMs: 2 * 60 * 1000,
+    countMs: 800,
+    tickMs: 80,
+    openMs: 250,
+  },
+};

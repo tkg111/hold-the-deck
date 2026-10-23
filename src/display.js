@@ -73,6 +73,19 @@ export function fillView(scene, color, alpha) {
   return rect;
 }
 
+// Where a rectangle of the scene's layout (x, y, w, h) is on the page, in
+// CSS pixels ({ left, top, width, height }), to put an HTML element over it.
+export function pageRect(scene, x, y, w, h) {
+  const box = scene.game.canvas.getBoundingClientRect();
+  const k = box.width / scene.view.width;
+  return {
+    left: box.left + (x - scene.view.left) * k,
+    top: box.top + (y - scene.view.top) * k,
+    width: w * k,
+    height: h * k,
+  };
+}
+
 // Show the canvas at its physical size (CSS pixels = physical / dpr).
 function fitCanvas(game) {
   const { width, height } = canvasSize();

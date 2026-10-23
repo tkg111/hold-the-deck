@@ -237,17 +237,53 @@ function storage() {
   }
 }
 
+// The stored form of progress ({ version, savedAt, data }).
+export const saveRecord = (progress) => ({
+  version: SAVE_VERSION,
+  savedAt: new Date().toISOString(),
+  data: progress.toSave(),
+});
+
+// Once a session, after the first save: ask the browser to keep the save
+// (phones, iOS especially, may clear storage of sites not installed).
+let persistAsked = false;
+function askPersist() {
+  if (persistAsked || typeof navigator === 'undefined') return;
+  persistAsked = true;
+  navigator.storage?.persist?.().catch(() => {});
+}
+
 export function saveProgress(progress) {
   try {
-    storage()?.setItem(SAVE_KEY, JSON.stringify({
-      version: SAVE_VERSION,
-      savedAt: new Date().toISOString(),
-      data: progress.toSave(),
-    }));
+    storage()?.setItem(SAVE_KEY, JSON.stringify(saveRecord(progress)));
+    askPersist();
     return true;
   } catch (err) {
     console.warn('[save] could not write save:', err);
     return false;
+  }
+}
+
+// A save record from elsewhere (an imported save code) as Progress. Throws
+// a SaveError ('format': not a save; 'newer': from a newer version of the
+// game) rather than loading what it can.
+export class SaveError extends Error {
+  constructor(reason, message) {
+    super(message);
+    this.reason = reason;
+  }
+}
+
+export function progressFromRecord(save) {
+  if (!save || typeof save !== 'object' || !Number.isInteger(save.version) || save.version < 1
+    || !save.data || typeof save.data !== 'object' || !Array.isArray(save.data.owned)) {
+    throw new SaveError('format', 'not a save');
+  }
+  if (save.version > SAVE_VERSION) throw new SaveError('newer', `save version ${save.version}`);
+  try {
+    return Progress.fromSave(migrate(save));
+  } catch (err) {
+    throw new SaveError('format', err.message);
   }
 }
 

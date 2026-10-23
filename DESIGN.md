@@ -662,7 +662,7 @@ The Captain (a pirate with a talking portrait) teaches a new save the basics and
   - **Finale** (the first wave-50 finale sets off): banner, "Two of 'em at once?! All hands on deck!"
   - **Abyss** (once the map has revealed it, at an idle): dialog, "The Abyss. No bottom, no end." (worried) / "Every depth gets meaner. So do we!" (laugh).
   - **Log** (the Captain's Log first opened): banner.
-- **Settings** (the gear, between waves): Music and Sound effects volume sliders and Sound ON / OFF (see Sound), Captain's tips ON / OFF, Replay tutorial (the onboarding starts again as soon as the settings close, and every tip can show again) and Reset progress.
+- **Settings** (the gear, between waves): Music and Sound effects volume sliders and Sound ON / OFF (see Sound), Captain's tips ON / OFF, Replay tutorial and Reset progress (side by side; the onboarding starts again as soon as the settings close, and every tip can show again), Export save and Import save, and Install game (see Phones, installing and offline).
 
 ## Sound
 
@@ -695,7 +695,18 @@ Music and sound effects, all numbers in `AUDIO` (config).
 
 - The reset confirmation uses the same parchment panels, wood plates and buttons.
 
+## Phones, installing and offline
+
+The game is a Progressive Web App (`vite-plugin-pwa`, configured in `vite.config.js`; the runtime side is `src/pwa.js`; numbers in `MOBILE`).
+
+- **Manifest:** name and short name "Hold the Deck", `display` fullscreen (falling back to standalone via `display_override`), landscape, background and theme colour `#2a1e4a` (the title's evening sky). `start_url`, `scope` and `id` are `./`, relative to the manifest, so they follow the GitHub Pages subpath like Vite's `base`. Icons: `icon-192` / `icon-512` (purpose any) and `icon-maskable-192` / `icon-maskable-512` (maskable), plus `icon-180.png` as the apple-touch-icon and `icon-32.png` as the favicon, all at the site root (`public/`). The page also has `apple-mobile-web-app-capable` and a theme-color meta tag.
+- **Offline:** a Workbox service worker (`generateSW`) precaches the whole build: the code, every sprite and data JSON, both formats of every sound effect (`.ogg` and `.mp3`), the music JSON and the bitmap fonts (about 440 files, 2.8 MB). After the first visit the game loads and plays with no connection. Asset URLs keep their `?v=<build>` (see Tech); the precache ignores that parameter, since its own revisions do the same job. Old caches are cleaned up on update. Art left in `public/` that the game doesn't load (`*preview*`, `storm_and_map/`) isn't precached.
+- **New versions** (`registerType: 'prompt'`): a new build waits in the background. Once the battle is between waves with nothing open, the Captain shows a banner that stays until tapped: "A new version's in port! Tap to update." Tapping saves and reloads into the new version. The game never reloads during a wave: a tap after a wave has started (auto-continue) waits for the wave to end (`UpdateGate`).
+- **Install:** Settings has an **Install game** button (gold) only when the browser offers an install (Chrome's `beforeinstallprompt`, caught at startup) and the game isn't already running installed. On iPhone and iPad, which have no install prompt, that row says "Tap Share, then Add to Home Screen." instead. Installed, or not installable: no row.
+- **Keeping saves safe:** after the first save of a session the game asks the browser to keep its storage (`navigator.storage.persist()`), since phones (iOS especially) may clear storage of sites that aren't installed.
+- **Export save** (Settings): the save as a code (the save record's JSON, deflated and base64'd, behind `HTD1.`; uncompressed behind `HTD0.` where the browser can't compress), copied to the clipboard and shown selected in a text box (a real text area over the parchment, so it can also be selected and copied by hand; **Copy** tries again).
+- **Import save** (Settings): paste a code into the box and **Load**. Spaces and line breaks are ignored. A code that isn't a save (cut short, wrong prefix, not valid data) says "That's not a save code. Check it was copied whole."; one from a newer save version says "That save is from a newer version of the game. Update this one first." (older versions are migrated as usual). A good one asks "Import this save? This will replace your current save." with Cancel and Confirm; Confirm saves it and the battle starts over from it.
+
 ## Later (not in v0.1)
 
 - More enemies: Floating Skulls (high damage, low HP)
-- Save export/import

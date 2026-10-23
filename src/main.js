@@ -17,6 +17,7 @@ import { WantedScene } from './scenes/WantedScene.js';
 import { TutorialHost } from './tutorial/TutorialHost.js';
 import { tutorial } from './tutorial/TutorialManager.js';
 import { loadUiSpec } from './ui/kit.js';
+import { installPwa } from './pwa.js';
 
 // ui.json (icon order, slice sizes, colours) loads before the game starts.
 loadUiSpec().then(() => {
@@ -49,6 +50,7 @@ loadUiSpec().then(() => {
 
   installScaling(game);
   audio.install();
+  installPwa(game);
 
   // The Captain's tutorial listens to the scenes once they exist.
   game.events.once('ready', () => {
