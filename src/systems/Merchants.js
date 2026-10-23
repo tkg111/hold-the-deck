@@ -82,14 +82,20 @@ export class Merchants {
     if (gold > 0) this.income.push({ at: this.clock, gold });
   }
 
-  // G: goldSeconds of income at the gold per second of the last
-  // goldWindowMs of battle, at least floorKills of the basic enemy's kills.
-  get plunderBase() {
+  // The gold per second of the last goldWindowMs of battle (also the idle
+  // rate's sample: Offline.js).
+  get goldPerSecond() {
     const window = Math.max(1000, Math.min(MERCHANTS.goldWindowMs, this.clock));
     const gold = this.income.reduce((s, i) => s + i.gold, 0);
+    return gold / (window / 1000);
+  }
+
+  // G: goldSeconds of income at goldPerSecond, at least floorKills of the
+  // basic enemy's kills.
+  get plunderBase() {
     const p = this.scene.progress;
     const kill = (ENEMIES[p.basicEnemy]?.gold ?? 0) * this.scene.waves.scaling.gold * p.goldMult;
-    return Math.max(MERCHANTS.goldSeconds * gold / (window / 1000), MERCHANTS.floorKills * kill);
+    return Math.max(MERCHANTS.goldSeconds * this.goldPerSecond, MERCHANTS.floorKills * kill);
   }
 
   // dt ms of a wave (not a Boss Hunt) went by. canSail: nothing stops a new

@@ -55,6 +55,7 @@ import {
   Bar, EXPEDITION_JSON_KEY, expeditionKey, glyph, glyphWidth, icon, light, panel, text, UI, wantedKey,
 } from '../ui/kit.js';
 import * as Expeditions from '../systems/Expeditions.js';
+import * as Offline from '../systems/Offline.js';
 import { unionBounds } from '../tutorial/targets.js';
 import { tutorial } from '../tutorial/TutorialManager.js';
 
@@ -94,7 +95,10 @@ export class GameScene extends Phaser.Scene {
     initPacks(this.cache.json.get(PACKS_JSON_KEY));
     initFishing(this.cache.json.get(FISHING_JSON_KEY));
     this.progress = loadProgress();
-    Expeditions.tick(this.progress);
+    // Back since the game was last open: time away pays gold (shown first,
+    // before the Captain says anything), expeditions and Bait catch up.
+    const away = Offline.comeBack(this.progress);
+    this.awayOpen = false;   // the While you were away panel is up
     this.expeditionClock = 0;   // real ms since expeditions were last checked
     this.expeditionsReady = Expeditions.readyCount(this.progress);
     this.applyAudioSettings();
@@ -148,9 +152,24 @@ export class GameScene extends Phaser.Scene {
     };
     for (const [name, fn] of Object.entries(handlers)) this.events.on(name, fn, this);
     // Also save when the tab is hidden or closed, so kill gold from an
-    // unfinished wave isn't lost (same as losing a wave: gold is kept).
+    // unfinished wave isn't lost (same as losing a wave: gold is kept); the
+    // save marks when the game was last seen. Back after hiding for
+    // MOBILE.offline.returnAfterMs or more counts as coming back.
     const onPageHide = () => this.save();
     window.addEventListener('pagehide', onPageHide);
+    let hiddenAt = null;
+    const onVisibility = () => {
+      if (document.hidden) {
+        hiddenAt = Date.now();
+        this.save();
+        return;
+      }
+      if (hiddenAt == null || Date.now() - hiddenAt < MOBILE.offline.returnAfterMs || this.awayOpen) return;
+      hiddenAt = null;
+      const report = Offline.comeBack(this.progress);
+      if (report) this.showAway(report);
+    };
+    document.addEventListener('visibilitychange', onVisibility);
     // Fullscreen can also be left with Esc, so follow the browser's state.
     const onFullscreenChange = () => this.refreshUi();
     document.addEventListener('fullscreenchange', onFullscreenChange);
@@ -168,6 +187,7 @@ export class GameScene extends Phaser.Scene {
       this.game.events.off(Phaser.Core.Events.POST_STEP, syncMusic);
       for (const [name, fn] of Object.entries(handlers)) this.events.off(name, fn, this);
       window.removeEventListener('pagehide', onPageHide);
+      document.removeEventListener('visibilitychange', onVisibility);
       document.removeEventListener('fullscreenchange', onFullscreenChange);
       this.input.keyboard?.off('keydown', onKey);
     });
@@ -178,6 +198,30 @@ export class GameScene extends Phaser.Scene {
     this.announcePacks();
     // A dive left mid-depth picks up at that depth's start.
     if (this.progress.inAbyss) this.showBanner(ABYSS.name.toUpperCase(), { detail: `BACK AT DEPTH ${formatNum(this.progress.depth)}` });
+    if (away) this.showAway(away);
+  }
+
+  // While you were away (Offline.comeBack's report): the panel over the
+  // battle, paused (a wave under way waits). Collect pays the gold; the
+  // expeditions row's button collects too, then opens Expeditions.
+  showAway(report) {
+    this.awayOpen = true;
+    if (this.heroPicker?.visible) this.heroPicker.close();
+    const done = (thenExpeditions) => {
+      Offline.collect(this.progress, report);
+      this.awayOpen = false;
+      this.scene.resume();
+      this.refreshUi();
+      this.save();
+      if (thenExpeditions) this.openExpeditions();
+    };
+    this.scene.launch('AwayScene', {
+      report,
+      canOpenExpeditions: this.state === STATE.IDLE && Expeditions.isUnlocked(this.progress),
+      onCollect: () => done(false),
+      onExpeditions: () => done(true),
+    });
+    this.scene.pause();
   }
 
   // The Settings' volumes and mute, from the save.
@@ -702,14 +746,14 @@ export class GameScene extends Phaser.Scene {
   }
 
   // Settings' Import save: a pasted code replaces the save and the battle
-  // starts over from it. Its time away doesn't count here (the other device
-  // may have earned it already).
+  // starts over from it.
   importSave() {
     if (this.state !== STATE.IDLE) return;
     new SaveCodeDialog(this, {
       mode: 'import',
       onImport: (progress) => {
-        progress.lastSeen = Date.now();
+        // (Saving marks it last seen now: time away before the import
+        // doesn't count here, as the other device may have had it.)
         saveProgress(progress);
         sfx.play('ui_open');
         this.scene.restart();
@@ -1121,6 +1165,8 @@ export class GameScene extends Phaser.Scene {
     }
     // Won or lost, the wave's gold per minute counts toward expeditions'.
     if (!hunt) this.progress.logGold(this.waveGold, this.waveTime);
+    // A cleared wave (an island's, or a depth) sets the idle rate's pace.
+    if (won && !hunt) this.progress.noteIdleRate(this.merchants.goldPerSecond);
     // The meal ran out with this win: the crew and hull without it.
     if (meal && !this.progress.meal) {
       this.ship.sync(this.progress);

@@ -9,7 +9,7 @@ export const SAVE_KEY = 'kampung-defense/save';
 const CORRUPT_BACKUP_KEY = 'kampung-defense/save-corrupt-backup';
 
 // Bump when the saved shape changes, and add a migration from the old version.
-export const SAVE_VERSION = 20;
+export const SAVE_VERSION = 21;
 
 // v5 pirate reskin: old hero IDs -> new hero IDs.
 const V5_HERO_IDS = {
@@ -214,6 +214,12 @@ const MIGRATIONS = {
   18: addTutorial,
   // v20: the Settings' music and sound effects volumes, at their defaults.
   19: (data) => ({ ...data, musicVolume: AUDIO.defaults.music, sfxVolume: AUDIO.defaults.sfx }),
+  // v21: While you were away: no idle rate yet and last seen now, so an old
+  // save gets no payout for the time before this version (and none at all
+  // until it clears a wave); no gold paid for time away yet.
+  20: (data) => ({
+    ...data, idleRate: 0, lastSeen: Date.now(), goldAway: 0,
+  }),
 };
 
 function migrate(save) {
@@ -253,7 +259,9 @@ function askPersist() {
   navigator.storage?.persist?.().catch(() => {});
 }
 
+// Every save also marks the game as last seen now (While you were away).
 export function saveProgress(progress) {
+  progress.lastSeen = Date.now();
   try {
     storage()?.setItem(SAVE_KEY, JSON.stringify(saveRecord(progress)));
     askPersist();

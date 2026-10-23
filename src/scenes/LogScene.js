@@ -240,6 +240,7 @@ export class LogScene extends Phaser.Scene {
       ['ENEMIES DEFEATED', defeated],
       ['MERCHANTS PLUNDERED', p.merchantsPlundered],
       ['FISH CAUGHT', p.fishCaught],
+      ['GOLD EARNED WHILE AWAY', p.goldAway],
     ];
     this.rows = stats.map(([label, value]) => this.add.container(0, 0, [
       text(this, 4, 10, label, dark()),

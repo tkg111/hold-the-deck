@@ -5,7 +5,10 @@ import assert from 'node:assert/strict';
 import { deflateRawSync } from 'node:zlib';
 import { MOBILE } from '../../src/config.js';
 import { Progress } from '../../src/systems/Progress.js';
-import { SAVE_VERSION } from '../../src/systems/Save.js';
+import {
+  awayEarnings, collect, comeBack, formatAway, sampleIdleRate,
+} from '../../src/systems/Offline.js';
+import { progressFromRecord, SAVE_VERSION } from '../../src/systems/Save.js';
 import { decodeSave, encodeSave } from '../../src/systems/SaveCode.js';
 import { UpdateGate } from '../../src/systems/UpdateGate.js';
 
@@ -116,6 +119,101 @@ test('update: nothing without a new version, nor a tap', () => {
   g.offer();
   g.settle();
   assert.deepEqual(log, []);
+});
+
+// --- Offline earnings ---
+
+const O = MOBILE.offline;
+const MIN = 60 * 1000;
+const HOUR = 60 * MIN;
+const NOW = Date.UTC(2026, 9, 23, 12);
+
+test('offline: away under 2 minutes pays nothing', () => {
+  const at = (ms) => awayEarnings({ idleRate: 100, lastSeen: NOW - ms, now: NOW });
+  assert.equal(O.minAwayMs, 2 * MIN);
+  assert.equal(at(0).gold, 0);
+  assert.equal(at(2 * MIN - 1).gold, 0);
+  assert.equal(at(2 * MIN).gold, 100 * 0.25 * 120);
+});
+
+test('offline: pays idleRate x 0.25 x time away, up to 8 hours', () => {
+  const at = (ms) => awayEarnings({ idleRate: 40, lastSeen: NOW - ms, now: NOW });
+  assert.deepEqual(at(HOUR), { awayMs: HOUR, capped: false, gold: 40 * 0.25 * 3600, backwards: false });
+  assert.equal(at(8 * HOUR).gold, 40 * 0.25 * 8 * 3600);
+  assert.equal(at(8 * HOUR).capped, false);
+  const long = at(30 * HOUR);
+  assert.equal(long.gold, 40 * 0.25 * 8 * 3600);
+  assert.equal(long.capped, true);
+  assert.equal(long.awayMs, 30 * HOUR);
+});
+
+test('offline: a clock that went backwards pays nothing and resets lastSeen', () => {
+  assert.deepEqual(awayEarnings({ idleRate: 100, lastSeen: NOW + HOUR, now: NOW }), {
+    awayMs: 0, capped: false, gold: 0, backwards: true,
+  });
+  const p = new Progress();
+  p.idleRate = 100;
+  p.lastSeen = NOW + 5 * HOUR;
+  const gold = p.gold;
+  assert.equal(comeBack(p, NOW), null);
+  assert.equal(p.lastSeen, NOW);
+  assert.equal(p.gold, gold);
+  // ...and the next return counts from the reset.
+  assert.equal(comeBack(p, NOW + HOUR).gold, 100 * 0.25 * 3600);
+});
+
+test('offline: a new save pays nothing', () => {
+  const p = new Progress();
+  assert.equal(p.idleRate, 0);
+  p.lastSeen = NOW - 8 * HOUR;
+  assert.equal(awayEarnings({ idleRate: p.idleRate, lastSeen: p.lastSeen, now: NOW }).gold, 0);
+  assert.equal(comeBack(p, NOW), null);   // nothing else to tell either (Bait full)
+});
+
+test('offline: the idle rate is a moving average (weight 0.2) of wave clears', () => {
+  const p = new Progress();
+  p.noteIdleRate(100);
+  assert.equal(p.idleRate, 20);
+  p.noteIdleRate(100);
+  assert.equal(p.idleRate, 36);
+  p.noteIdleRate(NaN);
+  assert.equal(p.idleRate, 36);
+  assert.equal(sampleIdleRate(50, 0), 40);
+});
+
+test('offline: comeBack reports gold, Bait refilled and expeditions back; collect pays', () => {
+  const p = new Progress();
+  p.idleRate = 10;
+  p.lastSeen = NOW - 3 * HOUR;
+  p.bait = 2;
+  p.baitAt = NOW - 3 * HOUR - 1000;
+  const report = comeBack(p, NOW);
+  assert.equal(report.gold, 10 * 0.25 * 3 * 3600);
+  assert.equal(report.expeditions, 0);
+  assert.equal(report.bait.from, 2);
+  assert.equal(report.bait.to, p.bait);
+  assert.ok(report.bait.to > 2);
+  assert.equal(p.lastSeen, NOW);
+  const gold = p.gold;
+  assert.equal(collect(p, report), report.gold);
+  assert.equal(p.gold, gold + report.gold);
+  assert.equal(p.goldAway, report.gold);
+  assert.equal(formatAway(5 * HOUR + 12 * MIN + 59000), '5 h 12 m');
+  assert.equal(formatAway(45 * MIN), '45 m');
+});
+
+test('offline: saves keep the idle rate, lastSeen and gold earned away; v20 saves start at 0 and now', () => {
+  const p = new Progress();
+  Object.assign(p, { idleRate: 12.5, lastSeen: NOW, goldAway: 999 });
+  const q = Progress.fromSave(JSON.parse(JSON.stringify(p.toSave())));
+  assert.deepEqual([q.idleRate, q.lastSeen, q.goldAway], [12.5, NOW, 999]);
+  const { idleRate, lastSeen, goldAway, ...v20 } = p.toSave();
+  const before = Date.now();
+  const r = progressFromRecord({ version: 20, data: v20 });
+  assert.equal(r.idleRate, 0);
+  assert.equal(r.goldAway, 0);
+  assert.ok(r.lastSeen >= before && r.lastSeen <= Date.now());
+  assert.equal(comeBack(r), null);
 });
 
 let failed = 0;

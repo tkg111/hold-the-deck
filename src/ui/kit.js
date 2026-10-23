@@ -15,6 +15,8 @@ export const UI = { colors: {}, icons: [], slices: {} };
 
 const KEY = (name) => `ui_${name}`;
 const ICONS_KEY = KEY('icons');
+// The ship's ledger (closed, open) of the While you were away panel.
+export const LEDGER_KEY = KEY('ledger');
 
 // The Wanted Board art (WANTED.path): texture key per image, and wanted.json
 // (poster layout) in the JSON cache.
@@ -61,6 +63,8 @@ export function preloadUi(scene) {
     for (const state of ['normal', 'hover', 'pressed', 'disabled']) image(`btn_${style}_${state}`);
   }
   load.spritesheet(ICONS_KEY, `${path}icons_sheet.png`, { frameWidth: UI.iconSize, frameHeight: UI.iconSize });
+  const ledger = MOBILE.offline.ledgerFrame;
+  load.spritesheet(LEDGER_KEY, `${path}ledger_sheet.png`, { frameWidth: ledger, frameHeight: ledger });
   for (const name of WANTED_IMAGES) load.image(wantedKey(name), `${WANTED.path}${name}.png`);
   load.json(WANTED_JSON_KEY, `${WANTED.path}wanted.json`);
   for (const name of EXPEDITION_IMAGES) load.image(expeditionKey(name), `${EXPEDITIONS.path}${name}.png`);

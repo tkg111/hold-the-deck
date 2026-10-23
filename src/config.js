@@ -2972,8 +2972,9 @@ export const TITLE = {
 //     wave cleared on an island or in the Abyss (not Boss Hunts); away
 //     earnings are idleRate x share per second away, at most capMs of it,
 //     nothing under minAwayMs. A page hidden for returnAfterMs or more counts
-//     as coming back. The panel's gold counts up over countMs with a coin
-//     tick every tickMs; the ledger opens over openMs.
+//     as coming back. The panel fades in over openMs as its ledger
+//     (ledger_sheet.png, ledgerFrame px square frames: closed, open) opens;
+//     its gold counts up over countMs with a coin tick every tickMs.
 export const MOBILE = {
   updateCheckMs: 1000,
   saveCode: { prefix: 'HTD1.', rawPrefix: 'HTD0.', box: { width: 216, height: 64 } },
@@ -2988,5 +2989,6 @@ export const MOBILE = {
     countMs: 800,
     tickMs: 80,
     openMs: 250,
+    ledgerFrame: 32,
   },
 };

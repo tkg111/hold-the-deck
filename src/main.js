@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { audio } from './audio/Audio.js';
 import { canvasSize, installScaling } from './display.js';
 import { AbyssEndScene } from './scenes/AbyssEndScene.js';
+import { AwayScene } from './scenes/AwayScene.js';
 import { CollectionScene } from './scenes/CollectionScene.js';
 import { EndingScene } from './scenes/EndingScene.js';
 import { ExpeditionScene } from './scenes/ExpeditionScene.js';
@@ -43,7 +44,7 @@ loadUiSpec().then(() => {
     // A long press (or right click) on the canvas opens no menu.
     disableContextMenu: true,
     // First: the title, which loads everything and then starts the battle.
-    scene: [TitleScene, GameScene, PackScene, CollectionScene, WantedScene, MapScene, LogScene, EndingScene, ExpeditionScene, ShipyardScene, AbyssEndScene, GalleyScene,
+    scene: [TitleScene, GameScene, PackScene, CollectionScene, WantedScene, MapScene, LogScene, EndingScene, ExpeditionScene, ShipyardScene, AbyssEndScene, GalleyScene, AwayScene,
       // Last: over every other scene.
       TutorialScene],
   });
