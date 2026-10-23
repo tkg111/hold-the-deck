@@ -1,10 +1,12 @@
 import Phaser from 'phaser';
-import { Bar, dark, hexColor, text, UI } from './kit.js';
+import {
+  Bar, dark, hexColor, tapArea, text, UI,
+} from './kit.js';
 
 // Art pixels.
 const KNOB_W = 5;
 const KNOB_H = 12;
-const HIT_PAD = 5;   // the drag area reaches this far above and below the bar
+const HIT_PAD = 5;   // the drag area reaches this far above and below the bar (at least)
 
 // A 0-100 slider: a Bar filled to the value with a knob on its edge and the
 // value in a label to its right. Press or drag anywhere along it; onChange
@@ -19,8 +21,8 @@ export class Slider extends Phaser.GameObjects.Container {
     this.knob = scene.add.rectangle(0, 0, KNOB_W, KNOB_H, hexColor(UI.colors.text))
       .setStrokeStyle(1, hexColor(UI.colors.textOnParchment));
     this.label = text(scene, width + 6, 0, '', dark({ font: 'small' })).setOrigin(0, 0.5);
-    const zone = scene.add.zone(-KNOB_W, -height / 2 - HIT_PAD, width + 2 * KNOB_W, height + 2 * HIT_PAD)
-      .setOrigin(0).setInteractive({ useHandCursor: true });
+    const zoneH = height + 2 * HIT_PAD;
+    const zone = tapArea(scene.add.zone(-KNOB_W, -zoneH / 2, width + 2 * KNOB_W, zoneH).setOrigin(0), width + 2 * KNOB_W, zoneH, { useHandCursor: true });
     this.add([this.bar, this.knob, this.label, zone]);
     this.setValue(value);
 

@@ -2963,8 +2963,10 @@ export const TITLE = {
 //     version) and the text box's size (art px) in its dialog.
 //   minTap: the smallest tap target (art px); smaller buttons get a bigger
 //     invisible hit area.
-//   portrait: the "Turn your phone sideways" overlay's icon scale (CSS px
-//     per art px) on touch phones held upright.
+//   portrait: the "Turn your phone sideways" overlay, on a touch screen held
+//     upright that's under maxWidth CSS px across (a phone: in portrait the
+//     game would be under 1 CSS px per art px; a tablet still plays), with
+//     rotate.png at iconScale CSS px per art px.
 //   offline: While you were away. idleRate is an exponential moving average
 //     (weight emaWeight) of the gold per second of battle, sampled at each
 //     wave cleared on an island or in the Abyss (not Boss Hunts); away
@@ -2976,7 +2978,7 @@ export const MOBILE = {
   updateCheckMs: 1000,
   saveCode: { prefix: 'HTD1.', rawPrefix: 'HTD0.', box: { width: 216, height: 64 } },
   minTap: 24,
-  portrait: { iconScale: 4 },
+  portrait: { maxWidth: 600, iconScale: 4 },
   offline: {
     emaWeight: 0.2,
     share: 0.25,

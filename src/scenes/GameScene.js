@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import {
-  ABYSS, ASHFALL, AUDIO, DISPLAY, ENDING, ENEMIES, EXPEDITIONS, GALLEY, GAME_SPEEDS, HEROES, MOTES, PACKS, SCENERY, SIM, SNOWFALL,
+  ABYSS, ASHFALL, AUDIO, DISPLAY, ENDING, ENEMIES, EXPEDITIONS, GALLEY, GAME_SPEEDS, HEROES, MOBILE, MOTES, PACKS, SCENERY, SIM, SNOWFALL,
   UI_KIT,
 } from '../config.js';
 import { audio } from '../audio/Audio.js';
@@ -552,8 +552,15 @@ export class GameScene extends Phaser.Scene {
     const width = ids.length * (iconSize + gap) - gap + 8;
     this.currentRow.add(panel(this, 6, y, width, iconSize + 6, 'wood'));
     ids.forEach((id, i) => {
+      // Tappable a full MOBILE.minTap tall; side by side they meet halfway
+      // across the gap (no room to be wider).
+      const tall = Math.max(0, MOBILE.minTap - iconSize) / 2;
       const img = this.add.image(10 + i * (iconSize + gap), y + 3, CURRENTS_KEY, order.indexOf(id)).setOrigin(0)
-        .setInteractive({ useHandCursor: true });
+        .setInteractive({
+          hitArea: new Phaser.Geom.Rectangle(-gap / 2, -tall, iconSize + gap, iconSize + 2 * tall),
+          hitAreaCallback: Phaser.Geom.Rectangle.Contains,
+          useHandCursor: true,
+        });
       img.on('pointerdown', () => this.showCurrentNote(id));
       this.currentRow.add(img);
     });

@@ -8,7 +8,7 @@ import { fishingKey } from '../sprites.js';
 import { Button } from '../ui/Button.js';
 import { formatNum } from '../ui/format.js';
 import {
-  dark, face, hexColor, icon, light, nineSlice, panel, subText, text, UI,
+  dark, face, hexColor, icon, light, nineSlice, panel, subText, tapArea, text, UI,
 } from '../ui/kit.js';
 import { enemyThumb } from '../ui/wanted.js';
 
@@ -70,11 +70,12 @@ export class LogScene extends Phaser.Scene {
     this.body = this.add.container(0, 0);
     this.rows = [];
 
-    // Scroll arrows (right of the info line) and the mouse wheel, when there
+    // Scroll arrows (right of the info line, apart so each has a full tap
+    // area: see tapArea) and the mouse wheel, when there
     // are more rows than fit.
     const ay = BATTLE_LOG.infoY;
-    this.upArrow = icon(this, P.x + P.width - 30, ay, 'arrow_up').setInteractive({ useHandCursor: true });
-    this.downArrow = icon(this, P.x + P.width - 16, ay, 'arrow_up').setFlipY(true).setInteractive({ useHandCursor: true });
+    this.upArrow = tapArea(icon(this, P.x + P.width - 42, ay, 'arrow_up'), 12, 12, { useHandCursor: true });
+    this.downArrow = tapArea(icon(this, P.x + P.width - 16, ay, 'arrow_up').setFlipY(true), 12, 12, { useHandCursor: true });
     this.upArrow.on('pointerdown', () => this.scroll(-1));
     this.downArrow.on('pointerdown', () => this.scroll(1));
     const onWheel = (_p, _over, _dx, dy) => this.scroll(Math.sign(dy));

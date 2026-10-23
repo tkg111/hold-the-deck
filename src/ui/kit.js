@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import {
-  EXPEDITIONS, HEROES, SPRITES, UI_KIT, WANTED,
+  EXPEDITIONS, HEROES, MOBILE, SPRITES, UI_KIT, WANTED,
 } from '../config.js';
 import { versioned } from '../version.js';
 
@@ -331,4 +331,22 @@ export function starRow(scene, x, y, filled, total) {
     }));
   }
   return g;
+}
+
+// --- Tapping ---
+
+// Make obj tappable (setInteractive with config) over its own w x h box
+// (art px, from its top-left), grown evenly to at least MOBILE.minTap each
+// way, so small buttons and icons are easy to hit with a finger. The art
+// doesn't change. A scaled object's box is in its own (unscaled) pixels.
+export function tapArea(obj, w, h, config = {}) {
+  const sx = Math.abs(obj.scaleX) || 1;
+  const sy = Math.abs(obj.scaleY) || 1;
+  const padX = Math.max(0, MOBILE.minTap / sx - w) / 2;
+  const padY = Math.max(0, MOBILE.minTap / sy - h) / 2;
+  return obj.setInteractive({
+    hitArea: new Phaser.Geom.Rectangle(-padX, -padY, w + 2 * padX, h + 2 * padY),
+    hitAreaCallback: Phaser.Geom.Rectangle.Contains,
+    ...config,
+  });
 }

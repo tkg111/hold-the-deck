@@ -1,7 +1,9 @@
 import Phaser from 'phaser';
 import { UI_KIT } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
-import { hexColor, icon as makeIcon, nineSlice, text, UI } from './kit.js';
+import {
+  hexColor, icon as makeIcon, nineSlice, tapArea, text, UI,
+} from './kit.js';
 
 // The bottom of each button image is its drop shadow; content centres on the
 // face above it, and drops by this much while pressed.
@@ -55,7 +57,7 @@ export class Button extends Phaser.GameObjects.Container {
       onClick();
       if (sfx.requests === asked) sfx.play('ui_click');
     };
-    this.bg.setInteractive({ useHandCursor: true });
+    tapArea(this.bg, width, height, { useHandCursor: true });
     this.bg.on('pointerover', () => { this.hovered = true; this.paint(); });
     this.bg.on('pointerout', () => { this.hovered = false; this.pressed = false; this.deniedPress = false; this.paint(); });
     this.bg.on('pointerdown', () => {

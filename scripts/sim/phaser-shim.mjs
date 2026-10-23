@@ -25,6 +25,17 @@ class BitmapText extends GameObject {
   setMaxWidth() { return this; }
 }
 
+// Hit areas (kit.tapArea).
+class Rectangle {
+  constructor(x = 0, y = 0, width = 0, height = 0) {
+    Object.assign(this, { x, y, width, height });
+  }
+
+  static Contains(r, x, y) {
+    return x >= r.x && x < r.x + r.width && y >= r.y && y < r.y + r.height;
+  }
+}
+
 class Container extends GameObject {
   add() { return this; }
 }
@@ -46,6 +57,7 @@ const Phaser = {
       },
     },
   },
+  Geom: { Rectangle },
   Display: { Color: { HexStringToColor: (css) => ({ color: parseInt(css.slice(1), 16) }) } },
   GameObjects: { BitmapText, Container },
   Scene: class {},

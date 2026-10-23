@@ -10,7 +10,7 @@ import { saveProgress } from '../systems/Save.js';
 import { Button } from '../ui/Button.js';
 import { formatNum } from '../ui/format.js';
 import {
-  dark, glyph, hexColor, icon, light, panel, subText, text, UI,
+  dark, glyph, hexColor, icon, light, panel, subText, tapArea, text, UI,
 } from '../ui/kit.js';
 import {
   economyTag, materialIcon, partIcon, partStat,
@@ -311,7 +311,7 @@ export class ShipyardScene extends Phaser.Scene {
       const count = text(this, mx + 10, y + h / 2, found ? formatNum(p.materialCount(m.id)) : '-', subText({ color: UI.colors.textOnParchment }))
         .setOrigin(0, 0.5);
       // Hover a material for its name (no room for names here).
-      img.setInteractive().on('pointerover', () => this.tooltip(m, mx, y)).on('pointerout', () => this.tip?.destroy());
+      tapArea(img, img.width, img.height).on('pointerover', () => this.tooltip(m, mx, y)).on('pointerout', () => this.tip?.destroy());
       this.strip.add([img, count]);
     });
   }

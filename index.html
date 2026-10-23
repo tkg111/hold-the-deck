@@ -2,7 +2,9 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- No zooming (pinch or double-tap); viewport-fit=cover lets the game
+         area use the safe area round a notch (see #game's padding). -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
     <title>Hold the Deck</title>
     <!-- Installing (the manifest link is added by vite-plugin-pwa). -->
     <meta name="theme-color" content="#2a1e4a" />
@@ -13,21 +15,51 @@
     <link rel="apple-touch-icon" href="icon-180.png" />
     <link rel="icon" type="image/png" sizes="32x32" href="icon-32.png" />
     <style>
-      /* Background: DISPLAY.bars.color (set again from config by display.js). */
-      html, body { margin: 0; height: 100%; overflow: hidden; background: #141a30; }
-      #game { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+      /* Background: DISPLAY.bars.color (set again from config by display.js).
+         The page never scrolls, bounces, pulls to refresh, zooms, selects
+         text or shows the long-press callout. */
+      html, body {
+        margin: 0; height: 100%; overflow: hidden; background: #141a30;
+        position: fixed; inset: 0;
+        overscroll-behavior: none; touch-action: none;
+        user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+        -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%;
+      }
+      /* The game area stays inside the safe area (notches, the home bar):
+         display.js sizes the canvas to this box's content. */
+      #game {
+        width: 100%; height: 100%; box-sizing: border-box;
+        display: flex; align-items: center; justify-content: center;
+        padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px)
+          env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+      }
+      #game canvas { touch-action: none; }
       /* Settings' Export / Import save box (src/ui/SaveCodeDialog.js), over
          the parchment. */
       .save-code {
         position: fixed; box-sizing: border-box; margin: 0; padding: 4px; resize: none;
         font: 11px/1.3 ui-monospace, Menlo, Consolas, monospace; word-break: break-all;
         color: #2a1a10; background: #fff3d6; border: 2px solid #8a5a2e; border-radius: 0;
-        user-select: text; -webkit-user-select: text; touch-action: auto;
+        user-select: text; -webkit-user-select: text; -webkit-touch-callout: default; touch-action: auto;
       }
+      /* "Turn your phone sideways" (src/phone.js): a touch phone held
+         upright, with the game paused behind. */
+      #rotate {
+        position: fixed; inset: 0; z-index: 10; box-sizing: border-box; padding: 24px;
+        display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px;
+        background: #2a1e4a; color: #fff3d6; text-align: center;
+        font: bold 20px/1.3 ui-monospace, Menlo, Consolas, monospace; letter-spacing: 1px;
+      }
+      #rotate[hidden] { display: none; }
+      #rotate img { image-rendering: pixelated; }
     </style>
   </head>
   <body>
     <div id="game"></div>
+    <div id="rotate" hidden>
+      <img alt="" />
+      <div>Turn your phone sideways</div>
+    </div>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>
