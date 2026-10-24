@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { audio } from './audio/Audio.js';
 import { canvasSize, installScaling } from './display.js';
 import { AbyssEndScene } from './scenes/AbyssEndScene.js';
+import { AwayScene } from './scenes/AwayScene.js';
 import { CollectionScene } from './scenes/CollectionScene.js';
 import { EndingScene } from './scenes/EndingScene.js';
 import { ExpeditionScene } from './scenes/ExpeditionScene.js';
@@ -17,6 +18,8 @@ import { WantedScene } from './scenes/WantedScene.js';
 import { TutorialHost } from './tutorial/TutorialHost.js';
 import { tutorial } from './tutorial/TutorialManager.js';
 import { loadUiSpec } from './ui/kit.js';
+import { installPortraitGuard, installTouchGuards } from './phone.js';
+import { installPwa } from './pwa.js';
 
 // ui.json (icon order, slice sizes, colours) loads before the game starts.
 loadUiSpec().then(() => {
@@ -38,8 +41,10 @@ loadUiSpec().then(() => {
     // first input (src/audio/Audio.js), so the browser never has one to
     // block and warn about.
     audio: { noAudio: true },
+    // A long press (or right click) on the canvas opens no menu.
+    disableContextMenu: true,
     // First: the title, which loads everything and then starts the battle.
-    scene: [TitleScene, GameScene, PackScene, CollectionScene, WantedScene, MapScene, LogScene, EndingScene, ExpeditionScene, ShipyardScene, AbyssEndScene, GalleyScene,
+    scene: [TitleScene, GameScene, PackScene, CollectionScene, WantedScene, MapScene, LogScene, EndingScene, ExpeditionScene, ShipyardScene, AbyssEndScene, GalleyScene, AwayScene,
       // Last: over every other scene.
       TutorialScene],
   });
@@ -49,6 +54,9 @@ loadUiSpec().then(() => {
 
   installScaling(game);
   audio.install();
+  installPwa(game);
+  installTouchGuards(game);
+  installPortraitGuard(game);
 
   // The Captain's tutorial listens to the scenes once they exist.
   game.events.once('ready', () => {

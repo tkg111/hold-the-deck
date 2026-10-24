@@ -76,6 +76,8 @@ export class TutorialHost {
     const gs = this.battle;
     const open = this.openScenes;
     if (!gs?.shipwright || !open.includes(gs)) return false;
+    // While you were away comes before anything the Captain says.
+    if (gs.awayOpen) return false;
     const overlay = open.some((s) => s !== gs);
     switch (needs) {
       case 'any': return true;

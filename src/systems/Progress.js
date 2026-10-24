@@ -9,6 +9,7 @@ import {
 import { totalDamage } from './BattleStats.js';
 import { entryFromSave, maxSlots, traitOf } from './Expeditions.js';
 import { FISH_DATA, fishOf, mealFish, mealModifiers } from './Fishing.js';
+import { sampleIdleRate } from './Offline.js';
 import {
   gameParts, materialOf, materialOfBoss, PART_DATA, partCost, partInGame, partOf, partValue,
 } from './Parts.js';
@@ -121,6 +122,14 @@ export class Progress {
     this.merchantsPlundered = 0;
     this.fishCaught = 0;
 
+    // While you were away (see Offline.js): gold per second of battle (a
+    // moving average, sampled at each wave cleared), when the game was last
+    // open (Date.now() ms; written on every save), and the gold it has paid
+    // for time away (the Captain's Log).
+    this.idleRate = 0;
+    this.lastSeen = Date.now();
+    this.goldAway = 0;
+
     this.muted = false;             // music and sound effects off
     // The Settings' volume sliders (0-100); muting keeps them.
     this.musicVolume = AUDIO.defaults.music;
@@ -203,6 +212,9 @@ export class Progress {
       fishLog: { ...this.fishLog },
       merchantsPlundered: this.merchantsPlundered,
       fishCaught: this.fishCaught,
+      idleRate: this.idleRate,
+      lastSeen: this.lastSeen,
+      goldAway: this.goldAway,
     };
   }
 
@@ -330,6 +342,9 @@ export class Progress {
     }
     p.merchantsPlundered = int(data.merchantsPlundered, 0);
     p.fishCaught = int(data.fishCaught, 0);
+    if (Number.isFinite(data.idleRate) && data.idleRate > 0) p.idleRate = data.idleRate;
+    if (Number.isFinite(data.lastSeen)) p.lastSeen = data.lastSeen;
+    p.goldAway = int(data.goldAway, 0);
 
     if (Array.isArray(data.slots)) {
       const seen = new Set(away);
@@ -568,6 +583,12 @@ export class Progress {
 
   waveClearGold(wave = this.scalingWave) {
     return clearBonus(wave);
+  }
+
+  // A wave was cleared (an island's or a depth, not a Boss Hunt) at this
+  // gold per second of battle: the idle rate moves toward it.
+  noteIdleRate(goldPerSecond) {
+    this.idleRate = sampleIdleRate(this.idleRate, goldPerSecond);
   }
 
   // Add gold; returns the amount paid.

@@ -3,6 +3,7 @@ import { sfx } from '../audio/Sfx.js';
 import { LAYOUT } from '../layout.js';
 import { SHIP_SLOTS_KEY, shipFrontKey, shipStageKey } from '../sprites.js';
 import { overlayKey, PART_DATA, partOf } from '../systems/Parts.js';
+import { tapArea } from '../ui/kit.js';
 
 // Draw order, back to front, as layout.json's drawOrder: background (a
 // passing merchant ship just over it, and the Frost Wyrm on its iceberg), ship, crew, enemies, The Kraken (and its
@@ -69,8 +70,8 @@ export class Ship {
     this.slotZones = [];
     for (let s = 0; s < this.slotCount; s++) {
       const { x, feetY, zoneWidth } = this.slots[s];
-      const zone = this.scene.add.rectangle(x, feetY - SLOT_ZONE.height / 2, zoneWidth, SLOT_ZONE.height, 0xffffff, 0)
-        .setDepth(3).setInteractive({ useHandCursor: true });
+      const zone = tapArea(this.scene.add.rectangle(x, feetY - SLOT_ZONE.height / 2, zoneWidth, SLOT_ZONE.height, 0xffffff, 0)
+        .setDepth(3), zoneWidth, SLOT_ZONE.height, { useHandCursor: true });
       zone.on('pointerover', () => { zone.hovered = true; this.paintSlotZones(); });
       zone.on('pointerout', () => { zone.hovered = false; this.paintSlotZones(); });
       zone.on('pointerdown', () => this.scene.events.emit(this.slotsEnabled ? 'slot-clicked' : 'slot-tapped', s));

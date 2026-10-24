@@ -7,7 +7,8 @@ import { AUDIO } from '../config.js';
 // key event anywhere, normally the title's TAP TO START). Phaser's own
 // sound is off (main.js), so nothing makes a context before that and the
 // browser has nothing to warn about. The context is suspended while the tab
-// is hidden and resumed when it's shown again.
+// is hidden or something holds it (hold(): the "turn your phone sideways"
+// overlay) and resumed after.
 
 // A slider value (0-100) as a gain: squared, so the slider feels even.
 export const sliderGain = (v) => (Math.max(0, Math.min(100, v)) / 100) ** 2;
@@ -20,6 +21,7 @@ class AudioEngine {
     this.settings = { music: AUDIO.defaults.music, sfx: AUDIO.defaults.sfx, muted: false };
     this.readyFns = [];
     this.installed = false;
+    this.holds = new Set();   // reasons the sound is held (suspended)
   }
 
   get muted() { return this.settings.muted; }
@@ -34,11 +36,23 @@ class AudioEngine {
       if (this.ctx?.state === 'running') for (const e of events) window.removeEventListener(e, onInput, true);
     };
     for (const e of events) window.addEventListener(e, onInput, true);
-    document.addEventListener('visibilitychange', () => {
-      if (!this.ctx) return;
-      if (document.hidden) this.ctx.suspend().catch(() => {});
-      else this.ctx.resume().catch(() => {});
-    });
+    document.addEventListener('visibilitychange', () => this.syncRunning());
+  }
+
+  // Hold the sound (suspend the context) for a reason, or let it go (on:
+  // false); it plays again once nothing holds it and the tab is shown.
+  hold(reason, on) {
+    if (on) this.holds.add(reason);
+    else this.holds.delete(reason);
+    this.syncRunning();
+  }
+
+  get held() { return document.hidden || this.holds.size > 0; }
+
+  syncRunning() {
+    if (!this.ctx) return;
+    if (this.held) this.ctx.suspend().catch(() => {});
+    else if (this.ctx.state !== 'running') this.ctx.resume().catch(() => {});
   }
 
   // Make (or resume) the context. Call from inside an input event.
@@ -49,8 +63,7 @@ class AudioEngine {
       this.start(new Ctx());
     }
     // (A context made while the tab is hidden starts running: hush it.)
-    if (document.hidden) this.ctx.suspend().catch(() => {});
-    else if (this.ctx.state !== 'running') this.ctx.resume().catch(() => {});
+    this.syncRunning();
   }
 
   // Build the graph on ctx (the headless tests pass a fake one).

@@ -3,7 +3,7 @@ import { sfx } from '../audio/Sfx.js';
 import { Button } from './Button.js';
 import { formatNum } from './format.js';
 import {
-  dark, face, glyph, glyphWidth, icon, nineSlice, subText, text, UI,
+  dark, face, glyph, glyphWidth, icon, nineSlice, subText, tapArea, text, UI,
 } from './kit.js';
 import { ScrollPanel } from './ScrollPanel.js';
 import { materialIcon } from './parts.js';
@@ -131,7 +131,7 @@ export class Shipwright extends ScrollPanel {
     const { width: w, height: h, y } = UI_KIT.shipwrightHandle;
     const x = -w + 3;
     this.handleBg = nineSlice(scene, x, y, w, h, 'btn_wood_normal');
-    this.handleBg.setInteractive({ useHandCursor: true });
+    tapArea(this.handleBg, w, h, { useHandCursor: true });
     this.handleBg.on('pointerdown', () => this.toggleOpen());
     const cx = x + Math.floor((w - 3) / 2);
     this.handleArrows = {

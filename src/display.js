@@ -10,11 +10,27 @@ import { DISPLAY } from './config.js';
 // canvas is the game area in physical pixels; each scene's camera zooms so
 // game code keeps working in layout units. Everything is re-picked when the
 // window (or its devicePixelRatio) changes.
+//
+// On a phone with a notch the window is the safe area (#game is padded by
+// env(safe-area-inset-*), see index.html), so the HUD and the bottom bar
+// stay clear of the notch and the home bar; the bars fill the rest.
+
+// The window minus #game's safe-area padding, in CSS pixels.
+function safeSize() {
+  const el = document.getElementById('game');
+  const pad = el ? getComputedStyle(el) : null;
+  const px = (v) => parseFloat(v) || 0;
+  return {
+    width: window.innerWidth - (pad ? px(pad.paddingLeft) + px(pad.paddingRight) : 0),
+    height: window.innerHeight - (pad ? px(pad.paddingTop) + px(pad.paddingBottom) : 0),
+  };
+}
 
 function measure() {
   const dpr = window.devicePixelRatio || 1;
-  const w = Math.round(window.innerWidth * dpr);
-  const h = Math.round(window.innerHeight * dpr);
+  const safe = safeSize();
+  const w = Math.round(safe.width * dpr);
+  const h = Math.round(safe.height * dpr);
   // A hidden page can report a 0x0 window: fall back to the base at 1x.
   if (!w || !h) return { scale: 1, canvasWidth: DISPLAY.width, canvasHeight: DISPLAY.height, height: DISPLAY.height };
   let canvasWidth = w;
@@ -71,6 +87,19 @@ export function fillView(scene, color, alpha) {
   scene.events.on('view-resize', fit);
   rect.once('destroy', () => scene.events.off('view-resize', fit));
   return rect;
+}
+
+// Where a rectangle of the scene's layout (x, y, w, h) is on the page, in
+// CSS pixels ({ left, top, width, height }), to put an HTML element over it.
+export function pageRect(scene, x, y, w, h) {
+  const box = scene.game.canvas.getBoundingClientRect();
+  const k = box.width / scene.view.width;
+  return {
+    left: box.left + (x - scene.view.left) * k,
+    top: box.top + (y - scene.view.top) * k,
+    width: w * k,
+    height: h * k,
+  };
 }
 
 // Show the canvas at its physical size (CSS pixels = physical / dpr).

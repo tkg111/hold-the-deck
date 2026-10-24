@@ -7,23 +7,28 @@ import { dark, light, panel, text } from './kit.js';
 import { Slider } from './Slider.js';
 
 // Art pixels.
-const WIDTH = 200;
-const HEIGHT = 190;
+const WIDTH = 248;
 const PLATE_W = 120;
 const PLATE_H = 20;
 const ROW_H = 24;
 const SLIDER_W = 76;
+const HALF_W = (WIDTH - 24 - 4) / 2;
+
+const IOS_INSTALL = 'Tap Share, then Add to Home Screen.';
 
 // The settings (the battle's gear button), modal like ConfirmDialog:
 // Music and Sound effects volumes (sliders, 0-100) and Sound on / off
 // (mute: both off, the sliders kept), Captain's tips on / off, Replay
 // tutorial (closes the settings; the Captain starts over) and Reset
-// progress (closes them for its own confirmation), and Close.
+// progress (closes them for its own confirmation), Export save and Import
+// save (close them for their own dialogs), Install game where the browser
+// can install it (install: 'prompt'; 'ios': how to on an iPhone; null:
+// installed or not possible, no row), and Close.
 // onAudio({ music, sfx, muted }, done) fires as the sound settings change;
 // done once a slider is let go (or the mute toggled): time to save.
 export class SettingsDialog extends Phaser.GameObjects.Container {
   constructor(scene, {
-    audio, onAudio, tipsOn, onTips, onReplay, onReset,
+    audio, onAudio, tipsOn, onTips, onReplay, onReset, onExport, onImport, install, onInstall,
   }) {
     super(scene, 0, 0);
     const backdrop = fillView(scene, 0x000000, 0.65).setDepth(50);
@@ -40,8 +45,11 @@ export class SettingsDialog extends Phaser.GameObjects.Container {
       backdrop.destroy();
     });
 
+    // Rows: the four settings, two rows of paired buttons, Install, Close.
+    const closeRow = install ? 7 : 6;
+    const height = 22 + closeRow * ROW_H + 24;
     const cx = DISPLAY.width / 2;
-    const top = DISPLAY.height / 2 - HEIGHT / 2;
+    const top = Math.round(DISPLAY.height / 2 - height / 2);
     const left = cx - WIDTH / 2;
     const rowY = (i) => top + 22 + i * ROW_H;
     const close = (then) => {
@@ -49,6 +57,10 @@ export class SettingsDialog extends Phaser.GameObjects.Container {
       then?.();
     };
     const label = (i, str) => text(scene, left + 12, rowY(i), str, dark()).setOrigin(0, 0.5);
+    const pair = (i, [a, onA], [b, onB]) => [
+      new Button(scene, cx - (HALF_W + 4) / 2, rowY(i), { width: HALF_W, height: 18, label: a, onClick: () => close(onA) }),
+      new Button(scene, cx + (HALF_W + 4) / 2, rowY(i), { width: HALF_W, height: 18, label: b, onClick: () => close(onB) }),
+    ];
 
     this.audio = { ...audio };
     const change = (key, done) => (v) => {
@@ -80,8 +92,17 @@ export class SettingsDialog extends Phaser.GameObjects.Container {
     });
     const paintTips = () => tips.setLabel(this.tipsOn ? 'ON' : 'OFF').setStyle(this.tipsOn ? 'gold' : 'wood');
     paintTips();
+
+    let installRow = [];
+    if (install === 'prompt') {
+      installRow = [new Button(scene, cx, rowY(6), {
+        width: WIDTH - 24, height: 18, style: 'gold', label: 'Install game', onRelease: true, onClick: () => close(onInstall),
+      })];
+    } else if (install === 'ios') {
+      installRow = [text(scene, cx, rowY(6), IOS_INSTALL, dark({ font: 'small' })).setOrigin(0.5)];
+    }
     this.add([
-      panel(scene, left, top, WIDTH, HEIGHT, 'parchment'),
+      panel(scene, left, top, WIDTH, height, 'parchment'),
       panel(scene, cx - PLATE_W / 2, top - 8, PLATE_W, PLATE_H, 'wood'),
       text(scene, cx, top - 8 + PLATE_H / 2, 'Settings', light()).setOrigin(0.5),
       label(0, 'Music'),
@@ -92,13 +113,10 @@ export class SettingsDialog extends Phaser.GameObjects.Container {
       mute,
       label(3, "Captain's tips"),
       tips,
-      new Button(scene, cx, rowY(4), {
-        width: WIDTH - 24, height: 18, label: 'Replay tutorial', onClick: () => close(onReplay),
-      }),
-      new Button(scene, cx, rowY(5), {
-        width: WIDTH - 24, height: 18, label: 'Reset progress', onClick: () => close(onReset),
-      }),
-      new Button(scene, cx, rowY(6) + 4, {
+      ...pair(4, ['Replay tutorial', onReplay], ['Reset progress', onReset]),
+      ...pair(5, ['Export save', onExport], ['Import save', onImport]),
+      ...installRow,
+      new Button(scene, cx, rowY(closeRow) + 4, {
         width: 80, height: 20, style: 'gold', label: 'Close', onClick: () => { sfx.play('ui_back'); close(); },
       }),
     ]);

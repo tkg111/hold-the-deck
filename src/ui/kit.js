@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import {
-  EXPEDITIONS, HEROES, SPRITES, UI_KIT, WANTED,
+  EXPEDITIONS, HEROES, MOBILE, SPRITES, UI_KIT, WANTED,
 } from '../config.js';
 import { versioned } from '../version.js';
 
@@ -15,6 +15,8 @@ export const UI = { colors: {}, icons: [], slices: {} };
 
 const KEY = (name) => `ui_${name}`;
 const ICONS_KEY = KEY('icons');
+// The ship's ledger (closed, open) of the While you were away panel.
+export const LEDGER_KEY = KEY('ledger');
 
 // The Wanted Board art (WANTED.path): texture key per image, and wanted.json
 // (poster layout) in the JSON cache.
@@ -61,6 +63,8 @@ export function preloadUi(scene) {
     for (const state of ['normal', 'hover', 'pressed', 'disabled']) image(`btn_${style}_${state}`);
   }
   load.spritesheet(ICONS_KEY, `${path}icons_sheet.png`, { frameWidth: UI.iconSize, frameHeight: UI.iconSize });
+  const ledger = MOBILE.offline.ledgerFrame;
+  load.spritesheet(LEDGER_KEY, `${path}ledger_sheet.png`, { frameWidth: ledger, frameHeight: ledger });
   for (const name of WANTED_IMAGES) load.image(wantedKey(name), `${WANTED.path}${name}.png`);
   load.json(WANTED_JSON_KEY, `${WANTED.path}wanted.json`);
   for (const name of EXPEDITION_IMAGES) load.image(expeditionKey(name), `${EXPEDITIONS.path}${name}.png`);
@@ -331,4 +335,22 @@ export function starRow(scene, x, y, filled, total) {
     }));
   }
   return g;
+}
+
+// --- Tapping ---
+
+// Make obj tappable (setInteractive with config) over its own w x h box
+// (art px, from its top-left), grown evenly to at least MOBILE.minTap each
+// way, so small buttons and icons are easy to hit with a finger. The art
+// doesn't change. A scaled object's box is in its own (unscaled) pixels.
+export function tapArea(obj, w, h, config = {}) {
+  const sx = Math.abs(obj.scaleX) || 1;
+  const sy = Math.abs(obj.scaleY) || 1;
+  const padX = Math.max(0, MOBILE.minTap / sx - w) / 2;
+  const padY = Math.max(0, MOBILE.minTap / sy - h) / 2;
+  return obj.setInteractive({
+    hitArea: new Phaser.Geom.Rectangle(-padX, -padY, w + 2 * padX, h + 2 * padY),
+    hitAreaCallback: Phaser.Geom.Rectangle.Contains,
+    ...config,
+  });
 }
