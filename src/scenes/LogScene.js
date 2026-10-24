@@ -18,6 +18,9 @@ const TABS = [
   { key: 'taken', label: 'Damage Taken' },
   { key: 'fish', label: 'Fish Log' },
   { key: 'stats', label: 'Stats' },
+  // Not a tab of its own: opens Rankings over the log (the trophy alone,
+  // at the right end: the labels fill the rest).
+  { key: 'rankings', label: '', icon: 'trophy' },
 ];
 const LEGEND = { attack: 'ATTACKS', ability: 'ABILITIES', effect: 'EFFECTS' };
 
@@ -37,7 +40,8 @@ const percent = (part, whole) => `${whole > 0 ? Math.round(100 * part / whole) :
 // abilities / effects, highest first, the top one marked MVP) with their
 // kills, ability uses and support stat; Damage Taken lists the hull damage
 // each enemy type did over the waves kept; Fish Log shows every fish and how
-// many have been caught; Stats lists the voyage's totals.
+// many have been caught; Stats lists the voyage's totals. Rankings opens
+// the Rankings screen over the log.
 // Launched with { progress, onClose }.
 export class LogScene extends Phaser.Scene {
   constructor() {
@@ -88,6 +92,11 @@ export class LogScene extends Phaser.Scene {
   get records() { return this.progress.battleLog; }
 
   select(tab) {
+    if (tab === 'rankings') {
+      sfx.play('ui_open');
+      this.scene.launch('RankingsScene', { progress: this.progress });
+      return;
+    }
     if (tab === this.tab) return;
     sfx.play('ui_click');
     this.tab = tab;
@@ -119,21 +128,44 @@ export class LogScene extends Phaser.Scene {
   }
 
   // The tab buttons along the top of the parchment, each as wide as its
-  // label needs (at least BATTLE_LOG.tabWidth): gold for the open one.
+  // label needs (at least BATTLE_LOG.tabWidth, less if they wouldn't fit
+  // left of the icon tabs at the right end): gold for the open one.
   drawTabs() {
     const P = BATTLE_LOG.panel;
+    const gap = 4;
     this.tabs.removeAll(true);
-    let x = P.x + 10;
-    for (const { key, label } of TABS) {
-      // (Measured in the light font: wood tabs' outlined text is wider.)
+    const labelled = TABS.filter((t) => !t.icon);
+    const icons = TABS.filter((t) => t.icon);
+    let right = P.x + P.width - 10;
+    for (const { key, icon: tabIcon } of icons) {
+      const w = BATTLE_LOG.iconTabWidth;
+      this.tabs.add(new Button(this, right - w / 2, P.y + 14, {
+        width: w, height: 18, icon: tabIcon, style: 'wood', onClick: () => this.select(key),
+      }));
+      right -= w + gap;
+    }
+    // (Measured in the light font: wood tabs' outlined text is wider.)
+    const inks = labelled.map(({ label }) => {
       const probe = text(this, 0, 0, label, light());
-      const w = Math.max(BATTLE_LOG.tabWidth, probe.inkWidth + 10);
+      const w = probe.inkWidth + 10;
       probe.destroy();
+      return w;
+    });
+    const room = right + gap - (P.x + 10) - gap * labelled.length;
+    let widths = inks.map((w) => Math.max(BATTLE_LOG.tabWidth, w));
+    const total = (ws) => ws.reduce((t, w) => t + w, 0);
+    if (total(widths) > room) {
+      const spare = Math.max(0, Math.floor((room - total(inks)) / inks.length));
+      widths = inks.map((w) => w + spare);
+    }
+    let x = P.x + 10;
+    labelled.forEach(({ key, label }, i) => {
+      const w = widths[i];
       this.tabs.add(new Button(this, x + w / 2, P.y + 14, {
         width: w, height: 18, label, style: key === this.tab ? 'gold' : 'wood', onClick: () => this.select(key),
       }));
-      x += w + 4;
-    }
+      x += w + gap;
+    });
   }
 
   message(str) {

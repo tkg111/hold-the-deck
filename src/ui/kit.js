@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import {
-  EXPEDITIONS, HEROES, MOBILE, SPRITES, UI_KIT, WANTED,
+  EXPEDITIONS, HEROES, MOBILE, RANKINGS, SPRITES, UI_KIT, WANTED,
 } from '../config.js';
 import { versioned } from '../version.js';
 
@@ -10,11 +10,16 @@ import { versioned } from '../version.js';
 // and colours. Everything is drawn at 1x in the 480x270 base resolution, on
 // whole pixels.
 
-// Filled from ui.json by loadUiSpec() before the game boots.
-export const UI = { colors: {}, icons: [], slices: {} };
+// Filled from ui.json (and the Rankings icons' rankings.json) by
+// loadUiSpec() before the game boots.
+export const UI = {
+  colors: {}, icons: [], rankIcons: [], slices: {},
+};
 
 const KEY = (name) => `ui_${name}`;
 const ICONS_KEY = KEY('icons');
+// The Rankings' 12px icons (RANKINGS.path): trophy, medals, crew, copy, ...
+const RANK_ICONS_KEY = KEY('rank_icons');
 // The ship's ledger (closed, open) of the While you were away panel.
 export const LEDGER_KEY = KEY('ledger');
 
@@ -49,6 +54,9 @@ export async function loadUiSpec() {
   UI.icons = spec.icons.order;
   UI.iconSize = spec.icons.size;
   UI.slices = spec.nineSlice;
+  const rankings = await (await fetch(versioned(`${import.meta.env.BASE_URL}${SPRITES.path}${RANKINGS.path}rankings.json`))).json();
+  UI.rankIcons = rankings.icons.order;
+  [UI.rankIconSize] = rankings.icons.frame;
 }
 
 // Queue the kit's images and fonts; expects the loader path to be public/sprites/.
@@ -63,6 +71,8 @@ export function preloadUi(scene) {
     for (const state of ['normal', 'hover', 'pressed', 'disabled']) image(`btn_${style}_${state}`);
   }
   load.spritesheet(ICONS_KEY, `${path}icons_sheet.png`, { frameWidth: UI.iconSize, frameHeight: UI.iconSize });
+  const rank = UI.rankIconSize;
+  load.spritesheet(RANK_ICONS_KEY, `${RANKINGS.path}icons_sheet.png`, { frameWidth: rank, frameHeight: rank });
   const ledger = MOBILE.offline.ledgerFrame;
   load.spritesheet(LEDGER_KEY, `${path}ledger_sheet.png`, { frameWidth: ledger, frameHeight: ledger });
   for (const name of WANTED_IMAGES) load.image(wantedKey(name), `${WANTED.path}${name}.png`);
@@ -114,12 +124,14 @@ export function face(scene, x, y, heroId) {
   return scene.add.image(x, y, sprite.key, 'face');
 }
 
-// A 12px icon from the kit's sheet by name, or any loaded image by texture
-// key (e.g. wantedKey('icon_wanted')).
+// A 12px icon from the kit's sheet (or the Rankings' sheet) by name, or any
+// loaded image by texture key (e.g. wantedKey('icon_wanted')).
 export function icon(scene, x, y, name) {
   const frame = UI.icons.indexOf(name);
-  if (frame < 0) return scene.add.image(x, y, name);
-  return scene.add.image(x, y, ICONS_KEY, frame);
+  if (frame >= 0) return scene.add.image(x, y, ICONS_KEY, frame);
+  const rank = UI.rankIcons.indexOf(name);
+  if (rank >= 0) return scene.add.image(x, y, RANK_ICONS_KEY, rank);
+  return scene.add.image(x, y, name);
 }
 
 // A crewmate trait's 12px icon (expedition.json's trait sheet), or an empty
@@ -299,6 +311,7 @@ const GLYPHS = {
   right: ['#..', '##.', '###', '##.', '#..'],                  // ▶
   left: ['..#', '.##', '###', '.##', '..#'],                   // ◀
   dot: ['##', '##'],                                           // ·
+  cross: ['#...#', '.#.#.', '..#..', '.#.#.', '#...#'],        // ×
 };
 
 // A small glyph centred on (x, y) in a CSS colour (a Graphics: setX() after

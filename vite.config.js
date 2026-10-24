@@ -1,13 +1,25 @@
 import { readFileSync } from 'node:fs';
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
 const { version } = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'));
 
+// Rankings' Supabase calls are never cached by the service worker: the
+// project's own URL (VITE_SUPABASE_URL, from .env.local or the build's
+// secrets), and any Supabase project as a fallback. A RegExp, as Workbox
+// writes it into the generated worker as it is.
+const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+function supabasePattern(url) {
+  let origin = null;
+  try { origin = url ? new URL(url).origin : null; } catch { /* not a URL */ }
+  const hosts = ['https://[^/]+\\.supabase\\.co', ...(origin ? [escapeRegExp(origin)] : [])];
+  return new RegExp(`^(?:${hosts.join('|')})/`);
+}
+
 // The page's colour on launch and the phone's status bar (the title's sky).
 const APP_COLOR = '#2a1e4a';
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   // Relative base so the build works from a GitHub Pages subpath.
   base: './',
   // Appended to every asset URL (see src/version.js); new on every build.
@@ -57,7 +69,11 @@ export default defineConfig({
         // revisions do that job here, so the same file matches either way.
         ignoreURLParametersMatching: [/^v$/],
         cleanupOutdatedCaches: true,
+        runtimeCaching: [{
+          urlPattern: supabasePattern(loadEnv(mode, process.cwd(), 'VITE_').VITE_SUPABASE_URL),
+          handler: 'NetworkOnly',
+        }],
       },
     }),
   ],
-});
+}));

@@ -42,6 +42,16 @@
         color: #2a1a10; background: #fff3d6; border: 2px solid #8a5a2e; border-radius: 0;
         user-select: text; -webkit-user-select: text; -webkit-touch-callout: default; touch-action: auto;
       }
+      /* One-line text fields over the canvas (src/ui/HtmlField.js): the
+         Rankings' captain name and friend's code. */
+      .game-field {
+        position: fixed; box-sizing: border-box; margin: 0; padding: 0 6px; outline: none;
+        font: bold 13px/1 ui-monospace, Menlo, Consolas, monospace; letter-spacing: 1px;
+        color: #2a1a10; background: #fbf1d8; border: 2px solid #c9a46a; border-radius: 0;
+        user-select: text; -webkit-user-select: text; -webkit-touch-callout: default; touch-action: auto;
+      }
+      .game-field:focus { border-color: #8a5a2e; }
+      .game-field::placeholder { color: #a8875e; letter-spacing: 2px; }
       /* "Turn your phone sideways" (src/phone.js): a touch phone held
          upright, with the game paused behind. */
       #rotate {

@@ -16,6 +16,7 @@ import {
 import { allPacks, PACK_DATA, packOf } from './Packs.js';
 import { DONE, newTutorialState } from '../tutorial/TutorialManager.js';
 import { ONBOARDING } from '../tutorial/steps.js';
+import { newOnlineRecord, onlineFromSave, onlineToSave } from '../online/record.js';
 
 // A guard on MAX buys (costs grow far faster than this matters).
 const MAX_BULK = 10000;
@@ -130,6 +131,11 @@ export class Progress {
     this.lastSeen = Date.now();
     this.goldAway = 0;
 
+    // Rankings (see src/online/record.js): joined or not, the captain's
+    // name and crew code, the best depth the server holds, and the boards
+    // last fetched.
+    this.online = newOnlineRecord();
+
     this.muted = false;             // music and sound effects off
     // The Settings' volume sliders (0-100); muting keeps them.
     this.musicVolume = AUDIO.defaults.music;
@@ -215,6 +221,7 @@ export class Progress {
       idleRate: this.idleRate,
       lastSeen: this.lastSeen,
       goldAway: this.goldAway,
+      online: onlineToSave(this.online),
     };
   }
 
@@ -345,6 +352,7 @@ export class Progress {
     if (Number.isFinite(data.idleRate) && data.idleRate > 0) p.idleRate = data.idleRate;
     if (Number.isFinite(data.lastSeen)) p.lastSeen = data.lastSeen;
     p.goldAway = int(data.goldAway, 0);
+    p.online = onlineFromSave(data.online);
 
     if (Array.isArray(data.slots)) {
       const seen = new Set(away);
