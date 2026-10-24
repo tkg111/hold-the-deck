@@ -6,6 +6,7 @@ import { RANKINGS } from '../../src/config.js';
 import { Boards } from '../../src/online/Boards.js';
 import { checkName, cleanCode } from '../../src/online/names.js';
 import { Online } from '../../src/online/Online.js';
+import { ScoreSync } from '../../src/online/ScoreSync.js';
 import { Progress } from '../../src/systems/Progress.js';
 import { progressFromRecord } from '../../src/systems/Save.js';
 import { fakeServer } from './fakeSupabase.mjs';
@@ -21,7 +22,7 @@ function clock(start = 1_000_000) {
 
 // One device: a fake server (or the one given), its client, an Online over
 // it (counting clients made) and a Progress.
-function device({ server = fakeServer(), time = clock() } = {}) {
+function device({ time = clock(), server = fakeServer({ now: time.now }) } = {}) {
   const client = server.client();
   const d = { server, client, time, made: 0, progress: new Progress(), saves: 0 };
   d.online = new Online({
@@ -196,6 +197,168 @@ test("a board call with no captain asks to join again ('join')", async () => {
   const d = device();
   Object.assign(d.progress.online, { joined: true, name: 'Kar Guan' });   // an imported save
   assert.equal((await d.boards.load('world')).status, 'join');
+});
+
+// --- Sending scores ---
+
+// A ScoreSync on device d with fake timers (run(): fire those due) and
+// d.offline as navigator.onLine.
+function syncer(d) {
+  const timers = [];
+  const sync = new ScoreSync({
+    online: d.online,
+    now: d.time.now,
+    isOnline: () => !d.offline,
+    setTimer: (fn, ms) => { const t = { fn, at: d.time.now() + ms }; timers.push(t); return t; },
+    clearTimer: (t) => timers.splice(timers.indexOf(t), 1),
+  });
+  sync.attach({ record: () => d.progress.online, best: () => d.progress.abyss.best, save: () => { d.saves++; sync.check(); } });
+  sync.timers = timers;
+  sync.run = async () => {
+    for (const t of timers.filter((x) => x.at <= d.time.now())) {
+      timers.splice(timers.indexOf(t), 1);
+      t.fn();
+    }
+    await settle();
+  };
+  return sync;
+}
+
+// Let the fake server's promises resolve.
+const settle = () => new Promise((r) => { setTimeout(r, 0); });
+const submits = (d) => d.server.calls.filter((c) => c === 'submit_abyss_depth').length;
+
+test('no score is sent (nor any call made) before joining', async () => {
+  const d = device();
+  const sync = syncer(d);
+  d.progress.abyss.best = 40;
+  sync.check();
+  await settle();
+  assert.equal(d.made, 0);
+  assert.deepEqual(d.server.calls, []);
+  assert.equal(sync.timers.length, 0);
+});
+
+test('a new best is sent once joined, and stored as the server returns it', async () => {
+  const d = device();
+  await joined(d);
+  const sync = syncer(d);
+  d.progress.abyss.best = 40;
+  sync.check();
+  await settle();
+  assert.equal(d.progress.online.lastSubmittedDepth, 40);
+  assert.equal(d.server.scores.get('user-1').best, 40);
+  // Nothing new: nothing sent.
+  sync.check();
+  d.time.add(RANKINGS.submitEveryMs);
+  sync.check();
+  await settle();
+  assert.equal(submits(d), 1);
+});
+
+test('debounce: at most one call per 15 s; a best reached sooner goes when it has passed', async () => {
+  const d = device();
+  await joined(d);
+  const sync = syncer(d);
+  d.progress.abyss.best = 41;
+  sync.check();
+  await settle();
+  for (const depth of [42, 43, 44]) {
+    d.time.add(2000);
+    d.progress.abyss.best = depth;
+    sync.check();
+    await settle();
+  }
+  assert.equal(submits(d), 1);
+  assert.equal(sync.timers.length, 1);   // one timer, not one per check
+  d.time.add(RANKINGS.submitEveryMs - 6000 - 1);
+  await sync.run();
+  assert.equal(submits(d), 1);
+  d.time.add(1);
+  await sync.run();
+  assert.equal(submits(d), 2);
+  assert.equal(d.progress.online.lastSubmittedDepth, 44);
+});
+
+test('a failed call is tried again when the device is back online', async () => {
+  const d = device();
+  await joined(d);
+  const sync = syncer(d);
+  d.server.offline = true;
+  d.progress.abyss.best = 30;
+  sync.check();
+  await settle();
+  assert.equal(d.progress.online.lastSubmittedDepth, 0);
+  // The device goes offline: checks wait without a call or a timer.
+  d.offline = true;
+  d.time.add(RANKINGS.submitEveryMs);
+  const calls = d.server.calls.length;
+  sync.check();
+  await settle();
+  assert.equal(d.server.calls.length, calls);
+  // Back online (the 'online' event calls check).
+  d.offline = false;
+  d.server.offline = false;
+  sync.check();
+  await settle();
+  assert.equal(d.progress.online.lastSubmittedDepth, 30);
+});
+
+test('a clamped score keeps being sent until the true best is in', async () => {
+  const d = device();
+  await joined(d);
+  const sync = syncer(d);
+  d.progress.abyss.best = 250;   // past the first submission's 200
+  sync.check();
+  await settle();
+  assert.equal(d.progress.online.lastSubmittedDepth, 200);
+  // Saving after the clamp checks again: it waits out the 15 s, then the
+  // limit has risen by SLACK (10) + 1 per 4.5 s (002_tune_rate.sql).
+  assert.equal(sync.timers.length, 1);
+  let rounds = 0;
+  while (d.progress.online.lastSubmittedDepth < 250 && rounds++ < 20) {
+    d.time.add(RANKINGS.submitEveryMs);
+    await sync.run();
+  }
+  assert.equal(d.progress.online.lastSubmittedDepth, 250);
+  assert.equal(d.server.scores.get('user-1').best, 250);
+  assert.equal(rounds, 4);   // +13 each: 213, 226, 239, 250
+  assert.equal(sync.timers.length, 0);
+});
+
+test('the fastest fair pace (9 s a depth, sim) is never clamped, even after 30 min offline', async () => {
+  const d = device();
+  await joined(d);
+  await d.online.submitDepth(50);
+  // Live: a submission every 15 s.
+  let best = 50;
+  for (let i = 0; i < 40; i++) {
+    d.time.add(15000);
+    best += Math.floor(15 / 9);
+    assert.equal(await d.online.submitDepth(best), best);
+  }
+  // Offline for 30 minutes at the same pace, then one submission.
+  d.time.add(30 * 60000);
+  best += Math.floor(30 * 60 / 9);
+  assert.equal(await d.online.submitDepth(best), best);
+});
+
+test('a device with no captain stops sending until the player joins again', async () => {
+  const d = device();
+  Object.assign(d.progress.online, { joined: true, name: 'Kar Guan' });   // an imported save
+  const sync = syncer(d);
+  d.progress.abyss.best = 12;
+  sync.check();
+  await settle();
+  d.time.add(RANKINGS.submitEveryMs);
+  sync.check();
+  await settle();
+  assert.equal(submits(d), 1);
+  const me = await d.online.join('Kar Guan');
+  d.progress.online.lastSubmittedDepth = me.best;
+  sync.joined();
+  await settle();
+  assert.equal(d.progress.online.lastSubmittedDepth, 12);
 });
 
 // --- The save ---

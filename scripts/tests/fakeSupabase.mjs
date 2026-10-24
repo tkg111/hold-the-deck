@@ -1,5 +1,5 @@
-// An in-memory stand-in for the Rankings database (supabase/migrations/
-// 001_rankings.sql) and the Supabase client calls the game makes
+// An in-memory stand-in for the Rankings database (supabase/migrations/:
+// 001_rankings.sql, with 002_tune_rate.sql's speed limit) and the Supabase client calls the game makes
 // (auth.getSession, auth.signInAnonymously, rpc). Each client is one
 // device with its own session; they share the server. The functions follow
 // the SQL's rules, including submit_abyss_depth's speed limit.
@@ -13,7 +13,7 @@
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const FIRST_ALLOW = 200;
 const SLACK = 10;
-const SEC_PER_DEPTH = 15;
+const SEC_PER_DEPTH = 4.5;   // 002_tune_rate.sql
 
 class Raise extends Error {}
 

@@ -46,7 +46,7 @@ import { ConfirmDialog } from '../ui/ConfirmDialog.js';
 import { SaveCodeDialog } from '../ui/SaveCodeDialog.js';
 import { SettingsDialog } from '../ui/SettingsDialog.js';
 import { CaptainNameDialog } from '../ui/CaptainNameDialog.js';
-import { attachRankings, online } from '../online/index.js';
+import { attachRankings, online, scores } from '../online/index.js';
 import { formatNum, pearlsLabel } from '../ui/format.js';
 import { HeroPicker } from '../ui/HeroPicker.js';
 import { Notices } from '../ui/Notices.js';
@@ -99,6 +99,7 @@ export class GameScene extends Phaser.Scene {
     this.progress = loadProgress();
     // Rankings read and write the save through here (src/online/).
     attachRankings({ getProgress: () => this.progress, save: () => this.save() });
+    scores.check();
     // Back since the game was last open: time away pays gold (shown first,
     // before the Captain says anything), expeditions and Bait catch up.
     const away = Offline.comeBack(this.progress);
@@ -708,8 +709,11 @@ export class GameScene extends Phaser.Scene {
     this.floatText(enemy.x, enemy.y - 12, amount > 0 ? `-${formatNum(amount)} gold` : 'nothing to steal!', UI.colors.warn);
   }
 
+  // Every save also offers a new best Abyss depth to the Rankings (once
+  // joined; quietly, in the background: see ScoreSync).
   save() {
     saveProgress(this.progress);
+    scores.check();
   }
 
   // Settings (between waves): the music and sound effects volumes and
