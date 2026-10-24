@@ -16,7 +16,17 @@ import { ScoreSync } from './ScoreSync.js';
 
 const env = import.meta.env ?? {};
 
-export const online = new Online({ url: env.VITE_SUPABASE_URL ?? '', key: env.VITE_SUPABASE_ANON_KEY ?? '' });
+// The project's URL is its origin: a pasted endpoint ("…supabase.co/rest/v1/")
+// would make Supabase call addresses that don't exist.
+function projectUrl(url) {
+  try {
+    return url ? new URL(url).origin : '';
+  } catch {
+    return '';
+  }
+}
+
+export const online = new Online({ url: projectUrl(env.VITE_SUPABASE_URL), key: env.VITE_SUPABASE_ANON_KEY ?? '' });
 export const boards = new Boards({ online });
 export const scores = new ScoreSync({ online });
 

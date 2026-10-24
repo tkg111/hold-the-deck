@@ -73,6 +73,7 @@ export class CaptainNameDialog extends Phaser.GameObjects.Container {
         if (this.scene) this.destroy();
       } catch (err) {
         if (!err.kind) console.error(err);   // not the server's: a bug
+        else if (err.kind === 'network') console.warn('[rankings] join failed:', err.message);
         if (!this.scene) return;   // closed meanwhile
         sfx.play('ui_error');
         say(err.kind === 'server' ? err.message : "Can't reach port. Try again later.");
