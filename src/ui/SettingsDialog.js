@@ -23,12 +23,16 @@ const IOS_INSTALL = 'Tap Share, then Add to Home Screen.';
 // progress (closes them for its own confirmation), Export save and Import
 // save (close them for their own dialogs), Install game where the browser
 // can install it (install: 'prompt'; 'ios': how to on an iPhone; null:
-// installed or not possible, no row), and Close.
+// installed or not possible, no row), and Close. With Rankings set up
+// (captain: { name } or { name: null } before joining), a Captain name row
+// after Captain's tips: the name (closes them for its rename dialog), or
+// Join, which opens Rankings.
 // onAudio({ music, sfx, muted }, done) fires as the sound settings change;
 // done once a slider is let go (or the mute toggled): time to save.
 export class SettingsDialog extends Phaser.GameObjects.Container {
   constructor(scene, {
     audio, onAudio, tipsOn, onTips, onReplay, onReset, onExport, onImport, install, onInstall,
+    captain = null, onCaptain = null,
   }) {
     super(scene, 0, 0);
     const backdrop = fillView(scene, 0x000000, 0.65).setDepth(50);
@@ -45,8 +49,10 @@ export class SettingsDialog extends Phaser.GameObjects.Container {
       backdrop.destroy();
     });
 
-    // Rows: the four settings, two rows of paired buttons, Install, Close.
-    const closeRow = install ? 7 : 6;
+    // Rows: the four settings (and Captain name), two rows of paired
+    // buttons, Install, Close.
+    const first = captain ? 5 : 4;   // the first row of paired buttons
+    const closeRow = first + (install ? 3 : 2);
     const height = 22 + closeRow * ROW_H + 24;
     const cx = DISPLAY.width / 2;
     const top = Math.round(DISPLAY.height / 2 - height / 2);
@@ -95,12 +101,19 @@ export class SettingsDialog extends Phaser.GameObjects.Container {
 
     let installRow = [];
     if (install === 'prompt') {
-      installRow = [new Button(scene, cx, rowY(6), {
+      installRow = [new Button(scene, cx, rowY(first + 2), {
         width: WIDTH - 24, height: 18, style: 'gold', label: 'Install game', onRelease: true, onClick: () => close(onInstall),
       })];
     } else if (install === 'ios') {
-      installRow = [text(scene, cx, rowY(6), IOS_INSTALL, dark({ font: 'small' })).setOrigin(0.5)];
+      installRow = [text(scene, cx, rowY(first + 2), IOS_INSTALL, dark({ font: 'small' })).setOrigin(0.5)];
     }
+    const captainRow = captain ? [
+      label(4, 'Captain name'),
+      new Button(scene, left + WIDTH - 12 - 48, rowY(4), {
+        width: 96, height: 18, font: 'small', label: captain.name ?? 'JOIN RANKINGS', style: captain.name ? 'wood' : 'gold',
+        onClick: () => close(onCaptain),
+      }),
+    ] : [];
     this.add([
       panel(scene, left, top, WIDTH, height, 'parchment'),
       panel(scene, cx - PLATE_W / 2, top - 8, PLATE_W, PLATE_H, 'wood'),
@@ -113,8 +126,9 @@ export class SettingsDialog extends Phaser.GameObjects.Container {
       mute,
       label(3, "Captain's tips"),
       tips,
-      ...pair(4, ['Replay tutorial', onReplay], ['Reset progress', onReset]),
-      ...pair(5, ['Export save', onExport], ['Import save', onImport]),
+      ...captainRow,
+      ...pair(first, ['Replay tutorial', onReplay], ['Reset progress', onReset]),
+      ...pair(first + 1, ['Export save', onExport], ['Import save', onImport]),
       ...installRow,
       new Button(scene, cx, rowY(closeRow) + 4, {
         width: 80, height: 20, style: 'gold', label: 'Close', onClick: () => { sfx.play('ui_back'); close(); },

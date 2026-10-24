@@ -39,7 +39,7 @@ import { enemyPortrait } from '../ui/wanted.js';
 // Launched with { progress, openExpeditions(onClosed), onClose(sailed, hunt,
 // { dive, left }) } (hunt: { boss, island } to start, or null; dive: { from,
 // seed } to start one; left: the dive that was left, Progress.endDive's
-// summary).
+// summary). The Abyss card's trophy opens Rankings over the map.
 
 const GREY = (key) => `${key}_grey`;
 // The Abyss card's values, from its left (its labels are longer).
@@ -354,6 +354,9 @@ export class MapScene extends Phaser.Scene {
     add(panel(this, x, y, w, h, 'parchment'));
     add(text(this, x + 10, y + 9, ABYSS.name, dark()));
     add(text(this, x + 10, y + 26, 'THE ENDLESS DIVE', subText()));
+    add(new Button(this, x + w - 20, y + 16, {
+      width: 24, height: 20, icon: 'trophy', label: '', onClick: () => this.openRankings(),
+    }));
     const vx = x + ABYSS_VALUE_X;
     const rows = [
       ['BEST DEPTH', p.abyss.best ? formatNum(p.abyss.best) : '-'],
@@ -400,6 +403,12 @@ export class MapScene extends Phaser.Scene {
     add(new Button(this, x + w / 2, y + h - 20, {
       width: w - 24, height: 24, style: 'gold', label: 'DIVE!', onClick: () => this.dive(),
     }));
+  }
+
+  // Rankings (the Abyss's deepest dives), over the map.
+  openRankings() {
+    sfx.play('ui_open');
+    this.scene.launch('RankingsScene', { progress: this.progress });
   }
 
   // Skip the shallows on or off (saved with the Abyss record).

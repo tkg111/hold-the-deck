@@ -14,9 +14,10 @@
     "sim:abyss": "node --import ./scripts/sim/register.mjs scripts/sim/abyss.mjs",
     "sim:packs": "node --import ./scripts/sim/register.mjs scripts/sim/packs.mjs",
     "sim:stars": "node --import ./scripts/sim/register.mjs scripts/sim/stars.mjs",
-    "test": "node --import ./scripts/sim/register.mjs scripts/tests/tutorial.mjs && node --import ./scripts/sim/register.mjs scripts/tests/audio.mjs && node --import ./scripts/sim/register.mjs scripts/tests/mobile.mjs"
+    "test": "node --import ./scripts/sim/register.mjs scripts/tests/tutorial.mjs && node --import ./scripts/sim/register.mjs scripts/tests/audio.mjs && node --import ./scripts/sim/register.mjs scripts/tests/mobile.mjs && node --import ./scripts/sim/register.mjs scripts/tests/rankings.mjs"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.118.0",
     "phaser": "3.90.0"
   },
   "devDependencies": {

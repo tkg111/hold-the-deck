@@ -1,0 +1,19 @@
+{
+ "icons": {
+  "frame": [
+   12,
+   12
+  ],
+  "order": [
+   "trophy",
+   "medal_gold",
+   "medal_silver",
+   "medal_bronze",
+   "crew_friends",
+   "copy",
+   "refresh",
+   "offline",
+   "anchor_depth"
+  ]
+ }
+}

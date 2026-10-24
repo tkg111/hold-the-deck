@@ -11,6 +11,7 @@ import { GameScene } from './scenes/GameScene.js';
 import { LogScene } from './scenes/LogScene.js';
 import { MapScene } from './scenes/MapScene.js';
 import { PackScene } from './scenes/PackScene.js';
+import { RankingsScene } from './scenes/RankingsScene.js';
 import { ShipyardScene } from './scenes/ShipyardScene.js';
 import { TitleScene } from './scenes/TitleScene.js';
 import { TutorialScene, TutorialView } from './scenes/TutorialScene.js';
@@ -45,6 +46,8 @@ loadUiSpec().then(() => {
     disableContextMenu: true,
     // First: the title, which loads everything and then starts the battle.
     scene: [TitleScene, GameScene, PackScene, CollectionScene, WantedScene, MapScene, LogScene, EndingScene, ExpeditionScene, ShipyardScene, AbyssEndScene, GalleyScene, AwayScene,
+      // Over the map and the Captain's Log, which open it.
+      RankingsScene,
       // Last: over every other scene.
       TutorialScene],
   });

@@ -1,6 +1,7 @@
 import {
   ABYSS, AUDIO, ECONOMY, ENEMIES, EXPEDITIONS, FISHING, ISLANDS, MEALS, STARTING_HEROES,
 } from '../config.js';
+import { newOnlineRecord } from '../online/record.js';
 import { Progress } from './Progress.js';
 import { enemyFirstWave } from './WaveManager.js';
 
@@ -9,7 +10,7 @@ export const SAVE_KEY = 'kampung-defense/save';
 const CORRUPT_BACKUP_KEY = 'kampung-defense/save-corrupt-backup';
 
 // Bump when the saved shape changes, and add a migration from the old version.
-export const SAVE_VERSION = 21;
+export const SAVE_VERSION = 22;
 
 // v5 pirate reskin: old hero IDs -> new hero IDs.
 const V5_HERO_IDS = {
@@ -220,6 +221,8 @@ const MIGRATIONS = {
   20: (data) => ({
     ...data, idleRate: 0, lastSeen: Date.now(), goldAway: 0,
   }),
+  // v22: Rankings: not joined, nothing submitted, no boards cached.
+  21: (data) => ({ ...data, online: newOnlineRecord() }),
 };
 
 function migrate(save) {

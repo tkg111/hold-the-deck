@@ -45,6 +45,8 @@ import { Button } from '../ui/Button.js';
 import { ConfirmDialog } from '../ui/ConfirmDialog.js';
 import { SaveCodeDialog } from '../ui/SaveCodeDialog.js';
 import { SettingsDialog } from '../ui/SettingsDialog.js';
+import { CaptainNameDialog } from '../ui/CaptainNameDialog.js';
+import { attachRankings, online, scores } from '../online/index.js';
 import { formatNum, pearlsLabel } from '../ui/format.js';
 import { HeroPicker } from '../ui/HeroPicker.js';
 import { Notices } from '../ui/Notices.js';
@@ -95,6 +97,9 @@ export class GameScene extends Phaser.Scene {
     initPacks(this.cache.json.get(PACKS_JSON_KEY));
     initFishing(this.cache.json.get(FISHING_JSON_KEY));
     this.progress = loadProgress();
+    // Rankings read and write the save through here (src/online/).
+    attachRankings({ getProgress: () => this.progress, save: () => this.save() });
+    scores.check();
     // Back since the game was last open: time away pays gold (shown first,
     // before the Captain says anything), expeditions and Bait catch up.
     const away = Offline.comeBack(this.progress);
@@ -704,8 +709,11 @@ export class GameScene extends Phaser.Scene {
     this.floatText(enemy.x, enemy.y - 12, amount > 0 ? `-${formatNum(amount)} gold` : 'nothing to steal!', UI.colors.warn);
   }
 
+  // Every save also offers a new best Abyss depth to the Rankings (once
+  // joined; quietly, in the background: see ScoreSync).
   save() {
     saveProgress(this.progress);
+    scores.check();
   }
 
   // Settings (between waves): the music and sound effects volumes and
@@ -733,7 +741,35 @@ export class GameScene extends Phaser.Scene {
       onImport: () => this.importSave(),
       install: installOption(),
       onInstall: () => promptInstall(),
+      captain: online.available ? { name: p.online.joined ? p.online.name : null } : null,
+      onCaptain: () => (p.online.joined ? this.renameCaptain() : this.openRankings()),
     });
+  }
+
+  // Settings' Captain name: a new name for the Rankings.
+  renameCaptain() {
+    if (this.state !== STATE.IDLE) return;
+    const record = this.progress.online;
+    new CaptainNameDialog(this, {
+      title: 'Captain name',
+      message: 'Other players see it next to your best Abyss depth.',
+      value: record.name,
+      confirmLabel: 'Save',
+      cancelLabel: 'Cancel',
+      onSubmit: async (name) => {
+        const me = await online.setName(name);
+        record.name = me.name;
+        this.save();
+      },
+    });
+  }
+
+  // Rankings (Settings' Join): over the battle, between waves.
+  openRankings() {
+    if (this.state !== STATE.IDLE) return;
+    if (this.heroPicker.visible) this.heroPicker.close();
+    sfx.play('ui_open');
+    this.scene.launch('RankingsScene', { progress: this.progress, onClose: () => this.refreshUi() });
   }
 
   // Settings' Export save: the code, copied and shown.

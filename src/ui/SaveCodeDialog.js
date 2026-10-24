@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { DISPLAY, MOBILE } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
 import { fillView, pageRect } from '../display.js';
+import { online } from '../online/index.js';
 import { decodeSave, IMPORT_ERRORS } from '../systems/SaveCode.js';
 import { Button } from './Button.js';
 import { ConfirmDialog } from './ConfirmDialog.js';
@@ -10,6 +11,7 @@ import { dark, light, panel, text } from './kit.js';
 // Art pixels.
 const WIDTH = 240;
 const HEIGHT = 136;
+const NOTE_H = 10;   // the Rankings note's extra room (import)
 const PLATE_W = 120;
 const PLATE_H = 20;
 
@@ -20,14 +22,18 @@ const PLATE_H = 20;
 //     selected, in a read-only box.
 //   import: paste a code and Load: a code that won't load says why; one that
 //     will asks "This will replace your current save" first, then
-//     onImport(progress).
+//     onImport(progress). With Rankings set up, a line under the box says
+//     they don't move with the save.
 export class SaveCodeDialog extends Phaser.GameObjects.Container {
   constructor(scene, { mode, code = '', onImport = null }) {
     super(scene, 0, 0);
     const backdrop = fillView(scene, 0x000000, 0.65).setDepth(50);
     this.setDepth(50);
     const cx = DISPLAY.width / 2;
-    const top = DISPLAY.height / 2 - HEIGHT / 2;
+    // The rankings identity is this device's own Supabase session.
+    const note = mode === 'import' && online.available;
+    const height = HEIGHT + (note ? NOTE_H : 0);
+    const top = DISPLAY.height / 2 - height / 2;
     const left = cx - WIDTH / 2;
     const { width: boxW, height: boxH } = MOBILE.saveCode.box;
     const box = { x: cx - boxW / 2, y: top + 34, w: boxW, h: boxH };
@@ -66,11 +72,11 @@ export class SaveCodeDialog extends Phaser.GameObjects.Container {
 
     const message = text(scene, cx, top + 22, '', dark({ font: 'small', align: 'center', wrap: WIDTH - 24 })).setOrigin(0.5);
     const say = (str) => message.setText(str);
-    const buttonY = top + HEIGHT - 18;
+    const buttonY = top + height - 18;
     const close = () => { sfx.play('ui_back'); this.destroy(); };
 
     const items = [
-      panel(scene, left, top, WIDTH, HEIGHT, 'parchment'),
+      panel(scene, left, top, WIDTH, height, 'parchment'),
       panel(scene, cx - PLATE_W / 2, top - 8, PLATE_W, PLATE_H, 'wood'),
       text(scene, cx, top - 8 + PLATE_H / 2, mode === 'export' ? 'Export save' : 'Import save', light()).setOrigin(0.5),
       message,
@@ -103,6 +109,9 @@ export class SaveCodeDialog extends Phaser.GameObjects.Container {
       );
     } else {
       say('Paste a save code from Export save.');
+      if (note) {
+        items.push(text(scene, cx, box.y + box.h + 9, 'RANKINGS STAY WITH THE OLD DEVICE.', dark({ font: 'small' })).setOrigin(0.5));
+      }
       let busy = false;
       const load = async () => {
         if (busy) return;

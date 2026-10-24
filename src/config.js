@@ -1690,6 +1690,7 @@ export const BATTLE_LOG = {
   // The panel (base pixels): parchment, tab buttons, rows.
   panel: { x: 16, y: 30, width: 448, height: 236 },
   tabWidth: 60,         // at least; wider where the label needs it
+  iconTabWidth: 26,     // the Rankings tab (a trophy), at the right end
   infoY: 60,            // the line under the tabs: summary and bar legend
   rowsY: 70,            // first row's top
   rowHeight: 32,
@@ -2991,4 +2992,40 @@ export const MOBILE = {
     openMs: 250,
     ledgerFrame: 32,
   },
+};
+
+// Rankings (src/online/, RankingsScene): the Abyss leaderboard and crew
+// board on Supabase. Off without the env keys (see .env.example).
+export const RANKINGS = {
+  path: 'ui/rankings/',        // under SPRITES.path: icons_sheet.png, rankings.json
+  worldLimit: 50,              // world_top's list
+  refreshMs: 10 * 1000,        // a board is fetched at most this often
+  submitEveryMs: 15 * 1000,    // a new best depth is sent at most this often
+  longPressMs: 600,            // holding a crewmate's row asks to remove them
+  // Captain names: the database's rule (3-16 letters, numbers, spaces, _
+  // or -), and words the client turns away (matched inside the name, with
+  // spaces, _ and - dropped and look-alike digits read as letters).
+  name: { pattern: /^[A-Za-z0-9 _-]{3,16}$/, max: 16 },
+  blockedWords: [
+    'fuck', 'shit', 'cunt', 'nigg', 'fagg', 'bitch', 'whore', 'slut', 'porn', 'penis', 'vagina',
+    'pussy', 'retard', 'nazi', 'hitler', 'kike', 'twat', 'wank', 'rapist',
+    'pukimak', 'puki', 'lancau', 'kanina', 'cibai', 'pundek',
+  ],
+  codeLength: 6,               // crew codes (A-Z without I and O, 2-9)
+  // The panel (base pixels, centred in the view): parchment, title row,
+  // tabs row, list rows, footer line; the Crew tab's code box and field.
+  panel: { width: 340, height: 242 },
+  titleY: 16,
+  tabsY: 39,
+  tab: { width: 70, height: 16 },
+  rowsY: 59,                   // first row's top (World)
+  crewRowsY: 116,              // first row's top (Crew, under the code box and field)
+  rowHeight: 19,
+  footerY: 213,                // the divider; the footer's two lines sit under it
+  codeBox: { y: 57, height: 28 },
+  field: { y: 90, height: 18, addWidth: 70 },
+  meColor: '#f6d36c',          // the player's own row
+  pressColor: '#e9d6a6',       // a crewmate's row being held
+  boxColor: '#e6d3a3',         // the crew code's box
+  removeColor: '#c8343c',      // the x that removes a crewmate
 };
