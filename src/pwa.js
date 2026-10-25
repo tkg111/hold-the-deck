@@ -1,4 +1,5 @@
 import { MOBILE } from './config.js';
+import { isNative } from './native.js';
 import { UpdateGate } from './systems/UpdateGate.js';
 import { tutorial } from './tutorial/TutorialManager.js';
 
@@ -54,9 +55,16 @@ const UPDATE_LINE = "A new version's in port! Tap to update.";
 // Register the service worker (built games only) and, when it has a new
 // version waiting, show the Captain's banner once the battle is between
 // waves with nothing open; tapping it saves and reloads (UpdateGate: a wave
-// started since waits to end).
+// started since waits to end). The Android app updates with its APK: a
+// worker there would keep serving the old version's cache, so none is
+// registered (and one left from an earlier build is removed).
 export async function installPwa(game) {
   if (!import.meta.env.PROD || !('serviceWorker' in navigator)) return;
+  if (isNative()) {
+    const regs = await navigator.serviceWorker.getRegistrations().catch(() => []);
+    for (const r of regs) r.unregister();
+    return;
+  }
   const battle = () => game.scene.getScene('GameScene');
   let updateSW = null;
   const gate = new UpdateGate({

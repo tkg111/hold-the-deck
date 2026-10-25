@@ -25,3 +25,6 @@ desktop.ini
 
 # Personal Claude Code settings (launch.json is shared)
 .claude/settings.local.json
+
+# Android APKs built from android/ (npm run app:apk)
+*.apk

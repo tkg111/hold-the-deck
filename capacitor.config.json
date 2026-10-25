@@ -1,0 +1,6 @@
+{
+  "appId": "com.tkg111.holdthedeck",
+  "appName": "Hold the Deck",
+  "webDir": "dist",
+  "android": { "backgroundColor": "#2a1e4a" }
+}

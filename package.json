@@ -14,13 +14,21 @@
     "sim:abyss": "node --import ./scripts/sim/register.mjs scripts/sim/abyss.mjs",
     "sim:packs": "node --import ./scripts/sim/register.mjs scripts/sim/packs.mjs",
     "sim:stars": "node --import ./scripts/sim/register.mjs scripts/sim/stars.mjs",
-    "test": "node --import ./scripts/sim/register.mjs scripts/tests/tutorial.mjs && node --import ./scripts/sim/register.mjs scripts/tests/audio.mjs && node --import ./scripts/sim/register.mjs scripts/tests/mobile.mjs && node --import ./scripts/sim/register.mjs scripts/tests/rankings.mjs"
+    "test": "node --import ./scripts/sim/register.mjs scripts/tests/tutorial.mjs && node --import ./scripts/sim/register.mjs scripts/tests/audio.mjs && node --import ./scripts/sim/register.mjs scripts/tests/mobile.mjs && node --import ./scripts/sim/register.mjs scripts/tests/rankings.mjs",
+    "app:sync": "npm run build && npx cap sync android",
+    "app:apk": "node scripts/app-apk.mjs"
   },
   "dependencies": {
+    "@capacitor/app": "^7.1.2",
+    "@capacitor/core": "^7.6.9",
+    "@capacitor/haptics": "^7.0.5",
+    "@capacitor/splash-screen": "^7.0.5",
     "@supabase/supabase-js": "^2.118.0",
     "phaser": "3.90.0"
   },
   "devDependencies": {
+    "@capacitor/android": "^7.6.9",
+    "@capacitor/cli": "^7.6.9",
     "vite": "^8.3.3",
     "vite-plugin-pwa": "^2.0.0",
     "workbox-window": "^7.4.1"
