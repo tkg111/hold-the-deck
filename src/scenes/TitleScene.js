@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import {
-  AUDIO, DISPLAY, SCENERY, SPRITES, TITLE,
+  AUDIO, DISPLAY, SCENERY, SPRITES, TITLE, WIDE,
 } from '../config.js';
 import { audio } from '../audio/Audio.js';
 import { initAudio, preloadAudio } from '../audio/load.js';
@@ -18,6 +18,7 @@ const SHIP_DECKS = 3;   // the title's ship: ship_stage3
 // The sheets' frames (title.json says the same; checked once it's loaded).
 const GULL_FRAME = [11, 7];
 const SEA_FRAME = [480, 40];
+const WIDE_SEA_FRAME = [DISPLAY.width + 2 * WIDE.side, 40];
 
 // The title screen, shown on every load: the ship at sunset with gulls and
 // waves, the logo dropping in, and TAP TO START. It loads everything the
@@ -28,8 +29,12 @@ const SEA_FRAME = [480, 40];
 // Positions come from title/title.json, in title_bg.png's 480x430 space:
 // the battle's tall layout, whose rows SCENERY.originY.. are the 480x270
 // safe view, so the view's extra height is more sky and sea as in battle.
-// With prefers-reduced-motion the logo doesn't drop or float and TAP TO
-// START blinks slower.
+// In a view wider than 480 the background and sea are the wide ones
+// (title_bg_wide.png, 640x430, and its sea: the 480 picture at x =
+// WIDE.side, drawn at x = -WIDE.side), so every title.json position stays
+// as it is and the logo, TAP TO START and the ship stay centred on the
+// screen. With prefers-reduced-motion the logo doesn't drop or float and
+// TAP TO START blinks slower.
 export class TitleScene extends Phaser.Scene {
   constructor() {
     super('TitleScene');
@@ -46,6 +51,9 @@ export class TitleScene extends Phaser.Scene {
     load.image(titleKey('logo'), 'logo.png');
     load.spritesheet(titleKey('gull'), 'gull_sheet.png', { frameWidth: GULL_FRAME[0], frameHeight: GULL_FRAME[1] });
     load.spritesheet(titleKey('sea'), 'title_sea_sheet.png', { frameWidth: SEA_FRAME[0], frameHeight: SEA_FRAME[1] });
+    load.setPath(`${import.meta.env.BASE_URL}${SPRITES.path}${WIDE.path}`);
+    load.image(titleKey('bg_wide'), 'title_bg_wide.png');
+    load.spritesheet(titleKey('sea_wide'), 'title_sea_wide_sheet.png', { frameWidth: WIDE_SEA_FRAME[0], frameHeight: WIDE_SEA_FRAME[1] });
     load.setPath(path);
   }
 
@@ -61,7 +69,7 @@ export class TitleScene extends Phaser.Scene {
       console.warn('[title] title.json frame sizes differ from GULL_FRAME / SEA_FRAME');
     }
 
-    this.add.image(0, y(0), titleKey('bg')).setOrigin(0);
+    const bg = this.add.image(0, y(0), titleKey('bg')).setOrigin(0);
 
     // Gulls drifting across the band, flapping.
     if (!this.anims.exists(titleKey('gull'))) {
@@ -69,10 +77,12 @@ export class TitleScene extends Phaser.Scene {
         key: titleKey('gull'), frames: this.anims.generateFrameNumbers(titleKey('gull'), { start: 0, end: L.gulls.frames - 1 }),
         frameRate: TITLE.gullFps, repeat: -1,
       });
-      this.anims.create({
-        key: titleKey('sea'), frames: this.anims.generateFrameNumbers(titleKey('sea'), { start: 0, end: L.title_sea.frames - 1 }),
-        frameRate: L.title_sea.fps, repeat: -1,
-      });
+      for (const sheet of [titleKey('sea'), titleKey('sea_wide')]) {
+        this.anims.create({
+          key: sheet, frames: this.anims.generateFrameNumbers(sheet, { start: 0, end: L.title_sea.frames - 1 }),
+          frameRate: L.title_sea.fps, repeat: -1,
+        });
+      }
     }
     const [bandTop, bandBottom] = L.gulls.band_y;
     this.gulls = Array.from({ length: L.gulls.count }, (_, i) => {
@@ -80,7 +90,7 @@ export class TitleScene extends Phaser.Scene {
       sprite.play({ key: titleKey('gull'), startFrame: i % L.gulls.frames });
       return {
         sprite,
-        x: Phaser.Math.Between(0, DISPLAY.width),
+        x: Phaser.Math.Between(Math.round(this.view.left), Math.round(this.view.right)),
         y: y(Phaser.Math.Between(bandTop, bandBottom - GULL_FRAME[1])),
         speed: Phaser.Math.FloatBetween(...TITLE.gullSpeed),
       };
@@ -96,7 +106,7 @@ export class TitleScene extends Phaser.Scene {
       targets: ship, y: y(sy) + L.ship.bob_px, duration: L.ship.bob_period_s * 500, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
     });
     const [seaX, seaY] = L.title_sea.pos;
-    this.add.sprite(seaX, y(seaY), titleKey('sea')).setOrigin(0).play(titleKey('sea'));
+    const sea = this.add.sprite(seaX, y(seaY), titleKey('sea')).setOrigin(0).play(titleKey('sea'));
 
     // The logo: dropping in from above the view, then floating.
     const [lx, ly] = L.logo.centre;
@@ -123,8 +133,19 @@ export class TitleScene extends Phaser.Scene {
     };
     blink(true);
 
-    const version = text(this, TITLE.version.x, DISPLAY.height - TITLE.version.y, `v${APP_VERSION}`, light({ font: 'small' }))
-      .setOrigin(0, 1);
+    const version = text(this, 0, 0, `v${APP_VERSION}`, light({ font: 'small' })).setOrigin(0, 1);
+
+    // Wide or tall art for the view, the version in its bottom-left corner.
+    const layout = (view) => {
+      const wide = view.width > DISPLAY.width;
+      bg.setTexture(titleKey(wide ? 'bg_wide' : 'bg')).setX(wide ? -WIDE.side : 0);
+      const seaKey = titleKey(wide ? 'sea_wide' : 'sea');
+      if (sea.anims.currentAnim?.key !== seaKey) sea.setTexture(seaKey).play(seaKey);
+      sea.setX(seaX - (wide ? WIDE.side : 0));
+      version.setPosition(Math.round(view.safe.left + TITLE.version.x), Math.round(Math.min(DISPLAY.height, view.safe.bottom) - TITLE.version.y));
+    };
+    layout(this.view);
+    this.events.on('view-resize', layout);
 
     // The first tap or key.
     let started = false;
@@ -147,7 +168,7 @@ export class TitleScene extends Phaser.Scene {
   update(_time, delta) {
     for (const g of this.gulls) {
       g.x += g.speed * Math.min(delta, 100) / 1000;
-      if (g.x > DISPLAY.width) g.x = -g.sprite.width;
+      if (g.x > this.view.right) g.x = this.view.left - g.sprite.width;
       g.sprite.setPosition(Math.round(g.x), g.y);
     }
   }

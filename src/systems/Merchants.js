@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { ENEMIES, MERCHANTS } from '../config.js';
+import { ENEMIES, ENTRY, MERCHANTS } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
 import { DEPTH } from '../entities/Ship.js';
 import { FX_DEPTH } from '../fx.js';
@@ -117,7 +117,9 @@ export class Merchants {
     const [w, h] = spec.frame;
     const { waterY } = this.lane;
     const { scene } = this;
-    const sprite = scene.add.sprite(-w, waterY - spec.waterline_y, merchantKey(id)).setOrigin(0)
+    // From the view's left edge in a wide view, sailing in fast to -w (ENTRY).
+    const x = Math.min(-w, (scene.merchantEdge ?? 0) - w);
+    const sprite = scene.add.sprite(x, waterY - spec.waterline_y, merchantKey(id)).setOrigin(0)
       .setFlipX(true).setDepth(DEPTH.merchant).play(`${merchantKey(id)}_sail`);
     // The wake trails from the stern: the anchor mirrored with the ship.
     const [ax, ay] = spec.wake_anchor;
@@ -137,7 +139,7 @@ export class Merchants {
     sprite.disableInteractive();
     this.ship = {
       id, spec, sprite, wake, w, h, wakeX: w - ax, wakeY: ay,
-      x: -w, speed: MERCHANTS.types[id].speed, struck: false, fading: 0, fadeTotal: 0, tappable: false,
+      x, speed: MERCHANTS.types[id].speed, struck: false, fading: 0, fadeTotal: 0, tappable: false,
     };
     this.due = this.clock + between(MERCHANTS.every);
     this.place();
@@ -153,7 +155,8 @@ export class Merchants {
   update(ms) {
     const s = this.ship;
     if (!s) return;
-    s.x += s.speed * (s.struck ? MERCHANTS.slow : 1) * ms / 1000;
+    if (s.x < -s.w) s.x = Math.min(-s.w, s.x + s.speed * ENTRY.speedMult * ms / 1000);
+    else s.x += s.speed * (s.struck ? MERCHANTS.slow : 1) * ms / 1000;
     this.place();
     if (!s.tappable && !s.struck && !s.fading && s.x + s.w / 2 >= MERCHANTS.tapFromX) {
       s.tappable = true;

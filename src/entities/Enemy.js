@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import {
-  AUDIO, CHARM, DISPLAY, ELITE, ENEMIES, ENEMY_FREEZE, FX, SHIP, SPRITES, WAVES,
+  AUDIO, CHARM, DISPLAY, ELITE, ENEMIES, ENEMY_FREEZE, ENTRY, FX, SHIP, SPRITES, WAVES,
 } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
 import { fxSprite, playFx } from '../fx.js';
@@ -68,13 +68,17 @@ export class Enemy {
   //   fall:   a lava bomb's { deck, feetY (where it lands), fromY, ms }
   //   boulders: the Frost Giant throws ice boulders while walking (the finale)
   //   rising: a `rises` enemy summoned or raised at x: it rises there first
+  // One a wave sends in (no x) enters from the view's right edge in a wide
+  // view (see enterFromEdge).
   constructor(scene, def, {
-    x = LAYOUT.enemySpawnX, hpMultiplier, damageMultiplier, gold, elite = false, eliteStyle = null, hullShare = 1, leader = null,
+    x, hpMultiplier, damageMultiplier, gold, elite = false, eliteStyle = null, hullShare = 1, leader = null,
     key = null, fall = null, boulders = false, rising = false,
   }) {
     this.scene = scene;
     this.def = def;
     this.key = key;
+    const fromEdge = x === undefined;
+    if (fromEdge) x = LAYOUT.enemySpawnX;
     this.elite = elite;
     this.eliteTint = eliteStyle?.tint ?? ELITE.tint;
     this.hullShareMult = hullShare;
@@ -446,6 +450,9 @@ export class Enemy {
       if (anim) this.body.play(anim);
     }
 
+    this.entryX = null;     // walking in from the view's edge to here (enterFromEdge)
+    if (fromEdge) this.enterFromEdge();
+
     this.statusSprites = {};  // STATUS key -> sprite, while that status lasts
     this.hpBar = scene.add.graphics().setDepth(DEPTH.enemyOverlay);
     this.nameTag = def.boss
@@ -470,11 +477,43 @@ export class Enemy {
   groundY(x) { return laneFeetY(x) - (this.def.wraith?.hoverPx ?? 0); }
 
   get isRising() { return this.riseTime > 0; }
+  get isEntering() { return this.entryX != null; }
+
+  // A view wider than the battlefield shows past where walkers and flyers
+  // appear (layout.json's enemySpawnX; the Frost Giant's giant.spawnX), so
+  // one sent in by a wave starts just off the view's right edge
+  // (scene.entryEdge, set by GameScene; the balance sim has none) and comes
+  // in at ENTRY.speedMult x its speed, out of reach, until it gets there;
+  // from there on it's as in a 480 view.
+  enterFromEdge() {
+    const edge = this.scene.entryEdge;
+    const { def } = this;
+    const walker = !def.emerges && !def.stationary && !def.blackbones && !def.floats && !this.anchored;
+    if (!edge || !walker) return;
+    const start = edge + Math.max(ENTRY.margin, (this.frameW ?? def.width) / 2);
+    if (start <= this.x) return;
+    this.entryX = this.x;
+    this.x = start;
+    if (def.flies) this.setY(this.cruiseY);
+    else this.followGround();
+  }
+
+  // Coming in from the edge (unslowed: nothing can reach it yet). Returns
+  // whether it moved.
+  enter(dt) {
+    const step = this.speed * ENTRY.speedMult * dt / 1000;
+    this.x = Math.max(this.entryX, this.x - step);
+    if (this.x <= this.entryX) {
+      this.x = this.entryX;
+      this.entryX = null;
+    }
+    return true;
+  }
   // Out of reach for now: the Frost Wyrm in the air, the Frost Giant until
   // it roars, a Fog Wraith faded out, Captain Blackbones until he's out of
   // the fog and while he's sunk into it.
   get isHidden() {
-    return this.airTime > 0 || (!!this.def.giant && this.phase === 'enter') || this.vanished
+    return this.isEntering || this.airTime > 0 || (!!this.def.giant && this.phase === 'enter') || this.vanished
       || (!!this.def.blackbones && this.phase === 'enter');
   }
   // Out of sight too: no HP bar or status marks.
@@ -675,7 +714,9 @@ export class Enemy {
     if (!this.alive) return;  // poison can finish it off
 
     let moving = false;
-    if (this.isRising) {
+    if (this.isEntering) {
+      moving = this.enter(dt);
+    } else if (this.isRising) {
       this.rise(dt);
     } else if (this.pushLeft > 0) {
       this.pushed(dt);
@@ -738,7 +779,8 @@ export class Enemy {
     if (this.nameTag) {
       // Kept on screen (a boss coming in at the right edge).
       const half = Math.ceil(this.nameTag.inkWidth / 2) + 2;
-      this.nameTag.setPosition(Phaser.Math.Clamp(Math.round(this.x), half, DISPLAY.width - half), this.hpBarY - 2);
+      const view = this.scene.view ?? { left: 0, right: DISPLAY.width };
+      this.nameTag.setPosition(Phaser.Math.Clamp(Math.round(this.x), Math.round(view.left) + half, Math.round(view.right) - half), this.hpBarY - 2);
     }
     this.drawHpBar();
     this.drawStatus();

@@ -3,22 +3,29 @@
 
 export const GAME_TITLE = 'Hold the Deck';
 
-// The game's base resolution: 480x270 pixels. The game area is always 480
-// wide, scaled to fill the window's width, and between 270 (16:9) and 360
-// (4:3) tall; outside that range it's centred with bars (see src/display.js).
-// All positions, sizes, distances and speeds are in these base pixels, and
-// sprites and text are drawn at 1x in them.
+// The game's base resolution: 480x270 pixels, the battlefield. The game
+// area fills the window (see src/display.js): in a window 16:9 or wider it
+// is 270 tall and wider than 480, up to maxWidth (past that, 640 wide with
+// rows of sky and sea cropped from the top and bottom); in a narrower one
+// it is 480 wide and taller, up to 360 (4:3), past which it's centred with
+// bars above and below in `barColor`. The view stays centred on the
+// battlefield either way. All positions, sizes, distances and speeds are in
+// these base pixels, and sprites and text are drawn at 1x in them.
 export const DISPLAY = {
   width: 480,
   height: 270,
-  maxAspect: 16 / 9,   // wider windows get bars left and right
-  minAspect: 4 / 3,    // taller ones get bars above and below
-  bars: {
-    color: '#141a30',
-    // The frame round the game area, rings from the inside out: [width in
-    // CSS px, colour].
-    border: [[1, '#2a170a'], [3, '#8a5a2e'], [1, '#2a170a']],
-  },
+  maxWidth: 640,       // the wide art's width (see WIDE)
+  wideAspect: 16 / 9,  // from here the view grows wider rather than taller
+  minAspect: 4 / 3,    // taller windows get bars above and below
+  barColor: '#141a30',
+};
+
+// Wide windows: backdrops 640 wide (the battle's, the title's), holding
+// the 480 picture at x = side, so they're drawn at battlefield x = -side.
+// Under public/sprites/<path>.
+export const WIDE = {
+  path: 'wide/',
+  side: 80,
 };
 
 // The battle backdrop in a view taller than 270: bg_tall.png (480x430) holds
@@ -1709,6 +1716,15 @@ export const BATTLE_LOG = {
 // Session only: it isn't saved, and between waves everything runs at 1x.
 export const GAME_SPEEDS = [1, 2, 4];
 
+// A view wider than the battlefield (a phone): enemies a wave sends in
+// start margin px past its right edge (more for a wide one: half its
+// frame) and come in at speedMult x their speed, out of reach, until they
+// reach where they'd appear in a 480 view (layout.json's enemySpawnX, the
+// Frost Giant's spawnX). Merchant ships likewise start off the left edge
+// and sail at speedMult x until they reach their usual start. The balance
+// sim plays a 480 view, so none of this changes it.
+export const ENTRY = { margin: 16, speedMult: 4 };
+
 // Auto-continue (src/ui/AutoContinue.js): its toggle's centre and width in
 // the view's bottom-left corner (base pixels), and the pause before it
 // starts the next wave or retries a lost one.
@@ -2962,8 +2978,10 @@ export const TITLE = {
 //     (the battle between waves, nothing open) to show the Captain's banner.
 //   saveCode: the Export / Import save code's prefix (with the format's
 //     version) and the text box's size (art px) in its dialog.
-//   minTap: the smallest tap target (art px); smaller buttons get a bigger
-//     invisible hit area.
+//   minTap: the smallest tap target (art px; about 1.5 dp each on a phone
+//     1080 px tall); smaller buttons get a bigger invisible hit area.
+//   safeMargin: the HUD keeps at least this far (art px) from every screen
+//     edge, on top of the safe area round a notch or camera.
 //   portrait: the "Turn your phone sideways" overlay, on a touch screen held
 //     upright that's under maxWidth CSS px across (a phone: in portrait the
 //     game would be under 1 CSS px per art px; a tablet still plays), with
@@ -2979,7 +2997,8 @@ export const TITLE = {
 export const MOBILE = {
   updateCheckMs: 1000,
   saveCode: { prefix: 'HTD1.', rawPrefix: 'HTD0.', box: { width: 216, height: 64 } },
-  minTap: 24,
+  minTap: 32,
+  safeMargin: 6,
   portrait: { maxWidth: 600, iconScale: 4 },
   offline: {
     emaWeight: 0.2,

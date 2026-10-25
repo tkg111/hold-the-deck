@@ -3,7 +3,7 @@ import {
   ABYSS, DISPLAY, ENEMIES, HUNTS, ISLANDS, MAP, UI_KIT,
 } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
-import { applyRenderScale, fillView } from '../display.js';
+import { applyRenderScale, fillSides, fillView } from '../display.js';
 import {
   ABYSS_JSON_KEY, CURRENTS_KEY, MAP_JSON_KEY, mapKey,
 } from '../sprites.js';
@@ -96,13 +96,15 @@ export class MapScene extends Phaser.Scene {
     // The map itself (what the reveal zooms), under the title, buttons and card.
     this.world = this.add.container(0, 0);
     const before = this.children.list.length;
-    this.add.image(0, 0, mapKey('bg')).setOrigin(0);
+    const map = this.add.image(0, 0, mapKey('bg')).setOrigin(0);
     this.drawRoute();
     this.islands.forEach((island) => this.drawIsland(island));
     this.drawAbyss();
     this.ring = this.add.graphics();
     this.drawShipToken();
     this.world.add(this.children.list.slice(before));
+    // A wide view: the parchment carries on past the map's sides.
+    fillSides(this, map);
 
     const cx = DISPLAY.width / 2;
     panel(this, cx - 80, 16, 160, 22, 'wood');

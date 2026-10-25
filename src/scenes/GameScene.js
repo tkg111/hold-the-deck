@@ -118,6 +118,7 @@ export class GameScene extends Phaser.Scene {
     this.abyssData = this.cache.json.get(ABYSS_JSON_KEY);
     this.depthIsland = null;
     this.scenery = new Scenery(this, this.battleIsland);
+    this.setEntryEdges(this.view);
     // Ember Isle's ash and Frostbite Reef's snow, and the Abyss's motes.
     this.ashfall = new Weather(this, ASHFALL);
     this.snowfall = new Weather(this, SNOWFALL);
@@ -128,6 +129,9 @@ export class GameScene extends Phaser.Scene {
     this.storm = new Storm(this);
     this.ship = new Ship(this, this.progress);
     this.heroes = [];
+    // A restart (Reset progress, Import save) leaves the last run's bar,
+    // destroyed: createUi makes the new one after the crew.
+    this.abilityBar = null;
     this.abilities = new AbilitySystem(this);
     this.stats = new BattleStats();   // the Captain's Log, while a wave runs
     this.rebuildHeroes();
@@ -277,9 +281,18 @@ export class GameScene extends Phaser.Scene {
     for (const w of this.weathers) w.setIsland(island);
   }
 
-  // The window changed size: re-cover the view with the storm, ash, snow and
-  // fog and re-anchor the HUD (the battlefield and backdrop don't move).
+  // Enemies come in from the view's right edge, merchant ships from its
+  // left, when it shows past the battlefield (ENTRY).
+  setEntryEdges(view) {
+    this.entryEdge = view.right > DISPLAY.width ? view.right : null;
+    this.merchantEdge = view.left < 0 ? view.left : null;
+  }
+
+  // The window changed size: re-cover the view with the backdrop, storm,
+  // ash, snow and fog and re-anchor the HUD (the battlefield doesn't move).
   onViewResize(view) {
+    this.setEntryEdges(view);
+    this.scenery.layout();
     this.storm.layout(view);
     for (const w of this.weathers) w.layout(view);
     this.layoutUi(view);

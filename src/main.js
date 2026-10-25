@@ -52,8 +52,9 @@ loadUiSpec().then(() => {
       TutorialScene],
   });
 
-  // Handy for poking at state from the browser console during development.
-  if (import.meta.env.DEV) window.game = game;
+  // Handy for poking at state from the browser console during development
+  // (and for scripts/screens.mjs).
+  if (import.meta.env.DEV) Object.assign(window, { game, tutorial });
 
   installScaling(game);
   audio.install();

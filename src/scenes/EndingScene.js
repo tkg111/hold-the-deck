@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { DISPLAY, ENDING, ISLANDS, MAP } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
-import { applyRenderScale, fillView } from '../display.js';
+import { applyRenderScale, fillSides, fillView } from '../display.js';
 import { MAP_JSON_KEY, mapKey } from '../sprites.js';
 import { Button } from '../ui/Button.js';
 import { light, panel, subText, text } from '../ui/kit.js';
@@ -30,7 +30,7 @@ export class EndingScene extends Phaser.Scene {
       .filter((spot) => ISLANDS.some((d) => d.id === spot.id));
 
     fillView(this, 0x0d1117, 1);
-    this.add.image(0, 0, mapKey('bg')).setOrigin(0);
+    fillSides(this, this.add.image(0, 0, mapKey('bg')).setOrigin(0));
     // The whole route, sailed.
     const g = this.add.graphics().fillStyle(MAP.routeColor, 1);
     for (const [x, y] of json.route) g.fillRect(x - 1, y - 1, 2, 2);

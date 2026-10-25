@@ -5,8 +5,9 @@ import {
 import { sfx } from '../audio/Sfx.js';
 import { applyRenderScale, fillView } from '../display.js';
 import { LAYOUT } from '../layout.js';
+import { showBackdrop } from '../scenery.js';
 import {
-  FISHING_JSON_KEY, fishingKey, sceneryKeys, shipFrontKey, shipStageKey,
+  FISHING_JSON_KEY, fishingKey, shipFrontKey, shipStageKey,
 } from '../sprites.js';
 import { traitOf } from '../systems/Expeditions.js';
 import {
@@ -77,7 +78,10 @@ export class GalleyScene extends Phaser.Scene {
     this.timers = [];
     this.rig = null;
     this.select(this.tab, { quiet: true });
-    this.events.on('view-resize', (view) => this.layoutUi(view));
+    this.events.on('view-resize', (view) => {
+      this.showSpot();
+      this.layoutUi(view);
+    });
     this.layoutUi(this.view);
   }
 
@@ -86,7 +90,7 @@ export class GalleyScene extends Phaser.Scene {
   createWorld() {
     const p = this.progress;
     const ship = { x: LAYOUT.shipX, y: LAYOUT.shipY };
-    this.bg = this.add.image(0, -SCENERY.originY, '__DEFAULT').setOrigin(0);
+    this.bg = this.add.image(0, 0, '__DEFAULT').setOrigin(0);
     this.shipImg = this.add.image(ship.x, ship.y, shipStageKey(p.decks)).setOrigin(0);
     // The equipped parts on the ship, as in battle.
     const slot = (id) => PART_DATA.slots.indexOf(partOf(id).slot);
@@ -111,14 +115,10 @@ export class GalleyScene extends Phaser.Scene {
   }
 
   // The chosen spot's backdrop: its background, foreground loop and front
-  // layer (the battle's, without its weather or hazards).
+  // layer (the battle's for this view, without its weather or hazards).
   showSpot() {
     const spot = fishingSpots(this.progress).find((s) => s.id === this.spotId);
-    const keys = sceneryKeys(spot.island);
-    this.bg.setTexture(keys.bg);
-    this.fg.setTexture(keys.fg).play(keys.anim);
-    this.front.setVisible(!!keys.front);
-    if (keys.front) this.front.setTexture(keys.front);
+    showBackdrop(this, spot.island, this.view);
   }
 
   // The angler's rod tip now (world pixels), or null (holding a fish up).

@@ -1,5 +1,6 @@
 import {
-  ABYSS, ASHFALL, ENEMIES, FISHING, FX, ISLANDS, MAP, MERCHANTS, MIST, MOTES, PACKS, PARTS, SHIP, SNOWFALL, SPRITES, STORM, TUTORIAL,
+  ABYSS, ASHFALL, DISPLAY, ENEMIES, FISHING, FX, ISLANDS, MAP, MERCHANTS, MIST, MOTES, PACKS, PARTS, SHIP, SNOWFALL, SPRITES, STORM,
+  TUTORIAL, WIDE,
 } from './config.js';
 import { initLayout, LAYOUT } from './layout.js';
 import {
@@ -52,6 +53,13 @@ export function sceneryKeys(island) {
   return id
     ? { bg: `bg_${id}`, fg: `fg_${id}`, anim: `fg_loop_${id}`, front: island.scenery.front ? `front_${id}` : null }
     : { bg: BACKGROUND_KEY, fg: FOREGROUND_KEY, anim: 'fg_loop', front: null };
+}
+// The same backdrop in a wide view (WIDE): bg_<id>_wide.png and its
+// foreground sheet, 640 wide and 270 tall, Skull Cove's for an island
+// without scenery of its own. No front layer: the 480 one is used.
+export function wideSceneryKeys(island) {
+  const id = island?.scenery ? island.id : ISLANDS[0].id;
+  return { bg: `wide_bg_${id}`, fg: `wide_fg_${id}`, anim: `wide_fg_loop_${id}` };
 }
 // Every battlefield with a backdrop of its own: the islands that have one,
 // and the Abyss (whose island-shaped stand-in, Abyss.abyssIsland, has the
@@ -269,6 +277,14 @@ export function preloadSprites(scene) {
       load.spritesheet(sceneryKeys(island).fg, `${island.scenery.path}${island.scenery.fg}.png`, frame);
     }
   });
+  // The wide backdrops (as many rows as the base's, WIDE.side more each side).
+  const wideFrame = { frameWidth: DISPLAY.width + 2 * WIDE.side, frameHeight: DISPLAY.height };
+  for (const island of [null, ...SCENERIES]) {
+    const { bg, fg } = wideSceneryKeys(island);
+    const id = bg.slice('wide_bg_'.length);
+    load.image(bg, `${WIDE.path}bg_${id}_wide.png`);
+    load.spritesheet(fg, `${WIDE.path}fg_${id}_wide_sheet.png`, wideFrame);
+  }
   preloadUi(scene);
   preloadAbyss(load);
   // Projectile, impact, status, ability and hazard effects: each fx list
@@ -303,14 +319,15 @@ export function preloadSprites(scene) {
 export function createAnimations(scene) {
   initLayout(scene.cache.json.get(LAYOUT_KEY));
   for (const island of [null, ...SCENERIES]) {
-    const { fg, anim } = sceneryKeys(island);
-    if (scene.anims.exists(anim)) continue;
-    scene.anims.create({
-      key: anim,
-      frames: scene.anims.generateFrameNumbers(fg, { start: 0, end: LAYOUT.foreground.frames - 1 }),
-      frameRate: LAYOUT.foreground.fps,
-      repeat: -1,
-    });
+    for (const { fg, anim } of [sceneryKeys(island), wideSceneryKeys(island)]) {
+      if (scene.anims.exists(anim)) continue;
+      scene.anims.create({
+        key: anim,
+        frames: scene.anims.generateFrameNumbers(fg, { start: 0, end: LAYOUT.foreground.frames - 1 }),
+        frameRate: LAYOUT.foreground.fps,
+        repeat: -1,
+      });
+    }
   }
   const { aura } = ABYSS.elites;
   if (!scene.anims.exists(ELITE_AURA_KEY)) {
