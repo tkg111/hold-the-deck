@@ -4,6 +4,7 @@ import { sfx } from '../audio/Sfx.js';
 import { fillView, pageRect } from '../display.js';
 import { online } from '../online/index.js';
 import { decodeSave, IMPORT_ERRORS } from '../systems/SaveCode.js';
+import { onBack } from './back.js';
 import { Button } from './Button.js';
 import { ConfirmDialog } from './ConfirmDialog.js';
 import { dark, light, panel, text } from './kit.js';
@@ -62,7 +63,9 @@ export class SaveCodeDialog extends Phaser.GameObjects.Container {
     scene.events.on('view-resize', center);
     window.addEventListener('resize', place);
     scene.modalOpen = (scene.modalOpen ?? 0) + 1;
+    const offBack = onBack(() => this.destroy());
     this.once('destroy', () => {
+      offBack();
       scene.modalOpen--;
       scene.events.off('view-resize', center);
       window.removeEventListener('resize', place);

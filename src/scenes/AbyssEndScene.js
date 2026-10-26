@@ -92,6 +92,11 @@ export class AbyssEndScene extends Phaser.Scene {
     if (s.newRecord) sfx.play('legendary');
   }
 
+  // Android's back button: as Map.
+  back() {
+    this.close(this.onMap);
+  }
+
   close(then) {
     sfx.play('ui_click');
     this.scene.stop();

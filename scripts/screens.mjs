@@ -25,6 +25,7 @@ mkdirSync('docs', { recursive: true });
 const browser = await chromium.launch({ channel: process.env.PW_CHANNEL ?? 'msedge' });
 const shots = [];
 const problems = [];
+const checked = [];   // how many tap targets each shot had
 
 // In the page: every visible tappable object of the open scenes, with its
 // hit area in layout units ({ scene, name, x, y, w, h }).
@@ -62,6 +63,7 @@ async function check(page, vp, sceneName) {
   const barTotal = Math.round(bars.left + bars.right + bars.top + bars.bottom);
   if (barTotal > 1) problems.push(`${vp.name} ${sceneName}: bars (CSS px) ${JSON.stringify(bars)}`);
   const targets = await page.evaluate(tapTargets);
+  checked.push(`${vp.name} ${sceneName}: ${targets.length}`);
   for (const t of targets) {
     if (t.w < 31.5 || t.h < 31.5) problems.push(`${vp.name} ${sceneName}: small tap target "${t.name}" ${t.w.toFixed(0)}x${t.h.toFixed(0)}`);
   }
@@ -171,4 +173,5 @@ await browser.close();
 
 console.log(`Shots: ${OUT}`);
 console.log('Contact sheet: docs/screens.png');
+console.log(`Tap targets checked: ${checked.join(', ')}`);
 console.log(problems.length ? `\n${problems.length} problem(s):\n${[...new Set(problems)].join('\n')}` : '\nNo bars, small tap targets or page errors.');

@@ -3,6 +3,7 @@ import { DISPLAY, RANKINGS } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
 import { fillView } from '../display.js';
 import { checkName } from '../online/index.js';
+import { onBack } from './back.js';
 import { Button } from './Button.js';
 import { HtmlField } from './HtmlField.js';
 import { dark, light, panel, text } from './kit.js';
@@ -46,7 +47,9 @@ export class CaptainNameDialog extends Phaser.GameObjects.Container {
     center(scene.view);
     scene.events.on('view-resize', center);
     scene.modalOpen = (scene.modalOpen ?? 0) + 1;
+    const offBack = onBack(() => this.destroy());
     this.once('destroy', () => {
+      offBack();
       scene.modalOpen--;
       scene.events.off('view-resize', center);
       this.field.destroy();

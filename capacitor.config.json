@@ -2,5 +2,13 @@
   "appId": "com.tkg111.holdthedeck",
   "appName": "Hold the Deck",
   "webDir": "dist",
-  "android": { "backgroundColor": "#2a1e4a" }
+  "android": { "backgroundColor": "#2a1e4a" },
+  "plugins": {
+    "SplashScreen": {
+      "launchAutoHide": false,
+      "backgroundColor": "#2a1e4a",
+      "androidScaleType": "CENTER_CROP",
+      "showSpinner": false
+    }
+  }
 }

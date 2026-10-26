@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import {
-  ABYSS, ASHFALL, AUDIO, DISPLAY, ENDING, ENEMIES, EXPEDITIONS, GALLEY, GAME_SPEEDS, HEROES, MOBILE, MOTES, PACKS, SCENERY, SIM, SNOWFALL,
+  ABYSS, ASHFALL, AUDIO, AUTO_CONTINUE, DISPLAY, ENDING, ENEMIES, EXPEDITIONS, GALLEY, GAME_SPEEDS, HEROES, MOBILE, MOTES, PACKS, SCENERY, SIM, SNOWFALL,
   UI_KIT,
 } from '../config.js';
 import { audio } from '../audio/Audio.js';
@@ -9,7 +9,7 @@ import { music } from '../audio/Music.js';
 import { sfx } from '../audio/Sfx.js';
 import { DEV_TOOLS } from '../devFlag.js';
 import {
-  applyRenderScale, fullscreenSupported, isFullscreen, toggleFullscreen,
+  applyRenderScale, fullscreenSupported, hudEdges, isFullscreen, toggleFullscreen,
 } from '../display.js';
 import { Scenery } from '../scenery.js';
 import {
@@ -19,6 +19,9 @@ import { Storm } from '../storm.js';
 import { Weather } from '../weather.js';
 import { Fog } from '../fog.js';
 import { installOption, promptInstall } from '../pwa.js';
+import {
+  exitApp, haptic, isApp, isNative, setVibration,
+} from '../native.js';
 import { Ship } from '../entities/Ship.js';
 import { Hero } from '../entities/Hero.js';
 import { playSpawnPuff } from '../entities/Enemy.js';
@@ -107,6 +110,7 @@ export class GameScene extends Phaser.Scene {
     this.expeditionClock = 0;   // real ms since expeditions were last checked
     this.expeditionsReady = Expeditions.readyCount(this.progress);
     this.applyAudioSettings();
+    setVibration(this.progress.vibration);
     this.state = STATE.IDLE;
     this.speed = this.speed ?? GAME_SPEEDS[0];  // kept across restarts in a session
     this.slowMotion = 1;   // x the battle's speed (the tutorial's first merchant)
@@ -164,21 +168,26 @@ export class GameScene extends Phaser.Scene {
     // unfinished wave isn't lost (same as losing a wave: gold is kept); the
     // save marks when the game was last seen. Back after hiding for
     // MOBILE.offline.returnAfterMs or more counts as coming back.
+    // The Android app's pause and resume (src/native.js, 'app-pause' and
+    // 'app-resume' on the game) do the same, as the page may not be told.
     const onPageHide = () => this.save();
     window.addEventListener('pagehide', onPageHide);
     let hiddenAt = null;
-    const onVisibility = () => {
-      if (document.hidden) {
-        hiddenAt = Date.now();
-        this.save();
-        return;
-      }
-      if (hiddenAt == null || Date.now() - hiddenAt < MOBILE.offline.returnAfterMs || this.awayOpen) return;
+    const onHide = () => {
+      hiddenAt ??= Date.now();
+      this.save();
+    };
+    const onShow = () => {
+      const since = hiddenAt;
       hiddenAt = null;
+      if (since == null || Date.now() - since < MOBILE.offline.returnAfterMs || this.awayOpen) return;
       const report = Offline.comeBack(this.progress);
       if (report) this.showAway(report);
     };
+    const onVisibility = () => (document.hidden ? onHide() : onShow());
     document.addEventListener('visibilitychange', onVisibility);
+    this.game.events.on('app-pause', onHide);
+    this.game.events.on('app-resume', onShow);
     // Fullscreen can also be left with Esc, so follow the browser's state.
     const onFullscreenChange = () => this.refreshUi();
     document.addEventListener('fullscreenchange', onFullscreenChange);
@@ -197,6 +206,8 @@ export class GameScene extends Phaser.Scene {
       for (const [name, fn] of Object.entries(handlers)) this.events.off(name, fn, this);
       window.removeEventListener('pagehide', onPageHide);
       document.removeEventListener('visibilitychange', onVisibility);
+      this.game.events.off('app-pause', onHide);
+      this.game.events.off('app-resume', onShow);
       document.removeEventListener('fullscreenchange', onFullscreenChange);
       this.input.keyboard?.off('keydown', onKey);
     });
@@ -356,22 +367,26 @@ export class GameScene extends Phaser.Scene {
     const goldX = pearlsX - plaqueGap - goldWidth;
     this.goldText = text(this, goldX + 21, 18, '', light()).setOrigin(0, 0.5);
     this.pearlsText = text(this, pearlsX + 21, 18, '', light()).setOrigin(0, 0.5);
-    // Settings: Captain's tips, Replay tutorial and Reset progress.
-    this.settingsButton = new Button(this, 421, 43, {
-      width: 18, height: 18, icon: 'gear', onClick: () => this.openSettings(),
+    // Settings (Captain's tips, Replay tutorial, Reset progress...), Sound,
+    // and Fullscreen where the browser allows it and the game isn't already
+    // running as an app: right-aligned under the plaques (layoutIconButtons).
+    const ib = UI_KIT.hud.iconButtons;
+    this.settingsButton = new Button(this, 0, ib.y, {
+      width: ib.size, height: ib.size, icon: 'gear', onClick: () => this.openSettings(),
     });
-    this.muteButton = new Button(this, 443, 43, {
-      width: 18, height: 18, icon: 'sound_on', onClick: () => this.toggleMute(),
+    this.muteButton = new Button(this, 0, ib.y, {
+      width: ib.size, height: ib.size, icon: 'sound_on', onClick: () => this.toggleMute(),
     });
-    this.fullscreenButton = new Button(this, 465, 43, {
-      width: 18, height: 18, icon: 'fullscreen', onRelease: true, onClick: () => this.toggleFullscreen(),
-    }).setVisible(fullscreenSupported());
+    this.fullscreenButton = new Button(this, 0, ib.y, {
+      width: ib.size, height: ib.size, icon: 'fullscreen', onRelease: true, onClick: () => this.toggleFullscreen(),
+    }).setVisible(fullscreenSupported() && !isApp());
     // The active meal: its icon and waves left, on a small plaque left of
     // the settings buttons (only while there is one).
     const mh = GALLEY.hud;
     this.mealIcon = this.add.image(mh.x + 10, mh.y + 9, fishingKey('meals'), 0);
     this.mealText = text(this, mh.x + 20, mh.y + 9, '', light({ font: 'small' })).setOrigin(0, 0.5);
     this.mealPlaque = this.add.container(0, 0, [panel(this, mh.x, mh.y, mh.width, 18, 'wood'), this.mealIcon, this.mealText]);
+    this.layoutIconButtons(pearlsX + pearlsWidth);
     this.topRight = group(
       panel(this, goldX, 6, goldWidth, 24, 'wood'), icon(this, goldX + 12, 18, 'gold'), this.goldText,
       panel(this, pearlsX, 6, pearlsWidth, 24, 'wood'), icon(this, pearlsX + 12, 18, 'pearl'), this.pearlsText,
@@ -443,8 +458,9 @@ export class GameScene extends Phaser.Scene {
       this.showBanner('EXPEDITIONS', { detail: Expeditions.unlockLabel().toUpperCase() });
     });
     // Battle speed (bottom-right, during waves): shows the current speed.
-    this.speedButton = new Button(this, 452, 250, {
-      width: 40, height: 22, label: '', onClick: () => this.cycleSpeed(),
+    const sp = UI_KIT.hud.speed;
+    this.speedButton = new Button(this, 474 - sp.width / 2, 264 - sp.height / 2, {
+      width: sp.width, height: sp.height, label: '', font: 'big', onClick: () => this.cycleSpeed(),
     });
     // Abilities (bottom centre, during waves).
     this.abilityBar = new AbilityBar(this, {
@@ -471,31 +487,58 @@ export class GameScene extends Phaser.Scene {
     this.layoutUi(this.view);
   }
 
-  // Anchor the HUD to the view: plaques to their top corners, the enemies bar
-  // to the top centre, the Shipwright (and hero picker) to the right and the
-  // button bar to the bottom right, under the Shipwright. (The view is the
-  // game area: always 480 wide, 270 to 360 tall; see create().)
+  // Settings, Sound and (if shown) Fullscreen, right-aligned from x right,
+  // size + gap apart; the meal plaque left of them.
+  layoutIconButtons(right) {
+    const { size, gap } = UI_KIT.hud.iconButtons;
+    let x = right;
+    for (const b of [this.fullscreenButton, this.muteButton, this.settingsButton]) {
+      if (!b.visible) continue;
+      b.setX(x - size / 2);
+      x -= size + gap;
+    }
+    this.mealPlaque.setX(x + gap - 4 - GALLEY.hud.width - GALLEY.hud.x);
+  }
+
+  // Anchor the HUD to the view's safe area (clear of a notch or camera, and
+  // MOBILE.safeMargin from every edge; see hudEdges): plaques to their top
+  // corners, the enemies bar to the top centre, the Shipwright (and hero
+  // picker) to the right, the button bar and battle speed to the bottom
+  // right, the ability bar to the bottom centre and AUTO NEXT to the bottom
+  // left. (The view: 480 to 640 wide, 270 to 360 tall; see display.js.)
   layoutUi(view) {
-    const right = view.right - DISPLAY.width;
-    const center = Math.round(view.centerX - DISPLAY.width / 2);
-    this.topLeft.setPosition(view.left, view.top);
-    this.currentNote.setPosition(view.left, view.top);
-    this.topCenter.setPosition(center, view.top);
-    this.topRight.setPosition(right, view.top);
-    this.banner.setPosition(center + 188, view.top + 80);
+    const e = hudEdges(view);
+    const { right } = e;
+    const center = e.centerX;
+    this.topLeft.setPosition(e.left, e.top);
+    this.currentNote.setPosition(e.left, e.top);
+    this.topCenter.setPosition(center, e.top);
+    this.topRight.setPosition(right, e.top);
+    this.banner.setPosition(center + 188, e.top + 80);
     // The Shipwright shows as many rows as fit above the button bar, and
     // slides away to the view's right edge.
-    const swTop = view.top + 64;
-    const barTop = Math.round(view.bottom - DISPLAY.height) + BOTTOM_BAR_Y - UI_KIT.bottomButtonHeight / 2;
+    const swTop = e.top + 64;
+    const barTop = e.bottom + BOTTOM_BAR_Y - UI_KIT.bottomButtonHeight / 2;
     const fit = ScrollPanel.heightFor(0, UI_KIT.shipwrightHeader.height);
     const rows = Math.floor((barTop - 2 - swTop - fit) / UI_KIT.rowHeight);
     this.shipwright.setVisibleRows(Math.min(UI_KIT.shipwrightRows, rows));
     this.shipwright.setAnchor(right + 473 - UI_KIT.shipwrightWidth, view.right - 3, swTop);
-    this.heroPicker.setPosition(right + 473 - UI_KIT.pickerWidth, view.top + 64);
-    this.bottomBar.setPosition(right, Math.round(view.bottom - DISPLAY.height));
+    this.heroPicker.setPosition(right + 473 - UI_KIT.pickerWidth, e.top + 64);
+    this.bottomBar.setPosition(right, e.bottom);
     this.abilityBar.layout(view);
     this.notices.layout(view);
-    this.autoContinue.layout(view);
+    this.placeAutoNext();
+  }
+
+  // AUTO NEXT in the bottom-left corner, lifted above the button bar while
+  // that's showing and in the way (a view too narrow for both).
+  placeAutoNext() {
+    if (!this.autoContinue) return;
+    const e = hudEdges(this.view);
+    const barLeft = e.right + UI_KIT.bottomBar.left;
+    const barTop = e.bottom + BOTTOM_BAR_Y - UI_KIT.bottomButtonHeight / 2;
+    const inWay = this.state === STATE.IDLE && barLeft < e.left + 6 + AUTO_CONTINUE.width + AUTO_CONTINUE.gap;
+    this.autoContinue.layout(this.view, inWay ? barTop - AUTO_CONTINUE.gap : null);
   }
 
   refreshUi() {
@@ -550,6 +593,7 @@ export class GameScene extends Phaser.Scene {
     this.shipwright.setVisible(idle && !this.heroPicker.visible);
     this.devTools?.refresh(idle);
     if (idle) this.shipwright.refresh();
+    this.placeAutoNext();
   }
 
   // The wave plaque: "FOGBOUND · WAVE 15" after the skull (the Abyss: the
@@ -748,6 +792,14 @@ export class GameScene extends Phaser.Scene {
       },
       tipsOn: p.tutorial.tipsOn,
       onTips: (on) => tutorial.setTipsOn(on),
+      // Only in the Android app, the one place it buzzes.
+      vibration: isNative() ? p.vibration : null,
+      onVibration: (on) => {
+        p.vibration = on;
+        setVibration(on);
+        haptic('light');
+        this.save();
+      },
       onReplay: () => tutorial.replay(),
       onReset: () => this.confirmReset(),
       onExport: () => this.exportSave(),
@@ -806,6 +858,23 @@ export class GameScene extends Phaser.Scene {
         saveProgress(progress);
         sfx.play('ui_open');
         this.scene.restart();
+      },
+    });
+  }
+
+  // Android's back button on the bare battle screen (src/ui/back.js): Stay,
+  // or Leave, which saves and closes the app.
+  confirmLeave() {
+    if (this.modalOpen) return;
+    if (this.heroPicker.visible) this.heroPicker.close();
+    new ConfirmDialog(this, {
+      title: 'Leave port?',
+      message: 'Your ship and crew are saved.',
+      confirmLabel: 'Leave',
+      cancelLabel: 'Stay',
+      onConfirm: () => {
+        this.save();
+        exitApp();
       },
     });
   }
@@ -1399,6 +1468,7 @@ export class GameScene extends Phaser.Scene {
     // The finale: a boss arriving after the other fell comes in enraged.
     // A boss arriving roars (one that announces itself on arrival roars then).
     for (const e of spawned) if (e.def.boss && !e.def.bannerOnEntrance) sfx.play('boss_roar');
+    if (spawned.some((e) => e.def.boss)) haptic('medium');
     for (const e of spawned) if (e.def.boss && e.rage > 1) this.showBanner(`${e.def.name.toUpperCase()} ENRAGES!`, { color: UI.colors.warn });
     for (const e of this.enemies) e.update(dt, this.ship);
     this.volcano.update(dt);
@@ -1424,6 +1494,7 @@ export class GameScene extends Phaser.Scene {
     this.projectiles = this.projectiles.filter((p) => !p.done);
 
     if (this.ship.isDestroyed) {
+      haptic('medium');
       this.endWave(false);
       return;
     }

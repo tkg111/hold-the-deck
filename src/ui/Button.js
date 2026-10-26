@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { UI_KIT } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
+import { haptic } from '../native.js';
 import {
   hexColor, icon as makeIcon, nineSlice, tapArea, text, UI,
 } from './kit.js';
@@ -21,9 +22,10 @@ const FIT_PAD = 2;
 // alone is never dropped). onClick fires on press, or on release with
 // onRelease: true (browsers only allow fullscreen from a touch once it's
 // released; buttons in a scrolling list wait for the release too, so a drag
-// can cancel them: cancelPress()). A press plays ui_click, unless onClick
-// plays a sound of its own (a buy, a close); tapping a disabled button plays
-// ui_error.
+// can cancel them: cancelPress()). Held down, it shrinks to
+// UI_KIT.press.scale and darkens (and in the Android app gives a light
+// buzz); letting go plays ui_click, unless onClick played a sound of its
+// own (a buy, a close). Tapping a disabled button plays ui_error.
 export class Button extends Phaser.GameObjects.Container {
   constructor(scene, x, y, {
     width, height = 20, label = '', icon = null, style = 'wood', font = 'main', onClick, onRelease = false,
@@ -50,16 +52,39 @@ export class Button extends Phaser.GameObjects.Container {
     this.add([this.bg, this.content, this.dot]);
     this.layout();
 
-    // Every click is also announced on the scene ('button-pressed', button).
+    // Every click is also announced on the scene ('button-pressed', button),
+    // and returns whether the action played a sound of its own.
     const click = () => {
       scene.events.emit('button-pressed', this);
       const asked = sfx.requests;
       onClick();
-      if (sfx.requests === asked) sfx.play('ui_click');
+      return sfx.requests !== asked;
     };
+    // A press-action button's click waits for the finger to lift, anywhere
+    // (the page's pointerup: the action may have hidden, paused or destroyed
+    // the button, which then never hears its own), and it un-presses then.
+    this.clickPending = false;
+    const release = () => {
+      if (this.clickPending) sfx.play('ui_click');
+      this.clickPending = false;
+      if (this.pressed && this.scene) {
+        this.pressed = false;
+        this.paint();
+      }
+    };
+    this.once('destroy', () => {
+      if (this.clickPending) sfx.play('ui_click');
+      this.clickPending = false;
+    });
     tapArea(this.bg, width, height, { useHandCursor: true });
     this.bg.on('pointerover', () => { this.hovered = true; this.paint(); });
-    this.bg.on('pointerout', () => { this.hovered = false; this.pressed = false; this.deniedPress = false; this.paint(); });
+    // Sliding off un-presses it (a release button then doesn't fire).
+    this.bg.on('pointerout', () => {
+      this.hovered = false;
+      this.pressed = false;
+      this.deniedPress = false;
+      this.paint();
+    });
     this.bg.on('pointerdown', () => {
       if (!this.enabled) {
         // (A release button waits: a drag may be scrolling its list.)
@@ -69,15 +94,27 @@ export class Button extends Phaser.GameObjects.Container {
       }
       this.pressed = true;
       this.paint();
-      if (!onRelease) click();
+      haptic('light');
+      if (onRelease) return;
+      this.clickPending = !click();
+      const lifted = new AbortController();
+      const onLift = () => {
+        lifted.abort();
+        release();
+      };
+      for (const type of ['pointerup', 'pointercancel']) window.addEventListener(type, onLift, { signal: lifted.signal });
     });
     this.bg.on('pointerup', () => {
       if (this.deniedPress) sfx.play('ui_error');
       this.deniedPress = false;
-      const clicked = this.pressed && onRelease;
+      if (!onRelease) {
+        release();
+        return;
+      }
+      if (!this.pressed) return;
       this.pressed = false;
       this.paint();
-      if (clicked) click();
+      if (!click()) sfx.play('ui_click');
     });
 
     scene.add.existing(this);
@@ -161,6 +198,7 @@ export class Button extends Phaser.GameObjects.Container {
   // Let go of a press without clicking (a drag started on the button).
   cancelPress() {
     this.deniedPress = false;
+    this.clickPending = false;
     if (!this.pressed) return this;
     this.pressed = false;
     this.paint();
@@ -209,6 +247,15 @@ export class Button extends Phaser.GameObjects.Container {
     else if (this.hovered) state = 'hover';
     this.bg.setTexture(`ui_btn_${this.style}_${state}`);
     this.bg.updateUVs();
+    // Held: smaller (round its centre) and darker.
+    const held = state === 'pressed';
+    const { scale, tint } = UI_KIT.press;
+    this.setScale(held ? scale : 1);
+    for (const o of [this.bg, this.icon]) {
+      if (!o) continue;
+      if (held) o.setTint(tint);
+      else o.clearTint();
+    }
     this.layout();
   }
 }

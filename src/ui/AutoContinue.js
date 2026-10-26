@@ -1,12 +1,13 @@
-import { AUTO_CONTINUE, DISPLAY } from '../config.js';
+import { AUTO_CONTINUE } from '../config.js';
 import { Button } from './Button.js';
+import { light, text } from './kit.js';
 
 // Auto-continue, kept across scene restarts in a session (not saved): when
 // on, a cleared wave is followed by the next one and a lost wave is retried,
 // each after AUTO_CONTINUE.delayMs. Any other button (or a ship slot) pauses
 // it until a wave is started by hand with SET SAIL! again; so does a Boss
-// Hunt. Its toggle sits in the bottom-left corner of the view, during waves
-// too.
+// Hunt. Its AUTO NEXT toggle sits in the bottom-left corner of the view's
+// safe area, during waves too.
 const auto = { on: false, paused: false };
 
 export class AutoContinue {
@@ -14,11 +15,18 @@ export class AutoContinue {
     this.scene = scene;
     this.timer = null;
     this.starting = false;   // a wave it started itself (doesn't un-pause)
+    // AUTO over NEXT (or PAUSED): gold while on, wood while off or paused.
+    const { width, height } = AUTO_CONTINUE;
     this.button = new Button(scene, 0, 0, {
-      height: 12, font: 'small', width: AUTO_CONTINUE.width, label: this.label(),
-      onClick: () => this.toggle(),
+      width, height, label: '', onClick: () => this.toggle(),
     });
-    this.corner = scene.add.container(0, 0, [this.button.setPosition(AUTO_CONTINUE.x, AUTO_CONTINUE.y)]).setDepth(20);
+    this.lines = [
+      text(scene, 0, -4, 'AUTO', light({ font: 'small' })).setOrigin(0.5),
+      text(scene, 0, 5, '', light({ font: 'small' })).setOrigin(0.5),
+    ];
+    this.button.content.add(this.lines);
+    this.corner = scene.add.container(0, 0, [this.button]).setDepth(20);
+    this.refresh();
 
     // Buttons that don't pause it: its own, SET SAIL! (a wave started by
     // hand resumes it instead) and the in-battle controls (speed, abilities).
@@ -49,12 +57,19 @@ export class AutoContinue {
     });
   }
 
-  label() { return `AUTO-CONTINUE ${!auto.on ? 'OFF' : auto.paused ? 'PAUSED' : 'ON'}`; }
-  refresh() { this.button.setLabel(this.label()); }
+  refresh() {
+    const on = auto.on && !auto.paused;
+    this.button.setStyle(on ? 'gold' : 'wood');
+    this.lines[1].setText(auto.on && auto.paused ? 'PAUSED' : 'NEXT');
+    for (const t of this.lines) t.setFontKey(on ? 'small_dark' : 'small_light');
+  }
 
-  // Bottom-left corner of the view.
-  layout(view) {
-    this.corner.setPosition(view.left, Math.round(view.bottom - DISPLAY.height));
+  // The view's safe bottom-left corner, or with its bottom at y (above the
+  // button bar, see GameScene.placeAutoNext).
+  layout(view, bottom = null) {
+    const { width, height } = AUTO_CONTINUE;
+    const b = bottom ?? view.safe.bottom;
+    this.button.setPosition(Math.round(view.safe.left + width / 2), Math.round(b - height / 2));
   }
 
   toggle() {

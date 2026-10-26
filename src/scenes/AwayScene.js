@@ -126,6 +126,11 @@ export class AwayScene extends Phaser.Scene {
     });
   }
 
+  // Android's back button: as Collect.
+  back() {
+    this.close(this.onCollect);
+  }
+
   close(then) {
     if (this.closing) return;
     this.closing = true;

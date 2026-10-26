@@ -206,7 +206,14 @@ export const UI_KIT = {
     goldWidth: 82,
     pearlsWidth: 74,
     plaqueGap: 3,
+    // Settings, Sound (and, in a browser, Fullscreen) under the gold and
+    // Pearls: size x size plates, right-aligned from the Pearls' right edge,
+    // gap apart (their tap zones, MOBILE.minTap, just meet), centred on y.
+    iconButtons: { size: 24, gap: 8, y: 46 },
+    speed: { width: 44, height: 32 },   // bottom-right, during waves
   },
+  // A button held down: scaled to scale and tinted (darker) until let go.
+  press: { scale: 0.92, tint: 0xb8b8b8 },
   bottomButtonHeight: 30,   // the between-waves button bar (room for badges)
   // Its buttons' widths, left to right from `left`, `gap` apart: each fits
   // its icon and label (Log and Map are icons alone, to make room).
@@ -849,11 +856,11 @@ export const ABILITY_SCALING = {
 // The ability bar shown at the bottom centre during waves: a wood portrait
 // button per crewmate on the ship (keys 1-6, in slot order) and an Auto toggle.
 export const ABILITY_BAR = {
-  buttonSize: 26,
+  buttonSize: 32,
   gap: 5,              // room for the glow between buttons
   autoGap: 8,          // between the last portrait and the Auto toggle
-  autoWidth: 40,
-  bottomMargin: 3,
+  autoWidth: 56,
+  bottomMargin: 0,     // above the view's safe bottom edge
   sweepColor: 0x000000,
   sweepAlpha: 0.6,
   glowColor: 0xffd54f,
@@ -1725,10 +1732,13 @@ export const GAME_SPEEDS = [1, 2, 4];
 // sim plays a 480 view, so none of this changes it.
 export const ENTRY = { margin: 16, speedMult: 4 };
 
-// Auto-continue (src/ui/AutoContinue.js): its toggle's centre and width in
-// the view's bottom-left corner (base pixels), and the pause before it
-// starts the next wave or retries a lost one.
-export const AUTO_CONTINUE = { x: 76, y: 229, width: 148, delayMs: 2000 };
+// Auto-continue (src/ui/AutoContinue.js): its AUTO NEXT toggle's size, in
+// the view's safe bottom-left corner (lifted gap px above the between-waves
+// button bar when that's in the way), and the pause before it starts the
+// next wave or retries a lost one.
+export const AUTO_CONTINUE = {
+  width: 48, height: 32, gap: 4, delayMs: 2000,
+};
 
 // The battle runs in fixed steps of stepMs of game time, however many fit in
 // each frame's time (x the battle speed), so a wave plays out the same at any

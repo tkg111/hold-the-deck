@@ -20,6 +20,7 @@ import { TutorialHost } from './tutorial/TutorialHost.js';
 import { tutorial } from './tutorial/TutorialManager.js';
 import { loadUiSpec } from './ui/kit.js';
 import { installPortraitGuard, installTouchGuards } from './phone.js';
+import { installApp } from './native.js';
 import { installPwa } from './pwa.js';
 
 // ui.json (icon order, slice sizes, colours) loads before the game starts.
@@ -61,6 +62,7 @@ loadUiSpec().then(() => {
   installPwa(game);
   installTouchGuards(game);
   installPortraitGuard(game);
+  installApp(game, tutorial);
 
   // The Captain's tutorial listens to the scenes once they exist.
   game.events.once('ready', () => {

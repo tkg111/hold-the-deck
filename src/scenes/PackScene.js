@@ -10,6 +10,7 @@ import {
 } from '../systems/Packs.js';
 import { sfx } from '../audio/Sfx.js';
 import { applyRenderScale, fillView } from '../display.js';
+import { haptic } from '../native.js';
 import { Progress } from '../systems/Progress.js';
 import { saveProgress } from '../systems/Save.js';
 import { Button } from '../ui/Button.js';
@@ -466,6 +467,7 @@ export class PackScene extends Phaser.Scene {
     }));
     this.card.setPosition(CARD_X, CHEST_Y + 40).setAlpha(0).setVisible(true);
     sfx.play('chest_open');
+    haptic('success');
 
     this.tweens.add({ targets: this.light, alpha: 1, scaleY: 1, duration: 320, ease: 'Quad.easeOut' });
     this.tweens.add({

@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { DISPLAY } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
 import { fillView } from '../display.js';
+import { onBack } from './back.js';
 import { Button } from './Button.js';
 import { dark, light, panel, text } from './kit.js';
 import { Slider } from './Slider.js';
@@ -26,12 +27,13 @@ const IOS_INSTALL = 'Tap Share, then Add to Home Screen.';
 // installed or not possible, no row), and Close. With Rankings set up
 // (captain: { name } or { name: null } before joining), a Captain name row
 // after Captain's tips: the name (closes them for its rename dialog), or
-// Join, which opens Rankings.
+// Join, which opens Rankings. In the Android app (vibration: true / false;
+// null elsewhere) a Vibration on / off row comes before it (onVibration).
 // onAudio({ music, sfx, muted }, done) fires as the sound settings change;
 // done once a slider is let go (or the mute toggled): time to save.
 export class SettingsDialog extends Phaser.GameObjects.Container {
   constructor(scene, {
-    audio, onAudio, tipsOn, onTips, onReplay, onReset, onExport, onImport, install, onInstall,
+    audio, onAudio, tipsOn, onTips, vibration = null, onVibration = null, onReplay, onReset, onExport, onImport, install, onInstall,
     captain = null, onCaptain = null,
   }) {
     super(scene, 0, 0);
@@ -43,15 +45,19 @@ export class SettingsDialog extends Phaser.GameObjects.Container {
     center(scene.view);
     scene.events.on('view-resize', center);
     scene.modalOpen = (scene.modalOpen ?? 0) + 1;
+    const offBack = onBack(() => this.destroy());
     this.once('destroy', () => {
+      offBack();
       scene.modalOpen--;
       scene.events.off('view-resize', center);
       backdrop.destroy();
     });
 
-    // Rows: the four settings (and Captain name), two rows of paired
-    // buttons, Install, Close.
-    const first = captain ? 5 : 4;   // the first row of paired buttons
+    // Rows: the four settings (and Vibration, Captain name), two rows of
+    // paired buttons, Install, Close.
+    const vibrationRow = vibration == null ? null : 4;
+    const captainRowAt = 4 + (vibrationRow == null ? 0 : 1);
+    const first = captainRowAt + (captain ? 1 : 0);   // the first row of paired buttons
     const closeRow = first + (install ? 3 : 2);
     const height = 22 + closeRow * ROW_H + 24;
     const cx = DISPLAY.width / 2;
@@ -107,9 +113,23 @@ export class SettingsDialog extends Phaser.GameObjects.Container {
     } else if (install === 'ios') {
       installRow = [text(scene, cx, rowY(first + 2), IOS_INSTALL, dark({ font: 'small' })).setOrigin(0.5)];
     }
+    let vibrationRowItems = [];
+    if (vibrationRow != null) {
+      this.vibration = vibration;
+      const toggle = new Button(scene, left + WIDTH - 40, rowY(vibrationRow), {
+        width: 56, height: 18, font: 'small', label: '', onClick: () => {
+          this.vibration = !this.vibration;
+          paintVibration();
+          onVibration(this.vibration);
+        },
+      });
+      const paintVibration = () => toggle.setLabel(this.vibration ? 'ON' : 'OFF').setStyle(this.vibration ? 'gold' : 'wood');
+      paintVibration();
+      vibrationRowItems = [label(vibrationRow, 'Vibration'), toggle];
+    }
     const captainRow = captain ? [
-      label(4, 'Captain name'),
-      new Button(scene, left + WIDTH - 12 - 48, rowY(4), {
+      label(captainRowAt, 'Captain name'),
+      new Button(scene, left + WIDTH - 12 - 48, rowY(captainRowAt), {
         width: 96, height: 18, font: 'small', label: captain.name ?? 'JOIN RANKINGS', style: captain.name ? 'wood' : 'gold',
         onClick: () => close(onCaptain),
       }),
@@ -126,6 +146,7 @@ export class SettingsDialog extends Phaser.GameObjects.Container {
       mute,
       label(3, "Captain's tips"),
       tips,
+      ...vibrationRowItems,
       ...captainRow,
       ...pair(first, ['Replay tutorial', onReplay], ['Reset progress', onReset]),
       ...pair(first + 1, ['Export save', onExport], ['Import save', onImport]),

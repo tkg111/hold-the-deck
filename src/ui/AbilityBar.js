@@ -82,14 +82,14 @@ export class AbilityBar extends Phaser.GameObjects.Container {
     if (this.view) this.layout(this.view);
   }
 
-  // Centred along the bottom of the view.
+  // Centred along the bottom of the view, on its safe area's bottom edge.
   layout(view) {
     this.view = view;
     const { buttonSize: size, gap, autoGap, autoWidth, bottomMargin } = ABILITY_BAR;
     const n = this.entries.length;
     const total = n * size + Math.max(0, n - 1) * gap + autoGap + autoWidth;
     const left = Math.round(view.centerX - total / 2);
-    const y = Math.round(view.bottom) - bottomMargin - Math.ceil(size / 2);
+    const y = Math.round(view.safe.bottom) - bottomMargin - Math.ceil(size / 2);
     this.setPosition(0, 0);
     this.entries.forEach((e, i) => {
       const x = left + i * (size + gap) + Math.floor(size / 2);

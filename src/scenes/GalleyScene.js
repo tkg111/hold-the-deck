@@ -3,8 +3,9 @@ import {
   DISPLAY, FISHING, GALLEY, MEALS, SCENERY, UI_KIT,
 } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
-import { applyRenderScale, fillView } from '../display.js';
+import { applyRenderScale, fillView, hudEdges } from '../display.js';
 import { LAYOUT } from '../layout.js';
+import { haptic } from '../native.js';
 import { showBackdrop } from '../scenery.js';
 import {
   FISHING_JSON_KEY, fishingKey, shipFrontKey, shipStageKey,
@@ -139,20 +140,24 @@ export class GalleyScene extends Phaser.Scene {
 
   createUi() {
     const cx = DISPLAY.width / 2;
+    // Centred: the title (and cooking, the message); the tabs and spots on
+    // the view's left edge, Back and Bait on its right (see layoutUi).
     this.top = this.add.container(0, 0).setDepth(10);
+    this.topLeft = this.add.container(0, 0).setDepth(10);
+    this.topRight = this.add.container(0, 0).setDepth(10);
     this.bottom = this.add.container(0, 0).setDepth(10);
     this.top.add([
       panel(this, cx - 50, 4, 100, 20, 'wood'),
       text(this, cx, 14, 'GALLEY', light()).setOrigin(0.5),
-      new Button(this, DISPLAY.width - 30, 14, {
-        width: 48, height: 20, label: 'Back', onClick: () => this.close(),
-      }),
     ]);
+    this.topRight.add(new Button(this, DISPLAY.width - 30, 14, {
+      width: 48, height: 20, label: 'Back', onClick: () => this.close(),
+    }));
     this.tabButtons = TABS.map(({ key, label }, i) => {
       const b = new Button(this, 8 + GALLEY.tabWidth / 2 + i * (GALLEY.tabWidth + 4), 14, {
         width: GALLEY.tabWidth, height: 20, label, onClick: () => this.select(key),
       });
-      this.top.add(b);
+      this.topLeft.add(b);
       return b;
     });
 
@@ -160,13 +165,15 @@ export class GalleyScene extends Phaser.Scene {
     // message in the sky, CAST at the bottom.
     this.fishingUi = this.add.container(0, 0);
     this.top.add(this.fishingUi);
+    this.spotRow = this.add.container(0, 0);
+    this.topLeft.add(this.spotRow);
     const { y, width, height, gap } = GALLEY.spots;
     this.spotButtons = fishingSpots(this.progress).map((spot, i) => {
       const b = new Button(this, 8 + width / 2 + i * (width + gap), y, {
         width, height, label: spot.shortName, font: 'small', onClick: () => this.pickSpot(spot.id),
       });
       b.spot = spot.id;
-      this.fishingUi.add(b);
+      this.spotRow.add(b);
       return b;
     });
     const bx = DISPLAY.width - 106;
@@ -174,7 +181,8 @@ export class GalleyScene extends Phaser.Scene {
     this.baitIcon = this.add.image(bx + 11, 38, fishingKey('icons'), iconFrame('bait'));
     this.baitText = text(this, bx + 21, 38, '', light()).setOrigin(0, 0.5);
     this.baitNext = text(this, bx + 6, 52, '', light({ font: 'small' })).setOrigin(0, 0.5);
-    this.fishingUi.add([this.baitPanel, this.baitIcon, this.baitText, this.baitNext]);
+    this.baitGroup = this.add.container(0, 0, [this.baitPanel, this.baitIcon, this.baitText, this.baitNext]);
+    this.topRight.add(this.baitGroup);
     this.message = this.add.container(0, 0);
     this.fishingUi.add(this.message);
 
@@ -215,8 +223,11 @@ export class GalleyScene extends Phaser.Scene {
   }
 
   layoutUi(view) {
-    this.top.setPosition(0, view.top);
-    this.bottom.setPosition(0, Math.round(view.bottom - DISPLAY.height));
+    const e = hudEdges(view);
+    this.top.setPosition(0, e.top);
+    this.topLeft.setPosition(e.left, e.top);
+    this.topRight.setPosition(e.right, e.top);
+    this.bottom.setPosition(0, e.bottom);
   }
 
   select(tab, { quiet = false } = {}) {
@@ -225,7 +236,7 @@ export class GalleyScene extends Phaser.Scene {
     this.tab = tab;
     this.tabButtons.forEach((b, i) => b.setStyle(TABS[i].key === tab ? 'gold' : 'wood'));
     const fishing = tab === 'fishing';
-    this.fishingUi.setVisible(fishing);
+    for (const o of [this.fishingUi, this.spotRow, this.baitGroup]) o.setVisible(fishing);
     this.castButton.setVisible(fishing);
     this.cookingShade.setVisible(!fishing);
     this.cookingUi.setVisible(!fishing);
@@ -644,6 +655,7 @@ export class GalleyScene extends Phaser.Scene {
     if (isNew) lines.push([`NEW!${spice ? `  +${spice} SPICE` : ''}`, '#ffd86a', 'small']);
     this.finish(lines);
     this.events.emit('fish-landed', { id });
+    haptic('success');
   }
 
   update(_time, delta) {

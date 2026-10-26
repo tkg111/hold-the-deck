@@ -7,6 +7,7 @@ import { initAudio, preloadAudio } from '../audio/load.js';
 import { music } from '../audio/Music.js';
 import { sfx } from '../audio/Sfx.js';
 import { applyRenderScale } from '../display.js';
+import { hideSplash } from '../native.js';
 import { preloadSprites, shipFrontKey, shipStageKey } from '../sprites.js';
 import { loadAudioSettings } from '../systems/Save.js';
 import { light, text } from '../ui/kit.js';
@@ -162,6 +163,7 @@ export class TitleScene extends Phaser.Scene {
       });
     };
     this.input.once('pointerdown', start);
+    hideSplash();
     this.input.keyboard?.once('keydown', start);
   }
 

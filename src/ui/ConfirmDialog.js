@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { DISPLAY } from '../config.js';
 import { fillView } from '../display.js';
+import { onBack } from './back.js';
 import { Button } from './Button.js';
 import { dark, light, panel, text } from './kit.js';
 
@@ -13,8 +14,11 @@ const PLATE_H = 20;
 // Modal yes/no dialog: parchment under a wood title plate, laid out in the
 // base 480x270 and kept centred in the view. The full-view backdrop blocks
 // clicks underneath. scene.modalOpen counts the dialogs open over a scene.
+// Android's back button cancels it.
 export class ConfirmDialog extends Phaser.GameObjects.Container {
-  constructor(scene, { title, message, confirmLabel = 'Confirm', onConfirm }) {
+  constructor(scene, {
+    title, message, confirmLabel = 'Confirm', cancelLabel = 'Cancel', onConfirm,
+  }) {
     super(scene, 0, 0);
     const backdrop = fillView(scene, 0x000000, 0.65).setDepth(50);
     this.setDepth(50);
@@ -24,7 +28,9 @@ export class ConfirmDialog extends Phaser.GameObjects.Container {
     center(scene.view);
     scene.events.on('view-resize', center);
     scene.modalOpen = (scene.modalOpen ?? 0) + 1;
+    const offBack = onBack(() => this.destroy());
     this.once('destroy', () => {
+      offBack();
       scene.modalOpen--;
       scene.events.off('view-resize', center);
       backdrop.destroy();
@@ -40,7 +46,7 @@ export class ConfirmDialog extends Phaser.GameObjects.Container {
       text(scene, cx, top + 30, message, dark({ font: 'small', align: 'center', wrap: (WIDTH - 24) }))
         .setOrigin(0.5),
       new Button(scene, cx - 46, top + (HEIGHT - 18), {
-        width: 80, height: 20, label: 'Cancel',
+        width: 80, height: 20, label: cancelLabel,
         onClick: () => this.destroy(),
       }),
       new Button(scene, cx + 46, top + (HEIGHT - 18), {

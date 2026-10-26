@@ -116,7 +116,8 @@ export function installDevTools(scene) {
 
   const buttons = [devButton, pearlsButton, waveButton, islandButton, bossButton, expeditionsButton, materialsButton, abyssButton];
   const corner = scene.add.container(0, 0, buttons).setDepth(20);
-  const layout = (view) => corner.setPosition(view.left, Math.round(view.bottom - DISPLAY.height));
+  // (Lifted clear of AUTO NEXT, which may sit above the button bar.)
+  const layout = (view) => corner.setPosition(view.left, Math.round(view.bottom - DISPLAY.height) - 40);
   layout(scene.view);
   scene.events.on('view-resize', layout);
   scene.events.once('shutdown', () => {

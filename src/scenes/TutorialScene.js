@@ -1,9 +1,9 @@
 import Phaser from 'phaser';
 import {
-  AUDIO, DISPLAY, TUTORIAL, UI_KIT,
+  AUDIO, TUTORIAL, UI_KIT,
 } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
-import { applyRenderScale } from '../display.js';
+import { applyRenderScale, hudEdges } from '../display.js';
 import { TUTORIAL_JSON_KEY, tutorialKey } from '../sprites.js';
 import { targetRect } from '../tutorial/targets.js';
 import { Button } from '../ui/Button.js';
@@ -292,7 +292,7 @@ export class TutorialScene extends Phaser.Scene {
     if (!s?.lines) return;
     const v = this.view;
     const { width: w, height: h, barGap, margin } = TUTORIAL.box;
-    const barTop = Math.round(v.bottom - DISPLAY.height) + BAR_Y - UI_KIT.bottomButtonHeight / 2;
+    const barTop = hudEdges(v).bottom + BAR_Y - UI_KIT.bottomButtonHeight / 2;
     const bottom = barTop - barGap - h;
     const ys = [bottom, bottom - TUTORIAL.box.lift, v.top + margin, Math.round(v.centerY - h / 2)];
     const xs = [Math.round(v.centerX - w / 2), v.left + margin, v.right - margin - w];

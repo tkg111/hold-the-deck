@@ -99,6 +99,22 @@ function safeInsets(scale) {
   return { left: side('Left'), top: side('Top'), right: side('Right'), bottom: side('Bottom') };
 }
 
+// Where to put a HUD group laid out in the base 480x270 rectangle, MOBILE.
+// safeMargin in from its edges: { left, right, top, bottom } offsets that
+// move it to the view's safe area (a group of the left edge by left, of the
+// right edge by right, and so on), and centerX for one centred across.
+// Without a notch these are the view's own edges.
+export function hudEdges(view) {
+  const m = MOBILE.safeMargin;
+  return {
+    left: Math.round(view.safe.left - m),
+    right: Math.round(view.safe.right + m - DISPLAY.width),
+    top: Math.round(view.safe.top - m),
+    bottom: Math.round(view.safe.bottom + m - DISPLAY.height),
+    centerX: Math.round(view.centerX - DISPLAY.width / 2),
+  };
+}
+
 // A rectangle covering the whole view (a modal backdrop), kept covering it
 // through resizes. It blocks clicks underneath.
 export function fillView(scene, color, alpha) {
