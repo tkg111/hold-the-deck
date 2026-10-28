@@ -292,10 +292,9 @@ export class GameScene extends Phaser.Scene {
     for (const w of this.weathers) w.setIsland(island);
   }
 
-  // Enemies come in from the view's right edge, merchant ships from its
-  // left, when it shows past the battlefield (ENTRY).
+  // Merchant ships come in from the view's left edge when it shows past the
+  // battlefield (ENTRY).
   setEntryEdges(view) {
-    this.entryEdge = view.right > DISPLAY.width ? view.right : null;
     this.merchantEdge = view.left < 0 ? view.left : null;
   }
 

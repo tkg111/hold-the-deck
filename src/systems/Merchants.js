@@ -155,7 +155,7 @@ export class Merchants {
   update(ms) {
     const s = this.ship;
     if (!s) return;
-    if (s.x < -s.w) s.x = Math.min(-s.w, s.x + s.speed * ENTRY.speedMult * ms / 1000);
+    if (s.x < -s.w) s.x = Math.min(-s.w, s.x + s.speed * ENTRY.merchantSpeedMult * ms / 1000);
     else s.x += s.speed * (s.struck ? MERCHANTS.slow : 1) * ms / 1000;
     this.place();
     if (!s.tappable && !s.struck && !s.fading && s.x + s.w / 2 >= MERCHANTS.tapFromX) {

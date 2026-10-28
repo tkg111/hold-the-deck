@@ -1723,14 +1723,13 @@ export const BATTLE_LOG = {
 // Session only: it isn't saved, and between waves everything runs at 1x.
 export const GAME_SPEEDS = [1, 2, 4];
 
-// A view wider than the battlefield (a phone): enemies a wave sends in
-// start margin px past its right edge (more for a wide one: half its
-// frame) and come in at speedMult x their speed, out of reach, until they
-// reach where they'd appear in a 480 view (layout.json's enemySpawnX, the
-// Frost Giant's spawnX). Merchant ships likewise start off the left edge
-// and sail at speedMult x until they reach their usual start. The balance
-// sim plays a 480 view, so none of this changes it.
-export const ENTRY = { margin: 16, speedMult: 4 };
+// Enemies a wave sends in appear where they always have (layout.json's
+// enemySpawnX), behind the front leaves, and step out of the trees: they
+// fade in over fadeMs, and flyers drift dropPx down out of the canopy (looks
+// only; the balance sim is unchanged). In a view wider than the battlefield
+// (a phone) merchant ships start off its left edge and sail in at
+// merchantSpeedMult x until they reach their usual start, just left of x 0.
+export const ENTRY = { fadeMs: 250, dropPx: 4, merchantSpeedMult: 4 };
 
 // Auto-continue (src/ui/AutoContinue.js): its AUTO NEXT toggle's size, in
 // the view's safe bottom-left corner (lifted gap px above the between-waves
