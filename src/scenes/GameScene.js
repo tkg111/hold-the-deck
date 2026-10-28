@@ -1316,7 +1316,9 @@ export class GameScene extends Phaser.Scene {
     this.waveGold = 0;
     this.applySpeed();
     this.refreshUi();
-    this.events.emit('wave-started', { hunt: true, stage: true, wave: 1 });
+    this.events.emit('wave-started', {
+      wave: 1, boss: false, finale: false, hunt: true, dive: false, stage: true,
+    });
   }
 
   // The next of a stage's waves sets out.

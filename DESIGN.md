@@ -296,6 +296,7 @@ Heroes have:
 - Expeditions also bring gold (scaled to the player's own gold per minute) and free chests.
 - **Boss materials:** one per boss, from boss kills, Boss Hunts and now and then expeditions (and Treasure Galleons); spent with gold on ship parts (see Ship Parts).
 - **Spice** and **Bait:** from plundering merchant ships (see Merchant Ships). Bait is spent on fishing casts, Spice in cooking.
+- **Grog**, **Sea Glass** and **Hearts of the Deep:** the Uncharted Seas' energy (it comes back over time) and drops; the glass and Hearts are spent on Crew Awakening (see The Uncharted Seas, Crew Awakening).
 
 ## Treasure Chests
 
@@ -461,6 +462,102 @@ Depth after depth of mixed enemies from all four islands until the ship sinks, a
 - **Dev:** "DEV OPEN ABYSS" marks every island cleared; in a dive "+10 WAVE" goes 10 depths deeper and "DEV NEXT BOSS WAVE" to the next boss depth.
 - **Balance sim:** `npm run sim:abyss` (see Waves, Balance simulation, and `BALANCE_REPORT.md`).
 
+## The Uncharted Seas (stages)
+
+A chart of 36 short, hand-built stages in six seas, after Battle Cats' Stories of Legend: each stage has its own lineup, rules and drops, three difficulty **crowns**, and costs **Grog**. They drop the Sea Glass and Hearts of the Deep that **Crew Awakening** needs. Rules in `src/systems/Uncharted.js` (pure functions of a stage, a crown and the record), the stages as data in `src/data/uncharted.js`, numbers in `UNCHARTED` (config), screens in `ChartScene` (chart and stage list) and `StageEndScene` (results); the Muster and the battle are the battle scene's own. Art and data in `public/sprites/uncharted/` (`legend.json`: the chart's sea spots, the rules' ids, names and icon order, the items', crowns' and nodes' order). Mock-ups: `mockups/preview_chart.png`, `preview_stage_list.png`, `preview_awakened.png`.
+
+- **Unlock:** the first time a dive into the Abyss starts (`abyss.runs > 0`). The world map then shows `map_uncharted.png` at **(432, 112)** ("UNCHARTED"; a dark silhouette with "???" from the Abyss's reveal until then, and a red "!" until the chart is first opened), and at the next idle the Captain says "Uncharted waters, Cap'n! Short voyages, strange rules..." (point) / "...and treasure that makes our crew legends." (laugh). Tapping the spot opens the chart over the map.
+- **Grog** (the energy): up to **30**; **1 comes back every 5 minutes** of real time, offline too (the record keeps when the next one started, like Bait; at or over the cap the clock waits; a clock going backwards gives none and takes none). A new record starts full. **Treasure Galleons** bring **+3** and **Coral Shallows** expeditions **+1-2** (a reward card after the Bait), both only once the seas are open; these, and refunds, may go over the cap. Shown on the chart in a wood plaque (top right): the Grog icon, "26/30" and the time to the next ("4:12", or FULL).
+  - **Cost** by sea: **4 / 5 / 6 / 6 / 7 / 8**, +1 at 2 crowns and +2 at 3.
+  - **A loss or a retreat** gives back half, rounded down. **The first clear of a stage at each crown** gives it all back.
+- **The chart** (`chart_bg.png`, 640x430, its 480x270 safe view at 80,100, drawn at -80,-100 like the title's art): the six seas, each an illustrated patch, its name at `label_at` (greyed while locked), its **boss marker** (`nodes.png`: boss_locked / boss_open / boss_cleared) at its top-right (+32, -21 from its centre) and under the name the **best crown fully cleared there** (every stage at it; bronze, silver, gold crowns). An X (top left) closes it. A sea opens once the sea before's boss stage (its 6th) is cleared at 1 crown; tapping a locked one says "CLEAR SHIPWRECK SHALLOWS'S LAST STAGE FIRST".
+- **The stage list** (tapping an open sea; 372x232 parchment over the chart, a tap outside closes it): the sea's name and its three crowns (lit up to the best fully cleared); **crown tabs** 1 / 2 / 3 (a tab opens once every stage of the sea is cleared at the crown below; it opens on the highest one open); six rows, each the **marker** (open / cleared / locked, boss_* on the 6th), "1. Low Tide", the **crowns earned** under the name, the **rule icons** at that crown (and the Drowned Throne's current), the **drop icons** (its colours; a Heart for a boss stage) and the **Grog cost**; the selected row gold (the first stage not yet cleared at that crown when it opens); the footer has the selected stage's rules ("GALE: ENEMIES MOVE 40% FASTER", its current, its hazard, or "NO SPECIAL RULES") and **SET SAIL** ("LOCKED" or "NEED 6" when it can't). Stages open in order within a sea, at each crown.
+- **The Muster:** SET SAIL closes the chart and map and the battle becomes the stage's: its sea's battlefield, the crew as it is, and the usual crew assignment (tap a slot, pick from the hero picker; the Shipwright works too). The rules that limit crew are enforced here: on arriving, anyone a trait rule doesn't allow and anyone past Skeleton Crew's 3 is taken off; picking one who isn't allowed, or a 4th, shows the rule's name and text as a banner instead. A wood plaque at the top centre says "1-5  SKELETON CREW" over "1 CROWN - SKELETON CREW - CREW 3/3" (red while the crew can't sail). The bar has only **SET SAIL** (disabled while the crew can't sail; it spends the Grog) and **Back** (to the chart, nothing spent). The crew as it was before the Muster is what's saved, and comes back when the stage is left.
+- **A stage:** **4 or 5 short waves** in one battle (the hull carries over), about **2-3 minutes**. The next wave comes **2 s** after the last enemy of one falls, with a "WAVE 2/4" banner; the enemies bar reads "WAVE 2/4  31 LEFT" (and the seconds left with an Hourglass). Wave i (0-based) holds **14 + 2i** enemies (each group counting as its size, as in the Abyss; a boss wave half that as escort, its bosses coming at the Abyss's 30% / 55% of its groups), picked by weight from the stage's **lineup** (the Abyss's groups plus Drowned Sailors in threes, Thief Monkeys in pairs, boarding boats in pairs and a Siren on her rock, at most one a wave). Seeded by the stage and crown, so a retry meets the same line-up. Crew levels, ship, parts and meals apply as normal (a stage cleared counts as a wave for the meal); merchants don't sail, and bosses pay no Pearls or materials. **Gold** is **x0.5**: kills at the depth's kill gold x0.5, and a clear pays 2 of the depth's clear bonuses x0.5. No Captain's Log entry, no gold-per-minute or idle-rate sample, and **no auto-continue**. **Retreat** (bottom-left, in the AUTO NEXT spot, which hides during stages) asks "Retreat? The stage ends and half its Grog comes back."
+- **Difficulty:** each sea plays **as if at an Abyss depth** (`UNCHARTED.depths`): enemies have the Abyss's HP and damage scaling there (no Tide; the Abyss's hull-share halving and its Elites' look). Crowns multiply enemy HP and damage (`UNCHARTED.crowns`). See BALANCE_REPORT.md section 18 for the numbers and how they were tuned.
+- **Rules** (`rules.png`; at 1 crown a stage has its rule, at 2 and 3 crowns its extra rule too):
+
+  | Rule | Effect |
+  |---|---|
+  | Skeleton Crew | 3 crew at most (the Muster) |
+  | Fighters Only / Mystic Tide | only Fighter / Mystic crew may sail (the Muster) |
+  | Leaky Hull | the hull starts at 50% |
+  | Doldrums | crew attack speed x0.7 |
+  | Night Watch | crew range x0.6; the battle dimmed (35% dark blue over it, under the HP bars and HUD) |
+  | Gale | enemies walk 40% faster (walking only) |
+  | Empty Galley | the active meal has no effect (and the stage doesn't use up a wave of it) |
+  | Swarm | twice the enemies at half HP (not bosses) |
+  | Barnacled | every enemy but bosses comes in with an Ice Witch's shield worth 40% of its max HP |
+  | Elite Hunt | every 4th enemy (not bosses) is an Abyss Elite |
+  | Hourglass | win within 120 s (game time) or the stage is lost |
+
+  Gale, Night Watch and Barnacled live in the Abyss's `Currents` (`walkPace`, `rangeMult`, `onSpawn`), Doldrums in `Progress.deckBuffs`, Empty Galley in `Progress.mealMods`.
+- **Drops** (on a win): a normal stage drops **1 Sea Glass of each of its colours at 70%** (always at 3 crowns), **x2 at 2 and 3 crowns**; a boss stage drops **3 random Sea Glass** and a **Heart of the Deep** at **15% / 30% / 50%** at 1 / 2 / 3 crowns, certain on its **first 2-crown and 3-crown clears** (the Drowned Throne always gives one). The **first clear of any stage at any crown** adds **3 of each of its colours** (3 random ones on a boss stage). A new best crown is recorded.
+- **The results** (`StageEndScene`): "STAGE CLEARED!" with the stage and crowns, GOLD, FOUND (each item's icon and count), NEW CROWN and "FIRST CLEAR +4 GROG BACK"; or "SHIP SUNK" / "RETREAT" with the Grog back. **Retry** (the Muster again, same stage and crown) and **Back to chart** (the crew as it was, the chart on that sea).
+- **Items:** the **Sea Glass** in five colours, one per trait (red Fighter, blue Sailor, green Scout, purple Mystic, gold Caretaker), and the rare **Heart of the Deep** (`items16.png` / `icons12.png`: grog, red, blue, green, purple, gold, heart). Shown in the Captain's Log's Stats tab as a **Treasure Hold** row.
+- **The seas:**
+
+  | Sea | Battlefield | Stages (lineup; rule at 1 crown, + extra; drops) |
+  |---|---|---|
+  | 1 Shipwreck Shallows | Skull Cove | Low Tide (Drowned Sailors, Iron Crabs; -, +Gale; red), Monkey Business (Thief Monkeys, Keg Runners; Swarm, +Doldrums; gold), Barnacle Bay (Barnacle Knights, Iron Crabs; Barnacled, +Leaky Hull; blue), Harpy Squall (Storm Harpies, boarding boats; Gale, +Night Watch; green), Skeleton Crew (all of Skull Cove; Skeleton Crew, +Swarm; red, purple), **Kraken's Nest** (boats, Drowned Sailors, then The Kraken and the Ghost Galleon together; -, +Elite Hunt) |
+  | 2 Cinder Straits | Ember Isle (ash) | Ashfall, Obsidian March, Firefly Night, Powder Keg Run, The Forge (Fighters Only), **Twin Flames** (Molten Leviathan + Kraken, with lava bombs) |
+  | 3 Glacier Graveyard | Frostbite Reef (snow, pines) | Frozen Watch, Penguin Stampede, Witch Light, Yeti Pass, Mystic Frost (Mystic Tide), **Wyrm and Bones** (Frost Wyrm + Captain Blackbones, a blizzard all stage) |
+  | 4 Siren's Maze | Fogbound Isle (mist) | Fog Bank, Siren Song, Graveyard Shift, Grapeshot Alley, Lost Crew (Skeleton Crew), **The Siren Court** (Siren Queen + a Siren + Ghost Galleon) |
+  | 5 Storm Crown | Skull Cove under the finale's storm | Thunderhead, Broadside, Giant's Wake (the Frost Giant mid-stage), Elite Squadron, Dead Calm, **Eye of the Storm** (Ghost Galleon, then The Kraken, then the Frost Wyrm, a wave each) |
+  | 6 The Drowned Throne | the Abyss, each stage with one Abyss current (picked from its id, shown in its row) | Sunken Steps, Pressure (armoured enemies), Black Water, The Gauntlet, Last Watch, **The Drowned Throne** (Kraken + Leviathan, Wyrm + Giant, Siren Queen + Blackbones, then the Ghost Galleon, a wave each) |
+
+  The full table, with every lineup, rule and drop, is `src/data/uncharted.js`.
+- **Saving** (v25): Grog and its clock, the items, each stage's best crown, the first clears paid ("1-4:2") and whether the chart has been opened. A stage under way isn't saved: a reload during one is back on the island (its Grog spent).
+- **Balance sim:** `npm run sim:uncharted [-- crews tries]` (`scripts/sim/uncharted.mjs`; `ABYSS_CACHE` shares `sim:abyss`'s end-of-Fogbound crews): every stage at every crown with three builds, (a) the crew on entering the Abyss, (b) the same with its 4 best awakened, (c) every crewmate awakened and 20 levels up, each mustering its best allowed crew. `npm run sim:awaken-pace` works out how long the first awakening takes. See BALANCE_REPORT.md section 18.
+- **Dev:** "DEV UNCHARTED +ITEMS" opens them and adds 30 Grog, 30 of each Sea Glass and 5 Hearts.
+
+## Crew Awakening
+
+Battle Cats' true forms for the crew (`AWAKEN` in config, checks and costs in `src/systems/Uncharted.js`).
+
+- **Where:** once the Uncharted Seas are open, each Shipwright Crew row not awakened yet has a small **Awaken** button (the Heart of the Deep's icon) left of its buy button, gold when it can be done now. It opens a dialog: the awakened card art at 2x, the awakened title, "+40% DAMAGE" and the upgrade, and what it needs ("LV 86/80", each item held / needed, red where short), with **Awaken** ("NEED LV 80" while too low).
+- **Needs:** crew level **80** or more (`AWAKEN.level`: the sim bot's crew enters the Abyss at levels 85-86) and:
+
+  | Rarity | Own-trait glass | Gold glass | Hearts |
+  |---|---:|---:|---:|
+  | Common | 12 | 4 | 1 |
+  | Rare / Epic | 18 | 6 | 2 |
+  | Legendary | 25 | 8 | 3 |
+
+  A Caretaker's own colour is gold, so it pays both in gold (16 / 24 / 33).
+- **What it gives:** **+40% damage** (`Progress.heroDamage`), the awakened **title** (on its cards and Shipwright row), its **ability upgrade** (below), and its **awakened look**: `awakened/<crew>_sheet.png` (same frames as the normal sheet) on the ship with `awaken_aura_sheet.png` looping behind it, and `awakened/<crew>.png` on its cards, with a small gold border round the card and the Shipwright face.
+- **The moment:** `awaken_burst_sheet` plays on the crewmate (mid-deck if they're on the bench) with the `legendary` fanfare and a warm flash; halfway through the burst the sprite swaps; a banner gives the title ("BLADE DANCER" / "THE DUELIST AWAKENS!") and the Captain's banner tip says "Look at 'em now! A legend of the seas!" (laugh; the first time).
+- **Upgrades** (each a patch over the crewmate's `HEROES` / `ABILITIES` entry, `AWAKEN.crew`; the battle code reads the new fields):
+
+  | Crew | Title | Upgrade |
+  |---|---|---|
+  | Cabin Boy | Powder-Keg Kid | slingshot stones burst on 12 px |
+  | Ship's Cook | Galley Tyrant | every 5th pan: a 30 px splash that stuns 0.5 s |
+  | Net Thrower | Kraken Netter | nets 56 px wide (from 37.5), slowing 60% for 3.5 s |
+  | Grog Brewer | Rum Alchemist | poison lasts 6 s (from 4) and splashes 16 px; Grog Barrel lasts 9 s |
+  | Harpooner | Leviathan Hunter | harpoons pierce everything along 300 px and drag the first foe back 12 px |
+  | Voodoo Priestess | Loa Mother | a cursed foe's curse (hers and Hex's) jumps to the nearest foe within 70 px when it dies |
+  | Cannoneer | Broadside Master | every 4th shot is 3 balls, 36 px apart |
+  | The Duelist | Blade Dancer | each attack strikes twice (the second at half damage); crits x2.5 |
+  | The Captain | Dread Admiral | every second, marks the toughest foe (`lunge_target` over it): the whole crew deals +25% to it |
+  | Parrot Keeper | Flock Master | a second parrot at another foe |
+  | Ship's Doctor | Surgeon General | Patch Up also shields the hull for 2 s (no damage; the hull tinted pale) |
+  | Sharpshooter | Deadeye Legend | his shots and Deadeye finish off non-boss foes left under 10% HP |
+  | Ghost Pirate | Phantom Corsair | Haunted foes take +20% damage |
+  | Storm Caller | Tempest Queen | lightning chains to 5 (from 3) |
+  | Anchor Bosun | Iron Tide | thrown anchors stun 1 s too (bosses resist as usual) |
+  | Powder Monkey | Bombardier | each bomb sets off 2 more blasts 18 px either side at half damage |
+  | Fire Breather | Inferno King | Inferno lasts 7.5 s (from 5) and burns flyers on screen as it starts |
+  | Blacksmith | Forge Lord | Temper Steel also gives the whole crew a 10% chance to crit for 2x |
+  | Whaler | Abyss Whaler | Whale Hunt freezes its target 1 s (bosses are stunned instead) |
+  | Aurora Seer | Polar Oracle | Aurora Veil freezes 3.5 s (from 2.5), then slows 40% for 2 s |
+  | Banshee | Wailing Widow | Wail breaks every shield it reaches (Barnacle Knights', Ice Witches') |
+  | Bone Caller | Lich Bosun | 4 skeletons (from 3); a beaten skeleton explodes for 2x his damage within 30 px |
+
+  Awakened crew also show their title in the Crew Roster.
+- **No level cap:** crew levels have no cap in this game, so awakening's "+20 to the level cap" has nothing to raise; buying levels works as before.
+- **Saving** (v25): the awakened crew (`awakened`, owned crew only).
+
 ## Expeditions
 
 Crewmates can be sent on timed voyages that run in **real time** and come back with loot, even while the game is closed. Rules in `src/systems/Expeditions.js`, screens in `ExpeditionScene`, numbers in `EXPEDITIONS` (config), art and data in `public/sprites/ui/expedition/` (`expedition.json`: the destinations, each crewmate's trait and the trait icons' order).
@@ -497,6 +594,7 @@ Crewmates can be sent on timed voyages that run in **real time** and come back w
 - **Reveal** (Collect): the loot is paid and saved first, so closing mid-reveal loses nothing. The destination's picture at 2x with the party standing in front of it (fading in one by one), a one-line **story** on a parchment strip, picked from 4 per destination with a crewmate's name ("Harpooner hauled in something enormous.", `EXPEDITIONS.stories`), then the rewards as face-down wood cards ("?") that rattle and **flip over one at a time** (0.65s apart): gold, Pearls, each chest (glowing in its tier's colour), and the bonus find last, edged in gold, with a gold **"BONUS FIND!"** banner, the `legendary` fanfare, a flash and confetti. Each flip plays `sfx.loot` (`coin` for gold, `upgrade` for Pearls, a chest's reveal sound, `legendary` for a bonus find). Tapping anywhere turns everything over at once. Then **Done** and **Send again** (the same party, destination and duration in one tap), and "CHEST WAITING IN THE CHEST SCREEN" if there were chests.
 - **Dev:** "DEV END EXPEDITIONS" with the other dev buttons brings every expedition back at once.
 - **The balance sim ignores expeditions** (it never sends any, and its runs match the ones before expeditions wave for wave).
+- **Grog:** once the Uncharted Seas are open, a Coral Shallows run also brings **1-2 Grog** (a reward card after the Bait; it may go over the cap).
 - **Bait and fish:** a Coral Shallows run also brings **1-2 Bait** and a **30%** chance of **1 Sardine or Mackerel** (into the hold; it doesn't count as caught, so it doesn't unlock recipes or the Fish Log), as reward cards after the material (`FISHING.expedition`); its preview adds "1-2 BAIT, MAYBE A FISH".
 - **Boss materials:** a run to one of an island's destinations has a **15%** chance of bringing back **1–2** of one of that island's boss materials (picked at random among its bosses beaten at least once; none before any is), as an extra reward card after the chests: the material's icon at 2x, "+2" and its name (`PARTS.expedition`). Rolled with the rest of the loot when the party sets out, and kept in the save with it.
 
@@ -547,7 +645,7 @@ Every so often a merchant ship sails across the far sea behind the battle. Tappi
 - **Plunder:** with **G** = 10 s of the player's gold income (gold earned in battle, kills and clear bonuses, per second over the last 60 s of the battle clock, or since it started if less), but at least 5 kills' gold of the battlefield's basic enemy at the current wave (its first formation's leader: Drowned Sailor, Cinder Skeleton, Frozen Corsair, Bone Deckhand; the Abyss uses Fogbound Isle's):
   - Trade Cog: **1 x G** gold.
   - Spice Runner: **0.5 x G** gold, **1 Spice** (30% chance of a second) and **1 Bait**.
-  - Treasure Galleon: **3 x G** gold, **2 Spice** and **2 Bait**, and a **15%** chance of 1 random boss material (from a boss already beaten).
+  - Treasure Galleon: **3 x G** gold, **2 Spice** and **2 Bait**, and a **15%** chance of 1 random boss material (from a boss already beaten); once the Uncharted Seas are open, **+3 Grog** too ("+3 GROG" over the crate; it may go over the cap).
   - The gold is already income (with the Lantern and any meal in it), so it isn't boosted again. Bait from plunder can go over the Bait cap.
 - **Balance:** a ship every ~100 s of battle worth 1.05 G on average (0.7 x 1 + 0.22 x 0.5 + 0.08 x 3) is about **+10% gold** if every one is tapped. The balance sim doesn't tap, so its numbers are unchanged.
 - The Captain's Log's **Stats** tab counts **Merchants plundered**.
@@ -632,7 +730,7 @@ There is no prestige or reset loop: progress is one long voyage across the islan
 - **Last Wave / Last 5 Waves:** one row per crewmate, highest damage first: their face and name, a damage bar (scaled so the top row fills it) in three segments: **attacks** (orange), **abilities** (blue) and **poison & effects** (green), then their total and share of the crew's damage, and a small line with kills and ability uses, plus their support stat if they have one: The Captain "AURA ADDED N DMG", the Ship's Doctor "REPAIRED N HULL", the Net Thrower "SLOWED N ENEMIES", the Ship's Cook "N STUNS APPLIED". The top row gets a gold **MVP** badge. The summary reads "WAVE 12 CLEARED" / "WAVE 12 SUNK", or "5 WAVES: 4 WON, 1 LOST" (Last 5 Waves sums each crewmate over the waves kept).
 - **Damage Taken:** one row per enemy type that hurt the hull over the waves kept (its poster picture), most first, with a red bar, the hull HP it took and its share; the summary gives the total hull lost.
 - **Fish Log:** see The Galley.
-- **Stats:** the voyage's totals, a row each: enemies defeated (every type's defeats), merchants plundered, fish caught and gold earned while away. It shows even before any battle is logged.
+- **Stats:** the voyage's totals, a row each: enemies defeated (every type's defeats), merchants plundered, fish caught and gold earned while away; once the Uncharted Seas are open, a **Treasure Hold** row: each Sea Glass colour and the Hearts of the Deep held (icon and count). It shows even before any battle is logged.
 - The tabs are each as wide as their label needs (narrower if they'd run into the last one). The last tab, at the right end, is a **trophy** alone: it opens Rankings over the log rather than a tab of its own.
 - **What counts:** every wave, won or lost (not Boss Hunts). Only damage actually dealt counts: the part of a hit that a dying enemy didn't need (overkill) is left out, and damage to a Barnacle Knight's shield counts up to what the shield had left. Splash, chain lightning and the Harpooner's pierce count as the hitter's attacks; Broadside, Whale Harpoon, Tidal Wave, Flock, Deadeye and Lunge's crit shots as their ability; poison ticks (the Grog Brewer's bottles and Grog Barrel's puddle) and a curse's bonus damage (her attacks and Hex) as the poisoner's or curser's effects, so the Voodoo Priestess is credited with the extra damage her curses add to everyone's hits. A Keg Runner's blast goes to whoever killed the keg. A kill goes to whoever dealt the killing blow (poison included).
 - **Support stats:** The Captain's aura bonus is the part of each buffed crewmate's damage his deck buff added (from its damage bonus, and for attacks its attack speed bonus too: a hit worth d with a x1.88 damage, x1.3 speed buff counts d x (1 - 1 / (1.88 x 1.3)) for him); his All Hands! isn't counted. The Doctor's is hull HP Patch Up actually repaired; the Net Thrower's counts each enemy caught by a net or Big Net; the Cook's each stun applied by his pans or Hot Stew.
@@ -666,6 +764,8 @@ The Captain (a pirate with a talking portrait) teaches a new save the basics and
   - **Finale** (the first wave-50 finale sets off): banner, "Two of 'em at once?! All hands on deck!"
   - **Abyss** (once the map has revealed it, at an idle): dialog, "The Abyss. No bottom, no end." (worried) / "Every depth gets meaner. So do we!" (laugh).
   - **Log** (the Captain's Log first opened): banner.
+  - **Uncharted** (the Uncharted Seas open, at an idle): dialog, "Uncharted waters, Cap'n! Short voyages, strange rules..." (point) / "...and treasure that makes our crew legends." (laugh).
+  - **Awakened** (the first awakening): banner, "Look at 'em now! A legend of the seas!" (laugh).
 - **Settings** (the gear, between waves): Music and Sound effects volume sliders and Sound ON / OFF (see Sound), Captain's tips ON / OFF, Replay tutorial and Reset progress (side by side; the onboarding starts again as soon as the settings close, and every tip can show again), Export save and Import save, and Install game (see Phones, installing and offline). With Rankings set up, a **Captain name** row after Captain's tips: the name (a rename dialog), or **JOIN RANKINGS** before joining, which opens Rankings.
 
 ## Sound
