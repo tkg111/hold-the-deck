@@ -46,6 +46,7 @@ import { initParts, partOf } from '../../src/systems/Parts.js';
 import { initPacks, packOf } from '../../src/systems/Packs.js';
 import { ShipParts } from '../../src/systems/ShipParts.js';
 import { MealEffects } from '../../src/systems/Meals.js';
+import { stageOf, stageOptions } from '../../src/systems/Uncharted.js';
 
 const RUNS = Number(process.argv[2] ?? 5);
 const MAX_WAVE = Number(process.argv[3] ?? 50);
@@ -195,15 +196,22 @@ Hero.prototype.charm = function charmAndMaybeTap(ms, charmer) {
 // island instead of the next wave (a win pays its drops and raises its
 // level, see Progress.winHunt). During a dive in the Abyss it plays the
 // current depth (a win: Progress.winDepth; a loss is for the caller to end).
+// A stage of the Uncharted Seas under way (Progress.beginStage) plays the
+// whole stage (its rules: Leaky Hull's start, Hourglass's time limit; a win
+// or loss is for the caller to settle).
 export function playWave(scene, progress, onStep = null, { hunt = null } = {}) {
   const {
     ship, waves, volcano, blizzard, mists, currents, abilities, shipParts, meals,
   } = scene;
-  const dive = progress.inAbyss && !hunt;
-  const options = hunt ? progress.huntOptions(hunt, progress.islandId) : dive ? progress.abyssOptions : progress.waveOptions;
-  const wave = hunt || dive ? options.wave : progress.wave;
-  scene.hunting = !!hunt;
+  const stage = progress.stage?.started ? progress.stage : null;
+  const dive = progress.inAbyss && !hunt && !stage;
+  const options = stage ? stageOptions(stageOf(stage.id), stage.crown)
+    : hunt ? progress.huntOptions(hunt, progress.islandId) : dive ? progress.abyssOptions : progress.waveOptions;
+  const wave = hunt || dive || stage ? options.wave : progress.wave;
+  const timeout = progress.stageHas('hourglass') ? config.UNCHARTED.rules.hourglass.ms : WAVE_TIMEOUT;
+  scene.hunting = !!hunt || !!stage;
   ship.sync(progress);
+  if (progress.stageHas('leaky_hull')) ship.hp = ship.maxHp * config.UNCHARTED.rules.leaky_hull.hull;
   rebuildHeroes(scene, progress);
   scene.enemies = [];
   scene.projectiles = [];
@@ -232,7 +240,7 @@ export function playWave(scene, progress, onStep = null, { hunt = null } = {}) {
     abilities.update(DT, true);
     for (const h of scene.heroes) {
       const shot = h.update(DT, scene.enemies);
-      if (shot) scene.projectiles.push(shot);
+      if (shot) scene.projectiles.push(...[shot].flat());
     }
     for (const p of scene.projectiles) p.update(DT);
     taps = taps.filter((t) => {
@@ -243,7 +251,7 @@ export function playWave(scene, progress, onStep = null, { hunt = null } = {}) {
     scene.enemies = scene.enemies.filter((e) => e.alive);
     scene.projectiles = scene.projectiles.filter((p) => !p.done);
     onStep?.(time);
-    if (ship.isDestroyed || time > WAVE_TIMEOUT) break;
+    if (ship.isDestroyed || time > timeout) break;
     // Lava bombs still falling don't hold up a win.
     if (waves.doneSpawning && !scene.enemies.some((e) => !e.def.hazard)) {
       won = true;
@@ -259,6 +267,7 @@ export function playWave(scene, progress, onStep = null, { hunt = null } = {}) {
   meals.stop();
   abilities.clear();
   for (const h of scene.heroes) h.clearAbilities();
+  if (stage) return { won, time, hullLeft: ship.hp / ship.maxHp };
   if (won && hunt) progress.winHunt(hunt, progress.islandId);
   else if (won && dive) progress.winDepth();
   else if (won) progress.winWave();
@@ -272,6 +281,7 @@ function rebuildHeroes(scene, p) {
     attackInterval: (HEROES[id].attackInterval ?? 0) / buffs[slot].attackSpeed,
     buffed: buffs[slot].buffed,
     bossDamage: buffs[slot].bossDamage,
+    awakened: p.isAwakened(id),
   }));
   scene.abilities.setCrew(scene.heroes, p);
 }
@@ -415,7 +425,7 @@ export function run(seed, policy, {
   return { progress, log, attempts, playTime, crew, wall: tries >= maxTries };
 }
 
-export { seedRandom, between };
+export { seedRandom, between, worth, canHitAir, rebuildHeroes };
 
 const mins = (ms) => `${Math.round(ms / 60000)}m`;
 const bandOf = (wave) => Math.floor((wave - 1) / 10);

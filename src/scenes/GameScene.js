@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import {
   ABYSS, ASHFALL, AUDIO, AUTO_CONTINUE, ENDING, ENEMIES, EXPEDITIONS, GAME_SPEEDS, HEROES, MOBILE, MOTES, PACKS, SCENERY, SIM, SNOWFALL,
-  UI_KIT,
+  UI_KIT, UNCHARTED, AWAKEN, DISPLAY,
 } from '../config.js';
 import { audio } from '../audio/Audio.js';
 import { initAudio, preloadAudio } from '../audio/load.js';
@@ -14,6 +14,7 @@ import {
 import { Scenery } from '../scenery.js';
 import {
   ABYSS_JSON_KEY, createAnimations, CURRENTS_KEY, DEPTH_ICON_KEY, FISHING_JSON_KEY, fishingKey, mapKey, preloadSprites,
+  unchartedKey,
 } from '../sprites.js';
 import { Storm } from '../storm.js';
 import { Weather } from '../weather.js';
@@ -37,6 +38,12 @@ import {
   abyssIsland, depthBosses, depthCurrents, isBossDepth, newSeed,
 } from '../systems/Abyss.js';
 import { BattleStats, mvpOf } from '../systems/BattleStats.js';
+import {
+  awakening, isStageOpen, seaOf, stageIsland, stageOf, stageOptions,
+} from '../systems/Uncharted.js';
+import { AwakenDialog } from '../ui/AwakenDialog.js';
+import { LAYOUT } from '../layout.js';
+import { ruleOf } from '../ui/uncharted.js';
 import { initParts, materialOf, PARTS_JSON_KEY } from '../systems/Parts.js';
 import { initPacks, packOf, PACKS_JSON_KEY } from '../systems/Packs.js';
 import { initFishing, mealEffectLines, mealOf } from '../systems/Fishing.js';
@@ -163,6 +170,7 @@ export class GameScene extends Phaser.Scene {
       'slot-clicked': this.onSlotClicked,
       'slot-tapped': this.onSlotTapped,
       'view-resize': this.onViewResize,
+      'stage-wave': this.onStageWave,
     };
     for (const [name, fn] of Object.entries(handlers)) this.events.on(name, fn, this);
     // Also save when the tab is hidden or closed, so kill gold from an
@@ -264,6 +272,7 @@ export class GameScene extends Phaser.Scene {
     else if (open('GalleyScene')) track = M.galley;
     else if (this.hunt || this.enemies.some((e) => e.alive && e.def.boss)) track = M.boss;
     else if (this.progress.inAbyss) track = M.abyss;
+    else if (this.progress.stage) track = M.islands[this.battleIsland.id] ?? M.abyss;
     else track = M.islands[this.progress.islandId] ?? M.title;
     music.play(track);
   }
@@ -279,8 +288,11 @@ export class GameScene extends Phaser.Scene {
   // The battlefield (an ISLANDS entry, or the Abyss's island-shaped stand-in,
   // Abyss.abyssIsland): the island the ship is at, or during a dive the depth
   // under way (between depths, the next one, with its currents' weather).
+  // A stage of the Uncharted Seas (from its Muster on): its sea's
+  // (Uncharted.stageIsland).
   get battleIsland() {
     const p = this.progress;
+    if (p.stage) return stageIsland(stageOf(p.stage.id));
     if (!p.inAbyss) return p.island;
     return this.depthIsland ?? abyssIsland(depthCurrents(p.abyss.run.seed, p.depth).active);
   }
@@ -406,6 +418,7 @@ export class GameScene extends Phaser.Scene {
       onPurchase: () => this.onUpgradePurchased(),
       onSettingChange: () => this.save(),
       onOpenShipyard: () => this.openShipyard(),
+      onAwaken: (id) => this.openAwaken(id),
     });
     this.heroPicker = new HeroPicker(this, 0, 0, UI_KIT.pickerWidth, (id) => this.onHeroPicked(id));
     this.heroPicker.on('closed', () => {
@@ -482,8 +495,19 @@ export class GameScene extends Phaser.Scene {
       scene: this,
       bounds: () => unionBounds(this.heroes.map((h) => h.body)),
     });
+    // A stage's Muster: Back (to the chart) where Log is, a plaque at the
+    // top with the stage, its rules and the crew allowed; during the stage,
+    // Retreat in the bottom-left corner and Night Watch's dimming.
+    this.stageBackButton = new Button(this, left + Math.floor(widths.log / 2) + 8, barY, {
+      width: widths.log + 16, height: barH, label: 'Back', onClick: () => this.leaveMuster(),
+    });
+    this.musterPlaque = group();
+    this.retreatButton = new Button(this, 0, 0, {
+      width: AUTO_CONTINUE.width, height: AUTO_CONTINUE.height, label: 'Retreat', font: 'small', onClick: () => this.retreat(),
+    }).setVisible(false).setDepth(20);
+    this.nightShade = this.add.rectangle(0, 0, 1, 1, 0x060818, 1).setOrigin(0).setDepth(-10.5).setAlpha(0);
     this.bottomBar = group(
-      this.logButton, this.mapButton, this.expeditionButton, this.galleyButton, this.startButton, this.packButton, this.collectionButton, this.wantedButton, this.speedButton,
+      this.stageBackButton, this.logButton, this.mapButton, this.expeditionButton, this.galleyButton, this.startButton, this.packButton, this.collectionButton, this.wantedButton, this.speedButton,
     );
     // NEW ENEMY! alert and bounty toasts.
     this.notices = new Notices(this, this.progress);
@@ -532,6 +556,9 @@ export class GameScene extends Phaser.Scene {
     this.bottomBar.setPosition(right, e.bottom);
     this.abilityBar.layout(view);
     this.notices.layout(view);
+    this.musterPlaque.setPosition(center + DISPLAY.width / 2, e.top);
+    this.retreatButton.setPosition(Math.round(view.safe.left + AUTO_CONTINUE.width / 2), Math.round(view.safe.bottom - AUTO_CONTINUE.height / 2));
+    this.nightShade.setPosition(view.left, view.top).setSize(view.width, view.height);
     this.placeAutoNext();
   }
 
@@ -550,7 +577,10 @@ export class GameScene extends Phaser.Scene {
     const idle = this.state === STATE.IDLE;
     const p = this.progress;
     let boss;
-    if (p.inAbyss) {
+    if (p.stage) {
+      boss = !!stageOf(p.stage.id).bosses;
+      this.layoutWavePlaque(this.battleIsland, `STAGE ${p.stage.id}`);
+    } else if (p.inAbyss) {
       boss = isBossDepth(p.depth);
       this.layoutWavePlaque(this.battleIsland, `DEPTH ${formatNum(p.depth)}${boss ? ' BOSS' : ''}`);
     } else {
@@ -559,7 +589,7 @@ export class GameScene extends Phaser.Scene {
     }
     this.layoutCurrents(p.inAbyss ? depthCurrents(p.abyss.run.seed, p.depth).active : []);
     this.layoutTide(p.inAbyss ? p.abyss.run.tide : null);
-    this.startButton.setLabel(p.inAbyss ? 'DIVE!' : 'SET SAIL!');
+    this.startButton.setLabel(p.stage ? 'SET SAIL' : p.inAbyss ? 'DIVE!' : 'SET SAIL!');
     const waveColor = boss ? UI.colors.warn : UI.colors.text;
     if (this.waveText.color !== waveColor) this.waveText.setColor(waveColor);
     this.goldText.setText(formatNum(p.gold));
@@ -584,15 +614,23 @@ export class GameScene extends Phaser.Scene {
     this.enemiesBar.setVisible(!idle);
     if (!idle) {
       const left = this.waves.queue.length + this.enemies.filter((e) => e.alive && isFoe(e)).length;
-      this.enemiesBar.setValue(left / Math.max(1, this.waves.total), `${left} ENEMIES LEFT`);
+      this.enemiesBar.setValue(left / Math.max(1, this.waves.total), this.stageBarLabel(left));
     }
 
-    for (const b of [this.startButton, this.packButton, this.collectionButton, this.wantedButton, this.logButton, this.galleyButton]) {
-      b.setVisible(idle);
+    // A stage's Muster shows only SET SAIL and Back in the bar.
+    const muster = idle && !!p.stage;
+    for (const b of [this.packButton, this.collectionButton, this.wantedButton, this.logButton, this.galleyButton]) {
+      b.setVisible(idle && !muster);
     }
-    this.mapButton.setVisible(idle && p.mapUnlocked).setDot(!p.mapSeen);
+    this.startButton.setVisible(idle);
+    if (this.startButton.enabled !== (!muster || p.musterReady)) this.startButton.setEnabled(!muster || p.musterReady);
+    this.stageBackButton.setVisible(muster);
+    this.musterPlaque.setVisible(muster);
+    this.retreatButton.setVisible(!idle && !!p.stage);
+    this.autoContinue.corner.setVisible(!p.stage);
+    this.mapButton.setVisible(idle && !muster && p.mapUnlocked).setDot(!p.mapSeen);
     const expeditionsOpen = Expeditions.isUnlocked(p);
-    this.expeditionButton.setVisible(idle).setBadge(expeditionsOpen ? Expeditions.readyCount(p) : 0);
+    this.expeditionButton.setVisible(idle && !muster).setBadge(expeditionsOpen ? Expeditions.readyCount(p) : 0);
     if (this.expeditionButton.enabled !== expeditionsOpen) this.expeditionButton.setEnabled(expeditionsOpen);
     this.speedButton.setVisible(!idle).setLabel(`x${this.speed}`);
     this.abilityBar.setVisible(!idle);
@@ -809,7 +847,7 @@ export class GameScene extends Phaser.Scene {
     }
     // A boss in a wave pays Pearls (once per wave) and drops its material;
     // a hunt pays on winning instead.
-    if (enemy.def.boss && !this.hunt) {
+    if (enemy.def.boss && !this.hunt && !this.progress.stage) {
       const pearls = this.progress.claimBossPearls();
       if (pearls) this.floatText(enemy.x, top - 16, `+${pearlsLabel(pearls)}`);
       const drop = this.progress.bossDrop(enemy.key);
@@ -972,6 +1010,42 @@ export class GameScene extends Phaser.Scene {
     this.scene.launch('ShipyardScene', { progress: this.progress, onClose: () => this.onUpgradePurchased() });
   }
 
+  // Crew Awakening, from a Shipwright crew row: what it needs, then the
+  // moment: awaken_burst on the crewmate (on the ship, or mid-deck if
+  // they're on the bench), the legendary fanfare and a flash, and as the
+  // burst peaks the swap to their awakened look; the Captain has a word
+  // ('crew-awakened').
+  openAwaken(id) {
+    if (this.state !== STATE.IDLE) return;
+    if (this.heroPicker.visible) this.heroPicker.close();
+    sfx.play('ui_open');
+    new AwakenDialog(this, this.progress, id, {
+      onAwaken: () => {
+        if (!this.progress.awaken(id)) return;
+        this.save();
+        const hero = this.heroes.find((h) => h.id === id);
+        const at = hero ? { x: hero.x, y: hero.feetY - 16 } : { x: LAYOUT.shipX + 80, y: LAYOUT.shipY + 80 };
+        const burst = this.add.sprite(Math.round(at.x), Math.round(at.y), unchartedKey('burst')).setDepth(-11);
+        if (this.anims.exists(unchartedKey('burst'))) {
+          burst.play(unchartedKey('burst'));
+          burst.once('animationcomplete', () => burst.destroy());
+        } else {
+          this.time.delayedCall(500, () => burst.destroy());
+        }
+        sfx.play('legendary');
+        this.cameras.main.flash(250, 255, 236, 170);
+        this.time.delayedCall(AWAKEN.burst.frames * 1000 / AWAKEN.burst.fps / 2, () => {
+          this.rebuildHeroes();
+          this.shipwright.rebuild();
+          this.refreshUi();
+        });
+        const awake = awakening(id);
+        this.showBanner(awake.title.toUpperCase(), { detail: `${HEROES[id].name.toUpperCase()} AWAKENS!`, hold: 3000 });
+        this.events.emit('crew-awakened', { id });
+      },
+    });
+  }
+
   onUpgradePurchased() {
     this.ship.sync(this.progress);
     this.rebuildHeroes();
@@ -992,6 +1066,7 @@ export class GameScene extends Phaser.Scene {
         buffed: buff.buffed,
         aura: buff.aura,
         bossDamage: buff.bossDamage,
+        awakened: p.isAwakened(id),
       });
     });
     this.abilities.setCrew(this.heroes, p);
@@ -1028,11 +1103,25 @@ export class GameScene extends Phaser.Scene {
   }
 
   onHeroPicked(id) {
+    const p = this.progress;
+    // A stage's Muster: only the crew its rules let sail, up to its limit.
+    if (p.stage && id) {
+      const swap = p.slots[this.ship.selectedSlot] != null || p.slotOf(id) >= 0;
+      const full = !swap && p.activeHeroes.length >= p.stageCrewLimit;
+      if (!p.mayMuster(id) || full) {
+        const rule = !p.mayMuster(id) ? p.stage.rules.find((r) => UNCHARTED.rules[r]?.trait) : 'skeleton_crew';
+        this.heroPicker.close();
+        sfx.play('ui_error');
+        this.showBanner(ruleOf(this, rule).name.toUpperCase(), { detail: ruleOf(this, rule).text.toUpperCase(), color: UI.colors.warn });
+        return;
+      }
+    }
     this.progress.assignHero(this.ship.selectedSlot, id);
     this.heroPicker.close();
     this.ship.sync(this.progress);
     this.rebuildHeroes();
     this.shipwright.rebuild();  // it lists the heroes on the ship
+    if (p.stage) this.drawMusterPlaque();
     this.refreshUi();
     this.save();
   }
@@ -1101,20 +1190,197 @@ export class GameScene extends Phaser.Scene {
   // The world map; sailing to another island picks up its wave counter.
   // From the map's Abyss card a dive starts ({ from, seed }); during a dive,
   // sailing to an island (or a hunt) leaves the Abyss first (left).
-  openMap() {
+  // chart: a sea to open the Uncharted Seas' chart on at once.
+  openMap({ chart = null } = {}) {
     if (this.state !== STATE.IDLE || !this.progress.mapUnlocked) return;
     if (this.heroPicker.visible) this.heroPicker.close();
     sfx.play('ui_open');
     this.scene.launch('MapScene', {
       progress: this.progress,
+      chart,
       openExpeditions: (onClosed) => this.openExpeditions({ onClosed }),
-      onClose: (sailed, hunt = null, { dive = null, left = null } = {}) => {
+      onClose: (sailed, hunt = null, { dive = null, left = null, stage = null } = {}) => {
         if (left) this.leftAbyss(left);
         else if (sailed) this.arriveAtIsland();
         if (dive) this.startDive(dive);
         this.refreshUi();
         this.save();
         if (hunt) this.startWave({ hunt });
+        if (stage) this.musterStage(stage.stage, stage.crown);
+      },
+    });
+  }
+
+  // --- The Uncharted Seas ---
+
+  // The Muster for a stage (from the chart): the stage's battlefield, the
+  // crew its rules allow on deck (see Progress.musterStage), and the
+  // crew-assignment as between waves: tap a slot to change who sails. SET
+  // SAIL starts it (spending its Grog); Back goes back to the chart.
+  musterStage(stage, crown) {
+    const p = this.progress;
+    p.musterStage(stage, crown);
+    this.autoContinue.pause();
+    this.merchants.reset();
+    this.ship.sync(p);
+    this.rebuildHeroes();
+    this.shipwright.rebuild();
+    this.showBattlefield();
+    this.drawMusterPlaque();
+    this.showBanner('MUSTER THE CREW', { detail: 'TAP A SLOT TO CHANGE WHO SAILS', hold: 2200 });
+    this.refreshUi();
+  }
+
+  // The Muster plaque: "1-4  HARPY SQUALL", and its crowns, its rules
+  // and the crew it allows (red while the crew on deck can't sail).
+  drawMusterPlaque() {
+    const p = this.progress;
+    const plaque = this.musterPlaque;
+    plaque.removeAll(true);
+    if (!p.stage) return;
+    const stage = stageOf(p.stage.id);
+    const title = `${stage.id}  ${stage.name.toUpperCase()}`;
+    const rules = p.stage.rules.map((r) => ruleOf(this, r).name.toUpperCase());
+    const crew = `CREW ${p.activeHeroes.length}/${Math.min(p.stageCrewLimit, p.slotCount)}`;
+    const detail = [`${p.stage.crown} CROWN${p.stage.crown > 1 ? 'S' : ''}`, ...rules, crew].join('  -  ');
+    const t1 = text(this, 0, 14, title, light()).setOrigin(0.5);
+    const t2 = text(this, 0, 28, detail, light({ font: 'small', color: p.musterReady ? UI.colors.text : UI.colors.warn })).setOrigin(0.5);
+    const w = Math.max(t1.inkWidth, t2.inkWidth) + 20;
+    plaque.add([panel(this, -Math.round(w / 2), 4, w, 32, 'wood'), t1, t2]);
+  }
+
+  // Back to the chart from the Muster (nothing spent).
+  leaveMuster() {
+    if (this.state !== STATE.IDLE || !this.progress.stage) return;
+    const sea = stageOf(this.progress.stage.id).sea;
+    this.endStageMode();
+    this.openMap({ chart: sea });
+  }
+
+  // Out of a stage for good: the crew as it was, the island's battlefield.
+  endStageMode() {
+    const p = this.progress;
+    p.endStage();
+    this.nightShade.setAlpha(0);
+    this.ship.sync(p);
+    this.rebuildHeroes();
+    this.shipwright.rebuild();
+    this.showBattlefield();
+    this.refreshUi();
+    this.save();
+  }
+
+  // SET SAIL from the Muster: spend the Grog and play the stage.
+  startStage() {
+    const p = this.progress;
+    if (!p.musterReady) {
+      sfx.play('ui_error');
+      this.showBanner('CHECK THE CREW', { detail: 'THE RULES DON\'T LET THIS CREW SAIL', color: UI.colors.warn });
+      return;
+    }
+    if (p.beginStage() == null) {
+      sfx.play('ui_error');
+      const open = isStageOpen(p.uncharted, stageOf(p.stage.id), p.stage.crown);
+      this.showBanner(open ? 'NOT ENOUGH GROG' : 'STAGE LOCKED', {
+        detail: open ? 'IT COMES BACK 1 EVERY 5 MINUTES' : 'CLEAR THE STAGE BEFORE IT FIRST', color: UI.colors.warn,
+      });
+      return;
+    }
+    const stage = stageOf(p.stage.id);
+    const options = stageOptions(stage, p.stage.crown);
+    if (this.heroPicker.visible) this.heroPicker.close();
+    this.ship.setSlotsEnabled(false);
+    this.rebuildHeroes();   // Doldrums, and meals off with an Empty Galley
+    this.ship.restore();
+    // Leaky Hull: half the hull to start with.
+    if (p.stageHas('leaky_hull')) this.ship.hp = this.ship.maxHp * UNCHARTED.rules.leaky_hull.hull;
+    this.stats.start(1, options.island.id, this.heroes);
+    this.waves.start(options.wave, options);
+    this.volcano.start(options);
+    this.blizzard.start(options.wave, options);
+    this.mists.start(options.wave, options);
+    this.currents.start(options);
+    this.shipParts.start(p);
+    this.meals.start(p);
+    this.abilities.resetCooldowns();
+    if (seaOf(stage).storm) this.storm.start();
+    this.nightShade.setAlpha(p.stageHas('night_watch') ? UNCHARTED.rules.night_watch.dim : 0);
+    this.stageWave = 1;
+    this.stageWaves = stage.waves;
+    this.stageClock = p.stageHas('hourglass') ? UNCHARTED.rules.hourglass.ms : null;
+    this.showBanner(stage.name.toUpperCase(), { detail: `WAVE 1/${stage.waves}`, color: UI.colors.text });
+    sfx.play('wave_start');
+    this.state = STATE.RUNNING;
+    this.simCarry = 0;
+    this.waveTime = 0;
+    this.waveGold = 0;
+    this.applySpeed();
+    this.refreshUi();
+    this.events.emit('wave-started', { hunt: true, stage: true, wave: 1 });
+  }
+
+  // The next of a stage's waves sets out.
+  onStageWave(n) {
+    this.stageWave = n;
+    this.showBanner(`WAVE ${n}/${this.stageWaves}`, { color: UI.colors.text });
+  }
+
+  // The enemies bar's label: in a stage the wave and, with an Hourglass,
+  // the seconds left.
+  stageBarLabel(left) {
+    if (!this.progress.stage) return `${left} ENEMIES LEFT`;
+    const clock = this.stageClock != null ? `  ${Math.max(0, Math.ceil((this.stageClock - this.waveTime) / 1000))}S` : '';
+    return `WAVE ${this.stageWave}/${this.stageWaves}  ${left} LEFT${clock}`;
+  }
+
+  // Retreat from a stage under way (half its Grog back).
+  retreat() {
+    if (this.state !== STATE.RUNNING || !this.progress.stage) return;
+    new ConfirmDialog(this, {
+      title: 'Retreat?',
+      message: 'The stage ends and half its Grog comes back.',
+      confirmLabel: 'Retreat',
+      onConfirm: () => {
+        if (this.state === STATE.RUNNING) this.endWave(false, { retreat: true });
+      },
+    });
+  }
+
+  // A stage is over. Won: its drops, crowns and Grog back on a first clear;
+  // lost or left: half its Grog back. Then the results (StageEndScene).
+  endStage(won, retreat) {
+    const p = this.progress;
+    const stage = stageOf(p.stage.id);
+    const crown = p.stage.crown;
+    this.nightShade.setAlpha(0);
+    this.stageClock = null;
+    let result;
+    if (won) {
+      result = { won: true, ...p.winStage() };
+      this.waveGold += result.gold;
+      sfx.play(result.heart || result.crown > result.best ? 'legendary' : 'wave_clear');
+      this.showBanner(`${stage.name.toUpperCase()} CLEARED!`, { detail: `+${formatNum(result.gold)} GOLD` });
+    } else {
+      result = { won: false, refund: p.loseStage(), retreat };
+      sfx.play('defeat');
+      this.showBanner(retreat ? 'RETREAT!' : 'SHIP SUNK!', { detail: `+${result.refund} GROG BACK`, color: UI.colors.warn });
+    }
+    this.time.delayedCall(UNCHARTED.endScreenDelay, () => this.showStageEnd(stage, crown, result));
+  }
+
+  // The results: Retry (the Muster again, same stage and crown) or Back to
+  // the chart.
+  showStageEnd(stage, crown, result) {
+    if (this.heroPicker.visible) this.heroPicker.close();
+    this.scene.launch('StageEndScene', {
+      progress: this.progress,
+      stage,
+      crown,
+      result,
+      onRetry: () => this.musterStage(stage, crown),
+      onChart: () => {
+        this.endStageMode();
+        this.openMap({ chart: stage.sea });
       },
     });
   }
@@ -1206,6 +1472,10 @@ export class GameScene extends Phaser.Scene {
       this.showBanner('ASSIGN A HERO!', { detail: 'CLICK A SLOT ON THE SHIP', color: UI.colors.warn });
       return;
     }
+    if (this.progress.stage) {
+      this.startStage();
+      return;
+    }
     if (this.heroPicker.visible) this.heroPicker.close();
     const p = this.progress;
     // A depth of the Abyss plays like an island wave (options.wave) with
@@ -1290,15 +1560,17 @@ export class GameScene extends Phaser.Scene {
     else show();
   }
 
-  endWave(won) {
+  // retreat: a stage left from its Retreat button.
+  endWave(won, { retreat = false } = {}) {
     this.state = STATE.IDLE;
     const { hunt } = this;
     this.hunt = null;
-    // A hunt isn't a wave: it stays out of the Captain's Log and the gold
-    // per minute expeditions are based on.
+    // A hunt (and a stage of the Uncharted Seas) isn't a wave: it stays out
+    // of the Captain's Log and the gold per minute expeditions are based on.
+    const stage = !!this.progress.stage;
     const record = this.stats.finish(won);
-    if (!hunt) this.progress.logWave(record);
-    const dive = this.progress.inAbyss && !hunt;
+    if (!hunt && !stage) this.progress.logWave(record);
+    const dive = this.progress.inAbyss && !hunt && !stage;
     if (dive) this.progress.noteDiveDamage(record);
     this.applySpeed();
     this.waves.stop();
@@ -1320,7 +1592,9 @@ export class GameScene extends Phaser.Scene {
     this.snowfall.calm();
     let summary = null;   // a dive that just ended (Progress.endDive)
     const meal = this.progress.meal?.id;
-    if (hunt) {
+    if (stage) {
+      this.endStage(won, retreat);
+    } else if (hunt) {
       this.endHunt(hunt, won);
     } else if (dive) {
       summary = this.endDepth(won);
@@ -1352,9 +1626,9 @@ export class GameScene extends Phaser.Scene {
       this.showBanner('SHIP SUNK!', { detail: 'UPGRADE AND TRY AGAIN', color: UI.colors.warn });
     }
     // Won or lost, the wave's gold per minute counts toward expeditions'.
-    if (!hunt) this.progress.logGold(this.waveGold, this.waveTime);
+    if (!hunt && !stage) this.progress.logGold(this.waveGold, this.waveTime);
     // A cleared wave (an island's, or a depth) sets the idle rate's pace.
-    if (won && !hunt) this.progress.noteIdleRate(this.merchants.goldPerSecond);
+    if (won && !hunt && !stage) this.progress.noteIdleRate(this.merchants.goldPerSecond);
     // The meal ran out with this win: the crew and hull without it.
     if (meal && !this.progress.meal) {
       this.ship.sync(this.progress);
@@ -1372,7 +1646,9 @@ export class GameScene extends Phaser.Scene {
       this.autoContinue.pause();
       this.time.delayedCall(ENDING.delayMs, () => this.playEnding());
     }
-    this.events.emit('wave-ended', won, { hunt: !!hunt, dive, diveOver: !!summary });
+    this.events.emit('wave-ended', won, {
+      hunt: !!hunt || stage, stage, dive, diveOver: !!summary,
+    });
     // The dive is over: its end-of-run screen once the banner has shown
     // (auto-continue waits for the player).
     if (summary) {
@@ -1549,21 +1825,23 @@ export class GameScene extends Phaser.Scene {
     this.meals.update(dt);
     this.abilities.update(dt, this.progress.autoAbilities);
     // Merchants: not in a hunt, nor while a boss is alive or an overlay is open.
-    if (!this.hunt) {
+    if (!this.hunt && !this.progress.stage) {
       const bossAlive = this.enemies.some((e) => e.alive && e.def.boss);
       this.merchants.tick(dt, { canSail: !bossAlive && !this.overlayOpen, bossAlive });
     }
 
     for (const h of this.heroes) {
       const shot = h.update(dt, this.enemies);
-      if (shot) this.projectiles.push(shot);
+      if (shot) this.projectiles.push(...[shot].flat());
     }
     for (const p of this.projectiles) p.update(dt);
 
     this.enemies = this.enemies.filter((e) => e.alive);
     this.projectiles = this.projectiles.filter((p) => !p.done);
 
-    if (this.ship.isDestroyed) {
+    // A stage's Hourglass running out sinks it like the hull would.
+    const outOfTime = this.stageClock != null && this.progress.stage && this.waveTime >= this.stageClock;
+    if (this.ship.isDestroyed || outOfTime) {
       haptic('medium');
       this.endWave(false);
       return;

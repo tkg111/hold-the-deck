@@ -1,8 +1,9 @@
 import {
-  ABYSS, ECONOMY, ELITE, ENEMIES, FORMATIONS, HUNTS, ISLANDS, WAVES,
+  ABYSS, ECONOMY, ELITE, ENEMIES, FORMATIONS, HUNTS, ISLANDS, UNCHARTED, WAVES,
 } from '../config.js';
 import { Enemy } from '../entities/Enemy.js';
 import { depthPlan, depthScaling } from './Abyss.js';
+import { stageOf, stagePlan, stageScaling } from './Uncharted.js';
 
 // What an island's waves are made of (its ISLANDS entry, Skull Cove by
 // default): its formations, bosses and first Siren wave, falling back to
@@ -157,10 +158,12 @@ export const spawnInterval = (wave) => Math.max(WAVES.minSpawnInterval, WAVES.sp
 // (Endless grace, see Progress.endlessGrace).
 // hunt: { boss, level } for a Boss Hunt (see huntPlan; `wave` is then the
 // boss's first wave on the island). abyss: { seed, depth } for a depth of
-// the Abyss (see Abyss.depthPlan).
+// the Abyss (see Abyss.depthPlan). stage: { id, crown } for a stage of the
+// Uncharted Seas (see Uncharted.stagePlan).
 export function composeWave(wave, {
-  island = ISLANDS[0], offset = 0, finale = null, countFactor = 1, hunt = null, abyss = null,
+  island = ISLANDS[0], offset = 0, finale = null, countFactor = 1, hunt = null, abyss = null, stage = null,
 } = {}) {
+  if (stage) return stagePlan(stageOf(stage.id), stage.crown);
   if (abyss) return depthPlan(abyss.seed, abyss.depth);
   if (hunt) return huntPlan(wave, island, offset, hunt);
   const random = seededRandom(wave * 7919 + 17 + offset * 104729);
@@ -271,23 +274,26 @@ export class WaveManager {
     this.finale = null;  // the island's finale config while it's the wave
     this.enraged = false;
     this.crewCalls = 0;  // the finale: crew raisings owed to a boss not out yet
+    this.gateOpen = false;   // a stage: the next wave's gate has opened
   }
 
   get doneSpawning() { return this.queue.length === 0; }
 
   // options: { island, offset, finale, countFactor } (Progress.waveOptions),
   // or a depth of the Abyss's (Abyss.depthOptions: its own scaling and
-  // Elites, ABYSS.elites).
+  // Elites, ABYSS.elites), or a stage of the Uncharted Seas' (Uncharted.
+  // stageOptions: its sea's depth's scaling and the Abyss's Elites).
   start(wave, options = {}) {
     this.queue = composeWave(wave, options).map((entry, index) => ({ ...entry, index }));
     this.spawned = [];
     this.total = this.queue.length;  // for the enemies-left bar
-    const { abyss } = options;
-    this.scaling = abyss
-      ? depthScaling(abyss.depth, abyss.currents, abyss.growth)
-      : waveScaling(wave + (options.offset ?? 0), options.island);
-    this.eliteStyle = abyss ? ABYSS.elites : null;
-    this.hullShare = abyss ? ABYSS.hullShare : 1;
+    const { abyss, stage } = options;
+    if (stage) this.scaling = stageScaling(stageOf(stage.id), stage.crown);
+    else if (abyss) this.scaling = depthScaling(abyss.depth, abyss.currents, abyss.growth);
+    else this.scaling = waveScaling(wave + (options.offset ?? 0), options.island);
+    this.eliteStyle = abyss || stage ? ABYSS.elites : null;
+    this.hullShare = abyss || stage ? ABYSS.hullShare : 1;
+    this.gateOpen = false;
     this.island = options.island ?? null;
     this.spawnTimer = this.queue[0]?.delay ?? 0;
     this.finale = options.finale ?? null;
@@ -330,19 +336,32 @@ export class WaveManager {
     const spawned = [];
     if (this.doneSpawning) return spawned;
 
+    // A stage's next wave waits behind its gate until the field is clear
+    // of foes, then comes UNCHARTED.waves.gap later (with 'stage-wave').
+    if (this.queue[0].gate && !this.gateOpen) {
+      if (this.scene.enemies.some((e) => e.alive && !e.def.hazard)) return spawned;
+      this.gateOpen = true;
+      this.spawnTimer = UNCHARTED.waves.gap;
+      this.scene.events.emit('stage-wave', this.queue[0].gate);
+    }
     this.spawnTimer -= dt;
     while (this.spawnTimer <= 0 && this.queue.length) {
+      // The next wave's first enemy: only once its gate has opened.
+      if (this.queue[0].gate && !this.gateOpen) break;
       // One whose type is crowded waits its turn: the next that isn't comes
       // in its place; if none can, they try again shortly.
-      const ready = this.queue.findIndex((entry) => !this.crowded(entry, spawned));
+      // (Not one from a stage's next wave, past its gate.)
+      const ready = this.queue.findIndex((entry, i) => !this.crowded(entry, spawned)
+        && !this.queue.slice(1, i + 1).some((q) => q.gate));
       if (ready === -1) {
         this.spawnTimer += CROWDED_RETRY_MS;
         break;
       }
       if (ready > 0) this.queue.unshift(...this.queue.splice(ready, 1));
       const {
-        key, def, elite, follow, hpFactor, damageFactor, index,
+        key, def, elite, follow, hpFactor, damageFactor, index, gate,
       } = this.queue.shift();
+      if (gate) this.gateOpen = false;
       const { hp, damage, gold } = this.scaling;
       const eliteGold = this.eliteStyle?.gold ?? ELITE.goldMultiplier;
       const enemy = new Enemy(this.scene, def, {
