@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import {
-  ABYSS, ASHFALL, AUDIO, AUTO_CONTINUE, DISPLAY, ENDING, ENEMIES, EXPEDITIONS, GALLEY, GAME_SPEEDS, HEROES, MOBILE, MOTES, PACKS, SCENERY, SIM, SNOWFALL,
+  ABYSS, ASHFALL, AUDIO, AUTO_CONTINUE, ENDING, ENEMIES, EXPEDITIONS, GAME_SPEEDS, HEROES, MOBILE, MOTES, PACKS, SCENERY, SIM, SNOWFALL,
   UI_KIT,
 } from '../config.js';
 import { audio } from '../audio/Audio.js';
@@ -39,7 +39,7 @@ import {
 import { BattleStats, mvpOf } from '../systems/BattleStats.js';
 import { initParts, materialOf, PARTS_JSON_KEY } from '../systems/Parts.js';
 import { initPacks, packOf, PACKS_JSON_KEY } from '../systems/Packs.js';
-import { initFishing, mealOf } from '../systems/Fishing.js';
+import { initFishing, mealEffectLines, mealOf } from '../systems/Fishing.js';
 import { ShipParts } from '../systems/ShipParts.js';
 import { Merchants } from '../systems/Merchants.js';
 import { MealEffects } from '../systems/Meals.js';
@@ -55,9 +55,10 @@ import { HeroPicker } from '../ui/HeroPicker.js';
 import { Notices } from '../ui/Notices.js';
 import { AutoContinue } from '../ui/AutoContinue.js';
 import { ScrollPanel } from '../ui/ScrollPanel.js';
+import { Tooltip } from '../ui/Tooltip.js';
 import { Shipwright } from '../ui/Shipwright.js';
 import {
-  Bar, EXPEDITION_JSON_KEY, expeditionKey, glyph, glyphWidth, icon, light, panel, text, UI, wantedKey,
+  Bar, EXPEDITION_JSON_KEY, expeditionKey, glyph, glyphWidth, icon, light, panel, tapArea, text, UI, wantedKey,
 } from '../ui/kit.js';
 import * as Expeditions from '../systems/Expeditions.js';
 import * as Offline from '../systems/Offline.js';
@@ -341,8 +342,19 @@ export class GameScene extends Phaser.Scene {
     this.hullBar = new Bar(this, 24, hull.y + 4, barW, 10, UI.colors.hull);
     const hullPlaque = panel(this, 6, hull.y, 24 + barW + 5 - 6, hull.height, 'wood');
     tutorial.registerTarget('hull', hullPlaque);
+    // The active meal under the hull plaque (only while there is one): a
+    // plaque of fixed size with its icon and the waves left; tapping it shows
+    // its name, effect and waves left (showMealNote).
+    const mp = UI_KIT.hud.meal;
+    const mealBg = panel(this, 6, mp.y, mp.width, mp.height, 'wood');
+    tapArea(mealBg, mp.width, mp.height, { useHandCursor: true });
+    mealBg.on('pointerdown', () => this.showMealNote());
+    this.mealIcon = this.add.image(10, mp.y + mp.height / 2, fishingKey('meals'), 0).setOrigin(0, 0.5);
+    this.mealText = text(this, 10 + 16 + 3, mp.y + mp.height / 2, '', light()).setOrigin(0, 0.5);
+    this.mealPlaque = this.add.container(0, 0, [mealBg, this.mealIcon, this.mealText]).setVisible(false);
     // The Abyss's active currents: a row of icons under the hull plaque
-    // (see layoutCurrents); tapping one shows its name and effect.
+    // (see layoutCurrents; right of the meal plaque while that shows);
+    // tapping one shows its name and effect.
     this.currentRow = group();
     // The dive's Abyss Tide stacks, on a small plaque right of the wave
     // plaque (see layoutTide).
@@ -353,7 +365,7 @@ export class GameScene extends Phaser.Scene {
     this.topLeft = group(
       this.wavePlaque, this.waveIcon, this.depthIcon, this.waveIsland, this.islandText, this.waveDot, this.waveText,
       hullPlaque, icon(this, 16, hull.y + 9, 'hull'), this.hullBar,
-      this.currentRow, this.tidePlaque, this.tideText,
+      this.mealPlaque, this.currentRow, this.tidePlaque, this.tideText,
     );
 
     this.enemiesBar = new Bar(this, 172, 12, 136, 12, UI.colors.progress);
@@ -379,17 +391,11 @@ export class GameScene extends Phaser.Scene {
     this.fullscreenButton = new Button(this, 0, ib.y, {
       width: ib.size, height: ib.size, icon: 'fullscreen', onRelease: true, onClick: () => this.toggleFullscreen(),
     }).setVisible(fullscreenSupported() && !isApp());
-    // The active meal: its icon and waves left, on a small plaque left of
-    // the settings buttons (only while there is one).
-    const mh = GALLEY.hud;
-    this.mealIcon = this.add.image(mh.x + 10, mh.y + 9, fishingKey('meals'), 0);
-    this.mealText = text(this, mh.x + 20, mh.y + 9, '', light({ font: 'small' })).setOrigin(0, 0.5);
-    this.mealPlaque = this.add.container(0, 0, [panel(this, mh.x, mh.y, mh.width, 18, 'wood'), this.mealIcon, this.mealText]);
     this.layoutIconButtons(pearlsX + pearlsWidth);
     this.topRight = group(
       panel(this, goldX, 6, goldWidth, 24, 'wood'), icon(this, goldX + 12, 18, 'gold'), this.goldText,
       panel(this, pearlsX, 6, pearlsWidth, 24, 'wood'), icon(this, pearlsX + 12, 18, 'pearl'), this.pearlsText,
-      this.settingsButton, this.muteButton, this.fullscreenButton, this.mealPlaque,
+      this.settingsButton, this.muteButton, this.fullscreenButton,
     );
 
     // Over the sky between the ship and the Shipwright.
@@ -487,7 +493,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   // Settings, Sound and (if shown) Fullscreen, right-aligned from x right,
-  // size + gap apart; the meal plaque left of them.
+  // size + gap apart.
   layoutIconButtons(right) {
     const { size, gap } = UI_KIT.hud.iconButtons;
     let x = right;
@@ -496,7 +502,6 @@ export class GameScene extends Phaser.Scene {
       b.setX(x - size / 2);
       x -= size + gap;
     }
-    this.mealPlaque.setX(x + gap - 4 - GALLEY.hud.width - GALLEY.hud.x);
   }
 
   // Anchor the HUD to the view's safe area (clear of a notch or camera, and
@@ -561,8 +566,17 @@ export class GameScene extends Phaser.Scene {
     this.mealPlaque.setVisible(!!p.meal);
     if (p.meal) {
       this.mealIcon.setFrame(mealOf(p.meal.id)?.index ?? 0);
-      this.mealText.setText(`${p.meal.wavesLeft} LEFT`);
+      this.mealText.setText(`${p.meal.wavesLeft}`);
+    } else if (this.mealNoteShown) {
+      this.hideCurrentNote();
     }
+    // The currents row moves over for the meal plaque; bounty toasts go
+    // below whichever of them shows.
+    const mp = UI_KIT.hud.meal;
+    this.currentRow.setX(p.meal ? mp.width + mp.gap : 0);
+    const { y: rowY, iconSize } = ABYSS.hud;
+    const rowBottom = Math.max(p.meal ? mp.y + mp.height : 0, this.currentsKey ? rowY + iconSize + 6 : 0);
+    this.notices.setToastOffset(rowBottom ? rowBottom - (rowY + iconSize + 6) + iconSize + 8 : 0);
     this.hullBar.setValue(this.ship.hp / this.ship.maxHp,
       `${formatNum(Math.ceil(this.ship.hp))} / ${formatNum(this.ship.maxHp)}`);
 
@@ -649,8 +663,7 @@ export class GameScene extends Phaser.Scene {
     this.currentsKey = key;
     this.currentRow.removeAll(true);
     this.hideCurrentNote();
-    // Bounty toasts go below the row while there is one.
-    this.notices.setToastOffset(ids.length ? ABYSS.hud.iconSize + 8 : 0);
+    // (Bounty toasts go below the row while there is one: refreshUi.)
     if (!ids.length) return;
     const { iconSize, gap, y } = ABYSS.hud;
     const order = this.abyssData.currents.order.map((c) => c.id);
@@ -675,12 +688,42 @@ export class GameScene extends Phaser.Scene {
     const c = this.abyssData.currents.order.find((o) => o.id === id);
     if (!c) return;
     sfx.play('ui_click');
-    const y = ABYSS.hud.y + ABYSS.hud.iconSize + 8;
+    const y = Math.max(ABYSS.hud.y + ABYSS.hud.iconSize + 8, this.progress.meal ? UI_KIT.hud.meal.y + UI_KIT.hud.meal.height + 3 : 0);
     const name = text(this, 12, y + 4, c.name.toUpperCase(), light({ font: 'small', color: UI.colors.warn }));
     const effect = text(this, 12, y + 13, c.effect.toUpperCase(), light({ font: 'small', wrap: 170 }));
     const w = Math.max(name.inkWidth, effect.inkWidth) + 12;
+    this.showNote([panel(this, 6, y, w, effect.inkHeight + 20, 'wood'), name, effect]);
+  }
+
+  // The active meal's note under its plaque (tapping the plaque again, or
+  // ABYSS.hud.noteMs later, hides it): a parchment tooltip with its name,
+  // what it does and the waves left.
+  showMealNote() {
+    const p = this.progress;
+    const meal = p.meal && mealOf(p.meal.id);
+    if (!meal) return;
+    if (this.mealNoteShown) {
+      this.hideCurrentNote();
+      return;
+    }
+    sfx.play('ui_click');
+    const mp = UI_KIT.hud.meal;
+    const y = mp.y + mp.height + 3;
+    const tooltip = new Tooltip(this, 6, y, [
+      { text: meal.name },
+      ...mealEffectLines(meal).map((line) => ({ text: line, small: true })),
+      { text: `${p.meal.wavesLeft} ${p.meal.wavesLeft === 1 ? 'WAVE' : 'WAVES'} LEFT`, small: true, sub: true },
+    ]);
+    this.showNote([tooltip]);
+    this.mealNoteShown = true;
+  }
+
+  // Show a note (the currents' or the meal's) in the top-left group's note
+  // slot, for ABYSS.hud.noteMs of real time.
+  showNote(objects) {
     this.currentNote.removeAll(true);
-    this.currentNote.add([panel(this, 6, y, w, effect.inkHeight + 20, 'wood'), name, effect]).setVisible(true);
+    this.mealNoteShown = false;
+    this.currentNote.add(objects).setVisible(true);
     this.currentNoteTimer?.remove();
     // Real time, so it lasts as long at any battle speed.
     const started = performance.now();
@@ -694,6 +737,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   hideCurrentNote() {
+    this.mealNoteShown = false;
     this.currentNoteTimer?.remove();
     this.currentNoteTimer = null;
     this.currentNote.removeAll(true);

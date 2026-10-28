@@ -210,8 +210,15 @@ export const UI_KIT = {
     // Pearls: size x size plates, right-aligned from the Pearls' right edge,
     // gap apart (their tap zones, MOBILE.minTap, just meet), centred on y.
     iconButtons: { size: 24, gap: 8, y: 46 },
+    // The active meal, under the hull plaque: a plaque of this fixed size
+    // (its 16x16 icon and the waves left), the Abyss's currents row gap px
+    // right of it.
+    meal: { y: 53, width: 44, height: 22, gap: 4 },
     speed: { width: 44, height: 32 },   // bottom-right, during waves
   },
+  // Parchment tooltips (src/ui/Tooltip.js, e.g. the meal plaque's): padding
+  // round the text, the gap between lines and where lines wrap.
+  tooltip: { pad: 6, gap: 2, wrap: 160 },
   // A button held down: scaled to scale and tinted (darker) until let go.
   press: { scale: 0.92, tint: 0xb8b8b8 },
   bottomButtonHeight: 30,   // the between-waves button bar (room for badges)
@@ -2790,9 +2797,8 @@ export const MEALS = {
 };
 
 // The Galley screen (GalleyScene, base pixels): its tabs, the fishing
-// spot picker and the cooking tab; and the battle HUD's active meal (its
-// icon and waves left on a small plaque left of the settings buttons, at
-// x / y, width wide).
+// spot picker and the cooking tab. (The battle HUD's active meal plaque:
+// UI_KIT.hud.meal.)
 export const GALLEY = {
   tabWidth: 84,
   spots: { y: 36, width: 70, height: 18, gap: 3 },
@@ -2805,7 +2811,6 @@ export const GALLEY = {
     list: { x: 8, y: 54, width: 196, height: 212, rowHeight: 17 },
     detail: { x: 208, y: 54, width: 264, height: 212, needsY: 96 },
   },
-  hud: { x: 352, y: 34, width: 56 },
 };
 
 // The Captain's tutorial (src/tutorial/, TutorialScene): the onboarding for
