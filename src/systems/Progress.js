@@ -1,6 +1,6 @@
 import {
-  ABILITY_SCALING, ABYSS, AUDIO, BATTLE_LOG, ECONOMY, ENEMIES, EXPEDITIONS, FISHING, HEROES, HUNTS, ISLANDS, MEALS, PARTS, SHIP,
-  PACKS, RARITY, STARTING_HEROES, UI_KIT, UPGRADES, WANTED, WAVES,
+  ABILITY_SCALING, ABYSS, AUDIO, AWAKEN, BATTLE_LOG, ECONOMY, ENEMIES, EXPEDITIONS, FISHING, HEROES, HUNTS, ISLANDS, MEALS, PARTS, SHIP,
+  PACKS, RARITY, STARTING_HEROES, UI_KIT, UNCHARTED, UPGRADES, WANTED, WAVES,
 } from '../config.js';
 import { clearBonus, enemyFirstWave, islandContent } from './WaveManager.js';
 import {
@@ -14,6 +14,7 @@ import {
   gameParts, materialOf, materialOfBoss, PART_DATA, partCost, partInGame, partOf, partValue,
 } from './Parts.js';
 import { allPacks, PACK_DATA, packOf } from './Packs.js';
+import * as Uncharted from './Uncharted.js';
 import { DONE, newTutorialState } from '../tutorial/TutorialManager.js';
 import { ONBOARDING } from '../tutorial/steps.js';
 import { newOnlineRecord, onlineFromSave, onlineToSave } from '../online/record.js';
@@ -107,6 +108,15 @@ export class Progress {
     // materials by id, damage by crewmate) and the bosses whose material
     // this depth already paid.
     this.abyss = newAbyss();
+    // The Uncharted Seas (see Uncharted.js): Grog and when the next one
+    // started coming back, Sea Glass and Hearts of the Deep held, each
+    // stage's best crown, the first clears paid, and whether its map spot
+    // has been seen. The stage under way (not saved; a reload ends it):
+    // { id, crown, cost, slotsBefore (the ship's crew before the Muster) }.
+    this.uncharted = Uncharted.newRecord();
+    this.stage = null;
+    // Crew Awakening: the awakened crew (HEROES ids).
+    this.awakened = [];
 
     // The Galley (see Fishing.js; Merchants.js for plunder): fish held, by
     // fishing.json id; Spice; Bait, and the time the next one started
@@ -176,7 +186,8 @@ export class Progress {
       heroLevels: ownedOnly(this.heroLevels),
       heroStars: ownedOnly(this.heroStars),
       heroBonus: ownedOnly(this.heroBonus),
-      slots: this.slots.map((id) => (id && owned.includes(id) ? id : null)),
+      // During a stage's Muster, the crew as it was before it.
+      slots: (this.stage?.slotsBefore ?? this.slots).map((id) => (id && owned.includes(id) ? id : null)),
       muted: this.muted,
       musicVolume: this.musicVolume,
       sfxVolume: this.sfxVolume,
@@ -226,6 +237,13 @@ export class Progress {
       lastSeen: this.lastSeen,
       goldAway: this.goldAway,
       online: onlineToSave(this.online),
+      uncharted: {
+        ...this.uncharted,
+        items: { ...this.uncharted.items },
+        crowns: { ...this.uncharted.crowns },
+        firstClears: [...this.uncharted.firstClears],
+      },
+      awakened: this.awakened.filter((id) => owned.includes(id)),
     };
   }
 
@@ -359,6 +377,8 @@ export class Progress {
     if (Number.isFinite(data.lastSeen)) p.lastSeen = data.lastSeen;
     p.goldAway = int(data.goldAway, 0);
     p.online = onlineFromSave(data.online);
+    p.uncharted = unchartedFromSave(data.uncharted, int);
+    p.awakened = Array.isArray(data.awakened) ? [...new Set(data.awakened.filter((id) => p.owned.includes(id)))] : [];
 
     if (Array.isArray(data.slots)) {
       const seen = new Set(away);
@@ -526,12 +546,14 @@ export class Progress {
 
   get canBuildDeck() { return this.decks < SHIP.maxDecks; }
 
+  // (x AWAKEN.damage once awakened.)
   heroDamage(id, level = this.heroLevel(id)) {
     const starBonus = PACKS.starDamageBonus[this.heroStarCount(id)];
     return HEROES[id].damage
       * (1 + (level - 1) * UPGRADES.heroLevel.damagePerLevel)
       * (1 + starBonus)
-      * (1 + this.heroBonusLevels(id) * PACKS.bonusLevelDamage);
+      * (1 + this.heroBonusLevels(id) * PACKS.bonusLevelDamage)
+      * (this.isAwakened(id) ? AWAKEN.damage : 1);
   }
 
   // A hero's own attack speed multiplier from its level (the Cabin Boy's
@@ -567,11 +589,13 @@ export class Progress {
     const sails = this.partEffect('ghostweave_sails');
     // The active meal: crew damage, attack speed and damage to bosses.
     const meal = this.mealMods;
+    // A stage's Doldrums: the crew attacks slower.
+    const doldrums = this.stageHas('doldrums') ? UNCHARTED.rules.doldrums.attackSpeed : 1;
     for (const { id, slot } of active) {
       // The Abyss Tide: crew damage grows through a dive.
       buffs[slot] = {
         damage: this.tideDamage * meal.damage,
-        attackSpeed: this.heroAttackSpeed(id) * meal.attackSpeed,
+        attackSpeed: this.heroAttackSpeed(id) * meal.attackSpeed * doldrums,
         bossDamage: meal.bossDamage,
         buffed: false,
         aura: null,
@@ -1012,6 +1036,140 @@ export class Progress {
     return { material: m.id, count };
   }
 
+  // --- The Uncharted Seas ---
+
+  // They open the first time a dive into the Abyss starts.
+  get unchartedUnlocked() { return this.abyss.runs > 0; }
+
+  tickGrog(now = Date.now()) { Uncharted.tickGrog(this.uncharted, now); }
+  grogTimeLeft(now = Date.now()) { return Uncharted.grogTimeLeft(this.uncharted, now); }
+  get grog() {
+    this.tickGrog();
+    return this.uncharted.grog;
+  }
+  addGrog(n) { Uncharted.addGrog(this.uncharted, n); }
+  itemCount(id) { return this.uncharted.items[id] ?? 0; }
+
+  // Whether a rule of the stage under way is on (false outside one).
+  stageHas(rule) { return !!this.stage?.rules.includes(rule); }
+
+  // Whether a stage can be sailed at a crown: open, and the Grog for it.
+  canSailStage(stage, crown, now = Date.now()) {
+    Uncharted.tickGrog(this.uncharted, now);
+    return Uncharted.isStageOpen(this.uncharted, stage, crown) && this.uncharted.grog >= Uncharted.stageCost(stage, crown);
+  }
+
+  // The Muster for a stage: the crew as it is now is kept to put back after
+  // (Progress.stage.slotsBefore); the stage's crew rules take off whoever may
+  // not sail (a trait rule) and anyone past the crew limit (Skeleton Crew).
+  // The stage isn't under way until beginStage.
+  musterStage(stage, crown) {
+    const rules = Uncharted.stageRules(stage, crown);
+    this.stage = {
+      id: stage.id, crown, rules, cost: 0, slotsBefore: this.stage?.slotsBefore ?? [...this.slots], started: false,
+    };
+    let kept = 0;
+    this.slots = this.slots.map((id, slot) => {
+      if (!id || slot >= this.slotCount) return id;
+      if (!this.mayMuster(id) || kept >= this.stageCrewLimit) return null;
+      kept++;
+      return id;
+    });
+  }
+
+  // How many crew the stage under way lets sail, and whether one may.
+  get stageCrewLimit() {
+    return this.stageHas('skeleton_crew') ? UNCHARTED.rules.skeleton_crew.crew : this.slotCount;
+  }
+  mayMuster(id) {
+    for (const rule of ['fighters_only', 'mystics_only']) {
+      if (this.stageHas(rule) && traitOf(id) !== UNCHARTED.rules[rule].trait) return false;
+    }
+    return true;
+  }
+  // The Muster can set sail: someone on deck, within the crew limit.
+  get musterReady() {
+    const crew = this.activeHeroes;
+    return crew.length > 0 && crew.length <= this.stageCrewLimit && crew.every(({ id }) => this.mayMuster(id));
+  }
+
+  // Set sail on the mustered stage: its Grog is spent. Returns the cost, or
+  // null if it can't (not open, not enough Grog).
+  beginStage(now = Date.now()) {
+    const stage = this.stage && Uncharted.stageOf(this.stage.id);
+    if (!stage || !Uncharted.isStageOpen(this.uncharted, stage, this.stage.crown)) return null;
+    const cost = Uncharted.stageCost(stage, this.stage.crown);
+    if (!Uncharted.spendGrog(this.uncharted, cost, now)) return null;
+    this.stage.cost = cost;
+    this.stage.started = true;
+    return cost;
+  }
+
+  // The stage under way was won: its clear gold, the drops (Sea Glass,
+  // Hearts), a new best crown, and the first clear of it at that crown
+  // gives all its Grog back. Returns { gold, glass, heart, refund, first,
+  // crown, best (the crown it was before) }.
+  winStage(random = Math.random) {
+    const { id, crown, cost } = this.stage;
+    const stage = Uncharted.stageOf(id);
+    const rec = this.uncharted;
+    const best = Uncharted.bestCrown(rec, stage);
+    const key = `${id}:${crown}`;
+    const first = !rec.firstClears.includes(key);
+    const firstHeart = first && crown >= 2;
+    const drops = Uncharted.rollDrops(stage, crown, { first, firstHeart }, random);
+    for (const [c, n] of Object.entries(drops.glass)) rec.items[c] = (rec.items[c] ?? 0) + n;
+    rec.items.heart = (rec.items.heart ?? 0) + drops.heart;
+    if (first) rec.firstClears.push(key);
+    rec.crowns[id] = Math.max(best, crown);
+    const refund = first ? cost : 0;
+    Uncharted.addGrog(rec, refund);
+    const gold = this.earnGold(this.boostGold(Uncharted.stageClearGold(stage)));
+    if (!this.stageHas('no_galley')) this.mealWaveDone();
+    this.stage.started = false;
+    return {
+      gold, ...drops, refund, first, crown, best,
+    };
+  }
+
+  // The stage under way was lost, or left: half its Grog back. Returns the refund.
+  loseStage() {
+    if (!this.stage?.started) return 0;
+    const refund = Uncharted.retreatRefund(this.stage.cost);
+    Uncharted.addGrog(this.uncharted, refund);
+    this.stage.started = false;
+    return refund;
+  }
+
+  // Back from the stage to the chart: the crew as it was before the Muster.
+  endStage() {
+    if (!this.stage) return;
+    this.slots = this.stage.slotsBefore.map((id) => (id && this.isOwned(id) && !this.isAway(id) ? id : null));
+    this.stage = null;
+  }
+
+  // --- Crew Awakening ---
+
+  isAwakened(id) { return this.awakened.includes(id); }
+  // What's missing to awaken a crewmate: null if it can be, else
+  // 'locked' (the Uncharted Seas aren't open), 'awake', 'level' or 'items'.
+  awakenBlock(id) {
+    if (!this.unchartedUnlocked) return 'locked';
+    if (this.isAwakened(id)) return 'awake';
+    if (this.heroLevel(id) < AWAKEN.level) return 'level';
+    const cost = Uncharted.awakenCost(id);
+    return Object.entries(cost).every(([c, n]) => this.itemCount(c) >= n) ? null : 'items';
+  }
+  canAwaken(id) { return this.isOwned(id) && this.awakenBlock(id) == null; }
+
+  // Awaken a crewmate (paying its Sea Glass and Hearts). Returns whether it did.
+  awaken(id) {
+    if (!this.canAwaken(id)) return false;
+    for (const [c, n] of Object.entries(Uncharted.awakenCost(id))) this.uncharted.items[c] -= n;
+    this.awakened.push(id);
+    return true;
+  }
+
   // --- The Galley: merchants, Bait, fish and meals ---
 
   // Bait comes back on its own up to this (more with the Whaler in the crew).
@@ -1057,11 +1215,12 @@ export class Progress {
   // A merchant's plunder ({ gold, spice, bait, material: { id, count } or
   // null }), already rolled (Merchants.js): paid, and counted.
   plunder({
-    gold = 0, spice = 0, bait = 0, material = null,
+    gold = 0, spice = 0, bait = 0, grog = 0, material = null,
   }) {
     this.earnGold(gold);
     this.spice += spice;
     this.addBait(bait);
+    this.addGrog(grog);
     if (material) this.addMaterial(material.id, material.count);
     this.merchantsPlundered++;
   }
@@ -1125,8 +1284,9 @@ export class Progress {
     return true;
   }
 
-  // The active meal's effects (Fishing.mealModifiers; all 1 with none).
-  get mealMods() { return mealModifiers(this.meal); }
+  // The active meal's effects (Fishing.mealModifiers; all 1 with none, or
+  // during a stage with the Empty Galley rule).
+  get mealMods() { return mealModifiers(this.stageHas('no_galley') ? null : this.meal); }
 
   // A wave was cleared (an island wave, an Abyss depth or a Boss Hunt):
   // the active meal has one wave less. Returns whether it just ran out.
@@ -1367,4 +1527,22 @@ function logRecordFromSave(r, int) {
     crew,
     hull,
   };
+}
+
+// A saved Uncharted Seas record (see Uncharted.newRecord), checked like the
+// rest of the save: unknown stages and items dropped, numbers clamped.
+function unchartedFromSave(u, int) {
+  const rec = Uncharted.newRecord();
+  if (!u || typeof u !== 'object') return rec;
+  rec.grog = int(u.grog, 0, Infinity, rec.grog);
+  if (Number.isFinite(u.grogAt)) rec.grogAt = u.grogAt;
+  for (const id of Object.keys(rec.items)) rec.items[id] = int(u.items?.[id], 0);
+  for (const [id, crown] of Object.entries(u.crowns ?? {})) {
+    if (Uncharted.stageOf(id) && Number.isFinite(crown) && crown >= 1) rec.crowns[id] = int(crown, 1, 3);
+  }
+  if (Array.isArray(u.firstClears)) {
+    rec.firstClears = [...new Set(u.firstClears.filter((k) => typeof k === 'string' && Uncharted.stageOf(k.split(':')[0])))];
+  }
+  rec.seen = u.seen === true;
+  return rec;
 }

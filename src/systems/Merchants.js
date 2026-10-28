@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
-import { ENEMIES, ENTRY, MERCHANTS } from '../config.js';
+import {
+  ENEMIES, ENTRY, MERCHANTS, UNCHARTED,
+} from '../config.js';
 import { sfx } from '../audio/Sfx.js';
 import { DEPTH } from '../entities/Ship.js';
 import { FX_DEPTH } from '../fx.js';
@@ -25,8 +27,9 @@ export function rollMerchant(random = Math.random) {
 
 // A merchant's plunder: gold (its gold x G), Spice (one more at
 // spiceChance), Bait, and at materialChance one boss material (of a boss
-// already beaten, one that's in the game). { gold, spice, bait, material:
-// { id, count } or null }.
+// already beaten, one that's in the game), and with grog (a Treasure
+// Galleon, once the Uncharted Seas are open) UNCHARTED.grog.galleon Grog.
+// { gold, spice, bait, grog, material: { id, count } or null }.
 export function rollPlunder(progress, typeId, G, random = Math.random) {
   const t = MERCHANTS.types[typeId];
   const spice = (t.spice ?? 0) + (t.spiceChance && random() < t.spiceChance ? 1 : 0);
@@ -38,6 +41,7 @@ export function rollPlunder(progress, typeId, G, random = Math.random) {
   }
   return {
     gold: Math.round(G * (t.gold ?? 0)), spice, bait: t.bait ?? 0, material,
+    grog: t.grog && progress.unchartedUnlocked ? UNCHARTED.grog.galleon : 0,
   };
 }
 
@@ -244,6 +248,7 @@ export class Merchants {
     const lines = [[`+${formatNum(reward.gold)} GOLD`, c.gold]];
     if (reward.spice) lines.push([`+${reward.spice} SPICE`, c.spice]);
     if (reward.bait) lines.push([`+${reward.bait} BAIT`, c.bait]);
+    if (reward.grog) lines.push([`+${reward.grog} GROG`, c.bait]);
     if (reward.material) lines.push([`+${reward.material.count} ${materialOf(reward.material.id).name.toUpperCase()}`, c.material]);
     const crate = scene.add.sprite(x, y, merchantKey('loot_crate')).setDepth(FX_DEPTH + 1).play(`${merchantKey('loot_crate')}_loop`);
     const labels = lines.map(([str, color], i) => text(scene, x, y - 12 - (lines.length - 1 - i) * 9, str, light({ font: 'small', color }))

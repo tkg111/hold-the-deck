@@ -2612,6 +2612,201 @@ export const ABYSS = {
   skip: { minBest: 20, depths: 5 },
 };
 
+// The Uncharted Seas (src/systems/Uncharted.js, the stages in
+// src/data/uncharted.js, ChartScene, StageEndScene): short hand-built stages
+// on a chart of six seas, each at three crowns, paid for in Grog. Art and
+// data in public/sprites/uncharted/ (legend.json: the chart's sea spots, the
+// rule ids and icon order, the items' and nodes' order).
+//   unlock: opens the first time a dive into the Abyss starts.
+//   grog: the energy. Up to cap, one comes back every regenMs of real time
+//          (offline too); a new record starts full. Treasure Galleons bring
+//          `galleon` more and Coral Shallows expeditions `coral` (a range);
+//          those may go over the cap.
+//   cost: a stage's Grog by sea (1-6), + crownCost[crown - 1].
+//          retreatRefund: a retreat or a loss gives back this share (rounded
+//          down); the first clear of a stage at a crown gives back all of it.
+//   depths: each sea's strength: enemies have the Abyss's HP and damage at
+//          that depth (no Tide, no currents' Armoured unless one is on).
+//   crowns: enemy HP and damage x these at 1 / 2 / 3 crowns.
+//   goldMult: kill gold and the clear bonus x this (stages don't replace
+//          the Abyss for gold). clearBonus: the clear pays this many of the
+//          depth's clear bonuses.
+//   waves: a stage's wave i (0-based) holds size + perWave x i enemies (each
+//          group counting as its size, as in the Abyss); a boss wave
+//          bossEscort x that as escort. The next wave comes `gap` ms after
+//          the last enemy of one falls.
+//   rules: each rule's numbers (ids in legend.json's order).
+//   drops: a win of a normal stage: one Sea Glass of each of its colours at
+//          `chance` (1 at 3 crowns), x crownMult[crown - 1]; a boss stage:
+//          bossGlass random Sea Glass and a Heart of the Deep at heart[crown - 1]
+//          (certain on its first 2- and 3-crown clears). The first clear of any
+//          stage at any crown adds firstClear of each of its colours (random
+//          colours for a boss stage).
+//   map: its spot on the world map; chart: the chart screen's layout.
+export const UNCHARTED = {
+  id: 'uncharted',
+  name: 'The Uncharted Seas',
+  shortName: 'Uncharted',
+  path: 'uncharted/',
+  grog: { cap: 30, regenMs: 5 * 60 * 1000, galleon: 3, coral: [1, 2] },
+  cost: [4, 5, 6, 6, 7, 8],
+  crownCost: [0, 1, 2],
+  retreatRefund: 0.5,
+  depths: [15, 30, 45, 60, 75, 90],
+  crowns: [{ hp: 1, damage: 1 }, { hp: 1.6, damage: 1.6 }, { hp: 2.5, damage: 2.5 }],
+  goldMult: 0.5,
+  clearBonus: 2,
+  waves: { size: 18, perWave: 2, bossEscort: 0.5, gap: 2000 },
+  rules: {
+    skeleton_crew: { crew: 3 },
+    fighters_only: { trait: 'fighter' },
+    mystics_only: { trait: 'mystic' },
+    leaky_hull: { hull: 0.5 },
+    doldrums: { attackSpeed: 0.7 },
+    night_watch: { range: 0.6, dim: 0.35 },
+    gale: { speed: 1.4 },
+    no_galley: {},
+    swarm: { count: 2, hp: 0.5 },
+    barnacled: { share: 0.4 },          // an Ice Witch's shield worth this share of max HP on every enemy
+    elite_hunt: { every: 4 },
+    hourglass: { ms: 120000 },
+  },
+  drops: {
+    chance: 0.7, crownMult: [1, 2, 2], bossGlass: 3, heart: [0.15, 0.3, 0.5], firstClear: 3,
+  },
+  glassByTrait: {
+    fighter: 'red', sailor: 'blue', scout: 'green', mystic: 'purple', caretaker: 'gold',
+  },
+  colours: ['red', 'blue', 'green', 'purple', 'gold'],
+  map: { x: 432, y: 112, file: 'map_uncharted.png' },
+  chart: { size: [640, 430], offset: [-80, -100] },
+  // The stage list (over the chart) and the Grog plaque (top right).
+  list: { x: 54, y: 26, width: 372, height: 232, rowH: 24 },
+  // The battle's stage-wave banner and the results screen's delay after the
+  // last banner.
+  endScreenDelay: 1600,
+};
+
+// Crew Awakening (src/systems/Uncharted.js; the Shipwright's crew cards):
+// once the Uncharted Seas are open, a crewmate at `level` or higher can be
+// awakened for Sea Glass and Hearts of the Deep (`cost` by rarity: glass of
+// its trait's colour, gold glass, Hearts; a Caretaker's own colour is gold,
+// so it pays both in gold). Awakened crew deal damage x `damage`, get their
+// title and ability upgrade (`crew`: hero patches merge into HEROES, ability
+// patches into ABILITIES; the code reads the new fields) and their awakened
+// sheet (public/sprites/uncharted/awakened/) with the aura behind it.
+export const AWAKEN = {
+  level: 80,
+  damage: 1.4,
+  cost: {
+    common: { own: 12, gold: 4, heart: 1 },
+    rare: { own: 18, gold: 6, heart: 2 },
+    epic: { own: 18, gold: 6, heart: 2 },
+    legendary: { own: 25, gold: 8, heart: 3 },
+  },
+  aura: { frameWidth: 32, frameHeight: 32, frames: 4, fps: 6 },
+  burst: { frameWidth: 64, frameHeight: 64, frames: 6, fps: 12 },
+  border: 0xffd54f,
+  crew: {
+    cabinBoy: {
+      title: 'Powder-Keg Kid', text: 'Slingshot stones burst on a small area',
+      hero: { area: { radius: 12 } },
+    },
+    shipsCook: {
+      title: 'Galley Tyrant', text: 'Every 5th pan is a full pot: splash and a 0.5s stun',
+      hero: { nthShot: { every: 5, area: { radius: 30 }, stun: { chance: 1, duration: 500 } } },
+    },
+    netThrower: {
+      title: 'Kraken Netter', text: 'Nets cast wider and slow 60% for longer',
+      hero: { area: { radius: 56 }, slow: { factor: 0.4, duration: 3500 } },
+    },
+    grogBrewer: {
+      title: 'Rum Alchemist', text: 'Poison lasts 50% longer and splashes nearby; Grog Barrel lasts 50% longer',
+      hero: { poison: { ratio: 0.75, duration: 6000 }, area: { radius: 16 } },
+      ability: { duration: 9000 },
+    },
+    harpooner: {
+      title: 'Leviathan Hunter', text: 'Harpoons pierce everything and drag the first foe back 12px',
+      hero: { pierce: { maxTargets: 99, length: 300, hitRadius: 11 }, dragFirst: { px: 12, speed: 160 } },
+    },
+    voodooPriestess: {
+      title: 'Loa Mother', text: 'A curse jumps to a nearby foe when its target dies',
+      hero: { curseJump: 70 },
+      ability: { curseJump: 70 },
+    },
+    cannoneer: {
+      title: 'Broadside Master', text: 'Every 4th shot is a 3-ball spread',
+      hero: { nthShot: { every: 4, spread: { count: 3, px: 36 } } },
+    },
+    duelist: {
+      title: 'Blade Dancer', text: 'Strikes twice (the second at half damage); crits deal 2.5x',
+      hero: { crit: { chance: 0.3, multiplier: 2.5 }, strikes: { count: 2, damage: 0.5 } },
+    },
+    captain: {
+      title: 'Dread Admiral', text: 'Marks the toughest foe: the whole crew deals +25% to it',
+      hero: { mark: { bonus: 0.25, every: 1000, sprite: 'lunge_target' } },
+    },
+    parrotKeeper: {
+      title: 'Flock Master', text: 'Sends a second parrot at another foe',
+      hero: { shots: 2 },
+    },
+    shipsDoctor: {
+      title: 'Surgeon General', text: 'Patch Up also shields the hull for 2s',
+      ability: { shieldMs: 2000 },
+    },
+    sharpshooter: {
+      title: 'Deadeye Legend', text: 'Shots finish off foes under 10% HP (not bosses)',
+      hero: { execute: 0.1 },
+      ability: { execute: 0.1 },
+    },
+    ghostPirate: {
+      title: 'Phantom Corsair', text: 'Haunted foes take +20% damage',
+      ability: { fearBonus: 0.2 },
+    },
+    stormCaller: {
+      title: 'Tempest Queen', text: 'Lightning chains to 2 more foes',
+      hero: {
+        chain: {
+          targets: 5, jump: 80, falloff: 0.8, from: { x: 10, y: -30 },
+          segment: 'lightning_seg', segmentMs: 200, impact: 'lightning_hit',
+        },
+      },
+    },
+    anchorBosun: {
+      title: 'Iron Tide', text: 'Thrown anchors also stun for 1s',
+      hero: { stun: { chance: 1, duration: 1000 } },
+    },
+    powderMonkey: {
+      title: 'Bombardier', text: 'Bombs split into 3 small blasts',
+      hero: { cluster: { count: 2, px: 18, damage: 0.5 } },
+    },
+    fireBreather: {
+      title: 'Inferno King', text: 'Inferno lasts 50% longer and burns flyers',
+      ability: { duration: 7500, burnsFlyers: true },
+    },
+    blacksmith: {
+      title: 'Forge Lord', text: 'Temper Steel also gives the crew +10% crit chance (2x)',
+      ability: { crit: { chance: 0.1, multiplier: 2 } },
+    },
+    whaler: {
+      title: 'Abyss Whaler', text: 'Whale Hunt freezes its target for 1s (bosses: stunned)',
+      ability: { freeze: 1000 },
+    },
+    auroraSeer: {
+      title: 'Polar Oracle', text: 'Aurora Veil freezes 1s longer, then slows 40% for 2s',
+      ability: { duration: 3500, after: { factor: 0.6, duration: 2000 } },
+    },
+    banshee: {
+      title: 'Wailing Widow', text: 'Wail also breaks every shield it reaches',
+      ability: { breakShields: true },
+    },
+    boneCaller: {
+      title: 'Lich Bosun', text: '+1 skeleton; skeletons explode when they fall',
+      ability: { count: 4, explode: { radius: 30, damage: 2 } },
+    },
+  },
+};
+
 // Rising motes over the Abyss (src/weather.js, flag `motes`): no heavy weather.
 export const MOTES = {
   flag: 'motes',
@@ -2661,7 +2856,7 @@ export const MERCHANTS = {
       name: 'Spice Runner', weight: 0.22, speed: 34, gold: 0.5, spice: 1, spiceChance: 0.3, bait: 1,
     },
     treasure_galleon: {
-      name: 'Treasure Galleon', weight: 0.08, speed: 18, gold: 3, spice: 2, bait: 2, materialChance: 0.15,
+      name: 'Treasure Galleon', weight: 0.08, speed: 18, gold: 3, spice: 2, bait: 2, grog: true, materialChance: 0.15,
     },
   },
   goldSeconds: 10,

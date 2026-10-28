@@ -3,6 +3,7 @@ import {
 } from '../config.js';
 import { newOnlineRecord } from '../online/record.js';
 import { Progress } from './Progress.js';
+import { newRecord as newUnchartedRecord } from './Uncharted.js';
 import { enemyFirstWave } from './WaveManager.js';
 
 // Storage keys keep the original project name so existing saves are found.
@@ -10,7 +11,7 @@ export const SAVE_KEY = 'kampung-defense/save';
 const CORRUPT_BACKUP_KEY = 'kampung-defense/save-corrupt-backup';
 
 // Bump when the saved shape changes, and add a migration from the old version.
-export const SAVE_VERSION = 24;
+export const SAVE_VERSION = 25;
 
 // v5 pirate reskin: old hero IDs -> new hero IDs.
 const V5_HERO_IDS = {
@@ -227,6 +228,9 @@ const MIGRATIONS = {
   22: (data) => ({ ...data, vibration: true }),
   // v24: the Settings' Text size, Normal.
   23: (data) => ({ ...data, largeText: false }),
+  // v25: the Uncharted Seas (a full Grog ration, no items, no stages
+  // cleared) and Crew Awakening (nobody awakened).
+  24: (data) => ({ ...data, uncharted: newUnchartedRecord(), awakened: [] }),
 };
 
 function migrate(save) {

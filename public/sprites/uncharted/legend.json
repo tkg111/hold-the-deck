@@ -1,0 +1,253 @@
+{
+ "awakened": {
+  "frame": [
+   32,
+   32
+  ],
+  "crew": [
+   "cabin_boy",
+   "ships_cook",
+   "net_thrower",
+   "grog_brewer",
+   "harpooner",
+   "voodoo_priestess",
+   "cannoneer",
+   "the_duelist",
+   "the_captain",
+   "parrot_keeper",
+   "ships_doctor",
+   "sharpshooter",
+   "ghost_pirate",
+   "storm_caller",
+   "anchor_bosun",
+   "powder_monkey",
+   "fire_breather",
+   "blacksmith",
+   "whaler",
+   "aurora_seer",
+   "banshee",
+   "bone_caller"
+  ],
+  "note": "same frame order as each crewmate's normal sheet"
+ },
+ "awaken_aura": {
+  "frame": [
+   32,
+   32
+  ],
+  "frames": 4,
+  "fps": 6,
+  "note": "draw behind awakened crew, feet-aligned"
+ },
+ "awaken_burst": {
+  "frame": [
+   64,
+   64
+  ],
+  "frames": 6,
+  "fps": 12
+ },
+ "items": {
+  "order": [
+   "grog",
+   "red",
+   "blue",
+   "green",
+   "purple",
+   "gold",
+   "heart"
+  ],
+  "sizes": {
+   "items16.png": 16,
+   "icons12.png": 12
+  },
+  "glass_by_trait": {
+   "Fighter": "red",
+   "Sailor": "blue",
+   "Scout": "green",
+   "Mystic": "purple",
+   "Caretaker": "gold"
+  }
+ },
+ "crowns": {
+  "frame": [
+   10,
+   10
+  ],
+  "order": [
+   "bronze",
+   "silver",
+   "gold"
+  ]
+ },
+ "nodes": {
+  "frame": [
+   20,
+   20
+  ],
+  "order": [
+   "locked",
+   "open",
+   "cleared",
+   "boss_locked",
+   "boss_open",
+   "boss_cleared",
+   "selected"
+  ]
+ },
+ "rules": {
+  "frame": [
+   12,
+   12
+  ],
+  "order": [
+   {
+    "id": "skeleton_crew",
+    "name": "Skeleton Crew",
+    "text": "Only 3 crew on deck"
+   },
+   {
+    "id": "fighters_only",
+    "name": "Fighters Only",
+    "text": "Only Fighter-trait crew may sail"
+   },
+   {
+    "id": "mystics_only",
+    "name": "Mystic Tide",
+    "text": "Only Mystic-trait crew may sail"
+   },
+   {
+    "id": "leaky_hull",
+    "name": "Leaky Hull",
+    "text": "Hull starts at half"
+   },
+   {
+    "id": "doldrums",
+    "name": "Doldrums",
+    "text": "Crew attack 30% slower"
+   },
+   {
+    "id": "night_watch",
+    "name": "Night Watch",
+    "text": "Crew range 60%"
+   },
+   {
+    "id": "gale",
+    "name": "Gale",
+    "text": "Enemies move 40% faster"
+   },
+   {
+    "id": "no_galley",
+    "name": "Empty Galley",
+    "text": "Meals have no effect"
+   },
+   {
+    "id": "swarm",
+    "name": "Swarm",
+    "text": "Twice the enemies, half their HP"
+   },
+   {
+    "id": "barnacled",
+    "name": "Barnacled",
+    "text": "Every enemy carries a shield"
+   },
+   {
+    "id": "elite_hunt",
+    "name": "Elite Hunt",
+    "text": "Every 4th enemy is an Elite"
+   },
+   {
+    "id": "hourglass",
+    "name": "Hourglass",
+    "text": "Win within 2 minutes"
+   }
+  ]
+ },
+ "chart": {
+  "size": [
+   640,
+   430
+  ],
+  "safe_view": [
+   80,
+   100,
+   480,
+   270
+  ],
+  "seas": [
+   {
+    "id": "shipwreck_shallows",
+    "name": "Shipwreck Shallows",
+    "centre": [
+     152,
+     292
+    ],
+    "label_at": [
+     152,
+     326
+    ]
+   },
+   {
+    "id": "cinder_straits",
+    "name": "Cinder Straits",
+    "centre": [
+     232,
+     182
+    ],
+    "label_at": [
+     232,
+     216
+    ]
+   },
+   {
+    "id": "glacier_graveyard",
+    "name": "Glacier Graveyard",
+    "centre": [
+     316,
+     286
+    ],
+    "label_at": [
+     316,
+     320
+    ]
+   },
+   {
+    "id": "sirens_maze",
+    "name": "Siren's Maze",
+    "centre": [
+     392,
+     180
+    ],
+    "label_at": [
+     392,
+     214
+    ]
+   },
+   {
+    "id": "storm_crown",
+    "name": "Storm Crown",
+    "centre": [
+     470,
+     284
+    ],
+    "label_at": [
+     470,
+     318
+    ]
+   },
+   {
+    "id": "drowned_throne",
+    "name": "The Drowned Throne",
+    "centre": [
+     480,
+     152
+    ],
+    "label_at": [
+     480,
+     186
+    ]
+   }
+  ],
+  "note": "tap a sea to open its stage list; put a boss_* node (locked/open/cleared) and up to 3 crowns under each sea"
+ }
+}

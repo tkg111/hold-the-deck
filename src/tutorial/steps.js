@@ -342,6 +342,21 @@ export const TIPS = {
       line('laugh', 'Every depth gets meaner. So do we!'),
     ],
   }],
+  // The Uncharted Seas open with the first dive (at the next idle).
+  uncharted: [{
+    trigger: 'idle',
+    when: (g) => g.progress.unchartedUnlocked,
+    mode: 'dialog',
+    lines: [
+      line('point', "Uncharted waters, Cap'n! Short voyages, strange rules..."),
+      line('laugh', '...and treasure that makes our crew legends.'),
+    ],
+  }],
+  awakened: [{
+    trigger: 'crew-awakened',
+    mode: 'banner',
+    lines: [line('laugh', "Look at 'em now! A legend of the seas!")],
+  }],
   log: [{
     trigger: 'scene-open',
     when: (g, d) => d.key === 'LogScene',

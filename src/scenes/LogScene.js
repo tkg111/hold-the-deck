@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
-import { BATTLE_LOG, DISPLAY, ENEMIES, HEROES, UI_KIT } from '../config.js';
+import {
+  BATTLE_LOG, DISPLAY, ENEMIES, HEROES, UI_KIT, UNCHARTED,
+} from '../config.js';
 import { sfx } from '../audio/Sfx.js';
 import { applyRenderScale, fillView } from '../display.js';
 import { KINDS, sumCrew, sumHull, totalDamage } from '../systems/BattleStats.js';
@@ -10,6 +12,7 @@ import { formatNum } from '../ui/format.js';
 import {
   dark, face, hexColor, icon, light, nineSlice, panel, subText, tapArea, text, UI,
 } from '../ui/kit.js';
+import { itemCounts } from '../ui/uncharted.js';
 import { enemyThumb } from '../ui/wanted.js';
 
 const TABS = [
@@ -278,6 +281,15 @@ export class LogScene extends Phaser.Scene {
       text(this, 4, 10, label, dark()),
       text(this, this.innerWidth - 4, 10, formatNum(value), dark()).setOrigin(1, 0),
     ]));
+    // The Treasure Hold (once the Uncharted Seas are open): the Sea Glass
+    // and Hearts of the Deep held, icon and count each.
+    if (p.unchartedUnlocked) {
+      const items = [...UNCHARTED.colours, 'heart'].map((id) => [id, formatNum(p.itemCount(id))]);
+      this.rows.push(this.add.container(0, 0, [
+        text(this, 4, 10, 'TREASURE HOLD', dark()),
+        ...itemCounts(this, this.innerWidth - 4 - items.length * 30, 15, items, 30),
+      ]));
+    }
     this.scrolls = this.rows.length > BATTLE_LOG.visibleRows;
   }
 

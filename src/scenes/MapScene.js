@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import {
-  ABYSS, DISPLAY, ENEMIES, HUNTS, ISLANDS, MAP, UI_KIT,
+  ABYSS, DISPLAY, ENEMIES, HUNTS, ISLANDS, MAP, UI_KIT, UNCHARTED,
 } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
 import { applyRenderScale, fillSides, fillView } from '../display.js';
@@ -40,6 +40,10 @@ import { enemyPortrait } from '../ui/wanted.js';
 // { dive, left }) } (hunt: { boss, island } to start, or null; dive: { from,
 // seed } to start one; left: the dive that was left, Progress.endDive's
 // summary). The Abyss card's trophy opens Rankings over the map.
+// The Uncharted Seas (UNCHARTED.map) sit off the route too, a silhouette
+// once the Abyss is revealed and open from the first dive: tapping them
+// opens the chart (ChartScene) over the map; setting sail on a stage there
+// closes both (onClose's { stage: { stage, crown } }), leaving a dive first.
 
 const GREY = (key) => `${key}_grey`;
 // The Abyss card's values, from its left (its labels are longer).
@@ -71,8 +75,10 @@ export class MapScene extends Phaser.Scene {
     super('MapScene');
   }
 
-  init({ progress, onClose, openExpeditions }) {
+  // chart: a sea (index) to open the chart on at once (back from a stage).
+  init({ progress, onClose, openExpeditions, chart = null }) {
     this.progress = progress;
+    this.chartSea = chart;
     this.onClose = onClose;
     this.openExpeditions = openExpeditions;
     this.selected = progress.inAbyss ? ABYSS.id : progress.islandId;
@@ -100,6 +106,7 @@ export class MapScene extends Phaser.Scene {
     this.drawRoute();
     this.islands.forEach((island) => this.drawIsland(island));
     this.drawAbyss();
+    this.drawUncharted();
     this.ring = this.add.graphics();
     this.drawShipToken();
     this.world.add(this.children.list.slice(before));
@@ -128,6 +135,11 @@ export class MapScene extends Phaser.Scene {
 
     if (!this.progress.mapSeen) this.progress.mapSeen = true;
     if (this.progress.abyssUnlocked && !this.progress.abyss.revealed) this.reveal();
+    else if (this.chartSea != null && this.progress.unchartedUnlocked) {
+      const sea = this.chartSea;
+      this.chartSea = null;
+      this.openChart(sea);
+    }
   }
 
   // The Abyss's spot (ABYSS.map): a dark silhouette with "???" until it
@@ -141,6 +153,38 @@ export class MapScene extends Phaser.Scene {
     this.abyssLabel = text(this, x, labelY, shown ? ABYSS.name.toUpperCase() : '???', subText()).setOrigin(0.5, 0);
     if (!shown) this.abyssIcon.setTintFill(lockedTint).setAlpha(lockedAlpha);
     if (open) this.abyssIcon.setInteractive({ useHandCursor: true }).on('pointerdown', () => this.select(ABYSS.id));
+  }
+
+  // The Uncharted Seas' spot: hidden until the Abyss is revealed, a dark
+  // silhouette with "???" until they open, then their icon and name, which
+  // opens the chart.
+  drawUncharted() {
+    const p = this.progress;
+    if (!p.abyss.revealed) return;
+    const { x, y } = UNCHARTED.map;
+    const open = p.unchartedUnlocked;
+    const img = this.add.image(x, y, mapKey(UNCHARTED.id));
+    text(this, x, y + this.json.labelOffsetY, open ? UNCHARTED.shortName.toUpperCase() : '???', subText()).setOrigin(0.5, 0);
+    if (!open) {
+      img.setTintFill(ABYSS.map.lockedTint).setAlpha(ABYSS.map.lockedAlpha);
+      return;
+    }
+    if (!p.uncharted.seen) text(this, x + 24, y - 22, '!', dark({ color: UI.colors.warn })).setOrigin(0.5);
+    img.setInteractive({ useHandCursor: true }).on('pointerdown', () => this.openChart());
+  }
+
+  // The chart over the map; a stage set sail on closes both.
+  openChart(sea = null) {
+    sfx.play('ui_open');
+    this.scene.launch('ChartScene', {
+      progress: this.progress,
+      sea,
+      onSail: (stage, crown) => this.leaveDive((left) => {
+        this.scene.stop();
+        this.onClose?.(false, null, { left, stage: { stage, crown } });
+      }),
+      onClose: () => this.scene.restart({ ...this.sys.settings.data, chart: null }),
+    });
   }
 
   // The one-time reveal: the map zooms in on the Abyss as its silhouette

@@ -1,6 +1,6 @@
 import {
   ABYSS, ASHFALL, DISPLAY, ENEMIES, FISHING, FX, ISLANDS, MAP, MERCHANTS, MIST, MOTES, PACKS, PARTS, SHIP, SNOWFALL, SPRITES, STORM,
-  TUTORIAL, WIDE,
+  TUTORIAL, UNCHARTED, AWAKEN, WIDE,
 } from './config.js';
 import { initLayout, LAYOUT } from './layout.js';
 import {
@@ -219,6 +219,34 @@ function preloadTutorial(load) {
   for (const name of ['bracket', 'nameplate']) load.image(tutorialKey(name), `${path}${name}.png`);
 }
 
+// The Uncharted Seas and Crew Awakening (UNCHARTED.path, legend.json: the
+// chart's spots, the rules', items' and nodes' order): the chart, its map
+// spot, the item, crown, node and rule sheets, the awakening's aura and
+// burst, and each crewmate's awakened sheet (awakenedKey(name) + '_sheet')
+// and card (awakenedKey(name)).
+export const UNCHARTED_JSON_KEY = 'uncharted';
+export const unchartedKey = (name) => `uncharted_${name}`;
+export const awakenedKey = (name) => `awk_${name}`;
+const UNCHARTED_SHEETS = { items16: 16, icons12: 12, crowns: 10, nodes: 20, rules: 12 };
+
+function preloadUncharted(load) {
+  const { path } = UNCHARTED;
+  load.json(UNCHARTED_JSON_KEY, `${path}legend.json`);
+  load.image(unchartedKey('chart'), `${path}chart_bg.png`);
+  load.image(mapKey(UNCHARTED.id), `${path}${UNCHARTED.map.file}`);
+  for (const [name, size] of Object.entries(UNCHARTED_SHEETS)) {
+    load.spritesheet(unchartedKey(name), `${path}${name}.png`, { frameWidth: size, frameHeight: size });
+  }
+  for (const name of ['aura', 'burst']) {
+    const { frameWidth, frameHeight } = AWAKEN[name];
+    load.spritesheet(unchartedKey(name), `${path}awaken_${name}_sheet.png`, { frameWidth, frameHeight });
+  }
+  for (const { key } of Object.values(SPRITES.heroes)) {
+    load.image(awakenedKey(key), `${path}awakened/${key}.png`);
+    load.spritesheet(sheetKey(awakenedKey(key)), `${path}awakened/${key}_sheet.png`, { frameWidth: 32, frameHeight: 32 });
+  }
+}
+
 function preloadMap(load) {
   load.image(mapKey('bg'), `${MAP.path}map_bg.png`);
   load.image(mapKey('flag'), `${MAP.path}flag_cleared.png`);
@@ -304,6 +332,7 @@ export function preloadSprites(scene) {
   preloadMerchants(load);
   preloadFishing(load);
   preloadTutorial(load);
+  preloadUncharted(load);
   for (const { key: file, dir } of ANIMATION_FILES) {
     load.json(file, `${dir}${file}.json`);
     load.once(`filecomplete-json-${file}`, (key, type, data) => {
@@ -348,6 +377,22 @@ export function createAnimations(scene) {
     });
   }
   createGalleyAnimations(scene);
+  // The Uncharted Seas' 12px item icons each as a texture of its own,
+  // unchartedKey('icon_<item>') (the UI kit's buttons take a texture key).
+  const legend = scene.cache.json.get(UNCHARTED_JSON_KEY);
+  if (legend && scene.textures.exists(unchartedKey('icons12'))) {
+    legend.items.order.forEach((name, frame) => {
+      const key = unchartedKey(`icon_${name}`);
+      if (!scene.textures.exists(key)) scene.textures.createCanvas(key, 12, 12).drawFrame(unchartedKey('icons12'), frame).refresh();
+    });
+  }
+  // The awakening's aura (looping behind awakened crew) and burst (once).
+  for (const [name, repeat] of [['aura', -1], ['burst', 0]]) {
+    const key = unchartedKey(name);
+    if (scene.anims.exists(key) || !scene.textures.exists(key)) continue;
+    const { frames, fps } = AWAKEN[name];
+    scene.anims.create({ key, frames: scene.anims.generateFrameNumbers(key, { start: 0, end: frames - 1 }), frameRate: fps, repeat });
+  }
   // Effects with more than one frame animate as fx_<name>; repeat 0 ones
   // play once and hold their last frame.
   const effects = FX_FILES.flatMap(({ key }) => Object.entries(scene.cache.json.get(key) ?? {}));
@@ -362,7 +407,10 @@ export function createAnimations(scene) {
     });
   }
   const sheets = ANIMATION_FILES.flatMap(({ key }) => Object.entries(scene.cache.json.get(key) ?? {}));
-  for (const [name, { frameWidth, frameHeight, ...anims }] of sheets) {
+  // Awakened crew: the same animations on their awakened sheets.
+  const crewKeys = new Set(Object.values(SPRITES.heroes).map((h) => h.key));
+  const awake = sheets.filter(([name]) => crewKeys.has(name)).map(([name, spec]) => [awakenedKey(name), spec]);
+  for (const [name, { frameWidth, frameHeight, ...anims }] of [...sheets, ...awake]) {
     for (const [anim, spec] of Object.entries(anims)) {
       const key = animKey(name, anim);
       // Skip extra data (gunPorts, mouth, position, feet...) and animations already made.

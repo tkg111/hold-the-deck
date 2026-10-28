@@ -1,5 +1,6 @@
 import {
   EXPEDITIONS, FISHING, HEROES, ISLANDS, PARTS, SPRITES,
+  UNCHARTED,
 } from '../config.js';
 import { islandContent, waveGold } from './WaveManager.js';
 import {
@@ -203,6 +204,8 @@ export function rollLoot(progress, destId, party, durationId, random = Math.rand
   if (p.bait) {
     const { fish } = FISHING.expedition;
     loot.bait = between(p.bait);
+    // and Grog, once the Uncharted Seas are open.
+    if (progress.unchartedUnlocked) loot.grog = between(UNCHARTED.grog.coral);
     loot.fish = random() < p.fishChance ? fish[Math.floor(random() * fish.length)] : null;
   }
   return loot;
@@ -275,6 +278,7 @@ export function collect(progress, slot) {
   for (const tier of chests) progress.addFreeChest(tier);
   if (loot.material) progress.addMaterial(loot.material.id, loot.material.count);
   if (loot.bait) progress.addBait(loot.bait);
+  if (loot.grog) progress.addGrog(loot.grog);
   if (loot.fish) progress.addFish(loot.fish);
   for (const id of e.party) {
     if (!progress.isOwned(id) || progress.slotOf(id) >= 0) continue;
@@ -328,6 +332,7 @@ export function entryFromSave(r, progress, taken, now = Date.now()) {
       bonus,
       material,
       bait: count(loot.bait),
+      grog: count(loot.grog),
       fish: typeof loot.fish === 'string' && FISHING.expedition.fish.includes(loot.fish) ? loot.fish : null,
     },
     story: typeof r.story === 'string' ? r.story.slice(0, 200) : '',

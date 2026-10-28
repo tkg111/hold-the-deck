@@ -3,6 +3,7 @@ import { audio } from './audio/Audio.js';
 import { canvasSize, installScaling, setLargeText } from './display.js';
 import { AbyssEndScene } from './scenes/AbyssEndScene.js';
 import { AwayScene } from './scenes/AwayScene.js';
+import { ChartScene } from './scenes/ChartScene.js';
 import { CollectionScene } from './scenes/CollectionScene.js';
 import { EndingScene } from './scenes/EndingScene.js';
 import { ExpeditionScene } from './scenes/ExpeditionScene.js';
@@ -13,6 +14,7 @@ import { MapScene } from './scenes/MapScene.js';
 import { PackScene } from './scenes/PackScene.js';
 import { RankingsScene } from './scenes/RankingsScene.js';
 import { ShipyardScene } from './scenes/ShipyardScene.js';
+import { StageEndScene } from './scenes/StageEndScene.js';
 import { TitleScene } from './scenes/TitleScene.js';
 import { TutorialScene, TutorialView } from './scenes/TutorialScene.js';
 import { WantedScene } from './scenes/WantedScene.js';
@@ -46,7 +48,7 @@ loadUiSpec().then(() => {
     // A long press (or right click) on the canvas opens no menu.
     disableContextMenu: true,
     // First: the title, which loads everything and then starts the battle.
-    scene: [TitleScene, GameScene, PackScene, CollectionScene, WantedScene, MapScene, LogScene, EndingScene, ExpeditionScene, ShipyardScene, AbyssEndScene, GalleyScene, AwayScene,
+    scene: [TitleScene, GameScene, PackScene, CollectionScene, WantedScene, MapScene, LogScene, EndingScene, ExpeditionScene, ShipyardScene, AbyssEndScene, GalleyScene, AwayScene, ChartScene, StageEndScene,
       // Over the map and the Captain's Log, which open it.
       RankingsScene,
       // Last: over every other scene.

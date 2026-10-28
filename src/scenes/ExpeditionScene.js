@@ -11,6 +11,7 @@ import { saveProgress } from '../systems/Save.js';
 import { tutorial } from '../tutorial/TutorialManager.js';
 import { materialOf } from '../systems/Parts.js';
 import { materialIcon } from '../ui/parts.js';
+import { itemIcon } from '../ui/uncharted.js';
 import { Button } from '../ui/Button.js';
 import {
   cssColor, fmtClock, fmtShortTime, formatNum, starLabel,
@@ -537,6 +538,7 @@ export class ExpeditionScene extends Phaser.Scene {
     for (const tier of loot.chests) list.push({ kind: 'chest', tier });
     if (loot.material) list.push({ kind: 'material', id: loot.material.id, amount: loot.material.count });
     if (loot.bait) list.push({ kind: 'bait', amount: loot.bait });
+    if (loot.grog) list.push({ kind: 'grog', amount: loot.grog });
     if (loot.fish) list.push({ kind: 'fish', id: loot.fish, amount: 1 });
     if (loot.bonus) list.push({ ...loot.bonus, bonus: true });
     return list;
@@ -616,6 +618,7 @@ export class ExpeditionScene extends Phaser.Scene {
     if (r.kind === 'pearls') return 0xbfe6ff;
     if (r.kind === 'material') return 0xc8ffe0;
     if (r.kind === 'bait' || r.kind === 'fish') return 0xff8a9a;
+    if (r.kind === 'grog') return 0xe0b070;
     return 0xffd86a;
   }
 
@@ -624,6 +627,7 @@ export class ExpeditionScene extends Phaser.Scene {
   rewardArt(r) {
     if (r.kind === 'material') return materialIcon(this, 0, -14, r.id).setScale(2);
     if (r.kind === 'bait') return this.add.image(0, -14, fishingKey('items'), itemFrame('bait')).setScale(2);
+    if (r.kind === 'grog') return itemIcon(this, 0, -14, 'grog', 16).setScale(2);
     if (r.kind === 'fish') return this.add.image(0, -14, fishingKey('fish'), fishOf(r.id)?.index ?? 0).setScale(2);
     const name = r.kind === 'chest' ? 'chest' : r.kind === 'pearls' ? 'pearl' : 'gold';
     return icon(this, 0, -14, name).setScale(3);
@@ -646,6 +650,9 @@ export class ExpeditionScene extends Phaser.Scene {
     } else if (r.kind === 'bait') {
       amount = `+${formatNum(r.amount)}`;
       label = 'BAIT';
+    } else if (r.kind === 'grog') {
+      amount = `+${formatNum(r.amount)}`;
+      label = 'GROG';
     } else if (r.kind === 'fish') {
       amount = '+1';
       label = (fishOf(r.id)?.name ?? '').toUpperCase();

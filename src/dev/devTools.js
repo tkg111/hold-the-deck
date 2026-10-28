@@ -114,7 +114,23 @@ export function installDevTools(scene) {
     },
   });
 
-  const buttons = [devButton, pearlsButton, waveButton, islandButton, bossButton, expeditionsButton, materialsButton, abyssButton];
+  // The Uncharted Seas open (a dive counted, the Abyss revealed), a full
+  // Grog ration plus 30, and 30 of every Sea Glass and 5 Hearts.
+  const unchartedButton = new Button(scene, 64, 125, {
+    ...small, width: 124, label: 'DEV UNCHARTED +ITEMS',
+    onClick: () => {
+      if (scene.state !== 'idle') return;
+      progress.abyss.runs = Math.max(1, progress.abyss.runs);
+      progress.abyss.revealed = true;
+      progress.addGrog(30);
+      for (const id of Object.keys(progress.uncharted.items)) progress.uncharted.items[id] += id === 'heart' ? 5 : 30;
+      scene.shipwright.refresh();
+      scene.refreshUi();
+      scene.save();
+    },
+  });
+
+  const buttons = [devButton, pearlsButton, waveButton, islandButton, bossButton, expeditionsButton, materialsButton, abyssButton, unchartedButton];
   const corner = scene.add.container(0, 0, buttons).setDepth(20);
   // (Lifted clear of AUTO NEXT, which may sit above the button bar.)
   const layout = (view) => corner.setPosition(view.left, Math.round(view.bottom - DISPLAY.height) - 40);
