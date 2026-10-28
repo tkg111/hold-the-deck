@@ -2272,3 +2272,29 @@ other meals weren't simulated: their effects are gold or hazard-specific
 only comes from the Golden Koi Feast (+10% damage and +10% attack speed,
 from a 1% Legendary catch), the Swordfish Steak (+20%, against bosses only)
 and the Ember Eel Skewers (+5%).
+
+## 17. Offline earnings (While you were away)
+
+Playtest: a night away paid too much. The old rule, idleRate x 15% for up
+to 8 hours, paid a Frostbite Reef wave-25 save (idle rate about 40K gold
+per second, a wave worth about 3.0M in about 75 s of battle) about 171M
+for a full night: 58 waves of income for doing nothing.
+
+New rule (`MOBILE.offline`, `src/systems/Offline.js`):
+
+    payout = min(idleRate x 0.10 x min(away, 4 h), 8 x waveGold)
+
+`waveGold` is one wave's gold (kills and clear bonus) at the furthest
+island and wave reached, or the Abyss depth under way. The same save now
+gets:
+
+| Away   | Old              | New                                  |
+|--------|------------------|--------------------------------------|
+| 30 min | 10.7M (3.6 waves)| 7.1M (2.4 waves)                     |
+| 2 h    | 42.7M (14.4)     | 23.7M (8.0, the hold is full)        |
+| 8 h    | 171.0M (57.8)    | 23.7M (8.0, the hold is full)        |
+
+The hold fills after about 1 h 40 m at this pace, so a full night pays 8
+waves at most; the 4-hour time cap only binds for a save whose idle rate is
+low next to its wave gold (one that hasn't battled much lately). It doesn't
+change how hard any wave is, so the balance sim is unchanged.

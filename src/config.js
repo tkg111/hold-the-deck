@@ -2999,6 +2999,8 @@ export const TITLE = {
 //     (weight emaWeight) of the gold per second of battle, sampled at each
 //     wave cleared on an island or in the Abyss (not Boss Hunts); away
 //     earnings are idleRate x share per second away, at most capMs of it,
+//     and at most waveCap waves' worth of gold (one wave at the furthest
+//     island and wave reached, or the depth under way: Offline.waveGoldOf),
 //     nothing under minAwayMs. A page hidden for returnAfterMs or more counts
 //     as coming back. The panel fades in over openMs as its ledger
 //     (ledger_sheet.png, ledgerFrame px square frames: closed, open) opens;
@@ -3011,8 +3013,9 @@ export const MOBILE = {
   portrait: { maxWidth: 600, iconScale: 4 },
   offline: {
     emaWeight: 0.2,
-    share: 0.15,
-    capMs: 8 * 60 * 60 * 1000,
+    share: 0.10,
+    capMs: 4 * 60 * 60 * 1000,
+    waveCap: 8,
     minAwayMs: 2 * 60 * 1000,
     returnAfterMs: 2 * 60 * 1000,
     countMs: 800,

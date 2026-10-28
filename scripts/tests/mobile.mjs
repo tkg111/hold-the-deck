@@ -3,11 +3,12 @@
 // Run: npm test
 import assert from 'node:assert/strict';
 import { deflateRawSync } from 'node:zlib';
-import { MOBILE } from '../../src/config.js';
+import { ISLANDS, MOBILE } from '../../src/config.js';
 import { Progress } from '../../src/systems/Progress.js';
 import {
-  awayEarnings, collect, comeBack, formatAway, sampleIdleRate,
+  awayEarnings, collect, comeBack, formatAway, sampleIdleRate, waveGoldOf,
 } from '../../src/systems/Offline.js';
+import { waveGold } from '../../src/systems/WaveManager.js';
 import { progressFromRecord, SAVE_VERSION } from '../../src/systems/Save.js';
 import { decodeSave, encodeSave } from '../../src/systems/SaveCode.js';
 import { UpdateGate } from '../../src/systems/UpdateGate.js';
@@ -131,26 +132,53 @@ const NOW = Date.UTC(2026, 9, 23, 12);
 test('offline: away under 2 minutes pays nothing', () => {
   const at = (ms) => awayEarnings({ idleRate: 100, lastSeen: NOW - ms, now: NOW });
   assert.equal(O.minAwayMs, 2 * MIN);
-  assert.equal(O.share, 0.15);
+  assert.equal(O.share, 0.10);
   assert.equal(at(0).gold, 0);
   assert.equal(at(2 * MIN - 1).gold, 0);
-  assert.equal(at(2 * MIN).gold, 100 * O.share * 120);
+  assert.equal(at(2 * MIN).gold, Math.floor(100 * O.share * 120));
 });
 
-test('offline: pays idleRate x share x time away, up to 8 hours', () => {
+test('offline: pays idleRate x share x time away, up to 4 hours', () => {
   const at = (ms) => awayEarnings({ idleRate: 40, lastSeen: NOW - ms, now: NOW });
-  assert.deepEqual(at(HOUR), { awayMs: HOUR, capped: false, gold: 40 * O.share * 3600, backwards: false });
-  assert.equal(at(8 * HOUR).gold, 40 * O.share * 8 * 3600);
-  assert.equal(at(8 * HOUR).capped, false);
+  assert.deepEqual(at(HOUR), {
+    awayMs: HOUR, capped: false, full: false, gold: Math.floor(40 * O.share * 3600), backwards: false,
+  });
+  assert.equal(O.capMs, 4 * HOUR);
+  assert.equal(at(4 * HOUR).gold, Math.floor(40 * O.share * 4 * 3600));
+  assert.equal(at(4 * HOUR).capped, false);
   const long = at(30 * HOUR);
-  assert.equal(long.gold, 40 * O.share * 8 * 3600);
+  assert.equal(long.gold, Math.floor(40 * O.share * 4 * 3600));
   assert.equal(long.capped, true);
   assert.equal(long.awayMs, 30 * HOUR);
 });
 
+test('offline: never more than 8 waves of gold (the hold is full)', () => {
+  const at = (ms) => awayEarnings({
+    idleRate: 40, lastSeen: NOW - ms, now: NOW, waveGold: 1000,
+  });
+  assert.equal(O.waveCap, 8);
+  // 40 x 0.1 x 3600 = 14,400 per hour: under 8,000 for 30 minutes...
+  assert.deepEqual([at(30 * MIN).gold, at(30 * MIN).full], [7200, false]);
+  // ...held at 8 x 1,000 after that, and the time cap isn't the one shown.
+  assert.deepEqual([at(HOUR).gold, at(HOUR).full, at(HOUR).capped], [8000, true, false]);
+  assert.deepEqual([at(30 * HOUR).gold, at(30 * HOUR).full, at(30 * HOUR).capped], [8000, true, false]);
+});
+
+test('offline: the hold is one wave at the furthest island and wave reached', () => {
+  const p = new Progress();
+  const skull = waveGoldOf(p);
+  assert.ok(skull > 0);
+  p.islands.frostbite_reef = {
+    wave: 25, best: 24, cleared: false, bossPaid: 0, dropsPaid: {},
+  };
+  const frost = ISLANDS.find((i) => i.id === 'frostbite_reef');
+  assert.equal(waveGoldOf(p), waveGold(25, { island: frost, offset: frost.waveOffset }));
+  assert.ok(waveGoldOf(p) > skull);
+});
+
 test('offline: a clock that went backwards pays nothing and resets lastSeen', () => {
   assert.deepEqual(awayEarnings({ idleRate: 100, lastSeen: NOW + HOUR, now: NOW }), {
-    awayMs: 0, capped: false, gold: 0, backwards: true,
+    awayMs: 0, capped: false, full: false, gold: 0, backwards: true,
   });
   const p = new Progress();
   p.idleRate = 100;
@@ -160,7 +188,7 @@ test('offline: a clock that went backwards pays nothing and resets lastSeen', ()
   assert.equal(p.lastSeen, NOW);
   assert.equal(p.gold, gold);
   // ...and the next return counts from the reset.
-  assert.equal(comeBack(p, NOW + HOUR).gold, 100 * O.share * 3600);
+  assert.equal(comeBack(p, NOW + HOUR).gold, Math.min(100 * O.share * 3600, O.waveCap * waveGoldOf(p)));
 });
 
 test('offline: a new save pays nothing', () => {
@@ -189,7 +217,7 @@ test('offline: comeBack reports gold, Bait refilled and expeditions back; collec
   p.bait = 2;
   p.baitAt = NOW - 3 * HOUR - 1000;
   const report = comeBack(p, NOW);
-  assert.equal(report.gold, 10 * O.share * 3 * 3600);
+  assert.equal(report.gold, Math.min(10 * O.share * 3 * 3600, Math.floor(O.waveCap * waveGoldOf(p))));
   assert.equal(report.expeditions, 0);
   assert.equal(report.bait.from, 2);
   assert.equal(report.bait.to, p.bait);

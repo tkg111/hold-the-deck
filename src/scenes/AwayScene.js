@@ -22,8 +22,8 @@ const O = MOBILE.offline;
 // While you were away: back after time away (Offline.comeBack), a parchment
 // panel over the paused battle, fading in as the ship's ledger opens, with
 // the Captain's mini portrait and "The crew kept busy, Cap'n!", then a row
-// each: the time away (capped at 8 h), the gold (counting up with coin
-// ticks), expeditions back (with a button to them, if they can open now)
+// each: the time away ("(MAX 4 H)" past the time cap), the gold (counting
+// up with coin ticks; "(HOLD IS FULL)" when the waves cap held it back), expeditions back (with a button to them, if they can open now)
 // and Bait refilled. Collect plays plunder and pays.
 // Launched with { report, canOpenExpeditions, onCollect, onExpeditions }.
 export class AwayScene extends Phaser.Scene {
@@ -73,7 +73,10 @@ export class AwayScene extends Phaser.Scene {
         if (r.capped) add(text(this, vx + t.inkWidth + 4, ry, `(MAX ${O.capMs / 3600000} H)`, subText()).setOrigin(0, 0.5));
       } else if (kind === 'gold') {
         add(icon(this, vx + 6, ry, 'gold'));
-        this.goldText = add(text(this, vx + 15, ry, '+0', dark()).setOrigin(0, 0.5));
+        this.goldText = add(text(this, vx + 15, ry, `+${formatNum(r.gold)}`, dark()).setOrigin(0, 0.5));
+        // The hold's limit (Offline: waveCap waves' gold), after the final amount.
+        if (r.full) add(text(this, vx + 15 + this.goldText.inkWidth + 4, ry, '(HOLD IS FULL)', subText()).setOrigin(0, 0.5));
+        this.goldText.setText('+0');
       } else if (kind === 'expeditions') {
         const n = r.expeditions;
         // (No label: the line starts in the labels' column, clear of OPEN.)
