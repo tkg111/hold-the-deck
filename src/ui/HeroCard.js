@@ -1,5 +1,9 @@
-import { HEROES, PACKS, RARITY, SPRITES, UI_KIT } from '../config.js';
+import {
+  AWAKEN, HEROES, PACKS, RARITY, SPRITES, UI_KIT,
+} from '../config.js';
+import { awakenedKey } from '../sprites.js';
 import { traitOf } from '../systems/Expeditions.js';
+import { awakening } from '../systems/Uncharted.js';
 import { cssColor, formatNum } from './format.js';
 import { describeHero } from './HeroPicker.js';
 import {
@@ -24,9 +28,11 @@ const SIZES = {
 //   away:       a label (e.g. the time left) for a hero away on an
 //               expedition: an hourglass and the label over the sprite, in
 //               card.awayText so it can be updated
+//   awakened:   Crew Awakening's: the awakened card art and title, and a
+//               small gold border round the card
 // Every known hero's trait icon sits in the top-left corner under the plate.
 export function createHeroCard(scene, x, y, id, {
-  size = 'large', stars = null, bonus = 0, level = null, silhouette = false, away = null,
+  size = 'large', stars = null, bonus = 0, level = null, silhouette = false, away = null, awakened = false,
 } = {}) {
   const S = SIZES[size];
   const def = HEROES[id];
@@ -36,6 +42,7 @@ export function createHeroCard(scene, x, y, id, {
   const top = -h / 2;
   const card = scene.add.container(x, y);
 
+  if (awakened && !silhouette) card.add(scene.add.rectangle(0, 0, w + 2, h + 2).setStrokeStyle(1, AWAKEN.border));
   card.add(panel(scene, -w / 2, top, w, h, silhouette ? 'wood' : 'parchment'));
   card.add(panel(scene, -w / 2, top, w, S.plate, 'wood'));
   card.add(text(scene, 0, top + (S.plate / 2), silhouette ? '???' : rarity.label.toUpperCase(), {
@@ -44,7 +51,7 @@ export function createHeroCard(scene, x, y, id, {
 
   // Sprite standing on a line below the plate.
   const feetY = top + (S.plate + 2) + (32 * S.spriteScale);
-  card.add(heroPortrait(scene, id, feetY, S.spriteScale, silhouette));
+  card.add(heroPortrait(scene, id, feetY, S.spriteScale, silhouette, awakened));
   // Anti-air crew: a mark in the top-right corner under the plate.
   if (!silhouette && hitsFlyers(def)) card.add(antiAirIcon(scene, w / 2 - 8, top + S.plate + 7));
   if (!silhouette) card.add(traitIcon(scene, -w / 2 + 9, top + S.plate + 8, traitOf(id)));
@@ -58,9 +65,14 @@ export function createHeroCard(scene, x, y, id, {
   }
 
   let ty = feetY + 1;
-  const name = text(scene, 0, ty, silhouette ? '???' : def.name, silhouette ? light() : dark()).setOrigin(0.5, 0);
-  // Too wide for the card (Voodoo Priestess): the short name.
-  if (!silhouette && name.inkWidth > w - 6) name.setText(def.shortName);
+  const title = awakened && !silhouette ? awakening(id).title : def.name;
+  const name = text(scene, 0, ty, silhouette ? '???' : title, silhouette ? light() : dark()).setOrigin(0.5, 0);
+  // Too wide for the card (Voodoo Priestess): the short name (an awakened
+  // title: the small font).
+  if (!silhouette && name.inkWidth > w - 6) {
+    if (awakened) name.setFontKey('small_dark');
+    else name.setText(def.shortName);
+  }
   card.add(name);
   ty += 15;
   if (silhouette) {
@@ -93,14 +105,15 @@ const STAR_ROW_HALF = Math.ceil((PACKS.maxStars * 5 + (PACKS.maxStars - 1)) / 2)
 const rarityColorOnWood = (rarity) => cssColor(RARITY[rarity].color);
 
 // The hero's single sprite (or a rectangle in their colour without one),
-// feet at feetY. Black for a silhouette.
-function heroPortrait(scene, id, feetY, scale, silhouette) {
+// feet at feetY. Black for a silhouette; its awakened art once awakened.
+function heroPortrait(scene, id, feetY, scale, silhouette, awakened = false) {
   const sprite = SPRITES.heroes[id];
   if (!sprite) {
     return scene.add.rectangle(0, feetY, (16 * scale), (26 * scale), silhouette ? 0x000000 : HEROES[id].color)
       .setOrigin(0.5, 1);
   }
-  const image = scene.add.image(0, feetY, sprite.key).setOrigin(0.5, 1).setScale(scale);
+  const key = awakened && scene.textures.exists(awakenedKey(sprite.key)) ? awakenedKey(sprite.key) : sprite.key;
+  const image = scene.add.image(0, feetY, key).setOrigin(0.5, 1).setScale(scale);
   if (silhouette) image.setTintFill(0x000000);
   return image;
 }

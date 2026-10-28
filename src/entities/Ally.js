@@ -13,11 +13,14 @@ export const fightsOnLane = (e) => e.canBeHit(false) && !e.def.flies && !e.def.f
 // until the first ground enemy ahead and fights it, for `duration` ms or
 // until beaten. Enemies that walk into it stop and fight it (see
 // Enemy.allyAhead). hp, damage: its own numbers (from the Bone Caller's
-// damage); source: who its hits are credited to (BattleStats).
+// damage); source: who its hits are credited to (BattleStats). explode:
+// { radius, damage } when an awakened Bone Caller raised it: beaten, it
+// blows up on the enemies near it.
 export class AllySkeleton {
   constructor(scene, x, {
-    hp, damage, duration, source, circle,
+    hp, damage, duration, source, circle, explode = null,
   }) {
+    this.explode = explode;
     const spec = ALLIES.skeleton;
     this.scene = scene;
     this.spec = spec;
@@ -102,7 +105,17 @@ export class AllySkeleton {
   takeDamage(amount) {
     if (!this.alive) return;
     this.hp -= amount;
-    if (this.hp <= 0) this.crumble();
+    if (this.hp > 0) return;
+    if (this.explode) this.blowUp();
+    this.crumble();
+  }
+
+  blowUp() {
+    const { radius, damage } = this.explode;
+    playFx(this.scene, 'explosion', Math.round(this.x), Math.round(this.feetY - 10));
+    for (const e of this.scene.enemies) {
+      if (e.alive && !e.airborne && Math.abs(e.x - this.x) <= radius) e.takeDamage(damage, { lobbed: true, source: this.source });
+    }
   }
 
   // Its time is up or it's beaten: it fades away.

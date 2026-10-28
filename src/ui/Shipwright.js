@@ -1,4 +1,6 @@
-import { HEROES, SHIP, UI_KIT } from '../config.js';
+import {
+  AWAKEN, HEROES, SHIP, UI_KIT,
+} from '../config.js';
 import { sfx } from '../audio/Sfx.js';
 import { Button } from './Button.js';
 import { formatNum } from './format.js';
@@ -8,6 +10,8 @@ import {
 import { ScrollPanel } from './ScrollPanel.js';
 import { materialIcon } from './parts.js';
 import { PART_DATA, partOf } from '../systems/Parts.js';
+import { awakening } from '../systems/Uncharted.js';
+import { unchartedKey } from '../sprites.js';
 import { tutorial } from '../tutorial/TutorialManager.js';
 import { unionBounds } from '../tutorial/targets.js';
 
@@ -31,21 +35,32 @@ const BAR_ROOM = 4;
 // ('upgrade-bought' { kind: 'hull' | 'deck' | 'crew' }), and registers the
 // tutorial's targets (the panel, its handle, tabs and buy amount toggle,
 // the cheapest crew upgrade's and Build deck's buy buttons).
+// Once the Uncharted Seas are open, each crew row not awakened yet has a
+// small Awaken button (the Heart of the Deep) left of its buy button
+// (onAwaken(id); gold while it can be done now, wood otherwise); an
+// awakened crewmate's row shows its awakened title and a gold frame round
+// its face.
 export class Shipwright extends ScrollPanel {
-  constructor(scene, x, y, progress, { onPurchase, onSettingChange, onOpenShipyard }) {
+  constructor(scene, x, y, progress, {
+    onPurchase, onSettingChange, onOpenShipyard, onAwaken,
+  }) {
     const header = UI_KIT.shipwrightHeader;
     super(scene, x, y, UI_KIT.shipwrightWidth, { title: 'SHIPWRIGHT', headerHeight: header.height });
     this.progress = progress;
     this.onPurchase = onPurchase;
     this.onSettingChange = onSettingChange;
     this.onOpenShipyard = onOpenShipyard;
+    this.onAwaken = onAwaken;
     this.tab = 'crew';
     this.entries = [];
     this.anchor = null;
     this.createHeader();
     this.createHandle();
     // A drag that starts on a buy button scrolls instead of buying.
-    this.on('drag-start', () => this.entries.forEach((e) => e.button.cancelPress()));
+    this.on('drag-start', () => this.entries.forEach((e) => {
+      e.button.cancelPress();
+      e.awaken?.cancelPress();
+    }));
     this.rebuild();
     this.registerTargets();
   }
@@ -223,10 +238,14 @@ export class Shipwright extends ScrollPanel {
     return crew.map((id) => {
       const def = HEROES[id];
       const lv = () => p.heroLevel(id);
+      const awake = p.isAwakened(id);
       return {
         kind: 'crew',
-        art: (s) => face(s, 6, 11, id),
-        name: def.name,
+        id,
+        art: (s) => (awake
+          ? s.add.container(0, 0, [s.add.rectangle(6, 11, 18, 16).setStrokeStyle(1, AWAKEN.border), face(s, 6, 11, id)])
+          : face(s, 6, 11, id)),
+        name: awake ? awakening(id).title : def.name,
         short: def.shortName,
         level: () => `LV ${formatNum(lv())}`,
         costAt: (k) => p.heroLevelCost(id, lv() + k),
@@ -266,6 +285,13 @@ export class Shipwright extends ScrollPanel {
         onClick: () => this.buy(entry),
       });
     row.add([def.art(scene), name, level, afford, statFrom, statArrow, statTo, entry.button]);
+    if (def.kind === 'crew') {
+      entry.awaken = new Button(scene, this.listWidth - bw - 13, 2 + bh / 2, {
+        width: 20, height: bh, icon: unchartedKey('icon_heart'), label: '', onRelease: true,
+        onClick: () => this.onAwaken?.(def.id),
+      });
+      row.add(entry.awaken);
+    }
     return entry;
   }
 
@@ -337,6 +363,11 @@ export class Shipwright extends ScrollPanel {
           .setLabelColor(plan.affordable ? null : UI.colors.warn);
       }
       button.setEnabled(plan.affordable);
+      if (e.awaken) {
+        const p = this.progress;
+        const show = p.unchartedUnlocked && !p.isAwakened(def.id);
+        e.awaken.setVisible(show).setStyle(show && p.canAwaken(def.id) ? 'gold' : 'wood');
+      }
     }
     this.handleAfford.setVisible(this.anyAffordable);
   }

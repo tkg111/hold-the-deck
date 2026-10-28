@@ -27,7 +27,7 @@ export class AbilitySystem {
     this.slots = heroes.map((hero) => ({
       hero,
       id: hero.id,
-      def: ABILITIES[hero.id],
+      def: hero.abilityDef ?? ABILITIES[hero.id],   // an awakened crewmate's (AWAKEN.crew)
       scale: progress.abilityScale(hero.id),
       cooldown: 0,
     }));
@@ -82,6 +82,7 @@ export class AbilitySystem {
 
   update(dt, auto) {
     for (const s of this.slots) s.cooldown = Math.max(0, s.cooldown - dt);
+    this.scene.ship.tickShield?.(dt);
     this.effects = this.effects.filter((fx) => {
       if (fx.update(dt)) return true;
       fx.destroy();
@@ -236,6 +237,7 @@ const ACTIONS = {
     sys.effects.push(new HealRise(sys.scene, def));
     const at = ship.hullTarget();
     sys.scene.floatText(at.x, at.y - def.rise, `+${formatNum(Math.round(healed))} HP`, cssColor(def.color));
+    if (def.shieldMs) ship.shield(def.shieldMs);
   },
 
   // Deadeye: marks the toughest enemy, then one huge shot at it.
@@ -245,7 +247,7 @@ const ACTIONS = {
 
   // Haunt: every walker on screen flees back toward the island.
   ghostPirate(sys, { def, scale }) {
-    for (const e of sys.targets({ needs: 'movable' })) e.applyFear(def.duration * scale);
+    for (const e of sys.targets({ needs: 'movable' })) e.applyFear(def.duration * scale, def.fearBonus ?? 0);
   },
 
   // Tidal Wave: a wave rolls along the lane, pushing walkers back.
@@ -267,12 +269,17 @@ const ACTIONS = {
   // Inferno: a wall of fire on the lane that burns walkers going through.
   fireBreather(sys, { hero, def, scale }) {
     sys.effects.push(new InfernoWall(sys, def, hero.damage * def.damagePerSecond, def.duration * scale, hero.source.effect));
+    if (def.burnsFlyers) {
+      for (const e of sys.targets({ air: true, needs: 'flyers' })) {
+        e.applyBurn(hero.damage * def.damagePerSecond, def.duration * scale, hero.source.effect);
+      }
+    }
     sfx.play('cook');
   },
 
   // Temper Steel: the whole crew hits harder for a while.
   blacksmith(sys, { def, scale }) {
-    for (const h of sys.scene.heroes) h.addBoost(1 + def.bonus, def.duration * scale, def.fx, 'damage');
+    for (const h of sys.scene.heroes) h.addBoost(1 + def.bonus, def.duration * scale, def.fx, 'damage', def.crit ?? null);
   },
 
   // Whale Hunt: one huge spear at the enemy with the most HP.
@@ -283,6 +290,7 @@ const ACTIONS = {
       ...hero.muzzlePoint(), target: toughest(), speed: def.speed, sprite: def.sprite, rotate: true,
       onHit: (hit, x, y) => {
         hit.takeDamage(hero.damage * def.damage, { ignoreArmor: true, source: hero.source.ability });
+        if (def.freeze && hit.alive && !hit.applyFreeze(def.freeze)) hit.applyStun(def.freeze);
         playFx(scene, def.impact, x, y);
         shake(scene, def.shake);
         sfx.play('cannon');
@@ -298,6 +306,7 @@ const ACTIONS = {
     for (const e of sys.targets({ air: true })) {
       if (e.def.boss) e.applyChill(def.slow, duration);
       else if (e.applyFreeze(duration)) frozen++;
+      if (def.after && !e.def.boss) e.applyChill(def.after.factor, duration + def.after.duration);
     }
     sys.scene.stats?.add(hero.id, 'stuns', frozen);
     sys.effects.push(new AuroraVeil(sys.scene, def, duration));
@@ -310,6 +319,7 @@ const ACTIONS = {
     const ring = playFx(scene, def.sprite, LAYOUT.shipContactX + def.ringX, laneFeetY(LAYOUT.shipContactX) - def.ringY);
     ring.setOrigin(0, 0.5).setScale(def.ringScale);
     for (const e of sys.targets({ air: true, needs: 'near', near: def.radius })) {
+      if (def.breakShields) e.stripShields();
       e.takeDamage(hero.damage * def.damage, { source: hero.source.ability });
       if (!e.alive) continue;
       e.pushBack(def.push, def.pushSpeed);
@@ -327,6 +337,7 @@ const ACTIONS = {
       duration: def.duration * scale,
       source: hero.source.ability,
       circle: def.circle,
+      explode: def.explode ? { radius: def.explode.radius, damage: def.explode.damage * hero.damage } : null,
     }));
     sys.allies.push(...raised);
     sys.effects.push(new AlliesOut(raised));
@@ -580,6 +591,10 @@ class Deadeye {
       ...hero.muzzlePoint(), target: e, speed: def.speed, sprite: projectile.sprite, rotate: true,
       onHit: (hit, x, y) => {
         hit.takeDamage(hero.damage * def.damage, { ignoreArmor: true, throughShield: true, source: hero.source.ability });
+        // An awakened Sharpshooter's finishes off what's left (not a boss).
+        if (def.execute && hit.alive && !hit.def.boss && hit.hp < hit.maxHp * def.execute) {
+          hit.takeDamage(hit.hp, { ignoreArmor: true, throughShield: true, source: hero.source.ability });
+        }
         playFx(scene, projectile.impact, x, y);
         shake(scene, def.shake);
       },
@@ -651,7 +666,7 @@ class HexCast {
     const { def } = this;
     const burst = fxDuration(this.sys.scene, def.impact);
     for (const e of this.sys.targets({ air: true })) {
-      e.applyCurse(def.bonus, def.duration * this.scale, this.hero.source.effect);
+      e.applyCurse(def.bonus, def.duration * this.scale, this.hero.source.effect, def.curseJump ?? 0);
       e.delayCurseMark(burst);
       playFx(this.sys.scene, def.impact, e.x, e.y);
     }

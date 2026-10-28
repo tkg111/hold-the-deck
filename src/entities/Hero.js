@@ -3,8 +3,11 @@ import {
 } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
 import { FX_DEPTH, fxSprite, playFx } from '../fx.js';
-import { findAnim, fxKey, sheetKey } from '../sprites.js';
+import {
+  awakenedKey, findAnim, fxKey, sheetKey, unchartedKey,
+} from '../sprites.js';
 import { damageSource } from '../systems/BattleStats.js';
+import { abilityDef, heroDef } from '../systems/Uncharted.js';
 import { DEPTH } from './Ship.js';
 import {
   ChainLightning, LobProjectile, nearestLiving, PiercingProjectile, Projectile,
@@ -17,12 +20,15 @@ export class Hero {
   // attacks on bosses (the active meal's).
   // The hero stands with its feet at (x, feetY); this.y is the middle of its
   // body, where shots start.
+  // awakened: Crew Awakening's (its awakened definitions, sheet and aura).
   constructor(scene, id, { index, x, feetY }, {
-    damage, attackInterval, buffed = false, aura = null, bossDamage = 1,
+    damage, attackInterval, buffed = false, aura = null, bossDamage = 1, awakened = false,
   }) {
     this.scene = scene;
     this.id = id;
-    this.def = HEROES[id];
+    this.awakened = awakened;
+    this.def = heroDef(id, awakened);
+    this.abilityDef = abilityDef(id, awakened);
     this.aura = aura;
     this.slot = index;
     this.deck = Math.floor(index / SHIP.slotsPerDeck);   // 0 = the bottom deck
@@ -75,10 +81,18 @@ export class Hero {
     this.buffRing = null;
     this.buffRingMode = null;   // "boosted", "source" or null
     this.syncBuffRing();
-    this.idleAnim = sprite && findAnim(scene, sprite.key, 'idle');
-    this.attackAnim = sprite && findAnim(scene, sprite.key, 'attack');
+    // Awakened: its awakened sheet (same frames), with the aura behind it.
+    const look = sprite && awakened && findAnim(scene, awakenedKey(sprite.key), 'idle') ? awakenedKey(sprite.key) : sprite?.key;
+    if (look && look !== sprite.key && scene.anims.exists(unchartedKey('aura'))) {
+      this.auraSprite = scene.add.sprite(x, feetY, unchartedKey('aura')).setOrigin(0.5, 1)
+        .setDepth(DEPTH.hero - 0.55).play(unchartedKey('aura'));
+    }
+    this.shotCount = 0;    // shots fired (an awakened nthShot counts them)
+    this.markTimer = 0;    // an awakened Captain's mark: ms until he picks again
+    this.idleAnim = sprite && findAnim(scene, look, 'idle');
+    this.attackAnim = sprite && findAnim(scene, look, 'attack');
     if (this.idleAnim) {
-      this.body = scene.add.sprite(x, feetY, sheetKey(sprite.key)).setOrigin(0.5, 1);
+      this.body = scene.add.sprite(x, feetY, sheetKey(look)).setOrigin(0.5, 1);
       this.playIdle(index);
       if (this.attackAnim) {
         this.body.on(`animationcomplete-${this.attackAnim}`, () => this.playIdle());
@@ -96,9 +110,10 @@ export class Hero {
   // fx: { sprite, behind } — an fx sheet standing on the hero's slot while the
   // boost lasts, behind the hero or (default) over them. kind: 'speed'
   // (attack speed, the default) or 'damage' (Temper Steel).
-  addBoost(mult, duration, fx, kind = 'speed') {
+  // crit: { chance, multiplier } (an awakened Blacksmith's; see critBoost).
+  addBoost(mult, duration, fx, kind = 'speed', crit = null) {
     this.boosts.push({
-      kind, mult, time: duration, fx,
+      kind, mult, time: duration, fx, crit,
     });
     const name = fx.sprite;
     if (!this.boostSprites[name]) {
@@ -148,6 +163,35 @@ export class Hero {
     this.thaw({ quiet: true });
     this.breakCharm({ quiet: true });
     this.charmImmune = 0;
+    if (this.def.mark) this.setMark(null);
+  }
+
+  // An awakened Captain marks the toughest enemy (def.mark): the whole crew
+  // deals bonus more to it (Enemy.damageTaken), with the mark over it.
+  updateMark(dt, enemies) {
+    const { mark } = this.def;
+    this.markTimer -= dt;
+    const current = this.scene.crewMark?.enemy;
+    if (this.markTimer > 0 && current?.alive) {
+      this.markSprite?.setPosition(Math.round(current.x), Math.round(current.y));
+      return;
+    }
+    this.markTimer = mark.every;
+    let best = null;
+    for (const e of enemies) if (e.targetable && !e.def.hazard && (!best || e.hp > best.hp)) best = e;
+    this.setMark(best);
+  }
+
+  setMark(enemy) {
+    const { mark } = this.def;
+    this.scene.crewMark = enemy ? { enemy, bonus: mark.bonus } : null;
+    if (!enemy) {
+      this.markSprite?.destroy();
+      this.markSprite = null;
+      return;
+    }
+    this.markSprite ??= fxSprite(this.scene, mark.sprite, 0, 0).setDepth(DEPTH.slotMarkers);
+    this.markSprite.setPosition(Math.round(enemy.x), Math.round(enemy.y));
   }
 
   // The Siren's note or a lava bomb on this deck: no attacks for ms.
@@ -327,6 +371,7 @@ export class Hero {
     this.tickStun(dt);
     this.tickFreeze(dt);
     this.tickCharm(dt);
+    if (this.def.mark) this.updateMark(dt, enemies);
     if (this.def.aura || this.isStunned || this.isFrozen) return null;  // support hero: never attacks
     this.cooldown -= dt * this.speedMult;
     if (this.cooldown > 0) return null;
@@ -351,7 +396,18 @@ export class Hero {
       if (--lunge.hits <= 0) this.lunge = null;
     }
     this.playShot();
-    return this.fire(target, lunge);
+    const shot = this.fire(target, lunge);
+    // An awakened Parrot Keeper sends more parrots, each at another foe.
+    if (!(this.def.shots > 1) || lunge) return shot;
+    const shots = [shot];
+    let left = enemies.filter((e) => e !== target);
+    for (let i = 1; i < this.def.shots; i++) {
+      const other = this.pickTarget(left);
+      if (!other) break;
+      shots.push(this.fire(other));
+      left = left.filter((e) => e !== other);
+    }
+    return shots;
   }
 
   // The shot's sound (its shotSound, or cannon_small), quieter for crew
@@ -378,19 +434,32 @@ export class Hero {
     const { def } = this;
     if (def.chain) return this.chainLightning(target);
     if (def.jet) return this.breatheFire(target);
+    // Awakened: every nthShot.every-th shot is a bigger one (see onHit), or
+    // a spread of lobbed shots either side of the target.
+    const nth = def.nthShot && ++this.shotCount % def.nthShot.every === 0 ? def.nthShot : null;
+    const state = { first: true };   // a piercing shot's: nobody hit yet
     const common = {
       ...this.muzzlePoint(), target,
       sprite: def.projectile.sprite, rotate: def.projectile.rotate,
-      onHit: (hit, x, y) => this.onHit(hit, x, y, lunge),
+      onHit: (hit, x, y) => this.onHit(hit, x, y, lunge, null, { nth, state }),
       // Used when the target dies mid-flight.
       findTarget: (x, y) => nearestLiving(this.scene.enemies, x, y, (e) => this.canHit(e)),
     };
     if (def.lob) {
-      return new LobProjectile(this.scene, {
-        ...common,
-        flightTime: def.lob.flightTime, arcHeight: def.lob.arcHeight,
-        aimAt: (enemy, msLeft) => this.leadPoint(enemy, msLeft),
+      const lob = { flightTime: def.lob.flightTime, arcHeight: def.lob.arcHeight };
+      const main = new LobProjectile(this.scene, {
+        ...common, ...lob, aimAt: (enemy, msLeft) => this.leadPoint(enemy, msLeft),
       });
+      if (!nth?.spread) return main;
+      const spot = this.leadPoint(target, lob.flightTime);
+      const sides = [-1, 1].slice(0, nth.spread.count - 1).map((side) => new LobProjectile(this.scene, {
+        ...common,
+        ...lob,
+        target: { alive: true, x: spot.x + side * nth.spread.px, y: spot.y },
+        aimAt: (t) => ({ x: t.x, y: t.y }),
+        findTarget: () => null,
+      }));
+      return [main, ...sides];
     }
     if (def.pierce) {
       return new PiercingProjectile(this.scene, {
@@ -462,11 +531,12 @@ export class Hero {
   // Sharpshooter (targets: 'furthest'). The Voodoo Priestess prefers
   // enemies that aren't cursed yet, the Grog Brewer ones not yet poisoned,
   // so their effects spread across the wave, and the Net Thrower flyers still
-  // in the air, to ground them. A fog bank (Fogbound Isle) shortens the range.
+  // in the air, to ground them. A fog bank (Fogbound Isle) and a stage's
+  // Night Watch shorten the range.
   pickTarget(enemies) {
     const { curse, poison, netsFlyers } = this.def;
     const furthest = this.def.targets === 'furthest';
-    const range = this.def.range * (this.scene.mists?.rangeMult ?? 1);
+    const range = this.def.range * (this.scene.mists?.rangeMult ?? 1) * (this.scene.currents?.rangeMult ?? 1);
     let best = null;
     let bestFresh = null;
     for (const e of enemies) {
@@ -487,10 +557,23 @@ export class Hero {
   // Captain's Log; curses and poison as effects.
   // splash: a radius to hit around (x, y) when the hero has no area (the
   // Fire Breather's flame).
-  onHit(target, x, y, lunge = null, splash = null) {
+  // Awakened (AWAKEN.crew): nth: this shot's nthShot (its area and stun
+  // instead); strikes: each foe is hit again for strikes.damage x; execute:
+  // a foe (not a boss) left under that share of its HP falls; dragFirst:
+  // the first foe a piercing shot hits is dragged back (state: that shot's);
+  // cluster: more blasts either side; curseJump: see Enemy.passCurse. A
+  // Temper Steel with crit (critBoost) lets anyone crit.
+  onHit(target, x, y, lunge = null, splash = null, { nth = null, state = null } = {}) {
     const {
-      area, stun, slow, curse, poison, crit, lob, flyerBonus, passesShields, ignoresArmor, knockback, burn, chill,
+      slow, curse, poison, lob, flyerBonus, passesShields, ignoresArmor, knockback, burn, chill,
+      strikes, execute, dragFirst, cluster,
     } = this.def;
+    const area = nth?.area ?? this.def.area;
+    const stun = nth?.stun ?? this.def.stun;
+    const boost = this.critBoost;
+    const crit = this.def.crit || boost
+      ? { chance: (this.def.crit?.chance ?? 0) + (boost?.chance ?? 0), multiplier: this.def.crit?.multiplier ?? boost.multiplier }
+      : null;
     playFx(this.scene, this.def.projectile.impact, x, y);
     const radius = area?.radius ?? splash;
     const victims = radius
@@ -502,18 +585,25 @@ export class Hero {
     // One hit sound for the shot: heavy for a crit or a lunge.
     let heavy = !!lunge;
     for (const e of victims) {
-      let damage = this.damage;
-      if (crit && (lunge || Math.random() < crit.chance)) {
-        damage *= crit.multiplier;
-        heavy = true;
-        this.scene.floatText(e.x, e.y - e.def.height / 2 - 13, 'CRIT!', '#ffca28');
+      for (let k = 0; k < (strikes?.count ?? 1) && e.alive; k++) {
+        let damage = this.damage * (k > 0 ? strikes.damage : 1);
+        if (crit && (lunge || Math.random() < crit.chance)) {
+          damage *= crit.multiplier;
+          heavy = true;
+          this.scene.floatText(e.x, e.y - e.def.height / 2 - 13, 'CRIT!', '#ffca28');
+        }
+        if (lunge) playFx(this.scene, lunge.impact, e.x, e.y, FX_DEPTH + 1);
+        if (flyerBonus && e.def.flies) damage *= flyerBonus;
+        if (e.def.boss) damage *= this.bossDamage;
+        e.takeDamage(damage, {
+          lobbed: !!lob, throughShield: !!passesShields, ignoreArmor: !!ignoresArmor, source,
+        });
       }
-      if (lunge) playFx(this.scene, lunge.impact, e.x, e.y, FX_DEPTH + 1);
-      if (flyerBonus && e.def.flies) damage *= flyerBonus;
-      if (e.def.boss) damage *= this.bossDamage;
-      e.takeDamage(damage, {
-        lobbed: !!lob, throughShield: !!passesShields, ignoreArmor: !!ignoresArmor, source,
-      });
+      if (execute && e.alive && !e.def.boss && !e.hasShield && !e.hasIceShield && e.hp < e.maxHp * execute) {
+        e.takeDamage(e.hp, { ignoreArmor: true, source });
+      }
+      if (dragFirst && state?.first && e.alive && !e.def.boss) e.pushBack(dragFirst.px, dragFirst.speed);
+      if (state) state.first = false;
       if (!e.alive) continue;
       if (stun && Math.random() < stun.chance) {
         e.applyStun(stun.duration);
@@ -523,7 +613,7 @@ export class Hero {
         e.applySlow(slow.factor, slow.duration);
         stats?.add(this.id, 'slowed');
       }
-      if (curse) e.applyCurse(curse.bonus, curse.duration, this.source.effect);
+      if (curse) e.applyCurse(curse.bonus, curse.duration, this.source.effect, this.def.curseJump ?? 0);
       if (poison) e.applyPoison(this.damage * poison.ratio, poison.duration, this.source.effect);
       if (burn) e.applyBurn(this.damage * burn.ratio, burn.duration, this.source.effect);
       if (chill) e.applyChill(chill.factor, chill.duration);
@@ -531,9 +621,30 @@ export class Hero {
       if (knockback && !e.def.boss) e.pushBack(knockback.px, knockback.speed);
     }
     if (victims.length) sfx.play(heavy ? 'hit_heavy' : 'hit');
+    // An awakened Powder Monkey's bomb splits: smaller blasts either side.
+    if (cluster) {
+      for (let k = 0; k < cluster.count; k++) {
+        const bx = x + (k % 2 ? 1 : -1) * cluster.px * (Math.floor(k / 2) + 1);
+        playFx(this.scene, this.def.projectile.impact, bx, y);
+        for (const e of this.scene.enemies) {
+          if (!this.canHit(e) || Math.hypot(e.x - bx, e.y - y) > (area?.radius ?? 16)) continue;
+          e.takeDamage(this.damage * cluster.damage, { lobbed: !!lob, source });
+        }
+      }
+    }
+  }
+
+  // A Temper Steel from an awakened Blacksmith: { chance, multiplier } of a
+  // crit for anyone, while it lasts (the strongest), or null.
+  get critBoost() {
+    let best = null;
+    for (const b of this.boosts) if (b.crit && (!best || b.crit.chance > best.chance)) best = b.crit;
+    return best;
   }
 
   destroy() {
+    this.auraSprite?.destroy();
+    if (this.def.mark && this.markSprite) this.setMark(null);
     this.buffRing?.destroy();
     this.stunStars?.destroy();
     this.iceBlock?.destroy();

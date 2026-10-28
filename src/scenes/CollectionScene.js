@@ -101,7 +101,7 @@ export class CollectionScene extends Phaser.Scene {
       const entry = Expeditions.entryOf(p, id);
       const card = createHeroCard(this, x, y, id, p.isOwned(id)
         ? {
-          size: 'small', stars: p.heroStarCount(id), bonus: p.heroBonusLevels(id), level: p.heroLevel(id), away: entry && awayLabel(entry),
+          size: 'small', stars: p.heroStarCount(id), bonus: p.heroBonusLevels(id), level: p.heroLevel(id), away: entry && awayLabel(entry), awakened: p.isAwakened(id),
         }
         : { size: 'small', silhouette: true });
       this.grid.add(card);
@@ -130,7 +130,7 @@ export class CollectionScene extends Phaser.Scene {
     const backdrop = fillView(this, 0x0d1117, 0.85);
     const entry = Expeditions.entryOf(p, id);
     const card = createHeroCard(this, cx - 76, cy, id, {
-      stars: p.heroStarCount(id), bonus: p.heroBonusLevels(id), level: p.heroLevel(id), away: entry && awayLabel(entry),
+      stars: p.heroStarCount(id), bonus: p.heroBonusLevels(id), level: p.heroLevel(id), away: entry && awayLabel(entry), awakened: p.isAwakened(id),
     });
     const w = 150;
     const h = 96;

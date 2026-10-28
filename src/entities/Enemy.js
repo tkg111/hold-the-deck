@@ -551,8 +551,10 @@ export class Enemy {
     return (this.isSlowed ? this.slowFactor : 1) * (this.isHasted ? this.hasteMult : 1) * this.partSlow
       * (this.chillTime > 0 ? this.chillFactor : 1) * (this.scene.currents?.enemyPace ?? 1);
   }
-  // Walking only: faster through a fire puddle, slower in a blizzard.
-  get moveBoost() { return (this.boostTime > 0 ? this.boostMult : 1) * (this.scene.blizzard?.chill ?? 1); }
+  // Walking only: faster through a fire puddle (and a stage's Gale), slower in a blizzard.
+  get moveBoost() {
+    return (this.boostTime > 0 ? this.boostMult : 1) * (this.scene.blizzard?.chill ?? 1) * (this.scene.currents?.walkPace ?? 1);
+  }
 
   // Whether a hero (or ability) can hit it: anything targetable on the lane,
   // and flyers in the air only with anti-air. The crew leave a charmed one
@@ -607,9 +609,11 @@ export class Enemy {
     this.chillTime = Math.max(this.chillTime, duration * (this.def.statusResist ?? 1));
   }
 
-  // Haunt: flees back toward the island for duration.
-  applyFear(duration) {
+  // Haunt: flees back toward the island for duration (an awakened Ghost
+  // Pirate's: taking bonus more damage meanwhile, see damageTaken).
+  applyFear(duration, bonus = 0) {
     if (!this.canBeMoved) return;
+    this.fearBonus = Math.max(this.isAfraid ? this.fearBonus ?? 0 : 0, bonus);
     this.fearTime = Math.max(this.fearTime, duration * (this.def.statusResist ?? 1));
   }
 
@@ -620,10 +624,20 @@ export class Enemy {
     this.pushSpeed = speed;
   }
 
-  applyCurse(bonus, duration, source = null) {
+  // jump: an awakened Voodoo Priestess's curse jumps to the nearest enemy
+  // within that many px when this one dies (see passCurse).
+  applyCurse(bonus, duration, source = null, jump = 0) {
     if (!this.isCursed || bonus >= this.curseBonus) this.curseSource = source;
     this.curseBonus = this.isCursed ? Math.max(this.curseBonus, bonus) : bonus;
     this.curseTime = Math.max(this.curseTime, duration);
+    if (jump) this.curseJump = jump;
+  }
+
+  // Extra damage it takes from everyone: an awakened Captain's mark on it
+  // (scene.crewMark) and an awakened Ghost Pirate's fear.
+  get damageTaken() {
+    const mark = this.scene.crewMark;
+    return (mark?.enemy === this ? 1 + mark.bonus : 1) * (this.isAfraid ? 1 + (this.fearBonus ?? 0) : 1);
   }
 
   // Hold back the curse mark for ms (while something else plays on the enemy).
@@ -1859,6 +1873,7 @@ export class Enemy {
     flash = true, dot = false, lobbed = false, throughShield = false, ignoreArmor = false, source = null,
   } = {}) {
     if (!this.alive) return;
+    amount *= this.damageTaken;
     let damage = amount;
     if (this.armor && !dot && !ignoreArmor) damage = Math.max(this.def.minDamage, amount * (1 - this.armor));
     const curse = this.isCursed ? amount * this.curseBonus : 0;
@@ -1917,6 +1932,32 @@ export class Enemy {
     }
   }
 
+  // An awakened Voodoo Priestess's curse jumps on: to the nearest living
+  // enemy within curseJump px, for the time it had left.
+  passCurse() {
+    let next = null;
+    let best = this.curseJump;
+    for (const e of this.scene.enemies) {
+      if (e === this || !e.alive || e.def.hazard || !e.targetable) continue;
+      const d = Math.hypot(e.x - this.x, e.y - this.y);
+      if (d <= best) {
+        best = d;
+        next = e;
+      }
+    }
+    if (next) next.applyCurse(this.curseBonus, this.curseTime, this.curseSource, this.curseJump);
+  }
+
+  // A Wail from an awakened Banshee: every shield it has breaks.
+  stripShields() {
+    if (this.hasIceShield) {
+      this.iceShieldHp = 0;
+      this.breakIceShield();
+    }
+    if (this.hasShield) this.breakShield();
+    this.drawHpBar();
+  }
+
   // shield_break plays where the shield was, and it walks on without it.
   breakShield() {
     const { shield } = this.def;
@@ -1960,6 +2001,7 @@ export class Enemy {
     if (source && !this.def.hazard) this.scene.stats?.kill(source);
     this.scene.events.emit('enemy-killed', this);
     if (!this.def.hazard) sfx.play(this.def.boss ? 'boss_die' : 'enemy_die');
+    if (this.curseJump && this.isCursed) this.passCurse();
     this.removeOverlays();
     if (this.def.galleon || this.def.leviathan) {
       this.sink();

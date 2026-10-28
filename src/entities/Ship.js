@@ -158,6 +158,7 @@ export class Ship {
   // counts). crewmate: a charmed crewmate whose own attack it was (the Log
   // blames the enemy that charmed them; the balance sim tells them apart).
   takeDamage(amount, enemy = null, crewmate = null) {
+    if (this.shieldTime > 0) return;   // an awakened Doctor's shield
     if (enemy) this.scene.stats?.hullHit(enemy, Math.min(amount, this.hp));
     this.hp = Math.max(0, this.hp - amount);
     this.scene.cameras.main.shake(80, 0.003);
@@ -166,6 +167,20 @@ export class Ship {
 
   restore() {
     this.hp = this.maxHp;
+    this.shieldTime = 0;
+  }
+
+  // An awakened Ship's Doctor's Patch Up: the hull takes no damage for ms
+  // (counted down by the ability system's step, tickShield), tinted pale.
+  shield(ms) {
+    this.shieldTime = Math.max(this.shieldTime ?? 0, ms);
+    this.image.setTint?.(0xcfeaff);
+  }
+
+  tickShield(dt) {
+    if (!(this.shieldTime > 0)) return;
+    this.shieldTime -= dt;
+    if (this.shieldTime <= 0) this.image.clearTint?.();
   }
 
   // Patch Up: mend up to amount; returns how much was mended.
