@@ -86,7 +86,7 @@ for (const vp of VIEWPORTS) {
     shots.push({ vp, sceneName, file });
   };
 
-  await page.waitForFunction(() => window.game?.scene.isActive('TitleScene'), null, { timeout: 60000 });
+  await page.waitForFunction(() => window.game?.scene?.isActive?.('TitleScene'), null, { timeout: 60000 });
   await page.waitForTimeout(1600);
   await shot('Title');
 

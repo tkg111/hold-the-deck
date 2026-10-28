@@ -3,12 +3,13 @@ import {
   AUDIO, TUTORIAL, UI_KIT,
 } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
-import { applyRenderScale, hudEdges } from '../display.js';
+import { applyRenderScale, hudEdges, mapPoint } from '../display.js';
 import { TUTORIAL_JSON_KEY, tutorialKey } from '../sprites.js';
 import { targetRect } from '../tutorial/targets.js';
 import { Button } from '../ui/Button.js';
 import { ConfirmDialog } from '../ui/ConfirmDialog.js';
 import { dark, light, panel, text } from '../ui/kit.js';
+import { Tooltip } from '../ui/Tooltip.js';
 
 const KEY = 'TutorialScene';
 // The battle's bottom button bar's centre line (GameScene, base layout).
@@ -93,6 +94,14 @@ export class TutorialView {
     this.banners.push(line);
     this.wake();
   }
+
+  // A tooltip drawn crisp in this layer over another scene ({ lines, scene,
+  // x, y }: Tooltip lines, its top-left at (x, y) of that scene's layout),
+  // or null to hide it. It takes no taps.
+  tooltip(tip) {
+    this.tip = tip;
+    this.wake();
+  }
 }
 
 // Over every other scene: the Captain's dialogue box, the spotlight (a dim
@@ -108,7 +117,10 @@ export class TutorialScene extends Phaser.Scene {
   }
 
   create() {
-    applyRenderScale(this);
+    // A UI layer: a whole-number zoom so the Captain's words are crisp (and
+    // bigger with Large text); anything over another scene is placed by
+    // mapPoint.
+    applyRenderScale(this, undefined, { ui: true });
     const data = this.cache.json.get(TUTORIAL_JSON_KEY);
     this.faces = data.captain_portrait.faces;
     this.miniFaces = data.captain_mini.faces;
@@ -155,7 +167,8 @@ export class TutorialScene extends Phaser.Scene {
     this.portrait = this.add.sprite(6, 2, tutorialKey('captain_portrait'), 0).setOrigin(0);
     const plate = this.add.image(6, h - 15, tutorialKey('nameplate')).setOrigin(0);
     const name = text(this, 6 + plate.width / 2, h - 15 + plate.height / 2, 'CAPTAIN', light({ font: 'small' })).setOrigin(0.5);
-    this.line = text(this, 60, 9, '', dark({ lineSpacing: -2 }));
+    // The main font at its own 18 px line height.
+    this.line = text(this, 60, TUTORIAL.box.textTop, '', dark());
     this.nextArrow = this.add.sprite(w - 14, h - 10, tutorialKey('next_arrow'), 0).setOrigin(0);
     this.box = this.add.container(0, 0, [panel(this, 0, 0, w, h, 'parchment'), this.portrait, plate, name, this.line, this.nextArrow]);
   }
@@ -221,9 +234,24 @@ export class TutorialScene extends Phaser.Scene {
       }
     }
     if (!this.bannerShowing && this.driver.banners.length) this.nextBanner();
+    if ((this.driver.tip ?? null) !== (this.tipShown?.spec ?? null)) this.showTip(this.driver.tip);
     this.scene.bringToTop();
     this.layout();
-    if (!this.state && !this.bannerShowing) this.scene.sleep();
+    if (!this.state && !this.bannerShowing && !this.tipShown) this.scene.sleep();
+  }
+
+  // --- Tooltips (TutorialView.tooltip) ---
+
+  showTip(spec) {
+    this.tipShown?.box.destroy();
+    this.tipShown = spec ? { spec, box: new Tooltip(this, 0, 0, spec.lines).setDepth(5) } : null;
+  }
+
+  placeTip() {
+    const t = this.tipShown;
+    if (!t) return;
+    const p = mapPoint(t.spec.scene, t.spec.x, t.spec.y, this);
+    t.box.setPosition(Math.round(p.x), Math.round(p.y));
   }
 
   // Where things go: the dim and its hole, the box (bottom, or top if the
@@ -239,6 +267,7 @@ export class TutorialScene extends Phaser.Scene {
     this.skipButton.setVisible(!!s?.step.skip)
       .setPosition(v.right - 4 - TUTORIAL.skip.width / 2, v.top + 4 + TUTORIAL.skip.height / 2);
     this.placeBanner();
+    this.placeTip();
     this.drawDim(rect);
     this.blocker.setPosition(v.left, v.top).setSize(v.width, v.height);
     this.blocker.input.hitArea.setSize(v.width, v.height);
@@ -276,11 +305,21 @@ export class TutorialScene extends Phaser.Scene {
     if (!found) return null;
     const { rect, scene } = found;
     const pad = TUTORIAL.pad;
-    // Every scene's view is 480 wide on the same scale; only its top differs.
-    const dy = this.view.top - scene.view.top;
-    const r = new Phaser.Geom.Rectangle(Math.floor(rect.x) - pad, Math.floor(rect.y + dy) - pad,
-      Math.ceil(rect.width) + 2 * pad, Math.ceil(rect.height) + 2 * pad);
+    // From the target's scene to this layer (another zoom).
+    const a = mapPoint(scene, rect.x, rect.y, this);
+    const b = mapPoint(scene, rect.right, rect.bottom, this);
+    const r = new Phaser.Geom.Rectangle(Math.floor(a.x) - pad, Math.floor(a.y) - pad,
+      Math.ceil(b.x - a.x) + 2 * pad, Math.ceil(b.y - a.y) + 2 * pad);
     return Phaser.Geom.Rectangle.Intersection(r, new Phaser.Geom.Rectangle(this.view.left, this.view.top, this.view.width, this.view.height));
+  }
+
+  // A point of the battle's HUD layout (y from its hudEdges, e.g. the
+  // button bar's top), as a point of this layer; without the battle, as if
+  // this layer were it.
+  fromBattle(x, yOf) {
+    const battle = this.scene.get('GameScene');
+    const from = battle?.view ? battle : this;
+    return mapPoint(from, x, yOf(hudEdges(from.view)), this);
   }
 
   // The box sits just above the battle's button bar, or at the top of the
@@ -292,8 +331,8 @@ export class TutorialScene extends Phaser.Scene {
     if (!s?.lines) return;
     const v = this.view;
     const { width: w, height: h, barGap, margin } = TUTORIAL.box;
-    const barTop = hudEdges(v).bottom + BAR_Y - UI_KIT.bottomButtonHeight / 2;
-    const bottom = barTop - barGap - h;
+    const barTop = this.fromBattle(0, (e) => e.bottom + BAR_Y - UI_KIT.bottomButtonHeight / 2).y;
+    const bottom = Math.round(Math.min(barTop, v.bottom) - barGap - h);
     const ys = [bottom, bottom - TUTORIAL.box.lift, v.top + margin, Math.round(v.centerY - h / 2)];
     const xs = [Math.round(v.centerX - w / 2), v.left + margin, v.right - margin - w];
     // The target and, for a guided step, its pointer above or below it.
@@ -322,7 +361,7 @@ export class TutorialScene extends Phaser.Scene {
   createBanner() {
     this.bannerBg = panel(this, 0, 0, 100, TUTORIAL.banner.height, 'parchment');
     this.mini = this.add.sprite(4, 2, tutorialKey('captain_mini'), 0).setOrigin(0);
-    this.bannerText = text(this, 32, 8, '', dark({ lineSpacing: -2 }));
+    this.bannerText = text(this, 32, 8, '', dark());
     this.bannerBox = this.add.container(0, 0, [this.bannerBg, this.mini, this.bannerText]).setVisible(false);
     this.bannerBg.setInteractive({ useHandCursor: true });
     this.bannerBg.on('pointerdown', () => this.dismissBanner(true));
@@ -360,11 +399,12 @@ export class TutorialScene extends Phaser.Scene {
   placeBanner() {
     if (!this.bannerShowing) return;
     const v = this.view;
-    const { y } = TUTORIAL.banner;
     const w = this.bannerBg.width;
     const height = this.bannerBg.height;
     const top = v.top - height - 2;
-    this.bannerBox.setPosition(Math.round(v.centerX - w / 2), Math.round(top + (v.top + y - top) * this.bannerSlide));
+    // Under the battle HUD's top row.
+    const y = Math.max(v.top, this.fromBattle(0, (e) => e.top + TUTORIAL.banner.y).y);
+    this.bannerBox.setPosition(Math.round(v.centerX - w / 2), Math.round(top + (y - top) * this.bannerSlide));
     if (this.state) this.drawDim(this.state.rect);
   }
 

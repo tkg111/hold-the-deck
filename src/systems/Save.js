@@ -10,7 +10,7 @@ export const SAVE_KEY = 'kampung-defense/save';
 const CORRUPT_BACKUP_KEY = 'kampung-defense/save-corrupt-backup';
 
 // Bump when the saved shape changes, and add a migration from the old version.
-export const SAVE_VERSION = 23;
+export const SAVE_VERSION = 24;
 
 // v5 pirate reskin: old hero IDs -> new hero IDs.
 const V5_HERO_IDS = {
@@ -225,6 +225,8 @@ const MIGRATIONS = {
   21: (data) => ({ ...data, online: newOnlineRecord() }),
   // v23: the Settings' Vibration (the Android app's haptics), on.
   22: (data) => ({ ...data, vibration: true }),
+  // v24: the Settings' Text size, Normal.
+  23: (data) => ({ ...data, largeText: false }),
 };
 
 function migrate(save) {

@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { audio } from './audio/Audio.js';
-import { canvasSize, installScaling } from './display.js';
+import { canvasSize, installScaling, setLargeText } from './display.js';
 import { AbyssEndScene } from './scenes/AbyssEndScene.js';
 import { AwayScene } from './scenes/AwayScene.js';
 import { CollectionScene } from './scenes/CollectionScene.js';
@@ -55,7 +55,7 @@ loadUiSpec().then(() => {
 
   // Handy for poking at state from the browser console during development
   // (and for scripts/screens.mjs).
-  if (import.meta.env.DEV) Object.assign(window, { game, tutorial });
+  if (import.meta.env.DEV) Object.assign(window, { game, tutorial, setLargeText });
 
   installScaling(game);
   audio.install();

@@ -9,7 +9,7 @@ import { music } from '../audio/Music.js';
 import { sfx } from '../audio/Sfx.js';
 import { DEV_TOOLS } from '../devFlag.js';
 import {
-  applyRenderScale, fullscreenSupported, hudEdges, isFullscreen, toggleFullscreen,
+  applyRenderScale, fullscreenSupported, hudEdges, isFullscreen, setLargeText, toggleFullscreen,
 } from '../display.js';
 import { Scenery } from '../scenery.js';
 import {
@@ -55,7 +55,6 @@ import { HeroPicker } from '../ui/HeroPicker.js';
 import { Notices } from '../ui/Notices.js';
 import { AutoContinue } from '../ui/AutoContinue.js';
 import { ScrollPanel } from '../ui/ScrollPanel.js';
-import { Tooltip } from '../ui/Tooltip.js';
 import { Shipwright } from '../ui/Shipwright.js';
 import {
   Bar, EXPEDITION_JSON_KEY, expeditionKey, glyph, glyphWidth, icon, light, panel, tapArea, text, UI, wantedKey,
@@ -112,6 +111,7 @@ export class GameScene extends Phaser.Scene {
     this.expeditionsReady = Expeditions.readyCount(this.progress);
     this.applyAudioSettings();
     setVibration(this.progress.vibration);
+    setLargeText(this.progress.largeText);
     this.state = STATE.IDLE;
     this.speed = this.speed ?? GAME_SPEEDS[0];  // kept across restarts in a session
     this.slowMotion = 1;   // x the battle's speed (the tutorial's first merchant)
@@ -203,6 +203,7 @@ export class GameScene extends Phaser.Scene {
     const syncMusic = () => this.syncMusic();
     this.game.events.on(Phaser.Core.Events.POST_STEP, syncMusic);
     this.events.once('shutdown', () => {
+      this.hideMealNote();
       this.game.events.off(Phaser.Core.Events.POST_STEP, syncMusic);
       for (const [name, fn] of Object.entries(handlers)) this.events.off(name, fn, this);
       window.removeEventListener('pagehide', onPageHide);
@@ -568,7 +569,7 @@ export class GameScene extends Phaser.Scene {
       this.mealIcon.setFrame(mealOf(p.meal.id)?.index ?? 0);
       this.mealText.setText(`${p.meal.wavesLeft}`);
     } else if (this.mealNoteShown) {
-      this.hideCurrentNote();
+      this.hideMealNote();
     }
     // The currents row moves over for the meal plaque; bounty toasts go
     // below whichever of them shows.
@@ -697,32 +698,53 @@ export class GameScene extends Phaser.Scene {
 
   // The active meal's note under its plaque (tapping the plaque again, or
   // ABYSS.hud.noteMs later, hides it): a parchment tooltip with its name,
-  // what it does and the waves left.
+  // what it does and the waves left, drawn by the Captain's UI layer so its
+  // text is crisp (and follows Text size).
   showMealNote() {
     const p = this.progress;
     const meal = p.meal && mealOf(p.meal.id);
     if (!meal) return;
     if (this.mealNoteShown) {
-      this.hideCurrentNote();
+      this.hideMealNote();
       return;
     }
     sfx.play('ui_click');
+    this.hideCurrentNote();
     const mp = UI_KIT.hud.meal;
-    const y = mp.y + mp.height + 3;
-    const tooltip = new Tooltip(this, 6, y, [
-      { text: meal.name },
-      ...mealEffectLines(meal).map((line) => ({ text: line, small: true })),
-      { text: `${p.meal.wavesLeft} ${p.meal.wavesLeft === 1 ? 'WAVE' : 'WAVES'} LEFT`, small: true, sub: true },
-    ]);
-    this.showNote([tooltip]);
+    tutorial.view?.tooltip({
+      scene: this,
+      x: this.topLeft.x + 6,
+      y: this.topLeft.y + mp.y + mp.height + 3,
+      lines: [
+        { text: meal.name },
+        ...mealEffectLines(meal).map((line) => ({ text: line, small: true })),
+        { text: `${p.meal.wavesLeft} ${p.meal.wavesLeft === 1 ? 'WAVE' : 'WAVES'} LEFT`, small: true, sub: true },
+      ],
+    });
     this.mealNoteShown = true;
+    const started = performance.now();
+    this.mealNoteTimer?.remove();
+    this.mealNoteTimer = this.time.addEvent({
+      delay: 100,
+      loop: true,
+      callback: () => {
+        if (performance.now() - started >= ABYSS.hud.noteMs) this.hideMealNote();
+      },
+    });
+  }
+
+  hideMealNote() {
+    this.mealNoteTimer?.remove();
+    this.mealNoteTimer = null;
+    if (this.mealNoteShown) tutorial.view?.tooltip(null);
+    this.mealNoteShown = false;
   }
 
   // Show a note (the currents' or the meal's) in the top-left group's note
   // slot, for ABYSS.hud.noteMs of real time.
   showNote(objects) {
+    this.hideMealNote();
     this.currentNote.removeAll(true);
-    this.mealNoteShown = false;
     this.currentNote.add(objects).setVisible(true);
     this.currentNoteTimer?.remove();
     // Real time, so it lasts as long at any battle speed.
@@ -737,7 +759,6 @@ export class GameScene extends Phaser.Scene {
   }
 
   hideCurrentNote() {
-    this.mealNoteShown = false;
     this.currentNoteTimer?.remove();
     this.currentNoteTimer = null;
     this.currentNote.removeAll(true);
@@ -835,6 +856,12 @@ export class GameScene extends Phaser.Scene {
       },
       tipsOn: p.tutorial.tipsOn,
       onTips: (on) => tutorial.setTipsOn(on),
+      largeText: p.largeText,
+      onLargeText: (on) => {
+        p.largeText = on;
+        setLargeText(on);
+        this.save();
+      },
       // Only in the Android app, the one place it buzzes.
       vibration: isNative() ? p.vibration : null,
       onVibration: (on) => {

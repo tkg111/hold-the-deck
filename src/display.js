@@ -53,18 +53,30 @@ export const canvasSize = () => ({ width: current.canvasWidth, height: current.c
 // the default centres it, which suits overlays laid out in base
 // coordinates. A shorter one (a very wide window) is always cropped
 // equally. view.safe is the area clear of notches, cameras and screen
-// edges ({ left, top, right, bottom }, see safeInsets), for the HUD. On
-// window resizes the view is recomputed with the same align and the scene
+// edges ({ left, top, right, bottom }, see safeInsets), for the HUD, and
+// view.zoom the screen pixels per layout unit. On window resizes (and Text
+// size changes) the view is recomputed with the same align and the scene
 // gets a 'view-resize' event with it.
-export function applyRenderScale(scene, align = { y: 0.5 }) {
-  const { scale, canvasWidth, canvasHeight, width, height } = current;
+//
+// ui: true makes the scene a UI layer (the Captain's dialogue, banners and
+// tooltips): its zoom is a whole number (uiZoom), so each pixel of the
+// bitmap fonts is a whole number of screen pixels and text stays crisp at
+// any window size, and Large text (setLargeText) scales it up. Its view is
+// then bigger or smaller than the other scenes' (in layout units); use
+// mapPoint to place things over another scene's.
+export function applyRenderScale(scene, align = { y: 0.5 }, { ui = false } = {}) {
+  const { canvasWidth, canvasHeight } = current;
+  const scale = ui ? uiZoom(current.scale) : current.scale;
+  const width = canvasWidth / scale;
+  const height = canvasHeight / scale;
   const extra = height - DISPLAY.height;
   const top = extra < 0 ? -extra / 2 : -Math.round(extra * align.y);
   const left = (DISPLAY.width - width) / 2;
   const inset = safeInsets(scale);
   scene.renderAlign = align;
+  scene.renderUi = ui;
   scene.view = {
-    left, top, width, height,
+    left, top, width, height, zoom: scale,
     right: left + width,
     bottom: top + height,
     centerX: left + width / 2,
@@ -84,6 +96,37 @@ export function applyRenderScale(scene, align = { y: 0.5 }) {
     .setZoom(scale)
     .centerOn(scene.view.centerX, scene.view.centerY);
   return scene.view;
+}
+
+// The UI layer's zoom for the game's (fractional) scale: the whole number
+// at or under it (the scale itself under 1x), times DISPLAY.largeText
+// rounded to a whole number with Large text on.
+let largeText = false;
+function uiZoom(scale) {
+  if (scale < 1) return scale;
+  const base = Math.floor(scale);
+  return largeText ? Math.round(base * DISPLAY.largeText) : base;
+}
+
+// Settings' Text size: Large (true) or Normal. Re-lays every UI layer.
+let relayout = () => {};
+export function setLargeText(on) {
+  if (largeText === on) return;
+  largeText = on;
+  relayout();
+}
+export const isLargeText = () => largeText;
+
+// A point (x, y) of one scene's layout as a point of another's: the same
+// screen pixel, through each scene's view (they differ in zoom when one is
+// a UI layer).
+export function mapPoint(from, x, y, to) {
+  const a = from.view;
+  const b = to.view;
+  return {
+    x: (x - a.left) * a.zoom / b.zoom + b.left,
+    y: (y - a.top) * a.zoom / b.zoom + b.top,
+  };
 }
 
 // The safe area's insets in layout units: the page's env(safe-area-inset-*)
@@ -181,6 +224,16 @@ export function installScaling(game) {
   document.body.style.background = DISPLAY.barColor;
   fitCanvas(game);
   let insetsKey = '';
+  // Re-aim the running scenes (only the UI layers: just the Text size).
+  const reapply = (uiOnly = false) => {
+    for (const scene of game.scene.scenes) {
+      const status = scene.sys.settings.status;
+      if (!scene.view || status < Phaser.Scenes.RUNNING || status > Phaser.Scenes.SLEEPING) continue;
+      if (uiOnly && !scene.renderUi) continue;
+      scene.events.emit('view-resize', applyRenderScale(scene, scene.renderAlign, { ui: scene.renderUi }));
+    }
+  };
+  relayout = () => reapply(true);
   const update = () => {
     const next = measure();
     const probe = document.getElementById('safe-probe');
@@ -190,12 +243,7 @@ export function installScaling(game) {
     current = next;
     insetsKey = key;
     fitCanvas(game);
-    if (!changed) return;
-    for (const scene of game.scene.scenes) {
-      const status = scene.sys.settings.status;
-      if (!scene.view || status < Phaser.Scenes.RUNNING || status > Phaser.Scenes.SLEEPING) continue;
-      scene.events.emit('view-resize', applyRenderScale(scene, scene.renderAlign));
-    }
+    if (changed) reapply();
   };
   // Window resizes, rotations, fullscreen and zoom (devicePixelRatio)
   // changes fire 'resize'; the observer also catches viewport changes that

@@ -18,6 +18,10 @@ export const DISPLAY = {
   wideAspect: 16 / 9,  // from here the view grows wider rather than taller
   minAspect: 4 / 3,    // taller windows get bars above and below
   barColor: '#141a30',
+  // Settings' Text size: Large draws the UI layer (the Captain's dialogue,
+  // banners and tooltips; never the HUD) this much bigger, rounded to a
+  // whole zoom (see display.js uiZoom).
+  largeText: 1.5,
 };
 
 // Wide windows: backdrops 640 wide (the battle's, the title's), holding
@@ -2844,11 +2848,16 @@ export const TUTORIAL = {
   bracketPulseMs: 400,
   pointerFps: 3,
   pointerBob: 2,
+  // The dialogue box: up to `lines` rows of the main font at its 18 px line
+  // height, wrapped at `wrap` px (at most about 30 characters: every line
+  // of the script fits 3 rows of 31 or fewer), from textTop.
   box: {
-    width: 300, height: 58, lines: 3, wrap: 228, barGap: 2, lift: 26, margin: 2, arrowFps: 3,
+    width: 240, height: 66, lines: 3, wrap: 168, textTop: 8, barGap: 2, lift: 26, margin: 2, arrowFps: 3,
   },
+  // Banner tips: under the battle HUD's top row (y), wrapped to fit
+  // maxWidth (text about 30 characters a row), at least height tall.
   banner: {
-    y: 30, maxWidth: 300, height: 28, holdMs: 4000, slideMs: 250,
+    y: 30, maxWidth: 208, height: 28, holdMs: 4000, slideMs: 250,
   },
   skip: { width: 40, height: 14 },
   missingMs: 1000,
