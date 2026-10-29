@@ -2298,3 +2298,217 @@ The hold fills after about 1 h 40 m at this pace, so a full night pays 8
 waves at most; the 4-hour time cap only binds for a save whose idle rate is
 low next to its wave gold (one that hasn't battled much lately). It doesn't
 change how hard any wave is, so the balance sim is unchanged.
+
+## 18. The Uncharted Seas and Crew Awakening
+
+Reproduce with `npm run sim:uncharted -- 5 1` (`scripts/sim/uncharted.mjs`;
+`ABYSS_CACHE` shares `sim:abyss`'s crews; `sea=`, `crown=` and `build=`
+narrow it, `SIM_CONFIG` tries numbers) and `npm run sim:awaken-pace`
+(`scripts/sim/awaken_pace.mjs`). The islands are unchanged: `npm run sim --
+3 50 voyage` prints the same output before and after, wave for wave.
+
+### 18.1 How it's measured
+
+- **Crews:** seeds 1000–1004, the greedy bot's crew at the end of Fogbound
+  Isle (as `sim:abyss` makes them): six crew at levels 82–86, mostly 5★
+  (Aurora Seer, The Captain, Storm Caller, The Duelist, Cannoneer, and the
+  Ghost Pirate or Bone Caller), hull level 116–117. That sets
+  **AWAKEN_LEVEL = 80** (the 85–86 of the main crew, rounded down to 10).
+- **Builds:** (a) that crew as it is; (b) the same with its first four on
+  the ship awakened; (c) every crewmate it owns awakened and 20 levels
+  higher. Awakened crew get their ability upgrades in the sim too.
+- **Each try:** one stage at one crown, the earlier stages cleared, the
+  build mustering its best crew the rules allow (someone anti-air if the
+  stage has flyers; otherwise the bot's usual order), auto abilities on,
+  frozen and charmed crew tapped free as in `simulate.mjs`. A stage still
+  going after 10 minutes of game time counts as lost. 5 crews x 1 try =
+  **5 seeds** a cell, so a cell moves in steps of 20% and a sea row in
+  steps of about 3%.
+
+### 18.2 Before (the specified numbers)
+
+Depths 15 / 30 / 45 / 60 / 75 / 90, crowns x1 / x1.6 / x2.5, waves of
+18 + 2 per wave.
+
+| Sea | a ♛ | a ♛♛ | a ♛♛♛ | b ♛ | b ♛♛ | b ♛♛♛ | c ♛ | c ♛♛ | c ♛♛♛ |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 1 Shipwreck Shallows | 97% | 50% | 37% | 100% | 77% | 57% | 100% | 100% | 73% |
+| 2 Cinder Straits | 50% | 30% | 0% | 73% | 50% | 27% | 87% | 50% | 43% |
+| 3 Glacier Graveyard | 50% | 7% | 0% | 77% | 10% | 3% | 93% | 23% | 0% |
+| 4 Siren's Maze | 10% | 0% | 0% | 17% | 0% | 0% | 37% | 10% | 0% |
+| 5 Storm Crown | 0% | 0% | 0% | 0% | 0% | 0% | 7% | 0% | 0% |
+| 6 The Drowned Throne | 0% | 0% | 0% | 0% | 0% | 0% | 0% | 0% | 0% |
+
+Sea 1 is fine for (a), and Seas 2–3 are close to their targets. Seas 4–6
+are out of reach even for (c) (37%, 7%, 0%), and x2.5 at 3 crowns leaves
+almost nothing past Sea 2 clearable. Stages also ran long: up to 7–8
+minutes when (a) wins (1-5 451 s, 3-4 442 s, 4-3 481 s).
+
+### 18.3 Tuning rounds
+
+Before round 1, one change for length, not difficulty: each wave holds
+**14 + 2 per wave** enemies (it was 18 + 2), toward the 2–3 minutes a
+stage should take. Then three rounds of the two knobs, the sea depths and
+the crown multipliers:
+
+| Round | Depths (seas 1–6) | Crowns | What it showed |
+|---|---|---|---|
+| 1 | 15 / 33 / 46 / 50 / 55 / 60 | x1 / x1.5 / x2 | Sea 4 in range; Sea 5 too hard for (c) (40%); Sea 6 0% for everyone; Sea 1 at 3 crowns 93% for (c) |
+| 2 | 15 / 36 / 49 / 50 / 50 / 45 | x1 / x1.3 / x1.7 | Seas 2–4 in range; Sea 5 (c) 50%; Sea 6 still 0%: its stages ran out of time (golems and armoured crabs pushed back out of reach by Haunt, Tidal Wave and knockbacks) |
+| 3 | 15 / 36 / **52** / **48** / **46** / **34** | x1 / **x1.25** / **x1.5** | kept (below) |
+
+Round 1:
+
+| Sea | a ♛ | a ♛♛ | a ♛♛♛ | b ♛ | b ♛♛ | b ♛♛♛ | c ♛ | c ♛♛ | c ♛♛♛ |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 1 Shipwreck Shallows | 93% | 60% | 53% | 100% | 83% | 77% | 100% | 97% | 93% |
+| 2 Cinder Straits | 50% | 30% | 23% | 80% | 50% | 43% | 83% | 50% | 47% |
+| 3 Glacier Graveyard | 57% | 3% | 3% | 83% | 10% | 0% | 93% | 50% | 10% |
+| 4 Siren's Maze | 20% | 10% | 0% | 53% | 10% | 7% | 60% | 27% | 10% |
+| 5 Storm Crown | 10% | 0% | 0% | 33% | 7% | 0% | 40% | 3% | 3% |
+| 6 The Drowned Throne | 0% | 0% | 0% | 0% | 0% | 0% | 0% | 0% | 0% |
+
+Round 2:
+
+| Sea | a ♛ | a ♛♛ | a ♛♛♛ | b ♛ | b ♛♛ | b ♛♛♛ | c ♛ | c ♛♛ | c ♛♛♛ |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 1 Shipwreck Shallows | 93% | 77% | 60% | 100% | 90% | 90% | 100% | 100% | 100% |
+| 2 Cinder Straits | 43% | 33% | 33% | 73% | 50% | 43% | 80% | 50% | 50% |
+| 3 Glacier Graveyard | 50% | 0% | 0% | 80% | 23% | 10% | 83% | 47% | 10% |
+| 4 Siren's Maze | 20% | 7% | 0% | 53% | 17% | 10% | 60% | 30% | 20% |
+| 5 Storm Crown | 13% | 0% | 0% | 33% | 33% | 7% | 50% | 40% | 13% |
+| 6 The Drowned Throne | 0% | 0% | 0% | 0% | 0% | 0% | 0% | 10% | 0% |
+
+### 18.4 After (round 3, the final numbers)
+
+| Sea | a ♛ | a ♛♛ | a ♛♛♛ | b ♛ | b ♛♛ | b ♛♛♛ | c ♛ | c ♛♛ | c ♛♛♛ |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 1 Shipwreck Shallows | 93% | 77% | 70% | 100% | 93% | 97% | 100% | 100% | 100% |
+| 2 Cinder Straits | 43% | 37% | 27% | 73% | 50% | 47% | 80% | 50% | 50% |
+| 3 Glacier Graveyard | 43% | 7% | 3% | 73% | 13% | 10% | 83% | 40% | 13% |
+| 4 Siren's Maze | 27% | 7% | 10% | 60% | 27% | 17% | 60% | 40% | 27% |
+| 5 Storm Crown | 27% | 7% | 0% | 50% | 30% | 30% | 53% | 43% | 33% |
+| 6 The Drowned Throne | 0% | 0% | 0% | 3% | 17% | 0% | 20% | 17% | 17% |
+
+| Stage | a ♛ | a ♛♛ | a ♛♛♛ | b ♛ | b ♛♛ | b ♛♛♛ | c ♛ | c ♛♛ | c ♛♛♛ | Time (a, 1 crown, won) |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 1-1 Low Tide | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 172s |
+| 1-2 Monkey Business | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 42s |
+| 1-3 Barnacle Bay | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 222s |
+| 1-4 Harpy Squall | 100% | 60% | 60% | 100% | 100% | 100% | 100% | 100% | 100% | 87s |
+| 1-5 Skeleton Crew | 100% | 100% | 60% | 100% | 100% | 100% | 100% | 100% | 100% | 411s |
+| 1-6 Kraken's Nest | 60% | 0% | 0% | 100% | 60% | 80% | 100% | 100% | 100% | 219s |
+| 2-1 Ashfall | 100% | 100% | 60% | 100% | 100% | 80% | 100% | 100% | 100% | 141s |
+| 2-2 Obsidian March | 0% | 0% | 0% | 40% | 0% | 0% | 80% | 0% | 0% | - |
+| 2-3 Firefly Night | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 90s |
+| 2-4 Powder Keg Run | 60% | 20% | 0% | 100% | 100% | 100% | 100% | 100% | 100% | 99s |
+| 2-5 The Forge | 0% | 0% | 0% | 0% | 0% | 0% | 0% | 0% | 0% | - |
+| 2-6 Twin Flames | 0% | 0% | 0% | 100% | 0% | 0% | 100% | 0% | 0% | - |
+| 3-1 Frozen Watch | 60% | 40% | 20% | 100% | 60% | 60% | 100% | 100% | 80% | 202s |
+| 3-2 Penguin Stampede | 100% | 0% | 0% | 100% | 0% | 0% | 100% | 60% | 0% | 93s |
+| 3-3 Witch Light | 0% | 0% | 0% | 60% | 0% | 0% | 100% | 0% | 0% | - |
+| 3-4 Yeti Pass | 100% | 0% | 0% | 100% | 0% | 0% | 100% | 0% | 0% | 516s |
+| 3-5 Mystic Frost | 0% | 0% | 0% | 80% | 20% | 0% | 100% | 80% | 0% | - |
+| 3-6 Wyrm and Bones | 0% | 0% | 0% | 0% | 0% | 0% | 0% | 0% | 0% | - |
+| 4-1 Fog Bank | 60% | 0% | 0% | 100% | 0% | 0% | 100% | 0% | 0% | 317s |
+| 4-2 Siren Song | 0% | 0% | 0% | 60% | 0% | 0% | 60% | 60% | 0% | - |
+| 4-3 Graveyard Shift | 100% | 40% | 60% | 100% | 100% | 80% | 100% | 100% | 100% | 295s |
+| 4-4 Grapeshot Alley | 0% | 0% | 0% | 100% | 60% | 20% | 100% | 80% | 60% | - |
+| 4-5 Lost Crew | 0% | 0% | 0% | 0% | 0% | 0% | 0% | 0% | 0% | - |
+| 4-6 The Siren Court | 0% | 0% | 0% | 0% | 0% | 0% | 0% | 0% | 0% | - |
+| 5-1 Thunderhead | 80% | 0% | 0% | 100% | 100% | 100% | 100% | 100% | 100% | 148s |
+| 5-2 Broadside | 80% | 40% | 0% | 100% | 80% | 80% | 100% | 100% | 100% | 284s |
+| 5-3 Giant's Wake | 0% | 0% | 0% | 0% | 0% | 0% | 0% | 0% | 0% | - |
+| 5-4 Elite Squadron | 0% | 0% | 0% | 100% | 0% | 0% | 100% | 60% | 0% | - |
+| 5-5 Dead Calm | 0% | 0% | 0% | 0% | 0% | 0% | 20% | 0% | 0% | - |
+| 5-6 Eye of the Storm | 0% | 0% | 0% | 0% | 0% | 0% | 0% | 0% | 0% | - |
+| 6-1 Sunken Steps | 0% | 0% | 0% | 0% | 100% | 0% | 40% | 100% | 100% | - |
+| 6-2 Pressure | 0% | 0% | 0% | 0% | 0% | 0% | 40% | 0% | 0% | - |
+| 6-3 Black Water | 0% | 0% | 0% | 20% | 0% | 0% | 40% | 0% | 0% | - |
+| 6-4 The Gauntlet | 0% | 0% | 0% | 0% | 0% | 0% | 0% | 0% | 0% | - |
+| 6-5 Last Watch | 0% | 0% | 0% | 0% | 0% | 0% | 0% | 0% | 0% | - |
+| 6-6 The Drowned Throne | 0% | 0% | 0% | 0% | 0% | 0% | 0% | 0% | 0% | - |
+
+#### Against the targets
+
+| Target | Result |
+|---|---|
+| Sea 1, 1 crown: (a) ≥ 80% | **93%** |
+| Seas 2–3, 1 crown: (a) mostly fails, (b) ≥ 60% | (a) **43% / 43%**, (b) **73% / 73%** |
+| Seas 4–6, 1 crown: (b) mixed, (c) ≥ 60% | (b) 60% / 50% / 3%; (c) **60%**, 53%, **20%**: Sea 4 meets it, Sea 5 nearly does, Sea 6 doesn't |
+| Any 3-crown stage, (c): 20–50% | Seas 2, 4 and 5: **50%, 27%, 33%**; Sea 1 100% (too easy), Seas 3 and 6 13% and 17% (too hard) |
+
+One crown multiplier for every sea can't put Sea 1 and Sea 6 in the
+20–50% band at once: (c) is several times stronger than Sea 1's depth,
+so any multiplier that keeps Sea 6's 3 crowns winnable leaves Sea 1's
+trivial. x1.5 puts the middle seas in the band.
+
+The depths are no longer in order (52, 48, 46, 34 for Seas 3–6). They
+are only each sea's enemy strength: Seas 5 and 6 bring harder lineups,
+Elite Hunt, the storm and the Abyss's currents, so the same felt
+difficulty needs a lower number there.
+
+### 18.5 Stages no build clears
+
+These stay at 0% (or near it) for every build at 1 crown, because of what
+is in them rather than their sea's depth. Traced with build (c), three
+crews, sharing out the hull damage:
+
+| Stage | What sinks the ship |
+|---|---|
+| 2-5 The Forge (Fighters Only) | Obsidian Golems, 90–92%: the fighters (Cannoneer, The Duelist, The Captain, Anchor Bosun) can't get through them in time |
+| 3-6 Wyrm and Bones | Captain Blackbones 61–67%, the Frost Wyrm 23–26% |
+| 4-6 The Siren Court | Bone Deckhands, the Ghost Galleon's boarding boats and volleys |
+| 5-6 Eye of the Storm | the Galleon's boarding boats (53–61%) and volleys |
+| 6-6 The Drowned Throne | the boss pairs at full HP (Frost Giant 31–37%, then The Kraken and the Wyrm) |
+| 5-3, 5-5, 6-4, 6-5 | 0% for every build too (not traced) |
+| 4-5 Lost Crew (Skeleton Crew) | wins 3 of 3 with build (c)'s ship crew cut to three; the sim's own Muster picks a weaker three |
+
+**3-6 blocks progress:** a sea opens once the sea before's boss stage is
+cleared at 1 crown, so with these numbers no build gets past Sea 3. The
+fix belongs in the stage data, not in the two knobs this pass was allowed
+to turn: an HP (and damage) factor for bosses in stages, like the
+finales' `hpFactor`, or lighter boss stages. Not done yet.
+
+Stage times when (a) wins at 1 crown, after: most take 1.5–4 minutes
+(1-1 172 s, 2-1 141 s, 3-1 202 s, 5-1 148 s); the ones the crew only just
+wins still run 5–8 minutes (1-5 411 s, 3-4 516 s, 4-1 317 s).
+
+### 18.6 Time to the first awakening
+
+`sim:awaken-pace` (4,000 trials) uses build (a)'s Sea 1 clear rates from
+round 3 (93% / 77% / 70% per crown; the boss stage 60% at 1 crown and 0%
+at 2 and 3) with the game's Grog rules (full to start, 1 back per 5 min,
+half back on a loss, all back on a first clear). The player sweeps Sea 1
+at every crown it can win, then farms what's missing: the boss stage for
+Hearts, otherwise the stage that gives the most of the glass still needed
+per Grog. It's limited by Grog: 4 visits a day collect about 120 (the bar
+fills in 2.5 h).
+
+The Hearts are what take time. (a) can't win the boss stage at 2 or 3
+crowns, so the Hearts certain on those first clears are out of reach and
+the rest come from the 1-crown roll.
+
+| Heart chance (1 / 2 / 3 crowns) | First Legendary (25 own / 8 gold / 3 Hearts), median (10%–90%) |
+|---|---|
+| 15 / 30 / 50% (specified) | **0.8 days** (0.5–1.3) |
+| **5 / 10 / 20% (kept)** | **2.1 days** (0.9–4.5); an Epic (18 / 6 / 2) 1.25 days; at 2 visits a day 4.3 days |
+| 4 / 8 / 16% | 2.75 days (1.1–5.7) |
+| 3 / 6 / 12% | 3.7 days (1.4–7.6) |
+
+Hearts drop at **5% / 10% / 20%**. The first 2- and 3-crown clears of a
+boss stage still give one for certain, and the Drowned Throne always
+does. A first Legendary then takes about 2 days, and an Epic a little
+over 1, for a player who tops up Grog a few times a day: about 320 Grog
+net and 110 stage tries for the Legendary.
+
+### 18.7 Final numbers
+
+| What | Value |
+|---|---|
+| Sea depths | 15 / 36 / 52 / 48 / 46 / 34 |
+| Crowns (enemy HP and damage) | x1 / x1.25 / x1.5 |
+| Wave size | 14 + 2 per wave (a boss wave half that, as escort) |
+| Grog | 30 cap, 1 per 5 min; cost 4 / 5 / 6 / 6 / 7 / 8, +1 / +2 at 2 / 3 crowns |
+| Drops | a normal stage's colours at 70% (100% at 3 crowns), x2 at 2–3 crowns; a boss stage 3 random glass and a Heart at 5 / 10 / 20%; first clears +3 of each colour |
+| Awakening | level 80; +40% damage; Common 12/4/1, Rare and Epic 18/6/2, Legendary 25/8/3 |

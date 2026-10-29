@@ -197,15 +197,15 @@ test('drops: a first clear adds 3 of each of its colours', () => {
   assert.deepEqual(rollDrops(stageOf('1-1'), 1, { first: true }, rolls(0.99)).glass, { red: 3 });
 });
 
-test('drops: a boss stage drops 3 glass and a Heart at 15 / 30 / 50%', () => {
+test('drops: a boss stage drops 3 glass and a Heart at 5 / 10 / 20%', () => {
   const s = stageOf('1-6');
   const at = (crown, roll) => rollDrops(s, crown, {}, rolls(0, 0, 0, roll));
-  assert.equal(Object.values(at(1, 0.1).glass).reduce((a, b) => a + b), 3);
-  assert.equal(at(1, 0.1).heart, 1);
-  assert.equal(at(1, 0.2).heart, 0);
-  assert.equal(at(2, 0.29).heart, 1);
-  assert.equal(at(3, 0.49).heart, 1);
-  assert.equal(at(3, 0.51).heart, 0);
+  assert.equal(Object.values(at(1, 0.04).glass).reduce((a, b) => a + b), 3);
+  assert.equal(at(1, 0.04).heart, 1);
+  assert.equal(at(1, 0.06).heart, 0);
+  assert.equal(at(2, 0.09).heart, 1);
+  assert.equal(at(3, 0.19).heart, 1);
+  assert.equal(at(3, 0.21).heart, 0);
 });
 
 test('drops: the first 2- and 3-crown clears of a boss stage give a Heart', () => {

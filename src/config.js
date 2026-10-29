@@ -2652,11 +2652,11 @@ export const UNCHARTED = {
   cost: [4, 5, 6, 6, 7, 8],
   crownCost: [0, 1, 2],
   retreatRefund: 0.5,
-  depths: [15, 30, 45, 60, 75, 90],
-  crowns: [{ hp: 1, damage: 1 }, { hp: 1.6, damage: 1.6 }, { hp: 2.5, damage: 2.5 }],
+  depths: [15, 36, 52, 48, 46, 34],
+  crowns: [{ hp: 1, damage: 1 }, { hp: 1.25, damage: 1.25 }, { hp: 1.5, damage: 1.5 }],
   goldMult: 0.5,
   clearBonus: 2,
-  waves: { size: 18, perWave: 2, bossEscort: 0.5, gap: 2000 },
+  waves: { size: 14, perWave: 2, bossEscort: 0.5, gap: 2000 },
   rules: {
     skeleton_crew: { crew: 3 },
     fighters_only: { trait: 'fighter' },
@@ -2672,7 +2672,7 @@ export const UNCHARTED = {
     hourglass: { ms: 120000 },
   },
   drops: {
-    chance: 0.7, crownMult: [1, 2, 2], bossGlass: 3, heart: [0.15, 0.3, 0.5], firstClear: 3,
+    chance: 0.7, crownMult: [1, 2, 2], bossGlass: 3, heart: [0.05, 0.1, 0.2], firstClear: 3,
   },
   glassByTrait: {
     fighter: 'red', sailor: 'blue', scout: 'green', mystic: 'purple', caretaker: 'gold',
