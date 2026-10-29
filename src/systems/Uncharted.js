@@ -18,7 +18,9 @@ import { seededRandom } from './WaveManager.js';
 export const STAGES = SEAS.flatMap((sea, s) => sea.stages.map((stage, i) => Object.assign(stage, { sea: s, index: i })));
 export const stageOf = (id) => STAGES.find((s) => s.id === id) ?? null;
 export const seaOf = (stage) => SEAS[stage.sea];
-export const isBossStage = (stage) => !!stage.bosses;
+// A boss stage (a sea's last, with no colours of its own: random glass and a
+// Heart); a stage with a mid-boss and colours (Giant's Wake) drops those.
+export const isBossStage = (stage) => !!stage.bosses && !stage.drops;
 // The sea's strength: the Abyss depth its enemies are as tough as.
 export const seaDepth = (sea) => UNCHARTED.depths[sea];
 
@@ -44,6 +46,9 @@ export function stageRules(stage, crown) {
   return [...new Set(rules)];
 }
 export const hasRule = (stage, crown, id) => stageRules(stage, crown).includes(id);
+
+// The Hourglass's time to win a stage in (ms).
+export const hourglassMs = (stage) => UNCHARTED.rules.hourglass.stages[stage.id] ?? UNCHARTED.rules.hourglass.ms;
 
 // Grog to sail a stage at a crown.
 export function stageCost(stage, crown) {
@@ -213,14 +218,16 @@ export function stageOptions(stage, crown) {
 // the first has gate (that wave's number): it waits until the field is
 // clear. Seeded by the stage and crown, so a retry meets the same line-up.
 // Swarm doubles the count at half HP; Elite Hunt makes every n-th enemy
-// (not bosses) an Abyss Elite. Everyone's HP and damage carry the crown's
-// factors through the stage's scaling (stageScaling), not here.
+// (not bosses) an Abyss Elite. Bosses carry their stage's UNCHARTED.bosses
+// factors. Everyone's HP and damage carry the crown's factors through the
+// stage's scaling (stageScaling), not here.
 export function stagePlan(stage, crown) {
   const random = seededRandom(hash(`plan:${stage.id}:${crown}`));
   const { size, perWave, bossEscort } = UNCHARTED.waves;
   const rules = stageRules(stage, crown);
   const swarm = rules.includes('swarm') ? UNCHARTED.rules.swarm : null;
   const eliteEvery = rules.includes('elite_hunt') ? UNCHARTED.rules.elite_hunt.every : 0;
+  const boss = { hp: 1, damage: 1, ...UNCHARTED.bosses[stage.id] };
   const types = stage.lineup.map((key) => ({ key, ...GROUPS[key] }));
   const totalWeight = types.reduce((s, t) => s + t.weight, 0);
   const interval = WAVES.minSpawnInterval;
@@ -264,8 +271,8 @@ export function stagePlan(stage, crown) {
           delay: first ? 0 : i === 0 ? interval : WAVES.formationSpacing,
           follow: g.escort && i > 0 ? leader : null,
           gate: first && w > 0 ? w + 1 : null,
-          hpFactor: swarm && !def.boss ? swarm.hp : 1,
-          damageFactor: 1,
+          hpFactor: def.boss ? boss.hp : swarm ? swarm.hp : 1,
+          damageFactor: def.boss ? boss.damage : 1,
         });
       });
     });

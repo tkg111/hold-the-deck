@@ -2657,6 +2657,17 @@ export const UNCHARTED = {
   goldMult: 0.5,
   clearBonus: 2,
   waves: { size: 14, perWave: 2, bossEscort: 0.5, gap: 2000 },
+  // bosses: a boss stage's bosses have hp x their HP and damage x their
+  // damage (on top of the sea's depth and the crown), so the stage that
+  // opens the next sea asks for the build its sea is aimed at rather than
+  // being a wall (stage id -> { hp, damage }; others x1).
+  bosses: {
+    '3-6': { hp: 0.7, damage: 0.7 },
+    '4-6': { hp: 0.4, damage: 0.4 },
+    '5-3': { hp: 0.5, damage: 0.5 },
+    '5-6': { hp: 0.5, damage: 0.5 },
+    '6-6': { hp: 0.4, damage: 0.4 },
+  },
   rules: {
     skeleton_crew: { crew: 3 },
     fighters_only: { trait: 'fighter' },
@@ -2669,7 +2680,9 @@ export const UNCHARTED = {
     swarm: { count: 2, hp: 0.5 },
     barnacled: { share: 0.4 },          // an Ice Witch's shield worth this share of max HP on every enemy
     elite_hunt: { every: 4 },
-    hourglass: { ms: 120000 },
+    // ms to win in; a stage whose waves take longer to play than that,
+    // even for the build its sea is aimed at, has its own limit (stages).
+    hourglass: { ms: 120000, stages: { '3-4': 330000, '5-3': 240000, '6-4': 300000 } },
   },
   drops: {
     chance: 0.7, crownMult: [1, 2, 2], bossGlass: 3, heart: [0.05, 0.1, 0.2], firstClear: 3,

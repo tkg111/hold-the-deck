@@ -46,7 +46,7 @@ import { initParts, partOf } from '../../src/systems/Parts.js';
 import { initPacks, packOf } from '../../src/systems/Packs.js';
 import { ShipParts } from '../../src/systems/ShipParts.js';
 import { MealEffects } from '../../src/systems/Meals.js';
-import { stageOf, stageOptions } from '../../src/systems/Uncharted.js';
+import { hourglassMs, stageOf, stageOptions } from '../../src/systems/Uncharted.js';
 
 const RUNS = Number(process.argv[2] ?? 5);
 const MAX_WAVE = Number(process.argv[3] ?? 50);
@@ -208,7 +208,7 @@ export function playWave(scene, progress, onStep = null, { hunt = null } = {}) {
   const options = stage ? stageOptions(stageOf(stage.id), stage.crown)
     : hunt ? progress.huntOptions(hunt, progress.islandId) : dive ? progress.abyssOptions : progress.waveOptions;
   const wave = hunt || dive || stage ? options.wave : progress.wave;
-  const timeout = progress.stageHas('hourglass') ? config.UNCHARTED.rules.hourglass.ms : WAVE_TIMEOUT;
+  const timeout = progress.stageHas('hourglass') ? hourglassMs(stageOf(stage.id)) : WAVE_TIMEOUT;
   scene.hunting = !!hunt || !!stage;
   ship.sync(progress);
   if (progress.stageHas('leaky_hull')) ship.hp = ship.maxHp * config.UNCHARTED.rules.leaky_hull.hull;

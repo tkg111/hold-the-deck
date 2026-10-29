@@ -75,7 +75,7 @@ export const SEAS = [
       { id: '3-1', name: 'Frozen Watch', lineup: ['frozenCorsair', 'boneDeckhand'], waves: 5, rule: null, extra: 'doldrums', drops: ['blue'] },
       { id: '3-2', name: 'Penguin Stampede', lineup: ['sledPenguin'], waves: 5, rule: 'gale', extra: 'swarm', drops: ['green'] },
       { id: '3-3', name: 'Witch Light', lineup: ['iceWitch', 'lanternGhoul', 'frozenCorsair'], waves: 5, rule: 'elite_hunt', extra: 'night_watch', drops: ['purple'] },
-      { id: '3-4', name: 'Yeti Pass', lineup: ['yetiRaider', 'cursedCannoneer'], waves: 5, rule: 'leaky_hull', extra: 'hourglass', drops: ['red'] },
+      { id: '3-4', name: 'Yeti Pass', lineup: ['yetiRaider', 'cursedCannoneer', 'frozenCorsair'], waves: 5, rule: 'leaky_hull', extra: 'hourglass', drops: ['red'] },
       { id: '3-5', name: 'Mystic Frost', lineup: [...FROST, ...FOG], waves: 5, rule: 'mystics_only', extra: 'no_galley', drops: ['purple', 'blue'] },
       {
         id: '3-6', name: 'Wyrm and Bones', lineup: FROST, waves: 4, rule: null, extra: 'elite_hunt', hazard: 'blizzard',
@@ -108,7 +108,7 @@ export const SEAS = [
       { id: '5-1', name: 'Thunderhead', lineup: ['stormHarpy', 'ashBat'], waves: 5, rule: 'gale', extra: 'swarm', drops: ['green'] },
       { id: '5-2', name: 'Broadside', lineup: ['boardingBoat', 'cursedCannoneer'], waves: 5, rule: 'leaky_hull', extra: 'barnacled', drops: ['red'] },
       {
-        id: '5-3', name: "Giant's Wake", lineup: ['yetiRaider'], waves: 5, rule: 'hourglass', extra: 'doldrums', drops: ['blue'],
+        id: '5-3', name: "Giant's Wake", lineup: ['yetiRaider', 'frozenCorsair', 'sledPenguin'], waves: 5, rule: 'hourglass', extra: 'doldrums', drops: ['blue'],
         bosses: { 2: ['frostGiant'] },
       },
       { id: '5-4', name: 'Elite Squadron', lineup: ALL, waves: 5, rule: 'elite_hunt', extra: 'gale', drops: ['purple'] },

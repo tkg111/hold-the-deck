@@ -10,7 +10,7 @@ import { initExpeditions } from '../../src/systems/Expeditions.js';
 import { Progress } from '../../src/systems/Progress.js';
 import { progressFromRecord, SAVE_VERSION } from '../../src/systems/Save.js';
 import {
-  awakenCost, glassOf, heroDef, isCrownOpen, isSeaOpen, isStageOpen, rollDrops, seaCrown,
+  awakenCost, glassOf, heroDef, hourglassMs, isCrownOpen, isSeaOpen, isStageOpen, rollDrops, seaCrown,
   stageCost, stageOf, stagePlan, stageRules, STAGES, tickGrog,
 } from '../../src/systems/Uncharted.js';
 
@@ -173,6 +173,19 @@ test('rules: Swarm doubles the count at half HP; Elite Hunt makes every 4th an E
   elites.forEach((e, i) => assert.equal(e.elite, (i + 1) % 4 === 0));
 });
 
+test('stages: a boss stage\'s bosses carry its boss factor; others don\'t', () => {
+  const f = UNCHARTED.bosses['3-6'];
+  const plan = stagePlan(stageOf('3-6'), 1);
+  for (const e of plan.filter((x) => x.def.boss)) assert.deepEqual([e.hpFactor, e.damageFactor], [f.hp, f.damage]);
+  assert.ok(plan.filter((x) => !x.def.boss).every((e) => e.hpFactor === 1 && e.damageFactor === 1));
+  assert.ok(stagePlan(stageOf('1-6'), 1).filter((x) => x.def.boss).every((e) => e.hpFactor === 1));
+});
+
+test('stages: the Hourglass is 2 minutes unless the stage has its own', () => {
+  assert.equal(hourglassMs(stageOf('2-4')), 120000);
+  assert.equal(hourglassMs(stageOf('5-3')), UNCHARTED.rules.hourglass.stages['5-3']);
+});
+
 test('stages: every lineup is real, each stage has its waves and the boss stages their bosses', () => {
   assert.equal(STAGES.length, 36);
   for (const s of STAGES) {
@@ -216,6 +229,12 @@ test('drops: the first 2- and 3-crown clears of a boss stage give a Heart', () =
   assert.equal(p.winStage(rolls(0.99)).heart, 1);
   p.beginStage();
   assert.equal(p.winStage(rolls(0.99)).heart, 0);   // not the first any more
+});
+
+test('drops: a mid-boss stage with colours (Giant\'s Wake) drops its colours, no Heart', () => {
+  const d = rollDrops(stageOf('5-3'), 3, {}, rolls(0));
+  assert.deepEqual(d.glass, { blue: 2 });
+  assert.equal(d.heart, 0);
 });
 
 test('drops: the Drowned Throne always gives a Heart', () => {

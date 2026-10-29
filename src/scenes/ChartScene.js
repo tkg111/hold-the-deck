@@ -5,9 +5,10 @@ import { SEAS } from '../data/uncharted.js';
 import { applyRenderScale, fillView, hudEdges } from '../display.js';
 import { CURRENTS_KEY, ABYSS_JSON_KEY, UNCHARTED_JSON_KEY, unchartedKey } from '../sprites.js';
 import {
-  bestCrown, isBossStage, isCrownOpen, isSeaOpen, isStageOpen, seaCrown, stageCost, stageCurrent, stageRules,
+  bestCrown, hourglassMs, isBossStage, isCrownOpen, isSeaOpen, isStageOpen, seaCrown, stageCost, stageCurrent, stageRules,
 } from '../systems/Uncharted.js';
 import { Button } from '../ui/Button.js';
+import { fmtClock } from '../ui/format.js';
 import {
   dark, hexColor, light, panel, subText, tapArea, text, UI,
 } from '../ui/kit.js';
@@ -185,6 +186,7 @@ export class ChartScene extends Phaser.Scene {
     const stage = sea.stages.find((s) => s.id === this.selected);
     const lines = stageRules(stage, this.crown).map((id) => {
       const r = ruleOf(this, id);
+      if (id === 'hourglass') return `${r.name}: Win within ${fmtClock(hourglassMs(stage))}`;
       return `${r.name}: ${r.text}`;
     });
     const current = stageCurrent(stage);

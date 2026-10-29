@@ -2468,7 +2468,7 @@ crews, sharing out the hull damage:
 cleared at 1 crown, so with these numbers no build gets past Sea 3. The
 fix belongs in the stage data, not in the two knobs this pass was allowed
 to turn: an HP (and damage) factor for bosses in stages, like the
-finales' `hpFactor`, or lighter boss stages. Not done yet.
+finales' `hpFactor`, or lighter boss stages. Done in 18.8.
 
 Stage times when (a) wins at 1 crown, after: most take 1.5–4 minutes
 (1-1 172 s, 2-1 141 s, 3-1 202 s, 5-1 148 s); the ones the crew only just
@@ -2509,6 +2509,108 @@ net and 110 stage tries for the Legendary.
 | Sea depths | 15 / 36 / 52 / 48 / 46 / 34 |
 | Crowns (enemy HP and damage) | x1 / x1.25 / x1.5 |
 | Wave size | 14 + 2 per wave (a boss wave half that, as escort) |
+| Boss factors (18.8) | 3-6 x0.7, 4-6 x0.4, 5-3 x0.5, 5-6 x0.5, 6-6 x0.4 (HP and damage) |
+| Hourglass (18.8) | 2:00; 3-4 5:30, 5-3 4:00, 6-4 5:00 |
 | Grog | 30 cap, 1 per 5 min; cost 4 / 5 / 6 / 6 / 7 / 8, +1 / +2 at 2 / 3 crowns |
 | Drops | a normal stage's colours at 70% (100% at 3 crowns), x2 at 2–3 crowns; a boss stage 3 random glass and a Heart at 5 / 10 / 20%; first clears +3 of each colour |
 | Awakening | level 80; +40% damage; Common 12/4/1, Rare and Epic 18/6/2, Legendary 25/8/3 |
+
+### 18.8 Boss stages and the Hourglass
+
+18.5's walls, the follow-up to the tuning above. Two changes outside the
+depth and crown knobs:
+
+- **A boss factor** (`UNCHARTED.bosses`, stage id -> { hp, damage }): a
+  boss stage's bosses have that share of their HP and damage, and so do
+  what they bring (the Galleon's boarding boats and volleys, Blackbones'
+  raised deckhands, which are made at their boss's strength). Tried at
+  x0.7, x0.5, x0.35 and x0.25 on the boss stages (1 crown, 5 seeds each)
+  and set per stage so that Sea 3's boss asks for build (b) and Seas 4–6's
+  for build (c):
+
+  | Stage | Factor | (a) / (b) / (c) at 1 crown |
+  |---|---:|---|
+  | 3-6 Wyrm and Bones | x0.7 | 0% / 60% / 100% (was 0 / 0 / 0) |
+  | 4-6 The Siren Court | x0.4 | 0% / 60% / 80% (was 0 / 0 / 0) |
+  | 5-3 Giant's Wake | x0.5 | 0% / 0% / 100% (was 0 / 0 / 0) |
+  | 5-6 Eye of the Storm | x0.5 | 0% / 0% / 100% (was 0 / 0 / 0) |
+  | 6-6 The Drowned Throne | x0.4 | 0% / 20% / 100% (was 0 / 0 / 0) |
+
+  1-6 and 2-6 keep x1 (60% for (a) and 100% for (b) already). So the
+  path through all six seas is open: 3-6 for an awakened crew, 4-6 on for
+  a fully awakened one. At 2 and 3 crowns the boss stages past Sea 2 stay
+  out of reach even for (c).
+- **The Hourglass:** 5-3 and 6-4 have it at 1 crown and lost every try
+  for every build, because they take longer to play than 120 s whoever
+  plays them: with no limit even (c) needed 517 s on 5-3 and 273 s on 6-4.
+  Two lineups were slow because Yeti Raiders and Cursed Cannoneers come at
+  most 3 on screen, so their waves trickled in: **Giant's Wake** now has
+  Frozen Corsairs and Sled Penguins with its Yetis (205 s for (c), 277 s
+  for (b)) and **Yeti Pass** Frozen Corsairs with its Yetis and Cannoneers
+  (at 2 crowns 294 s for (c), 391 s for (b)). Those stages also get their
+  own limit (`UNCHARTED.rules.hourglass.stages`): **3-4 5:30, 5-3 4:00,
+  6-4 5:00**, the rest 2:00, shown in the stage list ("HOURGLASS: WIN
+  WITHIN 4:00") and counting down on the enemies bar. Each limit is
+  between the time of the build the sea is aimed at and the next build
+  down.
+
+After (`npm run sim:uncharted -- 5 1`, 5 seeds):
+
+| Sea | a ♛ | a ♛♛ | a ♛♛♛ | b ♛ | b ♛♛ | b ♛♛♛ | c ♛ | c ♛♛ | c ♛♛♛ |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 1 Shipwreck Shallows | 93% | 77% | 70% | 100% | 93% | 97% | 100% | 100% | 100% |
+| 2 Cinder Straits | 43% | 37% | 27% | 73% | 50% | 47% | 80% | 50% | 50% |
+| 3 Glacier Graveyard | 37% | 7% | 3% | 83% | 13% | 10% | 100% | 57% | 13% |
+| 4 Siren's Maze | 27% | 7% | 10% | 70% | 27% | 17% | 73% | 40% | 27% |
+| 5 Storm Crown | 27% | 7% | 0% | 50% | 30% | 30% | 87% | 43% | 33% |
+| 6 The Drowned Throne | 0% | 0% | 0% | 10% | 17% | 17% | 47% | 27% | 33% |
+
+| Stage | a ♛ | a ♛♛ | a ♛♛♛ | b ♛ | b ♛♛ | b ♛♛♛ | c ♛ | c ♛♛ | c ♛♛♛ | Time (a, 1 crown, won) |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 1-1 Low Tide | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 172s |
+| 1-2 Monkey Business | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 42s |
+| 1-3 Barnacle Bay | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 222s |
+| 1-4 Harpy Squall | 100% | 60% | 60% | 100% | 100% | 100% | 100% | 100% | 100% | 87s |
+| 1-5 Skeleton Crew | 100% | 100% | 60% | 100% | 100% | 100% | 100% | 100% | 100% | 411s |
+| 1-6 Kraken's Nest | 60% | 0% | 0% | 100% | 60% | 80% | 100% | 100% | 100% | 219s |
+| 2-1 Ashfall | 100% | 100% | 60% | 100% | 100% | 80% | 100% | 100% | 100% | 141s |
+| 2-2 Obsidian March | 0% | 0% | 0% | 40% | 0% | 0% | 80% | 0% | 0% | - |
+| 2-3 Firefly Night | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 90s |
+| 2-4 Powder Keg Run | 60% | 20% | 0% | 100% | 100% | 100% | 100% | 100% | 100% | 99s |
+| 2-5 The Forge | 0% | 0% | 0% | 0% | 0% | 0% | 0% | 0% | 0% | - |
+| 2-6 Twin Flames | 0% | 0% | 0% | 100% | 0% | 0% | 100% | 0% | 0% | - |
+| 3-1 Frozen Watch | 60% | 40% | 20% | 100% | 60% | 60% | 100% | 100% | 80% | 202s |
+| 3-2 Penguin Stampede | 100% | 0% | 0% | 100% | 0% | 0% | 100% | 60% | 0% | 93s |
+| 3-3 Witch Light | 0% | 0% | 0% | 60% | 0% | 0% | 100% | 0% | 0% | - |
+| 3-4 Yeti Pass | 60% | 0% | 0% | 100% | 0% | 0% | 100% | 100% | 0% | 465s |
+| 3-5 Mystic Frost | 0% | 0% | 0% | 80% | 20% | 0% | 100% | 80% | 0% | - |
+| 3-6 Wyrm and Bones | 0% | 0% | 0% | 60% | 0% | 0% | 100% | 0% | 0% | - |
+| 4-1 Fog Bank | 60% | 0% | 0% | 100% | 0% | 0% | 100% | 0% | 0% | 317s |
+| 4-2 Siren Song | 0% | 0% | 0% | 60% | 0% | 0% | 60% | 60% | 0% | - |
+| 4-3 Graveyard Shift | 100% | 40% | 60% | 100% | 100% | 80% | 100% | 100% | 100% | 295s |
+| 4-4 Grapeshot Alley | 0% | 0% | 0% | 100% | 60% | 20% | 100% | 80% | 60% | - |
+| 4-5 Lost Crew | 0% | 0% | 0% | 0% | 0% | 0% | 0% | 0% | 0% | - |
+| 4-6 The Siren Court | 0% | 0% | 0% | 60% | 0% | 0% | 80% | 0% | 0% | - |
+| 5-1 Thunderhead | 80% | 0% | 0% | 100% | 100% | 100% | 100% | 100% | 100% | 148s |
+| 5-2 Broadside | 80% | 40% | 0% | 100% | 80% | 80% | 100% | 100% | 100% | 284s |
+| 5-3 Giant's Wake | 0% | 0% | 0% | 0% | 0% | 0% | 100% | 0% | 0% | - |
+| 5-4 Elite Squadron | 0% | 0% | 0% | 100% | 0% | 0% | 100% | 60% | 0% | - |
+| 5-5 Dead Calm | 0% | 0% | 0% | 0% | 0% | 0% | 20% | 0% | 0% | - |
+| 5-6 Eye of the Storm | 0% | 0% | 0% | 0% | 0% | 0% | 100% | 0% | 0% | - |
+| 6-1 Sunken Steps | 0% | 0% | 0% | 0% | 100% | 0% | 40% | 100% | 100% | - |
+| 6-2 Pressure | 0% | 0% | 0% | 0% | 0% | 0% | 40% | 0% | 0% | - |
+| 6-3 Black Water | 0% | 0% | 0% | 20% | 0% | 0% | 40% | 0% | 0% | - |
+| 6-4 The Gauntlet | 0% | 0% | 0% | 20% | 0% | 100% | 60% | 60% | 100% | - |
+| 6-5 Last Watch | 0% | 0% | 0% | 0% | 0% | 0% | 0% | 0% | 0% | - |
+| 6-6 The Drowned Throne | 0% | 0% | 0% | 20% | 0% | 0% | 100% | 0% | 0% | - |
+
+Against the targets now: Sea 1 (a) 93%; Seas 2–3 (a) 43% / 37% and (b)
+73% / 83%; Seas 4–6 (b) 70% / 50% / 10% and (c) **73% / 87% / 47%**;
+3-crown (c) 100 / 50 / 13 / 27 / 33 / 33%.
+
+**Still at 0% for every build at 1 crown:** 2-5 The Forge (Fighters Only
+against Obsidian Golems), 4-5 Lost Crew and 6-5 Last Watch (Skeleton
+Crew; the sim's Muster picks a weak three, and 4-5 won 3 of 3 with a
+better three in 18.5's trace) and 5-5 Dead Calm (Doldrums against every
+island's enemies; 20% for (c)). They don't block any sea, but each one
+keeps its sea's 2-crown tab closed until it's cleared.

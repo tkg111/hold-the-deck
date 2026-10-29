@@ -12,7 +12,8 @@
 //    each build mustering like a player would: its best crew the stage's
 //    rules allow (someone who hits flyers first when the stage has any).
 // Report: the clear rate per stage, crown and build, per sea and crown, and
-// the stages' times. Options: build=a|b|c, sea=1..6, crown=1..3.
+// the stages' times. Options: build=a|b|c, sea=1..6, crown=1..3, and
+// stage=3-6,4-6 (only those).
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { AWAKEN, HEROES, SHIP } from '../../src/config.js';
 import { SEAS } from '../../src/data/uncharted.js';
@@ -32,6 +33,7 @@ const CREWS = Number(plain[0] ?? 5);
 const TRIES = Number(plain[1] ?? 1);
 const BUILDS = flag('build') ? [flag('build')] : ['a', 'b', 'c'];
 const SEA = flag('sea') ? Number(flag('sea')) - 1 : null;
+const ONLY = flag('stage')?.split(',') ?? null;   // stage=3-6,4-6: only those
 const CROWNS = flag('crown') ? [Number(flag('crown'))] : [1, 2, 3];
 const MAX_TRIES = 30;
 const islandIds = ['skull_cove', 'ember_isle', 'frostbite_reef', 'fogbound_isle'];
@@ -126,7 +128,7 @@ function tryStage(save, stage, crown, seed) {
 // --- Report ---
 
 const list = crews();
-const stages = STAGES.filter((s) => SEA == null || s.sea === SEA);
+const stages = STAGES.filter((s) => (SEA == null || s.sea === SEA) && (!ONLY || ONLY.includes(s.id)));
 const results = {};   // `${build}:${stage}:${crown}` -> [{ won, time }]
 const t0 = Date.now();
 for (const which of BUILDS) {

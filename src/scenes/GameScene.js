@@ -39,7 +39,7 @@ import {
 } from '../systems/Abyss.js';
 import { BattleStats, mvpOf } from '../systems/BattleStats.js';
 import {
-  awakening, isStageOpen, seaOf, stageIsland, stageOf, stageOptions,
+  awakening, hourglassMs, isStageOpen, seaOf, stageIsland, stageOf, stageOptions,
 } from '../systems/Uncharted.js';
 import { AwakenDialog } from '../ui/AwakenDialog.js';
 import { LAYOUT } from '../layout.js';
@@ -1307,7 +1307,7 @@ export class GameScene extends Phaser.Scene {
     this.nightShade.setAlpha(p.stageHas('night_watch') ? UNCHARTED.rules.night_watch.dim : 0);
     this.stageWave = 1;
     this.stageWaves = stage.waves;
-    this.stageClock = p.stageHas('hourglass') ? UNCHARTED.rules.hourglass.ms : null;
+    this.stageClock = p.stageHas('hourglass') ? hourglassMs(stage) : null;
     this.showBanner(stage.name.toUpperCase(), { detail: `WAVE 1/${stage.waves}`, color: UI.colors.text });
     sfx.play('wave_start');
     this.state = STATE.RUNNING;
