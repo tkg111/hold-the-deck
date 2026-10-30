@@ -139,13 +139,14 @@ function muster(p, flyers) {
 // The bot and the Uncharted bosses' mechanics (MECH=use, the default, as a
 // player told by the Captain's tips; MECH=ignore; MECH=none:
 // the crew's own targeting). use: the crew aim first at what the
-// mechanic is about: the Angler's lure, Shellbacks (the Hermit King's),
+// mechanic is about: the Angler's lure, the Shellbacks out of the Hermit
+// King's wreck,
 // Cinderclad's mortar shells, Captain Rime (his plates), the Storm Roc
 // perched, the Drowned King with his trident out. ignore: they leave the
 // lure, Shellbacks and shells alone while anything else is in range, and
 // Rime while he has plates (hypnosis still makes them look at the lure).
 const MECH = process.env.MECH === 'none' ? null : process.env.MECH ?? 'use';
-const mechanic = (e) => !!(e.def.lure || e.key === 'shellback' || e.def === ENEMIES.cinderShell
+const mechanic = (e) => !!(e.def.lure || e.fromWreck || e.def === ENEMIES.cinderShell
   || (e.def.roc && e.perched) || (e.def.king && e.outLeft > 0));
 const MECH_HOOKS = {
   use: { botFocus: (e) => mechanic(e) || !!e.def.rime, crewAvoid: null },

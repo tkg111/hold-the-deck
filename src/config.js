@@ -2097,12 +2097,13 @@ export const ENEMIES = {
     // firstCannonAt) "cannons": `shots` hermit_cannonballs arc from its
     // sheet's cannonsAt onto random decks, each for shotMult x its damage,
     // stunning the crewmate nearest where it lands for stun ms. At each of
-    // hideAt of its HP it hides in the wreck ("hide") for hideMs, taking no
-    // damage, and `count` Shellbacks crawl out spread px apart.
+    // hideAt of its HP it hides in the wreck ("hide"), taking no damage, and
+    // `count` Shellbacks crawl out spread px apart; it stays hidden until
+    // they are all dead (hideMs at most).
     hermit: {
       firstCannonAt: 5000, cannonEvery: 10000, shots: 2, shotMult: 0.4, stun: 500, flightTime: 1200, arcHeight: 70,
       shot: 'hermit_cannonball', impact: 'explosion',
-      hideAt: [0.66, 0.33], hideMs: 4000, spawn: 'shellback', count: 3, spread: 16,
+      hideAt: [0.66, 0.33], hideMs: 15000, spawn: 'shellback', count: 3, spread: 16,
       smashShake: { duration: 220, intensity: 0.008 },
     },
   },
@@ -2234,7 +2235,7 @@ export const ENEMIES = {
     // damage; the lure grows back regrowMs later. Every biteEvery ms "bite":
     // the hull takes its damage.
     angler: {
-      lurkMs: 3000, lureShare: 0.15, regrowMs: 12000, stunMs: 5000, stunnedTaken: 2,
+      lurkMs: 3000, lureShare: 0.1, regrowMs: 12000, stunMs: 5000, stunnedTaken: 2,
       firstHypnosisAt: 5000, hypnosisEvery: 10000, hypnosisMs: 3000, dazzle: 0.25, rings: 'hypnosis_rings',
       firstBiteAt: 4000, biteEvery: 8000, biteAt: 300,
       shake: { duration: 250, intensity: 0.006 },
@@ -2292,7 +2293,7 @@ export const ENEMIES = {
     // feet on the lane) for perchMs, taking perched x damage, then flies again.
     roc: {
       enterMs: 1500, cx: 290, cy: 60, ax: 70, ay: 28, loopMs: 9000,
-      flying: 0.5, antiAir: 2, perched: 1.25,
+      flying: 0.33, antiAir: 2, perched: 2,
       firstFeatherAt: 3000, featherEvery: 5000, feathers: 5, featherSpread: 14, featherMult: 1, featherSpeed: 200, feather: 'roc_feather',
       firstLightningAt: 6000, lightningEvery: 9000, lightningStun: 1500, lightning: 'roc_lightning', castMs: 500,
       firstLandAt: 12000, landEvery: 20000, perchMs: 5000, landX: 400, landMs: 700,
@@ -2312,9 +2313,9 @@ export const ENEMIES = {
     origin: [0.5, 106 / 112],
     width: 70,
     height: 100,
-    hp: 1700,
+    hp: 2600,
     speed: 0,
-    damage: 30,
+    damage: 45,
     attackInterval: 1000,
     gold: 50,
     statusResist: 0.5,
@@ -2328,14 +2329,15 @@ export const ENEMIES = {
     // the hull takes tideMult x his damage. At riseAt of his HP he "rise"s
     // (riseMs, out of reach), and phase 2 he floats ("float"): every
     // throwEvery ms "throw", the king_trident flies at the hull for
-    // tridentMult x his damage and back over outMs, while he takes outTaken x
-    // damage; and one of currentPool joins the stage's currents until he dies.
+    // tridentMult x his damage and back over outMs; for windowMs from the
+    // throw he takes outTaken x damage; and one of currentPool joins the
+    // stage's currents until he dies.
     king: {
       firstSummonAt: 3000, summonEvery: 10000, summons: 4,
       summonPool: ['boneDeckhand', 'frozenCorsair', 'cinderSkeleton', 'shellback', 'eelRider', 'lurker', 'reefGolem', 'magmaCrab'],
       firstTideAt: 6000, tideEvery: 12000, tideSpeed: 1.6, tideMs: 3000, tideMult: 0.5, tide: 'king_tide', tidePx: 130,
       riseAt: 0.5, riseMs: 2000,
-      firstThrowAt: 2000, throwEvery: 7000, tridentMult: 2, outMs: 2000, outTaken: 1.5, trident: 'king_trident',
+      firstThrowAt: 2000, throwEvery: 7000, tridentMult: 2, outMs: 2000, windowMs: 3000, outTaken: 2, trident: 'king_trident',
       currentPool: ['frenzied', 'shielded', 'sirens_call', 'risen_dead'],
       shake: { duration: 300, intensity: 0.006 },
       aboveWater: 23,
@@ -3361,7 +3363,7 @@ export const UNCHARTED = {
     '3-6': { hp: 0.6, damage: 0.6 },
     '4-6': { hp: 1, damage: 1 },
     '5-3': { hp: 0.5, damage: 0.5 },
-    '5-6': { hp: 1.2, damage: 1.2 },
+    '5-6': { hp: 1.25, damage: 1.25 },
     '6-6': { hp: 0.4, damage: 0.4 },
   },
   rules: {

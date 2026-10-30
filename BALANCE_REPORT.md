@@ -2789,13 +2789,91 @@ Build (c) with one crewmate swapped in for its weakest attacker in turn,
 - None of them makes every stage easy: 2-2 and 3-3 stay at 0% at 2
   crowns with any one of them.
 
-#### Final numbers
+#### Numbers after round 3
 
 | What | Value |
 |---|---|
 | Boss HP / damage (base) | Hermit King 1500 / 30 smash; Cinderclad 1000 / 16 per shell (x2); Captain Rime 400 / 16; Abyssal Angler 480 / 22 bite; Storm Roc 700 / 5 per feather; Drowned King 1700 / 30 |
 | Boss factors (`UNCHARTED.bosses`) | 3-6 x0.6, 4-6 x1, 5-3 x0.5, 5-6 x1.2, 6-6 x0.4 (1-6 and 2-6 x1) |
 | Angler | lure 15% of its HP; hypnosis dazzles the crew to 25% damage |
+| Octopus Tamer | every 1.8 s, holds 1.2 s (awakened: 2 foes, 1.2 s, slam x2) |
+| Earned crew | join at 5 stars |
+| New enemies | as specified (no HP changes) |
+
+### 18.10 Round 4: the boss mechanics
+
+A fourth round, asked for after 18.9, on its next steps:
+
+| Change | Why |
+|---|---|
+| The Hermit King stays in the wreck until the Shellbacks that crawled out are dead (15 s at most), not 4 s | ignoring his crabs should keep him out of reach |
+| The bot's "use" for the Hermit aims only at the crabs out of the wreck (`fromWreck`), not every Shellback | 1-6's waves have Shellbacks of their own; aiming at all of them let the boarding boats through, which is why "use" lost in 18.9 |
+| The Angler's lure 15% → 10% of its HP | chasing a bigger lure cost more than its ×2 window paid |
+| The Storm Roc: x0.33 in the air (from x0.5), x2 perched (from x1.25); 5-6's factor 1.2 → 1.25 | landing should be the moment; ×2.0, ×1.5 and ×1.3 were tried for 5-6 and left (c) at 0%, 0% and 20% |
+| The Drowned King: x2 for 3 s after each trident throw (from x1.5 while it flies), 2600 HP and 45 damage (from 1700 / 30) | a bigger window, and the clear rate |
+
+Each boss is measured at 1 crown with the build whose clear rate isn't
+pinned at 0% or 100% (or the nearest to it); "use" and "ignore" have 10
+tries per cell, (a) at 2 crowns for Cinderclad as in 18.9.
+
+| Boss | Build, crown | Use | Ignore | Gap |
+|---|---|---:|---:|---:|
+| Cinderclad | (a) ♛ | 100% | 0% | **+100** |
+| Captain Rime | (b) ♛ | 100% | 40% | **+60** |
+| The Storm Roc | (c) ♛ | 50% | 30% | **+20** |
+| The Hermit King | (a) ♛♛ | 100% | 100% | 0 |
+| The Abyssal Angler | (b) ♛ / (c) ♛♛ | 40% / 20% | 40% / 20% | 0 |
+| The Drowned King | (c) ♛ | 90% | 90% | 0 |
+
+Three of the six now pass. What's left:
+
+- **The Hermit King:** with the bot's targeting fixed, the inversion is
+  gone; the stage is cleared either way. The ×1 boss factor that 18.8
+  kept for 1-6 leaves (a) winning it at 1 and 2 crowns, so there's no room
+  for a gap to show.
+- **The Abyssal Angler:** the same in every cell at every lure size tried
+  (8%, 15%, 10%). 4-6's losses for (b) come from its escorts (Lurkers
+  under Night Watch, with Empty Galley), not from the Angler.
+- **The Drowned King:** neither his HP (1500 → 2600) nor his damage
+  (20 → 45) moves (c)'s 80–90%. 6-6 already takes (c) 430–570 s of the
+  sim's 600 s, with three boss pairs before him and its x0.4 factor on
+  all of them, so he isn't what decides it. The next lever is 6-6's own
+  factor for the King alone (a per-boss factor), not his base numbers.
+
+#### Round 4 matrix
+
+| Sea | a ♛ | a ♛♛ | a ♛♛♛ | b ♛ | b ♛♛ | b ♛♛♛ | c ♛ | c ♛♛ | c ♛♛♛ |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 1 Shipwreck Shallows | 100% | 100% | 57% | 100% | 100% | 83% | 100% | 100% | 97% |
+| 2 Cinder Straits | 67% | 30% | 10% | 83% | 67% | 60% | 87% | 67% | 67% |
+| 3 Glacier Graveyard | 27% | 0% | 0% | 77% | 7% | 0% | 93% | 53% | 30% |
+| 4 Siren's Maze | 27% | 10% | 0% | 50% | 23% | 3% | 83% | 37% | 30% |
+| 5 Storm Crown | 10% | 0% | 0% | 50% | 3% | 3% | 77% | 43% | 30% |
+| 6 The Drowned Throne | 0% | 0% | 0% | 20% | 37% | 3% | 67% | 67% | 20% |
+
+| Boss stage | a ♛ | a ♛♛ | a ♛♛♛ | b ♛ | b ♛♛ | b ♛♛♛ | c ♛ | c ♛♛ | c ♛♛♛ | Time (a, 1 crown, won) |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 1-6 The Hermit King | 100% | 100% | 0% | 100% | 100% | 0% | 100% | 100% | 80% | 336s |
+| 2-6 Cinderclad | 100% | 0% | 0% | 100% | 100% | 60% | 100% | 100% | 100% | 514s |
+| 3-6 Captain Rime | 0% | 0% | 0% | 100% | 0% | 0% | 80% | 0% | 0% | - |
+| 4-6 The Abyssal Angler | 0% | 0% | 0% | 40% | 0% | 0% | 100% | 20% | 0% | - |
+| 5-6 The Storm Roc | 0% | 0% | 0% | 0% | 0% | 0% | 40% | 0% | 0% | - |
+| 6-6 The Drowned Throne | 0% | 0% | 0% | 0% | 0% | 0% | 80% | 0% | 0% | - |
+
+The seas' targets still hold (Sea 1 (a) 100%; Seas 2–3 (b) 83% / 77%;
+Seas 4–6 (c) 83% / 77% / 67%). 5-6 alone is below (c)'s 60% (40–50%).
+The other stages, and the crew head-to-heads, are as in 18.9.
+
+#### Final numbers
+
+| What | Value |
+|---|---|
+| Boss HP / damage (base) | Hermit King 1500 / 30 smash; Cinderclad 1000 / 16 per shell (x2); Captain Rime 400 / 16; Abyssal Angler 480 / 22 bite; Storm Roc 700 / 5 per feather; Drowned King 2600 / 45 |
+| Boss factors (`UNCHARTED.bosses`) | 3-6 x0.6, 4-6 x1, 5-3 x0.5, 5-6 x1.25, 6-6 x0.4 (1-6 and 2-6 x1) |
+| Hermit King | hides until its crabs are dead (15 s at most) |
+| Angler | lure 10% of its HP; hypnosis dazzles the crew to 25% damage |
+| Storm Roc | x0.33 in the air (x2 from crew strong against flyers), x2 perched |
+| Drowned King | x2 for 3 s after each throw |
 | Octopus Tamer | every 1.8 s, holds 1.2 s (awakened: 2 foes, 1.2 s, slam x2) |
 | Earned crew | join at 5 stars |
 | New enemies | as specified (no HP changes) |

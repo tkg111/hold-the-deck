@@ -1528,8 +1528,9 @@ export class Enemy {
   crawl(sdt, ship) {
     const h = this.def.hermit;
     if (this.wreckTime > 0) {
-      this.wreckTime -= sdt;
-      this.actionTime = Math.max(this.actionTime, this.wreckTime);
+      // Out once its Shellbacks are all dead (or hideMs is up).
+      this.wreckTime = this.wreckCrew.some((e) => e.alive) ? this.wreckTime - sdt : 0;
+      this.actionTime = Math.max(0, this.wreckTime);
       return false;
     }
     if (this.smashDue > 0) {
@@ -1590,7 +1591,7 @@ export class Enemy {
   }
 
   // At each hideAt of its HP: into the wreck ("hide", out of reach, no
-  // damage) for hideMs, and its Shellbacks crawl out.
+  // damage) until the Shellbacks that crawl out are dead (hideMs at most).
   hideInWreck() {
     const h = this.def.hermit;
     this.hidesDone++;
@@ -1598,9 +1599,12 @@ export class Enemy {
     this.smashDue = 0;
     this.playAction(this.hideAnim, h.hideMs);
     const minX = LAYOUT.shipContactX + ENEMIES[h.spawn].width / 2;
+    this.wreckCrew = [];
     for (let i = 0; i < h.count; i++) {
       const x = Phaser.Math.Clamp(this.x - this.def.width / 2 - 6 - i * h.spread, minX, LAYOUT.enemySpawnX);
-      this.spawnFrom(h.spawn, x);
+      const crab = this.spawnFrom(h.spawn, x);
+      crab.fromWreck = true;
+      this.wreckCrew.push(crab);
     }
     sfx.play('boss_roar');
   }
@@ -2110,11 +2114,11 @@ export class Enemy {
   }
 
   // The trident at the hull (tridentMult x his damage), back over outMs;
-  // meanwhile he takes outTaken x damage.
+  // for windowMs he takes outTaken x damage.
   throwTrident(ship) {
     const { scene } = this;
     const k = this.def.king;
-    this.outLeft = k.outMs;
+    this.outLeft = k.windowMs;
     const from = { x: this.x - this.frameW / 2 + this.hand[0], y: this.feetY - this.frameH * this.def.origin[1] + this.hand[1] };
     const spot = ship.hullTarget();
     scene.projectiles.push(new Projectile(scene, {

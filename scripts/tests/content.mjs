@@ -204,7 +204,7 @@ test('abyss: the new enemies join the mix from depth 20 only', () => {
 // A source of damage from this crewmate (as Hero hits carry).
 const from = (hero) => ({ hero, kind: 'attack' });
 
-test('hermit king: hides in the wreck at 66% and 33%, immune, and 3 Shellbacks crawl out', () => {
+test('hermit king: hides in the wreck at 66% and 33%, immune, until the 3 Shellbacks that crawl out are dead', () => {
   const { scene } = battle();
   const boss = spawn(scene, 'hermitKing');
   boss.takeDamage(boss.maxHp * 0.36);
@@ -214,11 +214,16 @@ test('hermit king: hides in the wreck at 66% and 33%, immune, and 3 Shellbacks c
   const hp = boss.hp;
   boss.takeDamage(1000);
   assert.equal(boss.hp, hp, 'immune in the wreck');
-  step(scene, ENEMIES.hermitKing.hermit.hideMs + DT, { crew: false });
-  assert.ok(boss.targetable);
+  step(scene, 4000, { crew: false });
+  assert.ok(boss.wreckTime > 0, 'still hiding while its crabs live');
+  for (const e of scene.enemies) if (e.key === 'shellback') e.destroy();
+  step(scene, 2 * DT, { crew: false });
+  assert.ok(boss.targetable, 'out once they are dead');
   boss.takeDamage(boss.maxHp * 0.34);
   assert.ok(boss.wreckTime > 0, 'again at 33%');
-  assert.equal(scene.enemies.filter((e) => e.key === 'shellback').length, 6);
+  assert.equal(scene.enemies.filter((e) => e.alive && e.key === 'shellback').length, 3);
+  step(scene, ENEMIES.hermitKing.hermit.hideMs + DT, { crew: false });
+  assert.ok(boss.targetable, 'out after hideMs at most');
 });
 
 test('cinderclad: smoke cuts crew range to 60% while it lasts; mortar shells can be shot down', () => {
@@ -329,7 +334,7 @@ test('storm roc: x0.5 in the air but x2 from crew strong against flyers; x1.25 p
   assert.equal(boss.perched, false, 'took off again');
 });
 
-test('drowned king: rises at 50% (out of reach, immune), then phase 2: x1.5 while the trident is out', () => {
+test('drowned king: rises at 50% (out of reach, immune), then phase 2: x2 for 3s after a trident throw', () => {
   const { scene } = battle();
   const boss = spawn(scene, 'drownedKing');
   const k = ENEMIES.drownedKing.king;
@@ -347,7 +352,7 @@ test('drowned king: rises at 50% (out of reach, immune), then phase 2: x1.5 whil
   assert.ok(boss.outLeft > 0);
   boss.takeDamage(10);
   assert.equal(boss.hp, hp - 10 * k.outTaken);
-  step(scene, k.outMs + DT, { crew: false });
+  step(scene, k.windowMs + DT, { crew: false });
   boss.takeDamage(10);
   assert.equal(boss.hp, hp - 10 * k.outTaken - 10);
   boss.takeDamage(1e6);
