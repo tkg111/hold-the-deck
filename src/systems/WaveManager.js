@@ -300,6 +300,10 @@ export class WaveManager {
     // A finale whose bosses arrive enraged.
     this.enraged = this.finale?.enrage === 'fromStart';
     this.crewCalls = 0;
+    // What a boss of the last battle left behind (the Angler's hypnosis,
+    // Cinderclad's smoke).
+    this.scene.crewFocus = null;
+    this.scene.smoke = null;
   }
 
   stop() {

@@ -199,6 +199,188 @@ test('abyss: the new enemies join the mix from depth 20 only', () => {
   assert.ok(Array.from({ length: 40 }, (_, s) => depthTypes(s + 1, 25)).flat().some((k) => fresh.includes(k)));
 });
 
+// --- Bosses ---
+
+// A source of damage from this crewmate (as Hero hits carry).
+const from = (hero) => ({ hero, kind: 'attack' });
+
+test('hermit king: hides in the wreck at 66% and 33%, immune, and 3 Shellbacks crawl out', () => {
+  const { scene } = battle();
+  const boss = spawn(scene, 'hermitKing');
+  boss.takeDamage(boss.maxHp * 0.36);
+  assert.ok(boss.wreckTime > 0, 'hiding');
+  assert.equal(boss.targetable, false);
+  assert.equal(scene.enemies.filter((e) => e.key === 'shellback').length, 3);
+  const hp = boss.hp;
+  boss.takeDamage(1000);
+  assert.equal(boss.hp, hp, 'immune in the wreck');
+  step(scene, ENEMIES.hermitKing.hermit.hideMs + DT, { crew: false });
+  assert.ok(boss.targetable);
+  boss.takeDamage(boss.maxHp * 0.34);
+  assert.ok(boss.wreckTime > 0, 'again at 33%');
+  assert.equal(scene.enemies.filter((e) => e.key === 'shellback').length, 6);
+});
+
+test('cinderclad: smoke cuts crew range to 60% while it lasts; mortar shells can be shot down', () => {
+  const { scene } = battle(['cabinBoy']);
+  const boss = spawn(scene, 'cinderclad');
+  const [hero] = scene.heroes;
+  const range = hero.range;
+  const c = ENEMIES.cinderclad.clad;
+  step(scene, 7500, { crew: false });
+  assert.equal(boss.phase, 'fight', 'stopped');
+  step(scene, c.firstMortarAt + DT, { crew: false });
+  const shells = scene.enemies.filter((e) => e.def === ENEMIES.cinderShell);
+  assert.ok(shells.length >= 1, 'mortars fell');
+  step(scene, c.firstSmokeAt - c.firstMortarAt, { crew: false });
+  assert.ok(scene.smoke, 'smoke over the deck');
+  assert.ok(Math.abs(hero.range - range * c.range) < 1e-9);
+  step(scene, c.smokeMs + DT, { crew: false });
+  assert.equal(scene.smoke, null);
+  assert.equal(hero.range, range);
+  // Shells shot down do nothing to the hull.
+  boss.mortarTimer = 0;
+  step(scene, DT, { crew: false });
+  const shell = scene.enemies.find((e) => e.def === ENEMIES.cinderShell);
+  assert.ok(shell.canBeHit(true) && !shell.canBeHit(false), 'anti-air only');
+  const hull = scene.ship.hp;
+  for (const e of scene.enemies) if (e.def === ENEMIES.cinderShell) e.takeDamage(1);
+  step(scene, c.warnMs + 200, { crew: false });
+  assert.equal(scene.ship.hp, hull);
+});
+
+test('captain rime: plates take hits at half (fire x2), never his HP; one comes back after 20s calm', () => {
+  const { scene } = battle();
+  const boss = spawn(scene, 'captainRime');
+  const r = ENEMIES.captainRime.rime;
+  const hp = boss.hp;
+  boss.takeDamage(10);
+  assert.equal(boss.hp, hp);
+  assert.equal(boss.plateHp, boss.plateMax - 10 * r.reduce);
+  boss.takeDamage(10, { source: from('fireBreather') });
+  assert.equal(boss.plateHp, boss.plateMax - 5 - 10 * r.reduce * r.fire);
+  boss.takeDamage(boss.plateMax * 10);
+  assert.equal(boss.plates, 2, 'a plate broke');
+  boss.takeDamage(boss.plateMax * 10);
+  boss.takeDamage(boss.plateMax * 10);
+  assert.equal(boss.plates, 0);
+  boss.takeDamage(10);
+  assert.equal(boss.hp, hp - 10, 'no plates: his HP');
+  // Hit within the last 4s: no plate comes back.
+  boss.rebuildTimer = 1000;
+  step(scene, 900, { crew: false });
+  boss.takeDamage(1);
+  step(scene, 300, { crew: false });
+  assert.equal(boss.plates, 0);
+  step(scene, r.rebuildEvery, { crew: false });
+  assert.equal(boss.plates, 1, 'calm long enough: one plate back');
+  assert.equal(boss.plateHp, boss.plateMax);
+});
+
+test('abyssal angler: hypnosis makes the crew aim at the lure; the lure down stuns it 5s at x2, and regrows', () => {
+  const { scene } = battle(['cabinBoy']);
+  const boss = spawn(scene, 'abyssalAngler');
+  const a = ENEMIES.abyssalAngler.angler;
+  step(scene, a.lurkMs - 500, { crew: false });
+  assert.equal(boss.targetable, false, 'lurking');
+  assert.ok(boss.lure?.targetable, 'its lure shows');
+  step(scene, 2000, { crew: false });
+  assert.ok(boss.targetable, 'risen');
+  const near = spawn(scene, 'frozenCorsair', LAYOUT.shipContactX + 20);
+  near.speed = 0;
+  assert.equal(scene.heroes[0].pickTarget(scene.enemies), near);
+  boss.hypnosisTimer = 0;
+  step(scene, DT, { crew: false });
+  assert.equal(scene.heroes[0].pickTarget(scene.enemies), boss.lure, 'hypnotised');
+  step(scene, a.hypnosisMs + DT, { crew: false });
+  assert.equal(scene.heroes[0].pickTarget(scene.enemies), near, 'over');
+  assert.equal(boss.lure.maxHp, Math.round(boss.maxHp * a.lureShare));
+  boss.lure.takeDamage(1e6);
+  assert.ok(boss.dazedLeft > 0);
+  const hp = boss.hp;
+  boss.takeDamage(10);
+  assert.equal(boss.hp, hp - 10 * a.stunnedTaken);
+  step(scene, a.stunMs + DT, { crew: false });
+  boss.takeDamage(10);
+  assert.equal(boss.hp, hp - 10 * a.stunnedTaken - 10, 'x1 again');
+  assert.equal(boss.lure, null);
+  step(scene, a.regrowMs - a.stunMs, { crew: false });
+  assert.ok(boss.lure?.alive, 'regrown');
+});
+
+test('storm roc: x0.5 in the air but x2 from crew strong against flyers; x1.25 perched', () => {
+  const { scene } = battle();
+  const boss = spawn(scene, 'stormRoc');
+  const r = ENEMIES.stormRoc.roc;
+  step(scene, r.enterMs + DT, { crew: false });
+  let hp = boss.hp;
+  boss.takeDamage(10, { source: from('cabinBoy') });
+  assert.equal(boss.hp, hp - 10 * r.flying);
+  hp = boss.hp;
+  boss.takeDamage(10, { source: from('rigger') });
+  assert.equal(boss.hp, hp - 10 * r.antiAir);
+  boss.landTimer = 0;
+  step(scene, r.landMs + 2 * DT, { crew: false });
+  assert.ok(boss.perched);
+  hp = boss.hp;
+  boss.takeDamage(10, { source: from('cabinBoy') });
+  assert.equal(boss.hp, hp - 10 * r.perched);
+  step(scene, r.perchMs + r.landMs + DT, { crew: false });
+  assert.equal(boss.perched, false, 'took off again');
+});
+
+test('drowned king: rises at 50% (out of reach, immune), then phase 2: x1.5 while the trident is out', () => {
+  const { scene } = battle();
+  const boss = spawn(scene, 'drownedKing');
+  const k = ENEMIES.drownedKing.king;
+  boss.takeDamage(boss.maxHp * 0.51);
+  assert.ok(boss.kingRise > 0);
+  assert.equal(boss.targetable, false);
+  const hp = boss.hp;
+  boss.takeDamage(100);
+  assert.equal(boss.hp, hp, 'immune while rising');
+  step(scene, k.riseMs + DT, { crew: false });
+  assert.equal(boss.kingPhase, 2);
+  assert.ok(boss.current && scene.currents.has(boss.current), 'a current joined');
+  boss.throwTimer = 0;
+  step(scene, DT, { crew: false });
+  assert.ok(boss.outLeft > 0);
+  boss.takeDamage(10);
+  assert.equal(boss.hp, hp - 10 * k.outTaken);
+  step(scene, k.outMs + DT, { crew: false });
+  boss.takeDamage(10);
+  assert.equal(boss.hp, hp - 10 * k.outTaken - 10);
+  boss.takeDamage(1e6);
+  assert.equal(scene.currents.has(boss.current), false, 'its current leaves with him');
+});
+
+// --- Rewards ---
+
+test('rewards: each boss stage and 3-crown sea gives its crewmate exactly once', () => {
+  const p = new Progress();
+  p.abyss.runs = 1;
+  const win = (id, crown = 1) => {
+    p.uncharted.grog = 99;
+    p.musterStage(stageOf(id), crown);
+    p.slots[0] = 'cabinBoy';
+    for (const s of STAGES) if (s.sea < stageOf(id).sea) p.uncharted.crowns[s.id] = 3;
+    assert.notEqual(p.beginStage(), null, `sail ${id}`);
+    const r = p.winStage(() => 0.5);
+    p.endStage();
+    return r.crew;
+  };
+  for (let i = 1; i <= 5; i++) win(`1-${i}`);
+  assert.deepEqual(win('1-6'), ['rigger']);
+  assert.deepEqual(win('1-6'), [], 'not twice');
+  assert.equal(p.owned.filter((id) => id === 'rigger').length, 1);
+  assert.equal(stageCrewReward(stageOf('1-6')).hero, 'rigger');
+  for (let c = 2; c <= 3; c++) for (let i = 1; i <= 6; i++) win(`1-${i}`, c);
+  assert.ok(p.isOwned('coralDruid'), 'all of Sea 1 at 3 crowns');
+  assert.deepEqual(crewEarned(p.uncharted), ['rigger', 'coralDruid']);
+  assert.ok(!Object.keys(HEROES).some((id) => HEROES[id].earned && !Object.values(UNCHARTED.crewRewards.stages).includes(id)
+    && !(id in UNCHARTED.crewRewards.seas)), 'every earned crewmate has a reward');
+});
+
 // --- Run ---
 
 let failed = 0;
@@ -213,4 +395,3 @@ for (const { name, fn } of tests) {
 }
 console.log(`\n${tests.length - failed}/${tests.length} passed`);
 if (failed) process.exitCode = 1;
-void [HEROES, crewEarned, stageCrewReward, stageOf, stagePlan, STAGES];

@@ -1,0 +1,92 @@
+{
+  "hermit_cannonball": {
+    "file": "hermit_cannonball.png",
+    "frameWidth": 12,
+    "frameHeight": 12,
+    "frames": 2,
+    "fps": 8,
+    "repeat": -1,
+    "kind": "projectile",
+    "use": "Hermit King hull cannons (2 shots, arcing onto the deck)"
+  },
+  "cinder_mortar": {
+    "file": "cinder_mortar.png",
+    "frameWidth": 14,
+    "frameHeight": 14,
+    "frames": 2,
+    "fps": 8,
+    "repeat": -1,
+    "kind": "projectile",
+    "use": "Cinderclad mortar shell; reuse ember bomb_warning + lava_splash on landing"
+  },
+  "smoke_screen": {
+    "file": "smoke_screen.png",
+    "frameWidth": 64,
+    "frameHeight": 32,
+    "frames": 3,
+    "fps": 4,
+    "repeat": -1,
+    "kind": "hazard",
+    "use": "Cinderclad vent: drifts over the deck; crew range x0.6 while it lasts (tile 2-3 wide)"
+  },
+  "ice_plate_break": {
+    "file": "ice_plate_break.png",
+    "frameWidth": 16,
+    "frameHeight": 16,
+    "frames": 3,
+    "fps": 12,
+    "repeat": 0,
+    "kind": "impact",
+    "use": "Captain Rime: an ice plate shattering"
+  },
+  "hypnosis_rings": {
+    "file": "hypnosis_rings.png",
+    "frameWidth": 48,
+    "frameHeight": 48,
+    "frames": 3,
+    "fps": 8,
+    "repeat": 0,
+    "kind": "ability",
+    "use": "Abyssal Angler lure pulse: crew retarget the lure for 3 s"
+  },
+  "roc_lightning": {
+    "file": "roc_lightning.png",
+    "frameWidth": 24,
+    "frameHeight": 96,
+    "frames": 2,
+    "fps": 12,
+    "repeat": -1,
+    "kind": "impact",
+    "use": "Storm Roc strike on a crewmate (stun 1 s); stretch to the target height"
+  },
+  "roc_feather": {
+    "file": "roc_feather.png",
+    "frameWidth": 12,
+    "frameHeight": 6,
+    "frames": 2,
+    "fps": 10,
+    "repeat": -1,
+    "kind": "projectile",
+    "use": "Storm Roc feather barrage (flies left, fan of 5)"
+  },
+  "king_trident": {
+    "file": "king_trident.png",
+    "frameWidth": 40,
+    "frameHeight": 12,
+    "frames": 1,
+    "fps": 1,
+    "repeat": -1,
+    "kind": "projectile",
+    "use": "Drowned King phase 2: thrown at the ship, then returns to his hand"
+  },
+  "king_tide": {
+    "file": "king_tide.png",
+    "frameWidth": 64,
+    "frameHeight": 40,
+    "frames": 4,
+    "fps": 8,
+    "repeat": -1,
+    "kind": "hazard",
+    "use": "Drowned King cast: a wave rolls down the lane toward the ship, pushing enemies faster"
+  }
+}

@@ -1,0 +1,396 @@
+{
+  "hermit_king": {
+    "frameWidth": 96,
+    "frameHeight": 80,
+    "walk": {
+      "frames": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "fps": 5,
+      "repeat": -1
+    },
+    "smash": {
+      "frames": [
+        4,
+        5
+      ],
+      "fps": 4,
+      "repeat": 0
+    },
+    "cannons": {
+      "frames": [
+        6
+      ],
+      "fps": 2,
+      "repeat": 0
+    },
+    "hide": {
+      "frames": [
+        7
+      ],
+      "fps": 1,
+      "repeat": -1
+    },
+    "death": {
+      "frames": [
+        8,
+        9,
+        10,
+        11
+      ],
+      "fps": 6,
+      "repeat": 0
+    },
+    "feet": [
+      48,
+      78
+    ],
+    "smashFrame": 5,
+    "cannonsAt": [
+      [
+        14,
+        20
+      ],
+      [
+        24,
+        16
+      ]
+    ]
+  },
+  "cinderclad": {
+    "frameWidth": 112,
+    "frameHeight": 80,
+    "sail": {
+      "frames": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "fps": 4,
+      "repeat": -1
+    },
+    "mortar": {
+      "frames": [
+        4,
+        5
+      ],
+      "fps": 4,
+      "repeat": 0
+    },
+    "vent": {
+      "frames": [
+        6
+      ],
+      "fps": 2,
+      "repeat": 0
+    },
+    "death": {
+      "frames": [
+        7,
+        8,
+        9,
+        10
+      ],
+      "fps": 5,
+      "repeat": 0
+    },
+    "waterline": 77,
+    "stack": [
+      60,
+      6
+    ]
+  },
+  "captain_rime": {
+    "frameWidth": 64,
+    "frameHeight": 64,
+    "walk": {
+      "frames": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "fps": 6,
+      "repeat": -1
+    },
+    "slash": {
+      "frames": [
+        4,
+        5
+      ],
+      "fps": 6,
+      "repeat": 0
+    },
+    "summon": {
+      "frames": [
+        6,
+        7
+      ],
+      "fps": 4,
+      "repeat": 0
+    },
+    "death": {
+      "frames": [
+        8,
+        9,
+        10,
+        11
+      ],
+      "fps": 6,
+      "repeat": 0
+    },
+    "feet": [
+      24,
+      61
+    ],
+    "slashFrame": 5
+  },
+  "ice_armor": {
+    "frameWidth": 64,
+    "frameHeight": 64,
+    "plates": [
+      2,
+      1,
+      0
+    ]
+  },
+  "abyssal_angler": {
+    "frameWidth": 112,
+    "frameHeight": 96,
+    "lurk": {
+      "frames": [
+        0,
+        1
+      ],
+      "fps": 3,
+      "repeat": -1
+    },
+    "rise": {
+      "frames": [
+        2,
+        3,
+        4,
+        5
+      ],
+      "fps": 6,
+      "repeat": 0
+    },
+    "idle": {
+      "frames": [
+        6,
+        7,
+        8,
+        9
+      ],
+      "fps": 5,
+      "repeat": -1
+    },
+    "bite": {
+      "frames": [
+        10,
+        11
+      ],
+      "fps": 6,
+      "repeat": 0
+    },
+    "stunned": {
+      "frames": [
+        12
+      ],
+      "fps": 1,
+      "repeat": -1
+    },
+    "death": {
+      "frames": [
+        13,
+        14,
+        15,
+        16
+      ],
+      "fps": 5,
+      "repeat": 0
+    },
+    "waterline": 86,
+    "lureAt": [
+      [
+        20,
+        63
+      ],
+      [
+        22,
+        63
+      ],
+      [
+        20,
+        51
+      ],
+      [
+        22,
+        38
+      ],
+      [
+        20,
+        25
+      ],
+      [
+        18,
+        13
+      ],
+      [
+        20,
+        13
+      ],
+      [
+        22,
+        13
+      ],
+      [
+        20,
+        13
+      ],
+      [
+        18,
+        13
+      ],
+      [
+        20,
+        13
+      ],
+      [
+        14,
+        13
+      ],
+      [
+        20,
+        13
+      ],
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "storm_roc": {
+    "frameWidth": 96,
+    "frameHeight": 80,
+    "fly": {
+      "frames": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "fps": 8,
+      "repeat": -1
+    },
+    "cast": {
+      "frames": [
+        4
+      ],
+      "fps": 2,
+      "repeat": 0
+    },
+    "land": {
+      "frames": [
+        5
+      ],
+      "fps": 2,
+      "repeat": 0
+    },
+    "perch": {
+      "frames": [
+        6,
+        7
+      ],
+      "fps": 3,
+      "repeat": -1
+    },
+    "death": {
+      "frames": [
+        8,
+        9,
+        10,
+        11
+      ],
+      "fps": 6,
+      "repeat": 0
+    },
+    "perchFeet": [
+      48,
+      74
+    ],
+    "beak": [
+      12,
+      30
+    ]
+  },
+  "drowned_king": {
+    "frameWidth": 112,
+    "frameHeight": 112,
+    "throne": {
+      "frames": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "fps": 4,
+      "repeat": -1
+    },
+    "cast": {
+      "frames": [
+        4,
+        5
+      ],
+      "fps": 4,
+      "repeat": 0
+    },
+    "rise": {
+      "frames": [
+        6,
+        7,
+        8,
+        9
+      ],
+      "fps": 2,
+      "repeat": 0
+    },
+    "float": {
+      "frames": [
+        10,
+        11,
+        12,
+        13
+      ],
+      "fps": 5,
+      "repeat": -1
+    },
+    "throw": {
+      "frames": [
+        14,
+        15
+      ],
+      "fps": 4,
+      "repeat": 0
+    },
+    "death": {
+      "frames": [
+        16,
+        17,
+        18,
+        19
+      ],
+      "fps": 4,
+      "repeat": 0
+    },
+    "base": 106,
+    "hand": [
+      22,
+      40
+    ]
+  }
+}

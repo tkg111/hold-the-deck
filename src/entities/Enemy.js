@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import {
-  AUDIO, CHARM, DISPLAY, ELITE, ENEMIES, ENEMY_FREEZE, ENTRY, FX, SHIP, SPRITES, WAVES,
+  AUDIO, CHARM, DISPLAY, ELITE, ENEMIES, ENEMY_FREEZE, ENTRY, FX, HEROES, SHIP, SPRITES, WAVES,
 } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
 import { fxSprite, playFx } from '../fx.js';
@@ -174,10 +174,12 @@ export class Enemy {
     // (which can surface in front of them), under the near water.
     // The Frost Wyrm perches in the background, behind the ship, and the
     // Siren Queen rises there.
+    // Cinderclad sails where the Galleon does; the Angler and the Drowned
+    // King rise where the Siren Queen does; the Storm Roc flies.
     const depth = def.emerges ? DEPTH.kraken
-      : def.galleon || def.leviathan ? DEPTH.kraken - 0.1
-        : def.wyrm || def.queen ? DEPTH.perch
-          : def.flies || def.falls ? DEPTH.flyer : DEPTH.enemy;
+      : def.galleon || def.leviathan || def.clad ? DEPTH.kraken - 0.1
+        : def.wyrm || def.queen || def.angler || def.king ? DEPTH.perch
+          : def.flies || def.falls || def.roc ? DEPTH.flyer : DEPTH.enemy;
     this.body.setOrigin(...(def.origin ?? [0.5, 1])).setDepth(depth);
     if (elite) this.setFlash(false);  // gold tint (an Abyss Elite's violet)
     // An Abyss Elite's aura, looping behind it, centred on its body.
@@ -389,6 +391,8 @@ export class Enemy {
       scene.cameras.main.shake(b.cackle.duration, b.cackle.intensity);
       scene.showBanner?.(def.banner, { color: UI.colors.warn });
       sfx.play('boss_roar');
+    } else if (def.hermit || def.clad || def.rime || def.angler || def.roc || def.king) {
+      this.setUpUnchartedBoss();
     } else if (def.falls) {
       // A lava bomb: falls straight down from fall.fromY to land on its deck
       // (feet at fall.feetY) after fall.ms, over the warning shown there.
@@ -464,7 +468,7 @@ export class Enemy {
       }
       if (def.lurks) {
         this.lureAt = sheetSpec(scene, def.sprite)?.lure ?? [4, 4];
-        this.lure = scene.add.rectangle(0, 0, 2, 2, def.lurks.lureColor).setDepth(DEPTH.enemy + 0.05);
+        this.lureGlow = scene.add.rectangle(0, 0, 2, 2, def.lurks.lureColor).setDepth(DEPTH.enemy + 0.05);
       }
     }
     // Summoned or raised: it rises where it stands first ("rise"), out of
@@ -527,7 +531,8 @@ export class Enemy {
   // the fog and while he's sunk into it.
   get isHidden() {
     return this.airTime > 0 || (!!this.def.giant && this.phase === 'enter') || this.vanished
-      || (!!this.def.blackbones && this.phase === 'enter') || this.shellTime > 0;
+      || (!!this.def.blackbones && this.phase === 'enter') || this.shellTime > 0
+      || this.wreckTime > 0 || (!!this.def.clad && this.phase === 'enter') || this.kingRise > 0;
   }
   // Out of sight too: no HP bar or status marks. A faded Fog Wraith or a
   // Lurker still far out is seen with a Lookout aboard or under a Flare.
@@ -546,14 +551,17 @@ export class Enemy {
   // and the bosses since.
   get large() {
     const { def } = this;
-    return !!(def.emerges || def.galleon || def.leviathan || def.wyrm || def.giant || def.queen || def.blackbones);
+    return !!(def.emerges || def.galleon || def.leviathan || def.wyrm || def.giant || def.queen || def.blackbones
+      || def.hermit || def.clad || def.rime || def.angler || def.roc || def.king);
   }
   // Stays where it appeared (or falls straight down): the Siren, the Ghost
   // Galleon, the Molten Leviathan, the Frost Wyrm, the Siren Queen and lava
-  // bombs.
+  // bombs; Cinderclad, the Abyssal Angler and its lure, the Storm Roc and
+  // the Drowned King.
   get anchored() {
     const { def } = this;
-    return !!(def.stationary || def.galleon || def.leviathan || def.wyrm || def.queen || def.falls);
+    return !!(def.stationary || def.galleon || def.leviathan || def.wyrm || def.queen || def.falls
+      || def.clad || def.angler || def.lure || def.roc || def.king);
   }
   // Walkers that Haunt can scare, Tidal Wave can push and fire puddles
   // hurry: not flyers or anything anchored.
@@ -697,7 +705,17 @@ export class Enemy {
   get damageTaken() {
     const mark = this.scene.crewMark;
     return (mark?.enemy === this ? 1 + mark.bonus : 1) * (this.isAfraid ? 1 + (this.fearBonus ?? 0) : 1)
-      * (this.isFlared ? 1 + this.flareBonus : 1);
+      * (this.isFlared ? 1 + this.flareBonus : 1) * this.bossTaken;
+  }
+
+  // The Uncharted Seas' bosses' own: the Angler dazed, the Drowned King
+  // with his trident out, the Storm Roc perched.
+  get bossTaken() {
+    const { def } = this;
+    if (def.angler && this.dazedLeft > 0) return def.angler.stunnedTaken;
+    if (def.king && this.outLeft > 0) return def.king.outTaken;
+    if (def.roc && this.perched) return def.roc.perched;
+    return 1;
   }
 
   // Hold back the curse mark for ms (while something else plays on the enemy).
@@ -809,6 +827,20 @@ export class Enemy {
         this.reign(sdt, ship);
       } else if (this.def.blackbones) {
         moving = this.prowl(sdt, ship);
+      } else if (this.def.hermit) {
+        moving = this.crawl(sdt, ship);
+      } else if (this.def.clad) {
+        this.steamIn(sdt, ship);
+      } else if (this.def.rime) {
+        moving = this.march(sdt, ship);
+      } else if (this.def.angler) {
+        this.angle(sdt, ship);
+      } else if (this.def.roc) {
+        this.soar(sdt, ship);
+      } else if (this.def.king) {
+        this.rule(sdt, ship);
+      } else if (this.def.lure) {
+        // Carried by its Angler (see placeLure).
       } else if (this.def.stationary) {
         this.sing(sdt);
       } else if (this.isCharmed) {
@@ -846,14 +878,16 @@ export class Enemy {
 
     this.followGround();
     this.aura?.setPosition(Math.round(this.x), Math.round(this.y)).setVisible(!this.vanished);
-    if (this.lure) {
+    if (this.lureGlow) {
       // A Lurker far out: dim, its lure bright; seen or near, all of it.
       const hidden = this.lurking && !this.seen;
       this.body.setAlpha(hidden ? this.def.lurks.alpha : 1);
       const [lx, ly] = this.lureAt;
-      this.lure.setPosition(Math.round(this.x - 16 + lx), Math.round(this.feetY - 32 + ly)).setVisible(hidden);
+      this.lureGlow.setPosition(Math.round(this.x - 16 + lx), Math.round(this.feetY - 32 + ly)).setVisible(hidden);
     }
     if (this.def.wraith && this.fadeTime > 0 && this.actionTime <= 0) this.body.setAlpha(this.seen ? 0.5 : 0);
+    if (this.smoke) this.tickSmoke(dt);
+    if (this.armorSprite) this.drawArmor();
     if (this.nameTag) {
       // Kept on screen (a boss coming in at the right edge).
       const half = Math.ceil(this.nameTag.inkWidth / 2) + 2;
@@ -1303,6 +1337,799 @@ export class Enemy {
     bolt.setScale(1, Math.hypot(dx, dy) / (bolt.height || 24));
     scene.time.delayedCall(zap.ms, () => bolt.destroy());
     sfx.play('thunder', { volume: AUDIO.quiet });
+  }
+
+  // --- The Uncharted Seas' bosses ---
+
+  // Where each starts (see their ENEMIES entries): the Hermit King and
+  // Captain Rime walk in from the edge like walkers; Cinderclad sails in on
+  // the water; the Abyssal Angler and the Drowned King surface at the Siren
+  // Queen's spot; the Storm Roc flies in. Each shows its banner as it comes.
+  // A boss whose body loops (sail, fly, idle, throne) goes back to that
+  // loop after each action (`loop`).
+  setUpUnchartedBoss() {
+    const { def, scene } = this;
+    const spec = sheetSpec(scene, def.sprite);
+    this.spec = spec;
+    this.frameW = spec?.frameWidth ?? this.body.displayWidth;
+    this.frameH = spec?.frameHeight ?? this.body.displayHeight;
+    const anim = (name) => findAnim(scene, def.sprite, name);
+    this.deathAnim = anim('death');
+    this.loop = this.idleAnim;
+    if (this.loop) this.body.on('animationcomplete', (a) => this.alive && a.key !== this.loop && a.repeat === 0 && this.body.play(this.loop));
+    const queen = sheetSpec(scene, 'siren_queen')?.pos ?? { x: 196 };
+    const queenX = queen.x + 48;   // the Siren Queen's middle
+    let banner = true;
+    if (def.hermit) {
+      const h = def.hermit;
+      this.feet = spec?.feet ?? [48, 78];
+      this.x = LAYOUT.enemySpawnX;
+      this.stopX = LAYOUT.shipContactX + def.width / 2;
+      this.setFeetY(laneFeetY(this.x));
+      this.smashAnim = anim('smash');
+      this.cannonsAnim = anim('cannons');
+      this.hideAnim = anim('hide');
+      this.smashTiming = animTiming(spec, 'smash', spec?.smashFrame);
+      this.cannonTimer = h.firstCannonAt;
+      this.hidesDone = 0;
+      this.wreckTime = 0;
+      this.smashDue = 0;
+    } else if (def.clad) {
+      const c = def.clad;
+      this.x = LAYOUT.enemySpawnX + this.frameW / 2;
+      this.stopX = c.stopLeft + this.frameW / 2;
+      this.setFeetY(LAYOUT.waterY);
+      this.phase = 'enter';
+      this.mortarAnim = anim('mortar');
+      this.ventAnim = anim('vent');
+      this.mortarTimer = c.firstMortarAt;
+      this.smokeTimer = c.firstSmokeAt;
+      this.overheated = false;
+      this.pulse = 0;
+    } else if (def.rime) {
+      const r = def.rime;
+      this.feet = spec?.feet ?? [24, 61];
+      this.x = LAYOUT.enemySpawnX;
+      this.stopX = LAYOUT.shipContactX + def.width / 2;
+      this.setFeetY(laneFeetY(this.x));
+      this.slashAnim = anim('slash');
+      this.summonAnim = anim('summon');
+      this.slashTiming = animTiming(spec, 'slash', spec?.slashFrame);
+      this.summonMs = animTiming(spec, 'summon').ms || 500;
+      this.plates = r.plates;
+      this.plateMax = Math.round(this.maxHp * r.plateShare);
+      this.plateHp = this.plateMax;
+      this.calmTime = 0;
+      this.rebuildTimer = r.rebuildEvery;
+      this.summonTimer = r.firstSummonAt;
+      this.slashDue = 0;
+      const armor = sheetSpec(scene, 'ice_armor');
+      this.plateFrames = armor?.plates ?? [2, 1, 0];
+      this.armorSprite = scene.add.sprite(0, 0, sheetKey('ice_armor'), 0).setOrigin(...def.origin).setDepth(DEPTH.enemy + 0.01);
+    } else if (def.angler) {
+      const a = def.angler;
+      this.x = queenX;
+      this.stopX = this.x;
+      this.setFeetY(LAYOUT.waterY);
+      this.lureAt = spec?.lureAt ?? [];
+      this.riseAnim = anim('rise');
+      this.lurkAnim = anim('lurk');
+      this.biteAnim = anim('bite');
+      this.stunnedAnim = anim('stunned');
+      this.riseMs = animTiming(spec, 'rise').ms || 700;
+      this.riseTime = a.lurkMs + this.riseMs;
+      this.lurkLeft = a.lurkMs;
+      if (this.lurkAnim) this.body.play(this.lurkAnim);
+      this.hypnosisTimer = a.firstHypnosisAt;
+      this.hypnosisLeft = 0;
+      this.biteTimer = a.firstBiteAt;
+      this.biteDue = 0;
+      this.dazedLeft = 0;
+      this.regrowTimer = 0;
+      this.lure = null;
+      this.growLure();
+      banner = false;   // when it has risen
+    } else if (def.roc) {
+      const r = def.roc;
+      this.perchFeet = spec?.perchFeet ?? [48, 74];
+      this.beak = spec?.beak ?? [12, 30];
+      this.flyClock = 0;
+      this.phase = 'fly';
+      const start = this.flightPoint();
+      this.fromX = LAYOUT.enemySpawnX + 60;
+      this.fromY = start.y - 30;
+      this.x = this.fromX;
+      this.stopX = start.x;
+      this.drawOffsetY = -def.height / 2;   // its middle on y while it flies
+      this.setY(this.fromY);
+      this.riseTime = r.enterMs;
+      this.castAnim = anim('cast');
+      this.landAnim = anim('land');
+      this.perchAnim = anim('perch');
+      this.featherTimer = r.firstFeatherAt;
+      this.lightningTimer = r.firstLightningAt;
+      this.landTimer = r.firstLandAt;
+      this.perchLeft = 0;
+      this.glide = null;    // { from, to, ms, left, then } while landing or taking off
+      banner = false;
+    } else if (def.king) {
+      const k = def.king;
+      this.x = queenX;
+      this.stopX = this.x;
+      this.setFeetY(LAYOUT.waterY);
+      this.hand = spec?.hand ?? [22, 40];
+      this.castAnim = anim('cast');
+      this.riseAnim = anim('rise');
+      this.floatAnim = anim('float');
+      this.throwAnim = anim('throw');
+      this.kingPhase = 1;
+      this.kingRise = 0;
+      this.summonTimer = k.firstSummonAt;
+      this.tideTimer = k.firstTideAt;
+      this.throwTimer = k.firstThrowAt;
+      this.outLeft = 0;
+      this.tide = null;
+      this.current = null;
+    }
+    if (banner) this.announce();
+  }
+
+  // Its banner and a roar.
+  announce() {
+    this.scene.showBanner?.(this.def.banner, { color: UI.colors.warn });
+    sfx.play('boss_roar');
+  }
+
+  // The Angler surfacing, the Roc flying in: out of reach meanwhile.
+  riseUnchartedBoss(dt) {
+    const { def } = this;
+    this.riseTime = Math.max(0, this.riseTime - dt);
+    if (def.angler) {
+      this.lurkLeft -= dt;
+      if (this.lurkLeft <= 0 && this.lurkLeft + dt > 0 && this.riseAnim) this.body.play(this.riseAnim);
+      this.placeLure();
+      if (!this.isRising) {
+        if (this.idleAnim) this.body.play(this.idleAnim);
+        this.announce();
+      }
+      return;
+    }
+    // The Roc: in from the right to its flight path.
+    const t = 1 - this.riseTime / def.roc.enterMs;
+    const to = this.flightPoint();
+    this.x = Phaser.Math.Linear(this.fromX, to.x, t);
+    this.setY(Phaser.Math.Linear(this.fromY, to.y, t));
+    if (!this.isRising) this.announce();
+  }
+
+  // Where a frame-relative point of a walking boss's sheet is now.
+  bossPoint([px, py]) {
+    const [fx, fy] = this.feet ?? [this.frameW / 2, this.frameH];
+    return { x: Math.round(this.x - fx + px), y: Math.round(this.feetY - fy + py) };
+  }
+
+  // A boss's death: "death", then it fades.
+  fallBoss() {
+    this.body.clearTint?.();
+    this.body.setAlpha(1);
+    const fade = () => this.scene.tweens.add({ targets: this.body, alpha: 0, delay: 600, duration: 400, onComplete: () => this.body.destroy() });
+    if (!this.deathAnim) {
+      fade();
+      return;
+    }
+    this.body.play(this.deathAnim);
+    this.body.once(`animationcomplete-${this.deathAnim}`, fade);
+  }
+
+  // --- The Hermit King ---
+
+  // Down the lane; cannons now and then; at the ship a smash every
+  // attackInterval; in the wreck while hiding. Returns whether it moved.
+  crawl(sdt, ship) {
+    const h = this.def.hermit;
+    if (this.wreckTime > 0) {
+      this.wreckTime -= sdt;
+      this.actionTime = Math.max(this.actionTime, this.wreckTime);
+      return false;
+    }
+    if (this.smashDue > 0) {
+      this.smashDue -= sdt;
+      if (this.smashDue <= 0) this.hermitSmash(ship);
+    }
+    this.cannonTimer -= sdt * this.rage;
+    if (this.cannonTimer <= 0 && this.actionTime <= 0) {
+      this.cannonTimer += h.cannonEvery;
+      this.playAction(this.cannonsAnim, 500);
+      this.fireCannons(ship);
+      return false;
+    }
+    if (this.actionTime > 0) return false;
+    if (this.isAfraid) return this.flee(sdt);
+    if (this.x > this.stopX) return this.walk(sdt);
+    this.attackCooldown -= sdt * this.rage;
+    if (this.attackCooldown <= 0) {
+      this.attackCooldown += this.def.attackInterval;
+      this.playAction(this.smashAnim, this.smashTiming.ms);
+      this.smashDue = Math.max(1, this.smashTiming.at);
+    }
+    return false;
+  }
+
+  hermitSmash(ship) {
+    const { smashShake } = this.def.hermit;
+    ship.takeDamage(this.damage, this);
+    playFx(this.scene, 'ground_quake', LAYOUT.shipContactX, Math.round(laneFeetY(LAYOUT.shipContactX))).setOrigin(0.5, 1);
+    this.scene.cameras.main.shake(smashShake.duration, smashShake.intensity);
+    sfx.play('hit_heavy');
+  }
+
+  // The hull cannons: shots cannonballs onto random decks; each hits the
+  // hull and stuns the crewmate nearest where it lands.
+  fireCannons(ship) {
+    const { scene } = this;
+    const h = this.def.hermit;
+    const ports = this.spec?.cannonsAt ?? [[14, 20], [24, 16]];
+    sfx.play('cannon');
+    for (let i = 0; i < h.shots; i++) {
+      const deck = Math.floor(Math.random() * ship.decks);
+      const spot = ship.deckSpot(deck);
+      const target = { alive: true, x: spot.x, y: spot.feetY - 6 };
+      scene.projectiles.push(new LobProjectile(scene, {
+        ...this.bossPoint(ports[i % ports.length]), target, flightTime: h.flightTime + i * 150, arcHeight: h.arcHeight, sprite: h.shot,
+        aimAt: (t) => ({ x: t.x, y: t.y }),
+        findTarget: () => null,
+        onHit: (_t, x, y) => {
+          ship.takeDamage(this.damage * h.shotMult, this);
+          playFx(scene, h.impact, x, y);
+          let near = null;
+          for (const c of scene.heroes) if (!near || Math.hypot(c.x - x, c.y - y) < Math.hypot(near.x - x, near.y - y)) near = c;
+          near?.stun(h.stun);
+        },
+      }));
+    }
+  }
+
+  // At each hideAt of its HP: into the wreck ("hide", out of reach, no
+  // damage) for hideMs, and its Shellbacks crawl out.
+  hideInWreck() {
+    const h = this.def.hermit;
+    this.hidesDone++;
+    this.wreckTime = h.hideMs;
+    this.smashDue = 0;
+    this.playAction(this.hideAnim, h.hideMs);
+    const minX = LAYOUT.shipContactX + ENEMIES[h.spawn].width / 2;
+    for (let i = 0; i < h.count; i++) {
+      const x = Phaser.Math.Clamp(this.x - this.def.width / 2 - 6 - i * h.spread, minX, LAYOUT.enemySpawnX);
+      this.spawnFrom(h.spawn, x);
+    }
+    sfx.play('boss_roar');
+  }
+
+  // --- Cinderclad ---
+
+  // Sails in to its stop (out of reach until it's there), then mortars and
+  // smoke; overheating makes all of it faster.
+  steamIn(sdt, ship) {
+    const c = this.def.clad;
+    if (this.phase === 'enter') {
+      this.x = Math.max(this.stopX, this.x - this.speed * sdt / 1000);
+      if (this.x <= this.stopX) this.phase = 'fight';
+      return;
+    }
+    const heat = this.overheated ? c.overheat : 1;
+    const t = sdt * this.rage * heat;
+    this.mortarTimer -= t;
+    this.smokeTimer -= t;
+    if (this.mortarTimer <= 0) {
+      this.mortarTimer += c.mortarEvery;
+      this.playAction(this.mortarAnim, 500);
+      this.fireMortars(ship);
+    }
+    if (this.smokeTimer <= 0) {
+      this.smokeTimer += c.smokeEvery;
+      this.playAction(this.ventAnim, 500);
+      this.vent();
+    }
+    if (this.overheated) {
+      // The boiler's glow pulsing.
+      this.pulse -= sdt;
+      if (this.pulse <= 0) {
+        this.pulse += c.pulseMs;
+        this.tint = this.tint == null ? c.tint : null;
+        this.setFlash(false);
+      }
+    }
+  }
+
+  // `shells` mortar shells (ENEMIES.cinderShell) falling on random decks
+  // over the bomb warning, each for its damage; shootable on the way down.
+  fireMortars(ship) {
+    const { scene } = this;
+    const c = this.def.clad;
+    sfx.play('cannon');
+    const decks = Phaser.Utils.Array.Shuffle([...Array(ship.decks).keys()]);
+    for (let i = 0; i < c.shells; i++) {
+      const deck = decks[i % decks.length];
+      const spot = ship.deckSpot(deck);
+      const shell = new Enemy(scene, ENEMIES.cinderShell, {
+        x: Math.round(spot.x + (i < decks.length ? 0 : 10)), hpMultiplier: 1, damageMultiplier: 1, gold: 0,
+        fall: { deck, feetY: spot.feetY, fromY: scene.view?.top ?? c.fromY, ms: c.warnMs },
+      });
+      shell.damage = this.damage;
+      shell.boss = this;   // the hull's hit is blamed on Cinderclad
+      scene.enemies.push(shell);
+    }
+  }
+
+  // smoke_screen tiled over the deck for smokeMs: crew range x range.
+  vent() {
+    const { scene } = this;
+    const c = this.def.clad;
+    this.clearSmoke();
+    const tiles = [];
+    for (let i = 0; i < c.smokeTiles; i++) {
+      const sprite = fxSprite(scene, c.smoke, LAYOUT.shipX + i * 64, LAYOUT.waterY - 70).setOrigin(0, 1).setDepth(DEPTH.slotMarkers + 0.1);
+      tiles.push(sprite);
+    }
+    this.smoke = { rangeMult: c.range, time: c.smokeMs, tiles };
+    scene.smoke = this.smoke;
+    sfx.play('cast');
+  }
+
+  tickSmoke(dt) {
+    const smoke = this.smoke;
+    if (!smoke) return;
+    smoke.time -= dt;
+    for (const t of smoke.tiles) {
+      t.x += 6 * dt / 1000;
+      t.setAlpha(Phaser.Math.Clamp(smoke.time / 600, 0, 0.9));
+    }
+    if (smoke.time <= 0) this.clearSmoke();
+  }
+
+  clearSmoke() {
+    if (!this.smoke) return;
+    for (const t of this.smoke.tiles) t.destroy();
+    if (this.scene.smoke === this.smoke) this.scene.smoke = null;
+    this.smoke = null;
+  }
+
+  // --- Captain Rime ---
+
+  // Down the lane, raising corsairs now and then; at the ship a slash every
+  // attackInterval. Plates come back while nothing hits him. Returns
+  // whether he moved.
+  march(sdt, ship) {
+    const r = this.def.rime;
+    this.calmTime += sdt;
+    if (this.slashDue > 0) {
+      this.slashDue -= sdt;
+      if (this.slashDue <= 0) {
+        ship.takeDamage(this.damage, this);
+        playFx(this.scene, 'frost_hit', LAYOUT.shipContactX - 8, Math.round(this.feetY - this.def.height / 2));
+      }
+    }
+    this.rebuildTimer -= sdt;
+    if (this.rebuildTimer <= 0) {
+      this.rebuildTimer += r.rebuildEvery;
+      if (this.plates < r.plates && this.calmTime >= r.calmMs) {
+        this.plates++;
+        this.plateHp = this.plateMax;
+        sfx.play('freeze');
+      }
+    }
+    this.summonTimer -= sdt * this.rage;
+    if (this.summonTimer <= 0 && this.actionTime <= 0) {
+      this.summonTimer += r.summonEvery;
+      this.playAction(this.summonAnim, this.summonMs);
+      this.raiseCorsairs();
+      return false;
+    }
+    if (this.actionTime > 0) return false;
+    if (this.isAfraid) return this.flee(sdt);
+    if (this.x > this.stopX) return this.walk(sdt);
+    this.attackCooldown -= sdt * this.rage;
+    if (this.attackCooldown <= 0) {
+      this.attackCooldown += this.def.attackInterval;
+      this.playAction(this.slashAnim, this.slashTiming.ms);
+      this.slashDue = Math.max(1, this.slashTiming.at);
+    }
+    return false;
+  }
+
+  // `count` Frozen Corsairs rise from the beach ahead of him (behind him
+  // where there's no room).
+  raiseCorsairs() {
+    const r = this.def.rime;
+    const minX = LAYOUT.shipContactX + ENEMIES[r.raise].width / 2;
+    for (let i = 0; i < r.count; i++) {
+      let x = this.x - r.ahead - i * r.spread;
+      if (x < minX) x = this.x + r.ahead + i * r.spread;
+      const e = this.spawnFrom(r.raise, Math.min(x, LAYOUT.enemySpawnX));
+      playFx(this.scene, 'snow_puff', Math.round(e.x), Math.round(e.feetY));
+    }
+    sfx.play('freeze');
+  }
+
+  // A hit on his ice armour (while any plate is up): reduce x it (fire x
+  // more) on the plate; a plate that breaks shatters. His HP is untouched.
+  hitPlate(amount, source) {
+    const r = this.def.rime;
+    const fire = HEROES[source?.hero]?.fire;
+    const damage = amount * r.reduce * (fire ? r.fire : 1);
+    this.credit(source, Math.min(damage, this.plateHp), damage, 0);
+    this.plateHp -= damage;
+    if (this.plateHp > 0) return;
+    this.plates--;
+    this.plateHp = this.plates > 0 ? this.plateMax : 0;
+    playFx(this.scene, r.breakFx, Math.round(this.x), Math.round(this.y));
+    sfx.play('freeze');
+    sfx.play('hit_heavy');
+  }
+
+  // The armour over him: a frame per plates left, nothing at none; it bobs
+  // with him on his walk frames 1 and 3.
+  drawArmor() {
+    const s = this.armorSprite;
+    if (!s) return;
+    s.setVisible(this.plates > 0 && this.alive);
+    if (this.plates <= 0) return;
+    s.setFrame(this.plateFrames[this.plates - 1] ?? 0);
+    const bob = [1, 3].includes(Number(this.body.frame?.name)) ? 1 : 0;
+    s.setPosition(Math.round(this.x), Math.round(this.feetY) + bob).setFlipX(!!this.body.flipX);
+  }
+
+  // --- The Abyssal Angler ---
+
+  // A new lure (ENEMIES.anglerLure, lureShare of its HP) over its head.
+  growLure() {
+    const a = this.def.angler;
+    const lure = new Enemy(this.scene, ENEMIES.anglerLure, {
+      x: this.x, hpMultiplier: 1, damageMultiplier: 1, gold: 0,
+    });
+    lure.maxHp = Math.max(1, Math.round(this.maxHp * a.lureShare));
+    lure.hp = lure.maxHp;
+    lure.owner = this;
+    lure.body.setAlpha(0);   // the Angler's own frames draw it
+    this.lure = lure;
+    this.scene.enemies.push(lure);
+    this.placeLure();
+  }
+
+  // The lure follows its sheet's lureAt for the frame showing (gone where
+  // that's null).
+  placeLure() {
+    const { lure } = this;
+    if (!lure?.alive) return;
+    const frame = Number(this.body.frame?.name);
+    const at = (Number.isFinite(frame) ? this.lureAt[frame] : null) ?? this.lureAt[6] ?? [20, 13];
+    const left = this.x - this.frameW / 2;
+    const top = this.feetY - this.frameH * this.def.origin[1];
+    lure.x = Math.round(left + at[0]);
+    lure.setY(Math.round(top + at[1]));
+    lure.drawHpBar();
+  }
+
+  // Once surfaced: hypnosis, bites, the lure regrowing; dazed while its
+  // lure is down.
+  angle(sdt, ship) {
+    const a = this.def.angler;
+    this.placeLure();
+    if (this.biteDue > 0) {
+      this.biteDue -= sdt;
+      if (this.biteDue <= 0) {
+        ship.takeDamage(this.damage, this);
+        this.scene.cameras.main.shake(a.shake.duration, a.shake.intensity);
+        sfx.play('bite');
+      }
+    }
+    if (!this.lure) {
+      this.regrowTimer -= sdt;
+      if (this.regrowTimer <= 0) this.growLure();
+    }
+    if (this.dazedLeft > 0) {
+      this.dazedLeft -= sdt;
+      if (this.dazedLeft <= 0 && this.idleAnim) this.body.play(this.idleAnim);
+      return;
+    }
+    if (this.hypnosisLeft > 0) {
+      this.hypnosisLeft -= sdt;
+      if (this.hypnosisLeft <= 0) this.endHypnosis();
+    }
+    this.hypnosisTimer -= sdt * this.rage;
+    if (this.hypnosisTimer <= 0) {
+      this.hypnosisTimer += a.hypnosisEvery;
+      if (this.lure?.alive) this.hypnotise();
+    }
+    this.biteTimer -= sdt * this.rage;
+    if (this.biteTimer <= 0) {
+      this.biteTimer += a.biteEvery;
+      this.playAction(this.biteAnim, 500);
+      this.biteDue = Math.max(1, a.biteAt);
+    }
+  }
+
+  // hypnosis_rings from the lure: every crewmate aims at the lure for
+  // hypnosisMs (scene.crewFocus).
+  hypnotise() {
+    const a = this.def.angler;
+    const { lure } = this;
+    this.hypnosisLeft = a.hypnosisMs;
+    const lureOf = this.lure;
+    this.scene.crewFocus = (e) => e === lureOf;
+    playFx(this.scene, a.rings, Math.round(lure.x), Math.round(lure.y), DEPTH.slotMarkers);
+    sfx.play('siren_song');
+  }
+
+  endHypnosis() {
+    this.hypnosisLeft = 0;
+    if (this.scene.crewFocus && !this.scene.crewFocus(this.lure ?? {})) return;
+    this.scene.crewFocus = null;
+  }
+
+  // Its lure shot down: dazed for stunMs (taking more damage), and the lure
+  // grows back regrowMs later.
+  loseLure() {
+    const a = this.def.angler;
+    this.lure = null;
+    this.regrowTimer = a.regrowMs;
+    this.dazedLeft = a.stunMs;
+    this.biteDue = 0;
+    this.endHypnosis();
+    this.scene.crewFocus = null;
+    if (this.stunnedAnim) this.body.play(this.stunnedAnim);
+    this.scene.floatText?.(this.x, this.y - 30, 'STUNNED!', '#ffca28');
+    sfx.play('hit_heavy');
+  }
+
+  // --- The Storm Roc ---
+
+  // Its figure-eight now (flyClock): { x, y } of its middle.
+  flightPoint() {
+    const r = this.def.roc;
+    const t = (this.flyClock / r.loopMs) * Math.PI * 2;
+    return { x: r.cx + r.ax * Math.sin(t), y: r.cy + r.ay * Math.sin(2 * t) };
+  }
+
+  get perched() { return this.phase === 'perch'; }
+
+  // Flying its figure-eight with feathers and lightning; down on the beach
+  // to perch every landEvery; gliding between the two.
+  soar(sdt, ship) {
+    const r = this.def.roc;
+    if (this.glide) {
+      const g = this.glide;
+      g.left -= sdt;
+      const t = 1 - Math.max(0, g.left) / g.ms;
+      this.x = Phaser.Math.Linear(g.from.x, g.to.x, t);
+      this.setY(Phaser.Math.Linear(g.from.y, g.to.y, t));
+      if (g.left <= 0) {
+        this.glide = null;
+        g.then();
+      }
+      return;
+    }
+    this.lightningTimer -= sdt * this.rage;
+    if (this.lightningTimer <= 0) {
+      this.lightningTimer += r.lightningEvery;
+      this.strike();
+    }
+    if (this.phase === 'perch') {
+      this.perchLeft -= sdt;
+      if (this.perchLeft <= 0) this.takeOff();
+      return;
+    }
+    this.flyClock += sdt;
+    const p = this.flightPoint();
+    this.x = p.x;
+    this.setY(p.y);
+    this.featherTimer -= sdt * this.rage;
+    if (this.featherTimer <= 0) {
+      this.featherTimer += r.featherEvery;
+      this.featherBarrage(ship);
+    }
+    this.landTimer -= sdt;
+    if (this.landTimer <= 0) {
+      this.landTimer += r.landEvery;
+      this.perchDown();
+    }
+  }
+
+  // A fan of feathers from its beak at the hull.
+  featherBarrage(ship) {
+    const { scene } = this;
+    const r = this.def.roc;
+    const from = { x: this.x - this.frameW / 2 + this.beak[0], y: this.y - this.frameH / 2 + this.beak[1] };
+    for (let i = 0; i < r.feathers; i++) {
+      const spot = ship.hullTarget();
+      const target = { alive: true, x: spot.x, y: spot.y + (i - (r.feathers - 1) / 2) * r.featherSpread / 2 };
+      scene.projectiles.push(new Projectile(scene, {
+        ...from, target, speed: r.featherSpeed, sprite: r.feather, rotate: true,
+        findTarget: () => null,
+        onHit: (_t, x, y) => {
+          ship.takeDamage(this.damage * r.featherMult, this);
+          playFx(scene, 'hit_spark', x, y);
+        },
+      }));
+    }
+    sfx.play('cannon_small');
+  }
+
+  // "cast": roc_lightning on a random crewmate, stunned lightningStun ms.
+  strike() {
+    const { scene } = this;
+    const r = this.def.roc;
+    const crew = scene.heroes ?? [];
+    if (!crew.length) return;
+    const hero = crew[Math.floor(Math.random() * crew.length)];
+    if (this.phase !== 'perch') this.playAction(this.castAnim, r.castMs);
+    const bolt = fxSprite(scene, r.lightning, Math.round(hero.x), Math.round(hero.feetY)).setOrigin(0.5, 1).setDepth(DEPTH.slotMarkers);
+    bolt.setScale(1, Math.max(0.5, (hero.feetY - (scene.view?.top ?? 0)) / (bolt.height || 96)));
+    scene.time.delayedCall(r.castMs, () => bolt.destroy());
+    hero.stun(r.lightningStun);
+    scene.cameras.main.shake(150, 0.004);
+    sfx.play('thunder');
+  }
+
+  // Down to the beach at landX ("land"), then "perch" for perchMs.
+  perchDown() {
+    const r = this.def.roc;
+    const feetY = laneFeetY(r.landX);
+    const to = { x: r.landX, y: feetY - (this.perchFeet[1] - this.frameH / 2) };   // its middle where it perches
+    if (this.landAnim) this.body.play(this.landAnim);
+    this.glide = {
+      from: { x: this.x, y: this.y }, to, ms: r.landMs, left: r.landMs,
+      then: () => {
+        this.phase = 'perch';
+        this.drawOffsetY = -(this.perchFeet[1] - this.frameH / 2);   // its feet on the lane
+        this.setFeetY(feetY);
+        this.perchLeft = r.perchMs;
+        if (this.perchAnim) this.body.play(this.perchAnim);
+        this.scene.cameras.main.shake(120, 0.003);
+      },
+    };
+  }
+
+  // Back up to its figure-eight.
+  takeOff() {
+    const r = this.def.roc;
+    this.phase = 'fly';
+    const middle = this.feetY + this.drawOffsetY;
+    this.drawOffsetY = -this.def.height / 2;
+    this.setY(middle);
+    if (this.idleAnim) this.body.play(this.idleAnim);
+    this.glide = {
+      from: { x: this.x, y: this.y }, to: this.flightPoint(), ms: r.landMs, left: r.landMs, then: () => {},
+    };
+  }
+
+  // --- The Drowned King ---
+
+  // Phase 1 on his throne (summons, king tides); rising at riseAt of his HP
+  // (out of reach); phase 2 floating (trident throws).
+  rule(sdt, ship) {
+    const k = this.def.king;
+    this.tickTide(sdt, ship);
+    if (this.outLeft > 0) this.outLeft -= sdt;
+    if (this.kingRise > 0) {
+      this.kingRise -= sdt;
+      if (this.kingRise <= 0) this.secondPhase();
+      return;
+    }
+    if (this.kingPhase === 1) {
+      this.summonTimer -= sdt * this.rage;
+      if (this.summonTimer <= 0) {
+        this.summonTimer += k.summonEvery;
+        this.summonDeep();
+      }
+      this.tideTimer -= sdt * this.rage;
+      if (this.tideTimer <= 0 && !this.tide) {
+        this.tideTimer += k.tideEvery;
+        this.playAction(this.castAnim, 500);
+        this.sendTide();
+      }
+      return;
+    }
+    this.throwTimer -= sdt * this.rage;
+    if (this.throwTimer <= 0) {
+      this.throwTimer += k.throwEvery;
+      this.playAction(this.throwAnim, 500);
+      this.throwTrident(ship);
+    }
+  }
+
+  // `summons` enemies from his pool come in from the far edge.
+  summonDeep() {
+    const k = this.def.king;
+    for (let i = 0; i < k.summons; i++) {
+      const key = k.summonPool[Math.floor(Math.random() * k.summonPool.length)];
+      this.spawnFrom(key, LAYOUT.enemySpawnX - i * 14);
+    }
+    sfx.play('boss_roar', { volume: AUDIO.quiet });
+  }
+
+  // A king_tide rolls left down the lane from him.
+  sendTide() {
+    const k = this.def.king;
+    const sprite = fxSprite(this.scene, k.tide, Math.round(this.x), Math.round(LAYOUT.waterY) + 4).setOrigin(0.5, 1).setDepth(DEPTH.foreground + 0.5);
+    this.tide = { x: this.x - this.def.width / 2, sprite, boosted: new Set() };
+    sfx.play('splash');
+  }
+
+  // The tide rolling: every enemy it passes walks faster; at the ship it
+  // breaks on the hull.
+  tickTide(sdt, ship) {
+    const { tide } = this;
+    if (!tide) return;
+    const k = this.def.king;
+    tide.x -= k.tidePx * sdt / 1000;
+    tide.sprite.setPosition(Math.round(tide.x), Math.round(LAYOUT.waterY) + 4);
+    for (const e of this.scene.enemies) {
+      if (e === this || !e.alive || tide.boosted.has(e) || e.x < tide.x) continue;
+      tide.boosted.add(e);
+      e.applyMoveBoost(k.tideSpeed, k.tideMs);
+    }
+    if (tide.x > LAYOUT.shipContactX) return;
+    ship.takeDamage(this.damage * k.tideMult, this);
+    this.scene.cameras.main.shake(k.shake.duration, k.shake.intensity / 2);
+    sfx.play('splash');
+    this.clearTide();
+  }
+
+  clearTide() {
+    this.tide?.sprite.destroy();
+    this.tide = null;
+  }
+
+  // At riseAt of his HP: "rise" for riseMs, out of reach; the throne cracks.
+  riseFromThrone() {
+    const k = this.def.king;
+    this.kingRise = k.riseMs;
+    this.playAction(this.riseAnim, k.riseMs);
+    this.scene.cameras.main.shake(k.shake.duration, k.shake.intensity);
+    this.scene.showBanner?.('THE KING RISES!', { color: UI.colors.warn });
+    sfx.play('boss_roar');
+  }
+
+  // Phase 2: floating; one of currentPool (not one already on) joins the
+  // stage's currents until he dies.
+  secondPhase() {
+    const k = this.def.king;
+    this.kingRise = 0;
+    this.kingPhase = 2;
+    this.loop = this.floatAnim ?? this.loop;
+    if (this.floatAnim) this.body.play(this.floatAnim);
+    const currents = this.scene.currents;
+    const pool = k.currentPool.filter((id) => !currents?.has(id));
+    if (currents && pool.length) {
+      this.current = pool[Math.floor(Math.random() * pool.length)];
+      currents.join(this.current);
+    }
+  }
+
+  // The trident at the hull (tridentMult x his damage), back over outMs;
+  // meanwhile he takes outTaken x damage.
+  throwTrident(ship) {
+    const { scene } = this;
+    const k = this.def.king;
+    this.outLeft = k.outMs;
+    const from = { x: this.x - this.frameW / 2 + this.hand[0], y: this.feetY - this.frameH * this.def.origin[1] + this.hand[1] };
+    const spot = ship.hullTarget();
+    scene.projectiles.push(new Projectile(scene, {
+      ...from, target: { alive: true, ...spot }, speed: 2 * Math.hypot(spot.x - from.x, spot.y - from.y) / (k.outMs / 1000), sprite: k.trident, rotate: true,
+      findTarget: () => null,
+      onHit: (_t, x, y) => {
+        ship.takeDamage(this.damage * k.tridentMult, this);
+        playFx(scene, 'explosion', x, y);
+        scene.cameras.main.shake(k.shake.duration, k.shake.intensity);
+        const back = { alive: true, ...from };
+        scene.projectiles.push(new Projectile(scene, {
+          x, y, target: back, speed: 2 * Math.hypot(back.x - x, back.y - y) / (k.outMs / 1000), sprite: k.trident, rotate: true,
+          findTarget: () => null, onHit: () => {},
+        }));
+      },
+    }));
+    sfx.play('cannon');
   }
 
   // --- Frostbite Reef ---
@@ -1895,6 +2722,10 @@ export class Enemy {
   }
 
   rise(dt) {
+    if (this.def.angler || this.def.roc) {
+      this.riseUnchartedBoss(dt);
+      return;
+    }
     if (this.def.rises || this.def.queen) {
       // Rising where it stands; the Siren Queen then shows her banner.
       this.riseTime = Math.max(0, this.riseTime - dt);
@@ -2048,7 +2879,18 @@ export class Enemy {
     flash = true, dot = false, lobbed = false, throughShield = false, ignoreArmor = false, source = null,
   } = {}) {
     if (!this.alive) return;
-    if (this.shellTime > 0) return;   // a Shellback in its shell
+    if (this.shellTime > 0 || this.wreckTime > 0 || this.kingRise > 0) return;   // in its shell, its wreck, rising
+    // The Storm Roc in the air: crew strong against flyers hit it harder,
+    // everyone else for less.
+    if (this.def.roc && !this.perched) amount *= HEROES[source?.hero]?.flyerBonus > 1 ? this.def.roc.antiAir : this.def.roc.flying;
+    if (this.def.rime) this.calmTime = 0;
+    if (this.def.rime && this.plates > 0) {
+      this.hitPlate(amount * this.damageTaken, source);
+      if (flash) this.setFlash(true);
+      if (flash) this.scene.time.delayedCall(FX.hitFlashMs, () => this.alive && this.setFlash(false));
+      this.drawHpBar();
+      return;
+    }
     if (this.def.regen && !dot) this.calmTime = 0;
     amount *= this.damageTaken;
     let damage = amount;
@@ -2080,6 +2922,11 @@ export class Enemy {
       this.die(source);
       return;
     }
+    // The Hermit King hides in the wreck at each of hideAt of its HP; the
+    // Drowned King rises at riseAt of his.
+    const hk = this.def.hermit;
+    if (hk && this.hidesDone < hk.hideAt.length && this.hp <= this.maxHp * hk.hideAt[this.hidesDone]) this.hideInWreck();
+    if (this.def.king && this.kingPhase === 1 && this.kingRise <= 0 && this.hp <= this.maxHp * this.def.king.riseAt) this.riseFromThrone();
     // A Shellback hides each time it passes another shell.step of its HP.
     if (this.def.shell && this.hp <= this.maxHp * this.shellNext) {
       while (this.shellNext > 0 && this.hp <= this.maxHp * this.shellNext) this.shellNext -= this.def.shell.step;
@@ -2185,6 +3032,15 @@ export class Enemy {
     if (!this.def.hazard) sfx.play(this.def.boss ? 'boss_die' : 'enemy_die');
     if (this.curseJump && this.isCursed) this.passCurse();
     this.removeOverlays();
+    if (this.def.lure) {
+      if (this.owner?.alive) this.owner.loseLure();
+      this.body.destroy();
+      return;
+    }
+    if (this.def.hermit || this.def.clad || this.def.rime || this.def.angler || this.def.roc || this.def.king) {
+      this.fallBoss();
+      return;
+    }
     if (this.def.galleon || this.def.leviathan) {
       this.sink();
       return;
@@ -2345,8 +3201,16 @@ export class Enemy {
     this.iceSprite = null;
     this.aura?.destroy();
     this.aura = null;
-    this.lure?.destroy();
+    this.lureGlow?.destroy();
+    this.lureGlow = null;
+    this.lure?.destroy();   // the Angler's lure
     this.lure = null;
+    this.armorSprite?.destroy();
+    this.armorSprite = null;
+    if (this.smoke) this.clearSmoke();
+    if (this.tide) this.clearTide();
+    if (this.def.angler && this.scene.crewFocus) this.scene.crewFocus = null;
+    if (this.current) this.scene.currents?.leave(this.current);
     this.nameTag?.destroy();
     for (const c of this.circles ?? []) c.destroy();
     this.circles = [];
@@ -2378,6 +3242,13 @@ export class Enemy {
       this.hpBar.fillStyle(0x000000, 0.6).fillRect(x, barY, w, 2);
       this.hpBar.fillStyle(this.def.shield.barColor).fillRect(x, barY, Math.round(w * shieldPct), 2);
     }
+    if (this.def.rime && this.plates > 0) {
+      // Captain Rime's ice armour: every plate left, the current one's share.
+      barY -= 2;
+      const platePct = Phaser.Math.Clamp((this.plates - 1 + this.plateHp / this.plateMax) / this.def.rime.plates, 0, 1);
+      this.hpBar.fillStyle(0x000000, 0.6).fillRect(x, barY, w, 2);
+      this.hpBar.fillStyle(0x9fe0ff).fillRect(x, barY, Math.round(w * platePct), 2);
+    }
     if (this.hasIceShield) {
       barY -= 2;
       const icePct = Phaser.Math.Clamp(this.iceShieldHp / this.iceShieldMax, 0, 1);
@@ -2387,7 +3258,7 @@ export class Enemy {
   }
 
   // Height of the shield bars over the HP bar.
-  get shieldBarsHeight() { return (this.hasShield ? 2 : 0) + (this.hasIceShield ? 2 : 0); }
+  get shieldBarsHeight() { return (this.hasShield ? 2 : 0) + (this.hasIceShield ? 2 : 0) + (this.plates > 0 ? 2 : 0); }
 
   // Status sprites: a net draped over a slowed enemy (the same 32x32 box as
   // its sprite, feet on the bottom row), poison bubbles over its body, and

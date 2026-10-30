@@ -290,6 +290,14 @@ export class LogScene extends Phaser.Scene {
         ...itemCounts(this, this.innerWidth - 4 - items.length * 30, 15, items, 30),
       ]));
     }
+    // The trophy for sinking the Drowned King (6-6 cleared).
+    if ((p.uncharted.crowns[UNCHARTED.finalStage] ?? 0) >= 1) {
+      this.rows.push(this.add.container(0, 0, [
+        icon(this, 10, 15, 'trophy'),
+        text(this, 20, 10, 'TROPHY: THE DROWNED KING', dark()),
+        text(this, this.innerWidth - 4, 10, 'SUNK FOR GOOD', dark()).setOrigin(1, 0),
+      ]));
+    }
     this.scrolls = this.rows.length > BATTLE_LOG.visibleRows;
   }
 

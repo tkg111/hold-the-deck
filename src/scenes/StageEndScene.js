@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
-import { DISPLAY, HEROES, MAP } from '../config.js';
+import {
+  DISPLAY, HEROES, MAP, UNCHARTED,
+} from '../config.js';
 import { sfx } from '../audio/Sfx.js';
 import { applyRenderScale, fillView } from '../display.js';
 import { TUTORIAL_JSON_KEY, tutorialKey } from '../sprites.js';
@@ -79,7 +81,34 @@ export class StageEndScene extends Phaser.Scene {
     new Button(this, cx + 56, y + H - 19, {
       width: 100, height: 24, label: 'Back to chart', onClick: () => this.close(this.onChart),
     });
-    this.welcome([...(r.crew ?? [])]);
+    // The Drowned King sunk for the first time: the Captain first.
+    const crew = [...(r.crew ?? [])];
+    if (r.won && r.best === 0 && this.stage.id === UNCHARTED.finalStage) {
+      this.captainSays('laugh', "The Drowned King... sunk for good. Every sea on this chart is ours, Cap'n!", () => this.welcome(crew));
+    } else {
+      this.welcome(crew);
+    }
+  }
+
+  // A panel over the results: the Captain (face) saying `line`, and a
+  // button that takes it away (then: what comes next).
+  captainSays(face, line, then) {
+    const cx = DISPLAY.width / 2;
+    const cy = DISPLAY.height / 2;
+    const objs = [fillView(this, 0x07060f, 0.85), panel(this, cx - 130, cy - 50, 260, 100, 'parchment')];
+    const faces = this.cache.json.get(TUTORIAL_JSON_KEY)?.captain_portrait.faces ?? [];
+    objs.push(this.add.sprite(cx - 122, cy - 42, tutorialKey('captain_portrait'), Math.max(0, faces.indexOf(face))).setOrigin(0));
+    objs.push(text(this, cx - 66, cy - 40, 'THE CAPTAIN', subText()));
+    objs.push(text(this, cx - 66, cy - 26, line, dark({ wrap: 186 })));
+    sfx.play('legendary');
+    objs.push(new Button(this, cx + 70, cy + 32, {
+      width: 100, height: 22, style: 'gold', label: 'Huzzah!',
+      onClick: () => {
+        sfx.play('ui_click');
+        for (const o of objs) o.destroy();
+        then();
+      },
+    }));
   }
 
   // 'New crewmate!': the first of ids' hero card beside the Captain

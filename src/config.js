@@ -352,6 +352,7 @@ export const RARITY = {
 //          ground foes (targets of them) in place for holdMs (a stun)
 //   returns: true                   — the shot flies back to the hero after it hits
 //   rage: { max }                   — +1% damage per 1% of the hull missing, up to max
+//   fire: true                      — fire and powder: x2 on Captain Rime's ice plates
 export const HEROES = {
   cabinBoy: {
     name: 'Cabin Boy',
@@ -441,6 +442,7 @@ export const HEROES = {
     shortName: 'Cannon',
     rarity: 'epic',
     shotSound: 'cannon',
+    fire: true,
     color: 0x8d6e63,
     damage: 24,
     attackInterval: 3200,
@@ -568,6 +570,7 @@ export const HEROES = {
     shortName: 'Powder',
     rarity: 'common',
     shotSound: 'cannon',
+    fire: true,
     color: 0x8d6e4a,
     damage: 6,
     attackInterval: 1000,
@@ -583,6 +586,7 @@ export const HEROES = {
     shortName: 'Fire',
     rarity: 'rare',
     shotSound: 'cook',
+    fire: true,
     color: 0xe65100,
     damage: 9,
     attackInterval: 800,
@@ -2061,6 +2065,279 @@ export const ENEMIES = {
     treasure: true,
     biteAnim: 'bite',
   },
+
+  // The Uncharted Seas' bosses, one finale per sea (art and their
+  // animations_bosses.json, with feet, waterlines and the Angler's lureAt, in
+  // public/sprites/uncharted_bosses/). Base stats beside the island bosses';
+  // they scale like everything else at their sea's depth.
+  hermitKing: {
+    name: 'The Hermit King',
+    description: 'A crab the size of a ship, wearing what is left of one.',
+    weakTo: ['blacksmith', 'duelist', 'cannoneer'],
+    boss: true,
+    color: 0xc0503a,
+    sprite: 'hermit_king',     // 96x80, feet at its sheet's `feet`
+    dir: 'uncharted_bosses/',
+    portrait: true,
+    face: { x: 2, y: 22 },
+    origin: [48 / 96, 78 / 80],
+    width: 70,
+    height: 64,
+    hp: 600,
+    speed: 6.8,         // 60% of the Frost Giant's
+    damage: 18,         // per smash on the hull
+    attackInterval: 4000,   // a smash every, at the ship
+    gold: 50,
+    statusResist: 0.5,
+    resist: { immovable: true, stunGuardMs: 4000 },
+    banner: 'THE HERMIT KING',
+    bannerOnEntrance: true,
+    // Walks the lane. At the ship, "smash" every attackInterval (the hull
+    // takes its damage on smashFrame). Every cannonEvery ms (first
+    // firstCannonAt) "cannons": `shots` hermit_cannonballs arc from its
+    // sheet's cannonsAt onto random decks, each for shotMult x its damage,
+    // stunning the crewmate nearest where it lands for stun ms. At each of
+    // hideAt of its HP it hides in the wreck ("hide") for hideMs, taking no
+    // damage, and `count` Shellbacks crawl out spread px apart.
+    hermit: {
+      firstCannonAt: 5000, cannonEvery: 10000, shots: 2, shotMult: 0.4, stun: 500, flightTime: 1200, arcHeight: 70,
+      shot: 'hermit_cannonball', impact: 'explosion',
+      hideAt: [0.66, 0.33], hideMs: 4000, spawn: 'shellback', count: 3, spread: 16,
+      smashShake: { duration: 220, intensity: 0.008 },
+    },
+  },
+  cinderclad: {
+    name: 'Cinderclad',
+    description: 'An iron steamship that burns its own crew for coal.',
+    weakTo: ['parrotKeeper', 'stormCaller', 'sharpshooter'],
+    boss: true,
+    color: 0x4a4048,
+    idleAnim: 'sail',
+    sprite: 'cinderclad',      // 112x80, waterline at its sheet's `waterline`
+    dir: 'uncharted_bosses/',
+    portrait: true,
+    face: { x: 74, y: 30 },
+    origin: [0.5, 77 / 80],
+    width: 100,
+    height: 60,
+    hp: 520,
+    speed: 30,          // sailing in
+    damage: 8,          // per mortar shell that lands
+    attackInterval: 1000,
+    gold: 50,
+    statusResist: 0.5,
+    resist: { immovable: true, stunGuardMs: 4000 },
+    banner: 'CINDERCLAD',
+    bannerOnEntrance: true,
+    // Sails in on the water from the right to stopX (its frame's left edge
+    // at stopLeft), out of reach until it stops. Every mortarEvery ms
+    // (first firstMortarAt) "mortar": `shells` shells (ENEMIES
+    // cinderShell) fall on random decks over the bomb warning, shootable on
+    // the way down like lava bombs. Every smokeEvery ms "vent": smoke_screen
+    // drifts over the deck for smokeMs, crew range x range. Below overheatAt
+    // of its HP it overheats: everything x overheat as fast, its boiler
+    // tint pulsing.
+    clad: {
+      stopLeft: 260, firstMortarAt: 2500, mortarEvery: 6000, shells: 2, warnMs: 1500, fromY: -30,
+      firstSmokeAt: 6000, smokeEvery: 15000, smokeMs: 5000, range: 0.6, smoke: 'smoke_screen', smokeTiles: 3,
+      overheatAt: 0.5, overheat: 1.3, tint: 0xff7a3a, pulseMs: 400,
+    },
+  },
+  // Cinderclad's mortar shell (no poster): falls like a lava bomb (only
+  // anti-air crew can hit it on the way down), hitting the hull for the
+  // boss's damage and stunning that deck.
+  cinderShell: {
+    name: 'Mortar Shell',
+    color: 0x5a4a40,
+    fx: 'cinder_mortar',
+    minion: true,
+    hazard: true,
+    width: 12,
+    height: 12,
+    hp: 1,
+    speed: 0,
+    damage: 8,
+    attackInterval: 1000,
+    gold: 0,
+    falls: {
+      warning: 'bomb_warning', impact: 'lava_splash', stun: 600,
+      shake: { duration: 150, intensity: 0.004 },
+    },
+  },
+  captainRime: {
+    name: 'Captain Rime',
+    description: 'Frozen in the ice for a hundred years. He has had time to think.',
+    weakTo: ['fireBreather', 'powderMonkey', 'cannoneer'],
+    boss: true,
+    color: 0xa8d0e8,
+    sprite: 'captain_rime',    // 64x64, feet at its sheet's `feet`
+    dir: 'uncharted_bosses/',
+    portrait: true,
+    face: { x: 12, y: 4 },
+    origin: [24 / 64, 61 / 64],
+    width: 30,
+    height: 58,
+    hp: 400,
+    speed: 15,
+    damage: 16,         // per slash on the hull
+    attackInterval: 2000,
+    gold: 50,
+    statusResist: 0.5,
+    resist: { immovable: true, stunGuardMs: 4000 },
+    banner: 'CAPTAIN RIME',
+    bannerOnEntrance: true,
+    // Ice armour (ice_armor_sheet over him, a frame per plates left): `plates`
+    // plates, each a shield of plateShare x his max HP. While any is up, hits
+    // land on the plate at reduce x (fire crew, HEROES fire, at fire x that),
+    // never on his HP; a plate that breaks plays breakFx and `freeze`. Every
+    // rebuildEvery ms, if nothing has hit him for calmMs, one plate comes back.
+    // At the ship "slash" every attackInterval (slashFrame). Every summonEvery
+    // ms (first firstSummonAt) "summon": `count` of `raise` rise from the
+    // beach ahead of him, spread px apart.
+    rime: {
+      plates: 3, plateShare: 0.12, reduce: 0.5, fire: 2, breakFx: 'ice_plate_break',
+      rebuildEvery: 20000, calmMs: 4000,
+      firstSummonAt: 6000, summonEvery: 12000, raise: 'frozenCorsair', count: 3, spread: 18, ahead: 30,
+    },
+  },
+  abyssalAngler: {
+    name: 'The Abyssal Angler',
+    description: 'Do not look at the light. Everyone looks at the light.',
+    weakTo: ['sharpshooter', 'rigger', 'duelist'],
+    boss: true,
+    color: 0x2a3a5a,
+    sprite: 'abyssal_angler',  // 112x96, waterline at its sheet's `waterline`
+    dir: 'uncharted_bosses/',
+    portrait: true,
+    face: { x: 18, y: 56 },
+    origin: [0.5, 86 / 96],
+    width: 80,
+    height: 50,
+    hp: 480,
+    speed: 0,
+    damage: 22,         // per bite
+    attackInterval: 1000,
+    gold: 50,
+    statusResist: 0.5,
+    resist: { immovable: true, stunGuardMs: 4000 },
+    banner: 'THE ABYSSAL ANGLER',
+    bannerOnEntrance: true,
+    // Surfaces at the Siren Queen's spot: "lurk" for lurkMs (out of reach;
+    // only its lure shows), "rise", then "idle". Its lure (ENEMIES
+    // anglerLure, lureShare of its HP) follows its sheet's lureAt each frame.
+    // Every hypnosisEvery ms (first firstHypnosisAt) hypnosis_rings pulse from
+    // the lure and for hypnosisMs every crewmate aims at the lure. The lure
+    // shot down: stunned ("stunned") for stunMs, taking stunnedTaken x
+    // damage; the lure grows back regrowMs later. Every biteEvery ms "bite":
+    // the hull takes its damage.
+    angler: {
+      lurkMs: 3000, lureShare: 0.08, regrowMs: 12000, stunMs: 5000, stunnedTaken: 2,
+      firstHypnosisAt: 5000, hypnosisEvery: 10000, hypnosisMs: 3000, rings: 'hypnosis_rings',
+      firstBiteAt: 4000, biteEvery: 8000, biteAt: 300,
+      shake: { duration: 250, intensity: 0.006 },
+      aboveWater: 23,
+    },
+  },
+  // The Abyssal Angler's lure (no poster): a small target over its head,
+  // drawn by the Angler's own frames. Not a foe of its own (it doesn't hold
+  // up a win); shot down, its Angler is stunned.
+  anglerLure: {
+    name: 'Lure',
+    color: 0xb8fff0,
+    minion: true,
+    hazard: true,
+    lure: true,
+    width: 10,
+    height: 10,
+    hp: 1,
+    speed: 0,
+    damage: 0,
+    attackInterval: 1000,
+    gold: 0,
+  },
+  stormRoc: {
+    name: 'The Storm Roc',
+    description: 'Where it flies the storm follows. Wait for it to land.',
+    weakTo: ['rigger', 'parrotKeeper', 'stormCaller'],
+    boss: true,
+    color: 0x2a3a6a,
+    idleAnim: 'fly',
+    sprite: 'storm_roc',       // 96x80
+    dir: 'uncharted_bosses/',
+    portrait: true,
+    face: { x: 12, y: 14 },
+    origin: [0.5, 0.5],
+    width: 70,
+    height: 50,
+    hp: 460,
+    speed: 0,
+    damage: 5,          // per feather
+    attackInterval: 1000,
+    gold: 50,
+    statusResist: 0.5,
+    resist: { immovable: true, stunGuardMs: 4000 },
+    chips: ['flying'],
+    banner: 'THE STORM ROC',
+    bannerOnEntrance: true,
+    // Flies in from the right to a slow figure-eight round (cx, cy), ax and
+    // ay px either way, a loop every loopMs ("fly"). While flying it takes
+    // flying x damage, but antiAir x from crew strong against flyers (HEROES
+    // flyerBonus). Every featherEvery ms a fan of `feathers` roc_feathers at
+    // the hull, featherMult x its damage each. Every lightningEvery ms "cast":
+    // roc_lightning strikes a random crewmate, stunned lightningStun ms.
+    // Every landEvery ms it lands on the beach at landX ("land", then "perch",
+    // feet on the lane) for perchMs, taking perched x damage, then flies again.
+    roc: {
+      enterMs: 1500, cx: 290, cy: 60, ax: 70, ay: 28, loopMs: 9000,
+      flying: 0.5, antiAir: 2, perched: 1.25,
+      firstFeatherAt: 3000, featherEvery: 5000, feathers: 5, featherSpread: 14, featherMult: 1, featherSpeed: 200, feather: 'roc_feather',
+      firstLightningAt: 6000, lightningEvery: 9000, lightningStun: 1500, lightning: 'roc_lightning', castMs: 500,
+      firstLandAt: 12000, landEvery: 20000, perchMs: 5000, landX: 400, landMs: 700,
+    },
+  },
+  drownedKing: {
+    name: 'The Drowned King',
+    description: 'Every ship this sea ever took, he took. Yours is next.',
+    weakTo: ['duelist', 'stormCaller', 'auroraSeer'],
+    boss: true,
+    color: 0x3a8a6a,
+    idleAnim: 'throne',
+    sprite: 'drowned_king',    // 112x112, base at its sheet's `base`
+    dir: 'uncharted_bosses/',
+    portrait: true,
+    face: { x: 42, y: 22 },
+    origin: [0.5, 106 / 112],
+    width: 70,
+    height: 100,
+    hp: 900,
+    speed: 0,
+    damage: 14,
+    attackInterval: 1000,
+    gold: 50,
+    statusResist: 0.5,
+    resist: { immovable: true, stunGuardMs: 4000 },
+    banner: 'THE DROWNED KING',
+    bannerOnEntrance: true,
+    // On his throne at the Siren Queen's spot ("throne"). Phase 1: every
+    // summonEvery ms `summons` enemies (summonPool keys) come in from the far
+    // edge; every tideEvery ms "cast" and a king_tide rolls down the lane to
+    // the ship: enemies it passes walk tideSpeed x as fast for tideMs, and
+    // the hull takes tideMult x his damage. At riseAt of his HP he "rise"s
+    // (riseMs, out of reach), and phase 2 he floats ("float"): every
+    // throwEvery ms "throw", the king_trident flies at the hull for
+    // tridentMult x his damage and back over outMs, while he takes outTaken x
+    // damage; and one of currentPool joins the stage's currents until he dies.
+    king: {
+      firstSummonAt: 3000, summonEvery: 10000, summons: 4,
+      summonPool: ['boneDeckhand', 'frozenCorsair', 'cinderSkeleton', 'shellback', 'eelRider', 'lurker', 'reefGolem', 'magmaCrab'],
+      firstTideAt: 6000, tideEvery: 12000, tideSpeed: 1.6, tideMs: 3000, tideMult: 0.5, tide: 'king_tide', tidePx: 130,
+      riseAt: 0.5, riseMs: 2000,
+      firstThrowAt: 2000, throwEvery: 7000, tridentMult: 2, outMs: 2000, outTaken: 1.5, trident: 'king_trident',
+      currentPool: ['frenzied', 'shielded', 'sirens_call', 'risen_dead'],
+      shake: { duration: 300, intensity: 0.006 },
+      aboveWater: 23,
+    },
+  },
 };
 
 // Mimics (ENEMIES.mimic): each basic enemy of a stage, and of an Abyss
@@ -3110,6 +3387,8 @@ export const UNCHARTED = {
   // The crew the seas give (HEROES with earned), each once: a boss stage's
   // on its first clear (stages: stage id -> hero), or a sea's (seas: hero ->
   // { sea index, crown }) once every stage of it is cleared at that crown.
+  // The last boss stage: its first clear is the Captain's Log's trophy.
+  finalStage: '6-6',
   crewRewards: {
     stages: {
       '1-6': 'rigger', '2-6': 'gunslinger', '3-6': 'pearlDiver', '4-6': 'tideSinger', '5-6': 'lookout', '6-6': 'octopusTamer',

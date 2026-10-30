@@ -43,6 +43,19 @@ export class Currents {
     this.charmTimer = c.sirens_call.every;
   }
 
+  // A current joins mid-battle (the Drowned King's second phase), or leaves.
+  join(id) {
+    if (this.has(id)) return;
+    this.active = [...this.active, id];
+    if (id === 'frenzied') this.enemyPace = ABYSS.currents.frenzied.pace;
+    if (id === 'sirens_call') this.charmTimer = ABYSS.currents.sirens_call.every;
+  }
+
+  leave(id) {
+    this.active = this.active.filter((c) => c !== id);
+    if (id === 'frenzied') this.enemyPace = 1;
+  }
+
   stop() {
     this.active = [];
     this.rules = [];
