@@ -148,6 +148,7 @@ export class Enemy {
     // Blackbones sunk into the fog.
     this.fadeTime = 0;
     this.hideTime = 0;
+    this.shellTime = 0;       // a Shellback hiding in its shell
 
     // Sprites and rectangles alike stand with their feet at (x, feetY);
     // this.y is the middle of the body (def.width x def.height).
@@ -155,12 +156,12 @@ export class Enemy {
     // play "attack" on each hit.
     this.walkAnim = def.sprite && findAnim(scene, def.sprite, def.walkAnim ?? 'walk');
     this.idleAnim = def.sprite && findAnim(scene, def.sprite, def.idleAnim ?? 'idle');
-    this.attackAnim = def.sprite && findAnim(scene, def.sprite, 'attack');
+    this.attackAnim = def.sprite && findAnim(scene, def.sprite, def.biteAnim ?? 'attack');
     if (this.walkAnim || this.idleAnim) {
       this.body = scene.add.sprite(0, 0, sheetKey(def.sprite));
       if (this.idleAnim) {
         this.body.play(this.idleAnim);
-        if (this.attackAnim) this.body.on(`animationcomplete-${this.attackAnim}`, () => this.body.play(this.idleAnim));
+        if (this.attackAnim && !def.biteAnim) this.body.on(`animationcomplete-${this.attackAnim}`, () => this.body.play(this.idleAnim));
       }
     } else if (def.fx) {
       this.body = fxSprite(scene, def.fx, 0, 0);
@@ -399,8 +400,9 @@ export class Enemy {
       this.warning = fxSprite(scene, def.falls.warning, Math.round(x), Math.round(fall.feetY))
         .setOrigin(0.5, 1).setDepth(DEPTH.slotMarkers);
     } else if (def.flies) {
-      // Cruises in at a random height, then dives at the top deck.
-      const { min, max } = LAYOUT.flightY;
+      // Cruises in at a random height (a Zap Jelly's lower), then dives at
+      // the top deck.
+      const { min, max } = def.flies.cruise ?? LAYOUT.flightY;
       this.x = x;
       this.cruiseY = Phaser.Math.Between(min, max);
       const hover = scene.ship.flyerHoverPoint(def.flies);
@@ -437,8 +439,32 @@ export class Enemy {
         this.fadeOutAnim = findAnim(scene, def.sprite, 'fadeOut');
         this.fadeInAnim = findAnim(scene, def.sprite, 'fadeIn');
         if (this.fadeOutAnim) {
-          this.body.on(`animationcomplete-${this.fadeOutAnim}`, () => this.fadeTime > 0 && this.body.setAlpha(0));
+          this.body.on(`animationcomplete-${this.fadeOutAnim}`, () => this.fadeTime > 0 && this.body.setAlpha(this.seen ? 0.5 : 0));
         }
+      }
+      // The Uncharted Seas' walkers and swimmers (see ENEMIES).
+      if (def.shell) {
+        this.shellNext = 1 - def.shell.step;   // hides when its HP falls to this share
+        this.hideAnim = findAnim(scene, def.sprite, def.shell.anim);
+      }
+      if (def.puffs) this.inflateAnim = findAnim(scene, def.sprite, def.puffs.anim);
+      if (def.regen) {
+        this.calmTime = 0;     // ms since it was last hit
+        this.healFlash = 0;
+        this.healAnim = findAnim(scene, def.sprite, def.regen.anim);
+      }
+      if (def.dodges) {
+        this.dodgesLeft = 1;
+        this.dodgeAnim = findAnim(scene, def.sprite, def.dodges.anim);
+      }
+      if (def.drum) {
+        this.drumTimer = def.drum.every;
+        this.drumAnim = findAnim(scene, def.sprite, def.drum.anim);
+        this.drumMs = animTiming(sheetSpec(scene, def.sprite), def.drum.anim).ms || 300;
+      }
+      if (def.lurks) {
+        this.lureAt = sheetSpec(scene, def.sprite)?.lure ?? [4, 4];
+        this.lure = scene.add.rectangle(0, 0, 2, 2, def.lurks.lureColor).setDepth(DEPTH.enemy + 0.05);
       }
     }
     // Summoned or raised: it rises where it stands first ("rise"), out of
@@ -501,10 +527,20 @@ export class Enemy {
   // the fog and while he's sunk into it.
   get isHidden() {
     return this.airTime > 0 || (!!this.def.giant && this.phase === 'enter') || this.vanished
-      || (!!this.def.blackbones && this.phase === 'enter');
+      || (!!this.def.blackbones && this.phase === 'enter') || this.shellTime > 0;
   }
-  // Out of sight too: no HP bar or status marks.
-  get vanished() { return this.fadeTime > 0 || this.hideTime > 0; }
+  // Out of sight too: no HP bar or status marks. A faded Fog Wraith or a
+  // Lurker still far out is seen with a Lookout aboard or under a Flare.
+  get vanished() { return ((this.fadeTime > 0 || this.lurking) && !this.seen) || this.hideTime > 0; }
+  // A Lurker not yet within lurks.revealAt of where walkers stop.
+  get lurking() {
+    const { lurks } = this.def;
+    return !!lurks && this.x - LAYOUT.shipContactX > lurks.revealAt;
+  }
+  // A hiding kind (Fog Wraith, Lurker) the crew can see anyway.
+  get seen() {
+    return !!(this.def.wraith || this.def.lurks) && (!!this.scene.crewBuffs?.reveal || this.isFlared);
+  }
   // Drawn centred on its body rather than standing in a 32x32 box (status
   // and target marks): The Kraken, the Ghost Galleon, the Molten Leviathan
   // and the bosses since.
@@ -740,10 +776,15 @@ export class Enemy {
     if (!this.alive) return;
     this.tickStatus(dt);
     if (!this.alive) return;  // poison can finish it off
+    if (this.def.regen) this.regenerate(dt);
 
     let moving = false;
     if (this.isRising) {
       this.rise(dt);
+    } else if (this.shellTime > 0) {
+      // A Shellback in its shell: still, until it comes out.
+      this.shellTime = Math.max(0, this.shellTime - dt);
+      this.actionTime = this.shellTime;
     } else if (this.pushLeft > 0) {
       this.pushed(dt);
     } else if (!this.isStunned) {
@@ -751,6 +792,7 @@ export class Enemy {
       const sdt = dt * this.pace;
       this.actionTime = Math.max(0, this.actionTime - sdt);
       if (this.def.wraith) this.fade(sdt);
+      if (this.def.drum) this.beat(sdt);
       if (this.def.flies) {
         moving = this.fly(sdt, dt, ship);
       } else if (this.def.falls) {
@@ -778,6 +820,8 @@ export class Enemy {
       } else if (this.def.stealPercent) {
         this.steal();
         return;
+      } else if (this.def.puffs) {
+        if (this.inflate(sdt, ship)) return;
       } else if (this.def.blast) {
         this.blowUpAtShip(ship);
         return;
@@ -802,6 +846,14 @@ export class Enemy {
 
     this.followGround();
     this.aura?.setPosition(Math.round(this.x), Math.round(this.y)).setVisible(!this.vanished);
+    if (this.lure) {
+      // A Lurker far out: dim, its lure bright; seen or near, all of it.
+      const hidden = this.lurking && !this.seen;
+      this.body.setAlpha(hidden ? this.def.lurks.alpha : 1);
+      const [lx, ly] = this.lureAt;
+      this.lure.setPosition(Math.round(this.x - 16 + lx), Math.round(this.feetY - 32 + ly)).setVisible(hidden);
+    }
+    if (this.def.wraith && this.fadeTime > 0 && this.actionTime <= 0) this.body.setAlpha(this.seen ? 0.5 : 0);
     if (this.nameTag) {
       // Kept on screen (a boss coming in at the right edge).
       const half = Math.ceil(this.nameTag.inkWidth / 2) + 2;
@@ -923,7 +975,8 @@ export class Enemy {
     if (this.attackCooldown > 0) return;
     ship.takeDamage(this.damage, this);
     this.attackCooldown = this.def.attackInterval / this.rage;
-    if (this.attackAnim) this.body.play(this.attackAnim);
+    if (this.def.biteAnim) this.playAction(this.attackAnim, 250);   // a Mimic's bite, then its hop frame
+    else if (this.attackAnim) this.body.play(this.attackAnim);
     // Otherwise a little lunge so attacks read visually
     else this.scene.tweens.add({ targets: this.body, angle: -15, duration: 80, yoyo: true });
   }
@@ -1156,6 +1209,100 @@ export class Enemy {
     sfx.play('boss_roar');
     scene.cameras.main.shake(l.roarShake.duration, l.roarShake.intensity);
     scene.volcano?.dropBombs(l.roarBombs);
+  }
+
+  // --- The Uncharted Seas ---
+
+  // A Shellback past a shell.step of its HP: into its shell for shell.ms
+  // (out of reach, taking no damage).
+  hideInShell() {
+    const { shell } = this.def;
+    this.shellTime = shell.ms;
+    this.playAction(this.hideAnim, shell.ms);
+    sfx.play('hit_heavy', { volume: AUDIO.quiet });
+  }
+
+  // A Reef Golem: after regen.after ms without a hit, it heals, the "heal"
+  // glow flashing now and then.
+  regenerate(dt) {
+    const r = this.def.regen;
+    this.calmTime += dt;
+    if (this.calmTime < r.after || this.hp >= this.maxHp) return;
+    this.hp = Math.min(this.maxHp, this.hp + this.maxHp * r.perSecond * dt / 1000);
+    this.healFlash -= dt;
+    if (this.healFlash <= 0) {
+      this.healFlash = r.flashMs;
+      if (this.actionTime <= 0) this.playAction(this.healAnim, 250);
+    }
+  }
+
+  // An Eel Rider: the first projectile to reach it misses. Returns whether
+  // this one did.
+  dodge() {
+    if (!this.def.dodges || this.dodgesLeft <= 0 || !this.alive) return false;
+    this.dodgesLeft--;
+    this.playAction(this.dodgeAnim, this.def.dodges.ms);
+    this.scene.floatText?.(this.x, this.y - this.def.height / 2 - 6, 'DODGE', '#b3e5fc');
+    return true;
+  }
+
+  // A Drowned Drummer: every drum.every, a beat (drum_beat on the lane):
+  // enemies within drum.radius walk faster for a while.
+  beat(sdt) {
+    const d = this.def.drum;
+    this.drumTimer -= sdt;
+    if (this.drumTimer > 0) return;
+    this.drumTimer += d.every;
+    if (this.actionTime <= 0) this.playAction(this.drumAnim, this.drumMs);
+    playFx(this.scene, d.fx, Math.round(this.x), Math.round(this.feetY) + 2, DEPTH.enemy - 0.2).setOrigin(0.5, 1);
+    sfx.play('hit', { volume: AUDIO.quiet });
+    for (const e of this.scene.enemies) {
+      if (e === this || !e.alive || Math.abs(e.x - this.x) > d.radius) continue;
+      e.applyMoveBoost(d.speed, d.ms);
+    }
+  }
+
+  // A Puffer Mine at the ship: it inflates ("inflate") for inflateMs, then
+  // bursts on the hull. Returns whether it burst (and is gone).
+  inflate(sdt, ship) {
+    const p = this.def.puffs;
+    if (this.inflateLeft == null) {
+      this.inflateLeft = p.inflateMs;
+      this.playAction(this.inflateAnim, p.inflateMs);
+      sfx.play('cast', { volume: AUDIO.quiet });
+    }
+    this.inflateLeft -= sdt;
+    this.actionTime = Math.max(this.actionTime, this.inflateLeft);
+    if (this.inflateLeft > 0) return false;
+    this.alive = false;
+    ship.takeDamage(this.hullHit(ship), this);
+    playFx(this.scene, p.burst, Math.round(this.x), Math.round(this.y));
+    playFx(this.scene, p.blast, Math.round(this.x), Math.round(this.feetY) + 2).setOrigin(0.5, 1);
+    this.scene.cameras.main.shake(p.shake.duration, p.shake.intensity);
+    sfx.play('cannon');
+    this.removeOverlays();
+    this.body.destroy();
+    return true;
+  }
+
+  // A Zap Jelly's death: a bolt (zap.sprite, stretched) to the crewmate
+  // nearest it, stunned for zap.stun ms.
+  zapCrew() {
+    const { zap } = this.def;
+    const { scene } = this;
+    let hero = null;
+    for (const h of scene.heroes ?? []) {
+      if (!hero || Math.hypot(h.x - this.x, h.y - this.y) < Math.hypot(hero.x - this.x, hero.y - this.y)) hero = h;
+    }
+    if (!hero) return;
+    hero.stun(zap.stun);
+    const dx = hero.x - this.x;
+    const dy = hero.y - this.y;
+    const bolt = fxSprite(scene, zap.sprite, Math.round(this.x), Math.round(this.y)).setOrigin(0.5, 0)
+      .setDepth(DEPTH.slotMarkers).setRotation(Math.atan2(dy, dx) - Math.PI / 2);
+    bolt.setScale(1, Math.hypot(dx, dy) / (bolt.height || 24));
+    scene.time.delayedCall(zap.ms, () => bolt.destroy());
+    sfx.play('thunder', { volume: AUDIO.quiet });
   }
 
   // --- Frostbite Reef ---
@@ -1901,6 +2048,8 @@ export class Enemy {
     flash = true, dot = false, lobbed = false, throughShield = false, ignoreArmor = false, source = null,
   } = {}) {
     if (!this.alive) return;
+    if (this.shellTime > 0) return;   // a Shellback in its shell
+    if (this.def.regen && !dot) this.calmTime = 0;
     amount *= this.damageTaken;
     let damage = amount;
     if (this.armor && !dot && !ignoreArmor) damage = Math.max(this.def.minDamage, amount * (1 - this.armor));
@@ -1930,6 +2079,11 @@ export class Enemy {
     if (this.hp <= 0) {
       this.die(source);
       return;
+    }
+    // A Shellback hides each time it passes another shell.step of its HP.
+    if (this.def.shell && this.hp <= this.maxHp * this.shellNext) {
+      while (this.shellNext > 0 && this.hp <= this.maxHp * this.shellNext) this.shellNext -= this.def.shell.step;
+      this.hideInShell();
     }
     // The Frost Wyrm takes to the air once, at liftAt of its HP.
     const w = this.def.wyrm;
@@ -2058,6 +2212,7 @@ export class Enemy {
       this.body.destroy();
       return;
     }
+    if (this.def.zap) this.zapCrew();
     // The Abyss's Risen Dead current: it may rise again.
     this.scene.currents?.onDeath(this);
     this.scene.tweens.add({
@@ -2190,6 +2345,8 @@ export class Enemy {
     this.iceSprite = null;
     this.aura?.destroy();
     this.aura = null;
+    this.lure?.destroy();
+    this.lure = null;
     this.nameTag?.destroy();
     for (const c of this.circles ?? []) c.destroy();
     this.circles = [];

@@ -1,0 +1,216 @@
+// Headless tests of the Uncharted Seas' new crew, enemies and bosses, run
+// on the balance sim's stand-in battle (the real Enemy, Hero and ability
+// code): each enemy's trick, each boss's mechanics, and crew rewards
+// being granted exactly once.
+// Run: npm test
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import {
+  ABYSS, ENEMIES, HEROES, MIMIC, SHIP, UNCHARTED,
+} from '../../src/config.js';
+import { LAYOUT } from '../../src/layout.js';
+import { Enemy } from '../../src/entities/Enemy.js';
+import { depthPlan, depthTypes } from '../../src/systems/Abyss.js';
+import { initExpeditions } from '../../src/systems/Expeditions.js';
+import { Progress } from '../../src/systems/Progress.js';
+import {
+  crewEarned, stageCrewReward, stageOf, stagePlan, STAGES,
+} from '../../src/systems/Uncharted.js';
+import { makeBattle, rebuildHeroes } from '../sim/simulate.mjs';
+
+initExpeditions(JSON.parse(readFileSync(new URL('../../public/sprites/ui/expedition/expedition.json', import.meta.url), 'utf8')));
+
+const tests = [];
+const test = (name, fn) => tests.push({ name, fn });
+const DT = 50;
+
+// A battle with this crew on deck (slot order), nobody else.
+function battle(crew = []) {
+  const p = new Progress();
+  p.abyss.runs = 1;
+  for (const id of crew) if (!p.owned.includes(id)) p.owned.push(id);
+  p.decks = SHIP.maxDecks;
+  p.slots = Array(SHIP.maxDecks * SHIP.slotsPerDeck).fill(null);
+  crew.forEach((id, i) => { p.slots[i] = id; });
+  const scene = makeBattle(p);
+  scene.ship.sync(p);
+  rebuildHeroes(scene, p);
+  scene.enemies = [];
+  scene.projectiles = [];
+  return { p, scene };
+}
+
+// An enemy of this kind at x (HP and damage x1).
+function spawn(scene, key, x = 300, opts = {}) {
+  const e = new Enemy(scene, ENEMIES[key], {
+    x, hpMultiplier: 1, damageMultiplier: 1, gold: ENEMIES[key].gold, key, ...opts,
+  });
+  scene.enemies.push(e);
+  return e;
+}
+
+// Step the battle ms (enemies, crew, abilities, shots).
+function step(scene, ms, { crew = true } = {}) {
+  for (let t = 0; t < ms; t += DT) {
+    for (const e of scene.enemies) e.update(DT, scene.ship);
+    scene.abilities.update(DT, false);
+    if (crew) {
+      for (const h of scene.heroes) {
+        const shot = h.update(DT, scene.enemies);
+        if (shot) scene.projectiles.push(...[shot].flat());
+      }
+    }
+    for (const pr of scene.projectiles) pr.update(DT);
+    scene.enemies = scene.enemies.filter((e) => e.alive);
+    scene.projectiles = scene.projectiles.filter((pr) => !pr.done);
+  }
+}
+
+// --- Enemies ---
+
+test('shellback: hides at each 25% lost, immune and out of reach for 2s', () => {
+  const { scene } = battle();
+  const e = spawn(scene, 'shellback');
+  e.takeDamage(e.maxHp * 0.3, { ignoreArmor: true });
+  assert.ok(e.shellTime > 0, 'hiding');
+  assert.equal(e.targetable, false);
+  const hp = e.hp;
+  e.takeDamage(1000, { ignoreArmor: true });
+  assert.equal(e.hp, hp, 'no damage in its shell');
+  const x = e.x;
+  step(scene, 1000, { crew: false });
+  assert.equal(e.x, x, 'still in its shell');
+  step(scene, 1100, { crew: false });
+  assert.equal(e.shellTime, 0);
+  assert.ok(e.targetable);
+  e.takeDamage(1, { ignoreArmor: true });
+  assert.equal(e.shellTime, 0, 'not again until the next 25%');
+  e.takeDamage(e.maxHp * 0.25, { ignoreArmor: true });
+  assert.ok(e.shellTime > 0, 'hides again past 50%');
+});
+
+test('puffer mine: inflates at the ship for 1s, then bursts on the hull', () => {
+  const { scene } = battle();
+  const e = spawn(scene, 'pufferMine', LAYOUT.shipContactX + ENEMIES.pufferMine.width / 2 + 1);
+  const hull = scene.ship.hp;
+  step(scene, 600, { crew: false });
+  assert.ok(e.alive, 'still inflating');
+  assert.equal(scene.ship.hp, hull);
+  step(scene, 600, { crew: false });
+  assert.equal(e.alive, false);
+  assert.ok(Math.abs(hull - scene.ship.hp - scene.ship.maxHp * ENEMIES.pufferMine.hullShare.normal) < 1e-6);
+});
+
+test('reef golem: regenerates after 2s without a hit; a hit resets the wait', () => {
+  const { scene } = battle();
+  const e = spawn(scene, 'reefGolem');
+  e.takeDamage(40, { ignoreArmor: true });
+  const hurt = e.hp;
+  step(scene, 1500, { crew: false });
+  assert.equal(e.hp, hurt, 'not yet');
+  e.takeDamage(1);
+  step(scene, 1500, { crew: false });
+  assert.equal(e.hp, hurt - 1, 'the hit reset the clock');
+  step(scene, 1500, { crew: false });
+  assert.ok(e.hp > hurt - 1, 'healing');
+  const perSec = e.maxHp * ENEMIES.reefGolem.regen.perSecond;
+  assert.ok(Math.abs(e.hp - (hurt - 1) - perSec) < perSec * 0.1, '3% a second');
+});
+
+test('eel rider: dodges the first projectile only', () => {
+  const { scene } = battle(['cabinBoy']);
+  const e = spawn(scene, 'eelRider', 250);
+  e.speed = 0;
+  const [hero] = scene.heroes;
+  hero.onHit(e, e.x, e.y, null, null, { shot: true });
+  assert.equal(e.hp, e.maxHp, 'dodged');
+  hero.onHit(e, e.x, e.y, null, null, { shot: true });
+  assert.ok(e.hp < e.maxHp, 'the second lands');
+});
+
+test('zap jelly: killed, it stuns the crewmate nearest it for 1s', () => {
+  const { scene } = battle(['cabinBoy', 'parrotKeeper', 'shipsCook']);
+  const e = spawn(scene, 'zapJelly', 300);
+  const nearest = scene.heroes.reduce((a, h) => (Math.hypot(h.x - e.x, h.y - e.y) < Math.hypot(a.x - e.x, a.y - e.y) ? h : a));
+  e.takeDamage(1e6);
+  assert.ok(nearest.isStunned);
+  assert.equal(nearest.stunTime, ENEMIES.zapJelly.zap.stun);
+  assert.equal(scene.heroes.filter((h) => h.isStunned).length, 1);
+});
+
+test('lurker: out of reach until within 160px, or seen by a Lookout or a Flare', () => {
+  const { reveal } = { reveal: ENEMIES.lurker.lurks.revealAt };
+  let { scene } = battle(['cabinBoy']);
+  const far = spawn(scene, 'lurker', LAYOUT.shipContactX + reveal + 40);
+  step(scene, DT, { crew: false });
+  assert.equal(far.targetable, false);
+  const near = spawn(scene, 'lurker', LAYOUT.shipContactX + reveal - 10);
+  assert.ok(near.targetable, 'in range of the ship');
+  far.applyFlare(0.25, 1000);
+  assert.ok(far.targetable, 'flared');
+  ({ scene } = battle(['lookout']));
+  const seen = spawn(scene, 'lurker', LAYOUT.shipContactX + reveal + 40);
+  step(scene, DT, { crew: false });
+  assert.ok(seen.targetable, 'a Lookout aboard');
+  scene.heroes[0].stun(5000);
+  step(scene, DT, { crew: false });
+  assert.equal(seen.targetable, false, 'not while the Lookout is stunned');
+});
+
+test('drowned drummer: its beat hurries enemies within 80px, not further; the crew aim at it first', () => {
+  const { scene } = battle(['cabinBoy']);
+  const drummer = spawn(scene, 'drownedDrummer', 360);
+  const near = spawn(scene, 'frozenCorsair', 360 - 70);
+  const far = spawn(scene, 'frozenCorsair', 360 + 90);
+  step(scene, ENEMIES.drownedDrummer.drum.every + DT, { crew: false });
+  assert.ok(near.boostTime > 0 && near.boostMult === ENEMIES.drownedDrummer.drum.speed);
+  assert.equal(far.boostTime, 0);
+  assert.equal(scene.heroes[0].pickTarget(scene.enemies), drummer);
+});
+
+test('mimic: x5 gold and a random Sea Glass; replaces basic enemies at 5%', () => {
+  assert.equal(ENEMIES.mimic.gold, ENEMIES.frozenCorsair.gold * 5);
+  const p = new Progress();
+  assert.equal(p.findTreasure(), null, 'nothing before the Uncharted Seas');
+  p.abyss.runs = 1;
+  const colour = p.findTreasure(() => 0.5);
+  assert.ok(UNCHARTED.colours.includes(colour));
+  assert.equal(p.itemCount(colour), 1);
+  // Over many plans, about 5% of basic enemies come as Mimics.
+  let basic = 0;
+  let mimics = 0;
+  for (let seed = 1; seed <= 60; seed++) {
+    for (const entry of depthPlan(seed, 30)) {
+      if (MIMIC.replaces.includes(entry.key)) basic++;
+      if (entry.key === 'mimic') mimics++;
+    }
+  }
+  const share = mimics / (basic + mimics);
+  assert.ok(share > 0.02 && share < 0.12, `${share}`);
+});
+
+test('abyss: the new enemies join the mix from depth 20 only', () => {
+  const fresh = Object.keys(ABYSS.enemies).filter((k) => ABYSS.enemies[k].fromDepth);
+  assert.equal(fresh.length, 8);
+  for (let seed = 1; seed <= 40; seed++) {
+    assert.ok(!depthTypes(seed, 19).some((k) => fresh.includes(k)));
+    assert.ok(!depthPlan(seed, 19).some((e) => e.key === 'mimic'));
+  }
+  assert.ok(Array.from({ length: 40 }, (_, s) => depthTypes(s + 1, 25)).flat().some((k) => fresh.includes(k)));
+});
+
+// --- Run ---
+
+let failed = 0;
+for (const { name, fn } of tests) {
+  try {
+    fn();
+    console.log(`ok   ${name}`);
+  } catch (err) {
+    failed++;
+    console.log(`FAIL ${name}\n     ${err.stack.split('\n').slice(0, 3).join('\n     ')}`);
+  }
+}
+console.log(`\n${tests.length - failed}/${tests.length} passed`);
+if (failed) process.exitCode = 1;
+void [HEROES, crewEarned, stageCrewReward, stageOf, stagePlan, STAGES];

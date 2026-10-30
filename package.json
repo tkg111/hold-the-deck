@@ -17,7 +17,7 @@
     "sim:uncharted": "node --import ./scripts/sim/register.mjs scripts/sim/uncharted.mjs",
     "sim:awaken-pace": "node --import ./scripts/sim/register.mjs scripts/sim/awaken_pace.mjs",
     "sim:crew": "node --import ./scripts/sim/register.mjs scripts/sim/crewcheck.mjs",
-    "test": "node --import ./scripts/sim/register.mjs scripts/tests/tutorial.mjs && node --import ./scripts/sim/register.mjs scripts/tests/audio.mjs && node --import ./scripts/sim/register.mjs scripts/tests/mobile.mjs && node --import ./scripts/sim/register.mjs scripts/tests/rankings.mjs && node --import ./scripts/sim/register.mjs scripts/tests/uncharted.mjs",
+    "test": "node --import ./scripts/sim/register.mjs scripts/tests/tutorial.mjs && node --import ./scripts/sim/register.mjs scripts/tests/audio.mjs && node --import ./scripts/sim/register.mjs scripts/tests/mobile.mjs && node --import ./scripts/sim/register.mjs scripts/tests/rankings.mjs && node --import ./scripts/sim/register.mjs scripts/tests/uncharted.mjs && node --import ./scripts/sim/register.mjs scripts/tests/content.mjs",
     "app:sync": "npm run build && npx cap sync android",
     "app:apk": "node scripts/app-apk.mjs"
   },

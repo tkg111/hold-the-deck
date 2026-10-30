@@ -839,6 +839,9 @@ export class GameScene extends Phaser.Scene {
     this.progress.noteDiveGold(gold);
     const top = enemy.y - enemy.def.height / 2;
     this.floatText(enemy.x, top - 6, `+${formatNum(gold)}`, GOLD_TEXT);
+    // A Mimic's treasure: a random Sea Glass.
+    const glass = enemy.def.treasure ? this.progress.findTreasure() : null;
+    if (glass) this.floatText(enemy.x, top - 16, `+1 ${glass.toUpperCase()} SEA GLASS`, MATERIAL_TEXT);
     // A boss in the Abyss drops double its material (and no Pearls).
     if (enemy.def.boss && this.progress.inAbyss) {
       const drop = this.progress.abyssBossDrop(enemy.key);

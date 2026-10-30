@@ -31,7 +31,9 @@ const SKULL = ['drownedSailor', 'thiefMonkey', 'ironCrab', 'stormHarpy', 'kegRun
 const EMBER = ['cinderSkeleton', 'magmaCrab', 'ashBat', 'obsidianGolem', 'kegRunner', 'barnacleKnight'];
 const FROST = ['frozenCorsair', 'sledPenguin', 'yetiRaider', 'iceWitch'];
 const FOG = ['boneDeckhand', 'fogWraith', 'cursedCannoneer', 'lanternGhoul'];
-const ALL = Object.keys(ABYSS.enemies);
+// Every Abyss group the islands brought (not the Uncharted Seas' own, which
+// the stages add by name).
+const ALL = Object.keys(ABYSS.enemies).filter((key) => !ABYSS.enemies[key].fromDepth);
 const ARMOURED = ['ironCrab', 'magmaCrab', 'barnacleKnight', 'obsidianGolem'];
 
 export const SEAS = [

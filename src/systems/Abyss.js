@@ -1,4 +1,6 @@
-import { ABYSS, ENEMIES, ISLANDS, WAVES } from '../config.js';
+import {
+  ABYSS, ENEMIES, ISLANDS, MIMIC, WAVES,
+} from '../config.js';
 import {
   clearBonus, enemyCount, seededRandom, spawnInterval, waveScaling,
 } from './WaveManager.js';
@@ -41,11 +43,12 @@ export function depthBosses(seed, depth) {
   });
 }
 
-// The enemy types (ABYSS.enemies keys) a depth draws from.
+// The enemy types (ABYSS.enemies keys) a depth draws from: those whose
+// fromDepth it has reached.
 export function depthTypes(seed, depth) {
   const { start, every, max } = ABYSS.types;
   const count = Math.min(max, start + Math.floor((depth - 1) / every));
-  const pool = Object.keys(ABYSS.enemies);
+  const pool = Object.keys(ABYSS.enemies).filter((key) => depth >= (ABYSS.enemies[key].fromDepth ?? 0));
   const random = rng(seed, depth, 1);
   const picked = [];
   while (picked.length < count && pool.length) picked.push(pool.splice(Math.floor(random() * pool.length), 1)[0]);
@@ -114,7 +117,8 @@ export function depthScaling(depth, currents = [], growth = 1) {
 // types, picked by weight until they hold the wave's count (each group
 // counting as its type's size) (cut down on a
 // boss depth, as on the islands), with its boss(es) entering at
-// ABYSS.bosses.spawnAt of the groups.
+// ABYSS.bosses.spawnAt of the groups. From MIMIC.fromDepth, each basic
+// enemy may come as a Mimic (their own dice, so the rest stays the same).
 export function depthPlan(seed, depth) {
   const random = rng(seed, depth, 4);
   const wave = depthWave(depth);
@@ -141,10 +145,12 @@ export function depthPlan(seed, depth) {
 
   const elites = depthEliteChance(depth);
   const interval = spawnInterval(wave);
+  const mimics = depth >= MIMIC.fromDepth ? rng(seed, depth, 5) : null;
   const plan = [];
   for (const g of groups) {
     const leader = plan.length;
-    g.members.forEach((key, i) => {
+    g.members.forEach((member, i) => {
+      const key = mimics ? mimicOr(member, mimics) : member;
       const def = ENEMIES[key];
       plan.push({
         key,
@@ -158,6 +164,12 @@ export function depthPlan(seed, depth) {
     });
   }
   return plan;
+}
+
+// A basic enemy (MIMIC.replaces) comes as a Mimic at MIMIC.chance (random:
+// the dice); anything else as itself.
+export function mimicOr(key, random) {
+  return MIMIC.replaces.includes(key) && random() < MIMIC.chance ? 'mimic' : key;
 }
 
 // The gold a clear of a depth pays: every enemy's kill gold (Elites' x

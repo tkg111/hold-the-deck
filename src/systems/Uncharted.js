@@ -2,7 +2,9 @@ import {
   ABILITIES, ABYSS, AWAKEN, ENEMIES, HEROES, ISLANDS, UNCHARTED, WAVES,
 } from '../config.js';
 import { GROUPS, SEAS } from '../data/uncharted.js';
-import { abyssIsland, depthClearBonus, depthScaling } from './Abyss.js';
+import {
+  abyssIsland, depthClearBonus, depthScaling, mimicOr,
+} from './Abyss.js';
 import { traitOf } from './Expeditions.js';
 import { seededRandom } from './WaveManager.js';
 
@@ -220,9 +222,13 @@ export function stageOptions(stage, crown) {
 // Swarm doubles the count at half HP; Elite Hunt makes every n-th enemy
 // (not bosses) an Abyss Elite. Bosses carry their stage's UNCHARTED.bosses
 // factors. Everyone's HP and damage carry the crown's factors through the
-// stage's scaling (stageScaling), not here.
+// stage's scaling (stageScaling), not here. A stage's adds ({ wave index:
+// [ENEMIES keys] }) come in that wave whatever the dice say (1-2's Mimic),
+// each as a group of its own halfway through; and any basic enemy may come
+// as a Mimic (MIMIC; their own dice, so the rest of the line-up stays).
 export function stagePlan(stage, crown) {
   const random = seededRandom(hash(`plan:${stage.id}:${crown}`));
+  const mimics = seededRandom(hash(`mimic:${stage.id}:${crown}`));
   const { size, perWave, bossEscort } = UNCHARTED.waves;
   const rules = stageRules(stage, crown);
   const swarm = rules.includes('swarm') ? UNCHARTED.rules.swarm : null;
@@ -254,13 +260,15 @@ export function stagePlan(stage, crown) {
       groups.push({ members, escort: !!t.escort });
       filled += t.pack ? members.length : t.size ?? members.length;
     }
+    for (const key of stage.adds?.[w] ?? []) groups.splice(Math.round(groups.length / 2), 0, { members: [key] });
     const spawnAt = ABYSS.bosses.spawnAt;
     bosses.forEach((key, i) => {
       groups.splice(Math.round(groups.length * spawnAt[Math.min(i, spawnAt.length - 1)]), 0, { members: [key] });
     });
     groups.forEach((g, gi) => {
       const leader = plan.length;
-      g.members.forEach((key, i) => {
+      g.members.forEach((member, i) => {
+        const key = mimicOr(member, mimics);
         const def = ENEMIES[key];
         const first = gi === 0 && i === 0;
         const elite = !def.boss && eliteEvery > 0 && ++foes % eliteEvery === 0;

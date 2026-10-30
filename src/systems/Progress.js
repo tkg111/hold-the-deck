@@ -1133,6 +1133,16 @@ export class Progress {
     };
   }
 
+  // A Mimic's treasure: one random Sea Glass, once the Uncharted Seas are
+  // open (else nothing). Returns its colour, or null.
+  findTreasure(random = Math.random) {
+    if (!this.unchartedUnlocked) return null;
+    const { colours } = UNCHARTED;
+    const colour = colours[Math.floor(random() * colours.length)];
+    this.uncharted.items[colour] = (this.uncharted.items[colour] ?? 0) + 1;
+    return colour;
+  }
+
   // The Uncharted Seas' crew the record has earned and the ship hasn't got
   // yet join it (off the ship: the Muster's crew is put back after the
   // stage). Each only once: an owned one is never granted again. Returns

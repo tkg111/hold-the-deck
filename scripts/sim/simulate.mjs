@@ -378,6 +378,7 @@ export function payKills(scene, progress) {
     if (e.def.hazard) return;   // a lava bomb shot down
     progress.recordDefeat(e.key);   // bounties pay Pearls
     progress.earnGold(progress.boostGold(e.gold));
+    if (e.def.treasure) progress.findTreasure();
     if (e.def.boss && progress.inAbyss) {
       progress.abyssBossDrop(e.key);   // double, and no Pearls
     } else if (e.def.boss && !scene.hunting) {

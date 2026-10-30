@@ -12,10 +12,11 @@ const TRAITS = [
   { key: 'armoured', label: 'ARMOURED', has: (def) => def.armor },
   { key: 'shielded', label: 'SHIELDED', has: (def) => def.shield },
   { key: 'explodes', label: 'EXPLODES', has: (def) => def.blast },
-  { key: 'support', label: 'SUPPORT', has: (def) => def.song || def.witch || def.lantern },
+  { key: 'support', label: 'SUPPORT', has: (def) => def.song || def.witch || def.lantern || def.drum },
 ];
 
-export const traitsOf = (def) => TRAITS.filter((t) => t.has(def));
+// def.chips adds ones its flags don't give it (the Puffer Mine's EXPLODES).
+export const traitsOf = (def) => TRAITS.filter((t) => t.has(def) || def.chips?.includes(t.key));
 export const traitIconKey = (trait) => wantedKey(`trait_${trait.key}`);
 
 // Poster layout from wanted.json: size, where the enemy goes (enemyAt,

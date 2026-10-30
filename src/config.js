@@ -1881,6 +1881,194 @@ export const ENEMIES = {
       deathHoldMs: 2000, fadeMs: 400,
     },
   },
+
+  // The Uncharted Seas (art in public/sprites/uncharted_units/, all facing
+  // left; base stats relative to the Frozen Corsair's). They meet the ship
+  // in the stages (src/data/uncharted.js) and in the Abyss from depth 20
+  // (ABYSS.enemies fromDepth).
+  //   shell:   each time it loses `step` of its max HP it hides in its shell
+  //            ("hide") for ms: it stands still, out of reach, taking no damage
+  //   puffs:   swims in on the water; at the ship it inflates ("inflate") for
+  //            inflateMs, then bursts (`burst` and `blast` fx) for hullShare
+  //   regen:   heals perSecond of its max HP a second once nothing has hit it
+  //            for `after` ms, flashing "heal" every flashMs meanwhile
+  //   dodges:  the first projectile that reaches it misses ("dodge" for ms)
+  //   zap:     killed, it zaps the crewmate nearest it (`sprite`, stretched
+  //            from it to them): stunned for stun ms
+  //   lurks:   hidden and out of reach (drawn at alpha, its lure at `lure`
+  //            in its sheet's entry still bright) until within revealAt px of
+  //            where walkers stop, or seen (a Lookout aboard, a Flare)
+  //   drum:    every `every` ms, "drum" and `fx` on the lane: enemies within
+  //            radius px walk speed x as fast for ms
+  //   priority: the crew aim at it first, in range
+  //   treasure: killed, it pays a random Sea Glass too (once the Uncharted
+  //            Seas are open); MIMIC replaces basic enemies
+  //   chips:   Wanted Board chips its flags don't give it (see ui/wanted.js)
+  shellback: {
+    name: 'Shellback',
+    description: 'Hit it hard enough and it hides. Wait it out.',
+    weakTo: ['blacksmith', 'sharpshooter', 'cannoneer'],
+    color: 0xc86a4a,
+    sprite: 'shellback',
+    dir: 'uncharted_units/',
+    portrait: true,
+    width: 26,
+    height: 25,
+    hp: 30,
+    speed: 13.5,
+    damage: 6,
+    attackInterval: 1200,
+    gold: 4,
+    armor: 0.4,
+    minDamage: 1,
+    shell: { step: 0.25, ms: 2000, anim: 'hide' },
+  },
+  pufferMine: {
+    name: 'Puffer Mine',
+    description: 'Drifts to the hull and pops. Pop it first.',
+    weakTo: ['pearlDiver', 'harpooner', 'stormCaller'],
+    color: 0xe8c840,
+    sprite: 'puffer_mine',
+    dir: 'uncharted_units/',
+    portrait: true,
+    walkAnim: 'float',
+    floats: true,
+    width: 18,
+    height: 18,
+    hp: 12,
+    speed: 12,
+    damage: 25,         // Wanted Board only; the hull takes hullShare
+    hullShare: { normal: 0.1, elite: 0.18 },
+    attackInterval: 1000,
+    gold: 3,
+    chips: ['explodes'],
+    puffs: {
+      inflateMs: 1000, anim: 'inflate', burst: 'puffer_burst', blast: 'mine_blast',
+      shake: { duration: 160, intensity: 0.005 },
+    },
+  },
+  reefGolem: {
+    name: 'Reef Golem',
+    description: 'Leave it alone for a moment and the coral grows back.',
+    weakTo: ['duelist', 'grogBrewer', 'fireBreather'],
+    color: 0x8a8070,
+    sprite: 'reef_golem',
+    dir: 'uncharted_units/',
+    portrait: true,
+    width: 26,
+    height: 27,
+    hp: 80,
+    speed: 8,
+    damage: 12,
+    attackInterval: 1600,
+    gold: 8,
+    regen: { perSecond: 0.03, after: 2000, anim: 'heal', flashMs: 700 },
+  },
+  eelRider: {
+    name: 'Eel Rider',
+    description: 'Fast on the water, and it sees the first shot coming.',
+    weakTo: ['stormCaller', 'grogBrewer', 'pearlDiver'],
+    color: 0x5a8ac0,
+    sprite: 'eel_rider',
+    dir: 'uncharted_units/',
+    portrait: true,
+    walkAnim: 'swim',
+    floats: true,
+    width: 26,
+    height: 26,
+    hp: 16,
+    speed: 40.5,
+    damage: 6,
+    attackInterval: 1000,
+    gold: 4,
+    dodges: { anim: 'dodge', ms: 300 },
+  },
+  zapJelly: {
+    name: 'Zap Jelly',
+    description: 'Drifts low over the water. Kill it and it bites back.',
+    weakTo: ['rigger', 'parrotKeeper', 'netThrower'],
+    color: 0x9a6ad0,
+    sprite: 'zap_jelly',
+    dir: 'uncharted_units/',
+    portrait: true,
+    idleAnim: 'float',
+    width: 20,
+    height: 26,
+    hp: 14,
+    speed: 26,
+    damage: 4,
+    attackInterval: 1100,
+    gold: 4,
+    flies: {
+      cruise: { min: 120, max: 150 },   // lower than the harpies' flightY
+      hoverX: 22, hoverY: -6, hoverSpread: 8, diveFrom: 50, diveSpeed: 60, climbSpeed: 30, fallSpeed: 90,
+    },
+    zap: { stun: 1000, sprite: 'jelly_zap', ms: 250 },
+  },
+  lurker: {
+    name: 'Lurker',
+    description: 'All you see is the light. Then it is at the hull.',
+    weakTo: ['lookout', 'duelist', 'stormCaller'],
+    color: 0x2a3a4a,
+    sprite: 'lurker',
+    dir: 'uncharted_units/',
+    portrait: true,
+    width: 20,
+    height: 30,
+    hp: 24,
+    speed: 20,
+    damage: 9,
+    attackInterval: 1000,
+    gold: 5,
+    lurks: { revealAt: 160, alpha: 0.15, lureColor: 0xb8fff0 },
+  },
+  drownedDrummer: {
+    name: 'Drowned Drummer',
+    description: 'Keeps the beat. The horde marches to it.',
+    weakTo: ['sharpshooter', 'lookout', 'duelist'],
+    color: 0x6a7a6a,
+    sprite: 'drowned_drummer',
+    dir: 'uncharted_units/',
+    portrait: true,
+    width: 18,
+    height: 25,
+    hp: 20,
+    speed: 18,
+    damage: 3,
+    attackInterval: 1000,
+    gold: 5,
+    priority: true,
+    drum: {
+      every: 2000, radius: 80, speed: 1.3, ms: 2000, anim: 'drum', fx: 'drum_beat',
+    },
+  },
+  mimic: {
+    name: 'Mimic',
+    description: 'That chest has teeth... and treasure.',
+    weakTo: ['duelist', 'sharpshooter', 'blacksmith'],
+    color: 0x9a6a3a,
+    sprite: 'mimic',
+    dir: 'uncharted_units/',
+    portrait: true,
+    walkAnim: 'hop',
+    width: 22,
+    height: 26,
+    hp: 60,
+    speed: 22.5,
+    damage: 12,
+    attackInterval: 1100,
+    gold: 10,           // 5x a basic enemy's
+    treasure: true,
+    biteAnim: 'bite',
+  },
+};
+
+// Mimics (ENEMIES.mimic): each basic enemy of a stage, and of an Abyss
+// depth from fromDepth, has `chance` of coming as one instead.
+export const MIMIC = {
+  chance: 0.05,
+  fromDepth: 20,
+  replaces: ['drownedSailor', 'cinderSkeleton', 'frozenCorsair', 'boneDeckhand'],
 };
 
 // From fromWave, any enemy but the boss can spawn as an Elite: gold tint,
@@ -2768,6 +2956,16 @@ export const ABYSS = {
     cursedCannoneer: { weight: 1, size: 2, members: ['cursedCannoneer'] },
     // Its deckhands come with it, for its lantern to raise.
     lanternGhoul: { weight: 0.5, size: 4, members: ['boneDeckhand', 'boneDeckhand', 'lanternGhoul'] },
+    // The Uncharted Seas' (fromDepth: in a depth's draw only from there).
+    shellback: { weight: 1, size: 4, fromDepth: 20, members: ['shellback', 'shellback'] },
+    pufferMine: { weight: 0.7, size: 4, fromDepth: 20, members: ['pufferMine', 'pufferMine', 'pufferMine'] },
+    reefGolem: { weight: 0.7, size: 6, fromDepth: 20, members: ['reefGolem'] },
+    eelRider: { weight: 1, size: 3, fromDepth: 20, members: ['eelRider', 'eelRider'] },
+    zapJelly: { weight: 0.7, size: 4, fromDepth: 20, members: ['zapJelly', 'zapJelly', 'zapJelly'] },
+    lurker: { weight: 1, size: 3, fromDepth: 20, members: ['lurker', 'lurker'] },
+    // Its drum hurries the deckhands it comes with.
+    drownedDrummer: { weight: 0.5, size: 4, fromDepth: 20, members: ['boneDeckhand', 'boneDeckhand', 'drownedDrummer'] },
+    mimic: { weight: 0.3, size: 3, fromDepth: 20, members: ['mimic'] },
   },
   types: { start: 2, every: 5, max: 6 },
   elites: {
