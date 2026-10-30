@@ -2,6 +2,8 @@ import {
   AUDIO, CHARM, FREEZE, FX, HEROES, SHIP, SPRITES,
 } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
+import { LAYOUT, laneFeetY } from '../layout.js';
+import { GrabHold, SeaMine } from '../systems/Abilities.js';
 import { FX_DEPTH, fxSprite, playFx } from '../fx.js';
 import {
   awakenedKey, findAnim, fxKey, sheetKey, unchartedKey,
@@ -88,6 +90,10 @@ export class Hero {
         .setDepth(DEPTH.hero - 0.55).play(unchartedKey('aura'));
     }
     this.shotCount = 0;    // shots fired (an awakened nthShot counts them)
+    // A burst's shots still to fire (the Gunslinger's second), and when.
+    this.burstLeft = 0;
+    this.burstTimer = 0;
+    this.mendTimer = this.def.mend?.every ?? 0;   // the Tide Singer's repairs
     this.markTimer = 0;    // an awakened Captain's mark: ms until he picks again
     this.idleAnim = sprite && findAnim(scene, look, 'idle');
     this.attackAnim = sprite && findAnim(scene, look, 'attack');
@@ -115,8 +121,8 @@ export class Hero {
     this.boosts.push({
       kind, mult, time: duration, fx, crit,
     });
-    const name = fx.sprite;
-    if (!this.boostSprites[name]) {
+    const name = fx?.sprite;
+    if (name && !this.boostSprites[name]) {
       this.boostSprites[name] = fxSprite(this.scene, name, this.x, this.feetY).setOrigin(0.5, 1)
         .setDepth(fx.behind ? DEPTH.hero - 0.5 : DEPTH.slotMarkers);
     }
@@ -331,9 +337,18 @@ export class Hero {
   // Whether this crewmate can hit (or, the Net Thrower, net) the enemy.
   canHit(e) { return e.canBeHit(this.antiAir); }
 
-  get speedMult() { return this.boostMult('speed'); }
-  // Its damage now: Progress's (level, stars, deck buffs) x damage boosts.
-  get damage() { return this.baseDamage * this.boostMult('damage'); }
+  // Ability boosts, and a Tide Singer's song aboard (scene.crewBuffs).
+  get speedMult() { return this.boostMult('speed') * (this.scene.crewBuffs?.attackSpeed ?? 1); }
+  // Its damage now: Progress's (level, stars, deck buffs) x damage boosts
+  // (x the Berserker's rage).
+  get damage() { return this.baseDamage * this.boostMult('damage') * this.rageMult; }
+  // The Berserker: +1% per 1% of the hull missing, up to rage.max.
+  get rageMult() {
+    const { rage } = this.def;
+    const ship = this.scene.ship;
+    if (!rage || !ship) return 1;
+    return 1 + Math.min(rage.max, 1 - ship.hp / ship.maxHp);
+  }
   boostMult(kind) {
     let m = 1;
     for (const b of this.boosts) if (b.kind === kind) m *= b.mult;
@@ -344,7 +359,7 @@ export class Hero {
     for (const b of this.boosts) b.time -= dt;
     this.boosts = this.boosts.filter((b) => b.time > 0);
     for (const [name, sprite] of Object.entries(this.boostSprites)) {
-      if (this.boosts.some((b) => b.fx.sprite === name)) continue;
+      if (this.boosts.some((b) => b.fx?.sprite === name)) continue;
       sprite.destroy();
       delete this.boostSprites[name];
     }
@@ -372,9 +387,24 @@ export class Hero {
     this.tickFreeze(dt);
     this.tickCharm(dt);
     if (this.def.mark) this.updateMark(dt, enemies);
+    if (this.def.mend) this.tickMend(dt);
     if (this.def.aura || this.isStunned || this.isFrozen) return null;  // support hero: never attacks
     this.cooldown -= dt * this.speedMult;
+    if (this.burstLeft > 0 && !this.isCharmed) {
+      this.burstTimer -= dt * this.speedMult;
+      if (this.burstTimer <= 0) {
+        this.burstLeft--;
+        this.burstTimer = this.def.burst.gapMs;
+        const target = this.pickTarget(enemies);
+        if (target) {
+          this.playShot();
+          return this.fire(target);
+        }
+      }
+    }
     if (this.cooldown > 0) return null;
+    // The Pearl Diver waits while her mines are all out.
+    if (this.def.mines && !this.isCharmed && this.minesOut >= this.def.mines.max) return null;
 
     if (this.isCharmed) {
       this.cooldown = this.attackInterval;
@@ -395,7 +425,15 @@ export class Hero {
       lunge.target = target;
       if (--lunge.hits <= 0) this.lunge = null;
     }
+    if (this.def.grab) {
+      this.grab(target, enemies);
+      return null;
+    }
     this.playShot();
+    if (this.def.burst && !lunge) {
+      this.burstLeft = this.def.burst.count - 1;
+      this.burstTimer = this.def.burst.gapMs;
+    }
     const shot = this.fire(target, lunge);
     // An awakened Parrot Keeper sends more parrots, each at another foe.
     if (!(this.def.shots > 1) || lunge) return shot;
@@ -408,6 +446,45 @@ export class Hero {
       left = left.filter((e) => e !== other);
     }
     return shots;
+  }
+
+  // The Tide Singer: a little of the hull mended every mend.every ms.
+  tickMend(dt) {
+    const { mend } = this.def;
+    const { ship } = this.scene;
+    this.mendTimer -= dt;
+    if (this.mendTimer > 0 || !ship) return;
+    this.mendTimer += mend.every;
+    const healed = ship.heal(ship.maxHp * mend.share);
+    if (healed > 0) this.scene.stats?.add(this.id, 'healed', healed);
+  }
+
+  // The Pearl Diver's mines on the lane (or on their way there) now.
+  get minesOut() {
+    return (this.scene.abilities?.effects ?? []).filter((fx) => fx instanceof SeaMine && fx.owner === this && !fx.spent).length;
+  }
+
+  // The Octopus Tamer: tentacles rise round the target (and, awakened, the
+  // next nearest), hitting and holding each for grab.holdMs (a stun; bosses
+  // resist as usual); an awakened grab ends in a slam for slam x the hit.
+  grab(target, enemies) {
+    const { grab } = this.def;
+    const held = [target];
+    while (held.length < grab.targets) {
+      const next = nearestLiving(enemies, target.x, target.y,
+        (e) => this.canHit(e) && !held.includes(e) && Math.hypot(e.x - this.x, e.y - this.y) <= this.range);
+      if (!next) break;
+      held.push(next);
+    }
+    sfx.play('splash', { volume: AUDIO.quiet });
+    for (const e of held) {
+      playFx(this.scene, this.def.projectile.sprite, Math.round(e.x), Math.round(e.feetY)).setOrigin(0.5, 1);
+      this.onHit(e, e.x, e.y);
+      if (!e.alive) continue;
+      e.applyStun(grab.holdMs);
+      this.scene.stats?.add(this.id, 'stuns');
+      if (grab.slam) this.scene.abilities?.effects.push(new GrabHold(this, e, grab.holdMs, grab.slam));
+    }
   }
 
   // The shot's sound (its shotSound, or cannon_small), quieter for crew
@@ -437,11 +514,16 @@ export class Hero {
     // Awakened: every nthShot.every-th shot is a bigger one (see onHit), or
     // a spread of lobbed shots either side of the target.
     const nth = def.nthShot && ++this.shotCount % def.nthShot.every === 0 ? def.nthShot : null;
+    if (def.mines) return this.throwMine(target);
     const state = { first: true };   // a piercing shot's: nobody hit yet
+    const from = this.muzzlePoint();
     const common = {
-      ...this.muzzlePoint(), target,
+      ...from, target,
       sprite: def.projectile.sprite, rotate: def.projectile.rotate,
-      onHit: (hit, x, y) => this.onHit(hit, x, y, lunge, null, { nth, state }),
+      onHit: (hit, x, y) => {
+        this.onHit(hit, x, y, lunge, null, { nth, state, shot: true });
+        if (def.returns) this.flyBack(x, y);
+      },
       // Used when the target dies mid-flight.
       findTarget: (x, y) => nearestLiving(this.scene.enemies, x, y, (e) => this.canHit(e)),
     };
@@ -469,7 +551,36 @@ export class Hero {
         canHit: (e) => this.canHit(e),
       });
     }
-    return new Projectile(this.scene, { ...common, speed: def.projectileSpeed });
+    return new Projectile(this.scene, {
+      ...common, speed: def.projectileSpeed, rope: def.rope != null ? { from, color: def.rope } : null,
+    });
+  }
+
+  // The Berserker's axe, back to his hand after it hits (looks only).
+  flyBack(x, y) {
+    const home = { alive: true, x: this.x, y: this.y };
+    this.scene.projectiles.push(new Projectile(this.scene, {
+      x, y, target: home, speed: this.def.projectileSpeed, sprite: this.def.projectile.sprite,
+      onHit: () => {}, findTarget: () => null,
+    }));
+  }
+
+  // The Pearl Diver: a sea mine lobbed onto the lane where the target will
+  // be; it lies there until something sets it off (SeaMine). It counts as
+  // out from the throw, so she never has more than mines.max.
+  throwMine(target) {
+    const { def } = this;
+    const spot = this.leadPoint(target, def.lob.flightTime);
+    const x = Math.max(LAYOUT.shipContactX + def.mines.radius, spot.x);
+    const at = { alive: true, x, y: laneFeetY(x) - 2 };
+    const sys = this.scene.abilities;
+    const mine = sys ? new SeaMine(sys, this, { x, ...def.mines, damage: this.damage, source: this.source.attack }) : null;
+    if (mine) sys.effects.push(mine);
+    return new LobProjectile(this.scene, {
+      x: this.x, y: this.y, target: at, flightTime: def.lob.flightTime, arcHeight: def.lob.arcHeight,
+      sprite: def.projectile.sprite, aimAt: () => at, findTarget: () => null,
+      onHit: () => mine?.land(),
+    });
   }
 
   // The Storm Caller: lightning from his staff to the target, then on to
@@ -536,17 +647,31 @@ export class Hero {
   pickTarget(enemies) {
     const { curse, poison, netsFlyers } = this.def;
     const furthest = this.def.targets === 'furthest';
-    const range = this.def.range * (this.scene.mists?.rangeMult ?? 1) * (this.scene.currents?.rangeMult ?? 1);
+    const { range } = this;
     let best = null;
     let bestFresh = null;
+    let bestFocus = null;
+    const focus = this.scene.crewFocus;
     for (const e of enemies) {
       if (!this.canHit(e)) continue;
       if (Math.hypot(e.x - this.x, e.y - this.y) > range) continue;
       if (!best || (furthest ? e.x > best.x : e.x < best.x)) best = e;
       const fresh = (curse && !e.isCursed) || (poison && !e.isPoisoned) || (netsFlyers && e.airborne);
       if (fresh && (!bestFresh || e.x < bestFresh.x)) bestFresh = e;
+      // A Drowned Drummer, or what a boss makes the crew look at (the
+      // Abyssal Angler's lure while it hypnotises; scene.crewFocus).
+      const wanted = focus ? focus(e) : e.def.priority;
+      if (wanted && (!bestFocus || e.x < bestFocus.x)) bestFocus = e;
     }
-    return bestFresh || best;
+    return bestFocus || bestFresh || best;
+  }
+
+  // How far it reaches now: a fog bank, Night Watch and Cinderclad's smoke
+  // shorten it; a Lookout aboard lengthens it.
+  get range() {
+    const { scene } = this;
+    return this.def.range * (scene.mists?.rangeMult ?? 1) * (scene.currents?.rangeMult ?? 1)
+      * (scene.smoke?.rangeMult ?? 1) * (scene.crewBuffs?.range ?? 1);
   }
 
   // The shot landed at (x, y): its impact plays there, then damage and
@@ -563,7 +688,9 @@ export class Hero {
   // the first foe a piercing shot hits is dragged back (state: that shot's);
   // cluster: more blasts either side; curseJump: see Enemy.passCurse. A
   // Temper Steel with crit (critBoost) lets anyone crit.
-  onHit(target, x, y, lunge = null, splash = null, { nth = null, state = null } = {}) {
+  // shot: a projectile landed (an Eel Rider dodges its first one); nth.crit:
+  // a guaranteed crit for that much (an awakened Gunslinger's).
+  onHit(target, x, y, lunge = null, splash = null, { nth = null, state = null, shot = false } = {}) {
     const {
       slow, curse, poison, lob, flyerBonus, passesShields, ignoresArmor, knockback, burn, chill,
       strikes, execute, dragFirst, cluster,
@@ -574,11 +701,13 @@ export class Hero {
     const crit = this.def.crit || boost
       ? { chance: (this.def.crit?.chance ?? 0) + (boost?.chance ?? 0), multiplier: this.def.crit?.multiplier ?? boost.multiplier }
       : null;
-    playFx(this.scene, this.def.projectile.impact, x, y);
     const radius = area?.radius ?? splash;
-    const victims = radius
+    let victims = radius
       ? this.scene.enemies.filter((e) => this.canHit(e) && (e === target || Math.hypot(e.x - x, e.y - y) <= radius))
       : (target && this.canHit(target) ? [target] : []);
+    if (shot) victims = victims.filter((e) => !e.dodge?.());
+    if (shot && !radius && !victims.length) return;
+    playFx(this.scene, this.def.projectile.impact, x, y);
 
     const { stats } = this.scene;
     const source = lunge ? this.source.ability : this.source.attack;
@@ -587,7 +716,11 @@ export class Hero {
     for (const e of victims) {
       for (let k = 0; k < (strikes?.count ?? 1) && e.alive; k++) {
         let damage = this.damage * (k > 0 ? strikes.damage : 1);
-        if (crit && (lunge || Math.random() < crit.chance)) {
+        if (nth?.crit && k === 0) {
+          damage *= nth.crit;
+          heavy = true;
+          this.scene.floatText(e.x, e.y - e.def.height / 2 - 13, 'CRIT!', '#ffca28');
+        } else if (crit && (lunge || Math.random() < crit.chance)) {
           damage *= crit.multiplier;
           heavy = true;
           this.scene.floatText(e.x, e.y - e.def.height / 2 - 13, 'CRIT!', '#ffca28');

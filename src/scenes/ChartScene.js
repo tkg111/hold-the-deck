@@ -5,12 +5,13 @@ import { SEAS } from '../data/uncharted.js';
 import { applyRenderScale, fillView, hudEdges } from '../display.js';
 import { CURRENTS_KEY, ABYSS_JSON_KEY, UNCHARTED_JSON_KEY, unchartedKey } from '../sprites.js';
 import {
-  bestCrown, hourglassMs, isBossStage, isCrownOpen, isSeaOpen, isStageOpen, seaCrown, stageCost, stageCurrent, stageRules,
+  bestCrown, hourglassMs, isBossStage, isCrownOpen, isSeaOpen, isStageOpen, seaCrown, stageCost, stageCrewReward, stageCurrent,
+  stageRules,
 } from '../systems/Uncharted.js';
 import { Button } from '../ui/Button.js';
 import { fmtClock } from '../ui/format.js';
 import {
-  dark, hexColor, light, panel, subText, tapArea, text, UI,
+  dark, face, hexColor, light, panel, subText, tapArea, text, UI,
 } from '../ui/kit.js';
 import {
   crownRow, GrogPlaque, itemIcon, nodeImage, ruleIcon, ruleOf,
@@ -173,6 +174,12 @@ export class ChartScene extends Phaser.Scene {
       // Drops.
       const drops = isBossStage(stage) ? ['heart'] : stage.drops;
       drops.forEach((c, k) => add(itemIcon(this, x + COLS.drops + k * 14, ry + 11, c)));
+      // The crewmate it gives, until earned (a sea's: on its crown's tab,
+      // by each stage not yet cleared at it).
+      const reward = stageCrewReward(stage);
+      const due = reward && !this.progress.isOwned(reward.hero)
+        && (!reward.sea || (this.crown === reward.crown && !cleared));
+      if (due) add(face(this, x + COLS.drops + drops.length * 14 + 6, ry + 11, reward.hero));
       // Grog.
       add(itemIcon(this, x + COLS.grog, ry + 11, 'grog'));
       add(text(this, x + COLS.grog + 8, ry + 12, `${stageCost(stage, this.crown)}`, subText({ color })).setOrigin(0, 0.5));

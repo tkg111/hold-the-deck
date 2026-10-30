@@ -1,0 +1,132 @@
+{
+  "grapple_hook": {
+    "file": "grapple_hook.png",
+    "frameWidth": 12,
+    "frameHeight": 12,
+    "frames": 1,
+    "fps": 1,
+    "repeat": -1,
+    "kind": "projectile",
+    "use": "projectile: Rigger, rope drawn in code from the Rigger to the hook"
+  },
+  "pistol_shot": {
+    "file": "pistol_shot.png",
+    "frameWidth": 10,
+    "frameHeight": 6,
+    "frames": 2,
+    "fps": 12,
+    "repeat": -1,
+    "kind": "projectile",
+    "use": "projectile: Gunslinger (fires two, 0.1 s apart)"
+  },
+  "sea_mine": {
+    "file": "sea_mine.png",
+    "frameWidth": 12,
+    "frameHeight": 12,
+    "frames": 2,
+    "fps": 3,
+    "repeat": -1,
+    "kind": "hazard",
+    "use": "Pearl Diver mine floating in the lane, light blinks"
+  },
+  "mine_blast": {
+    "file": "mine_blast.png",
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "frames": 4,
+    "fps": 14,
+    "repeat": 0,
+    "kind": "impact",
+    "use": "sea mine / puffer explosion, bottom-centre on the water"
+  },
+  "song_note": {
+    "file": "song_note.png",
+    "frameWidth": 10,
+    "frameHeight": 10,
+    "frames": 2,
+    "fps": 6,
+    "repeat": -1,
+    "kind": "projectile",
+    "use": "Tide Singer notes drifting to the crew / hull"
+  },
+  "flare": {
+    "file": "flare.png",
+    "frameWidth": 16,
+    "frameHeight": 16,
+    "frames": 3,
+    "fps": 8,
+    "repeat": 0,
+    "kind": "ability",
+    "use": "Lookout flare bursting above the lane (reveals + marks enemies)"
+  },
+  "tentacle_grab": {
+    "file": "tentacle_grab.png",
+    "frameWidth": 32,
+    "frameHeight": 24,
+    "frames": 3,
+    "fps": 10,
+    "repeat": 0,
+    "kind": "impact",
+    "use": "Octopus Tamer: tentacles rise out of the water around the held enemy"
+  },
+  "ink_cloud": {
+    "file": "ink_cloud.png",
+    "frameWidth": 32,
+    "frameHeight": 24,
+    "frames": 3,
+    "fps": 6,
+    "repeat": -1,
+    "kind": "ability",
+    "use": "Octopus Tamer ability: blinds ranged enemies inside"
+  },
+  "coral_wall": {
+    "file": "coral_wall.png",
+    "frameWidth": 24,
+    "frameHeight": 32,
+    "frames": 3,
+    "fps": 8,
+    "repeat": 0,
+    "kind": "ability",
+    "use": "Coral Druid: grows on the lane (frames 0-2), enemies stop at it"
+  },
+  "axe_spin": {
+    "file": "axe_spin.png",
+    "frameWidth": 16,
+    "frameHeight": 16,
+    "frames": 4,
+    "fps": 16,
+    "repeat": -1,
+    "kind": "projectile",
+    "use": "Berserker thrown axe, flies out and back"
+  },
+  "jelly_zap": {
+    "file": "jelly_zap.png",
+    "frameWidth": 12,
+    "frameHeight": 24,
+    "frames": 2,
+    "fps": 12,
+    "repeat": -1,
+    "kind": "impact",
+    "use": "Zap Jelly death bolt to the crewmate it stuns (stretch to fit)"
+  },
+  "drum_beat": {
+    "file": "drum_beat.png",
+    "frameWidth": 32,
+    "frameHeight": 10,
+    "frames": 3,
+    "fps": 10,
+    "repeat": 0,
+    "kind": "impact",
+    "use": "Drowned Drummer pulse ring along the ground, on each beat"
+  },
+  "puffer_burst": {
+    "file": "puffer_burst.png",
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "frames": 3,
+    "fps": 12,
+    "repeat": 0,
+    "kind": "impact",
+    "use": "Puffer Mine spikes when it bursts at the ship"
+  }
+}

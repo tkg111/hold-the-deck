@@ -1127,9 +1127,20 @@ export class Progress {
     const gold = this.earnGold(this.boostGold(Uncharted.stageClearGold(stage)));
     if (!this.stageHas('no_galley')) this.mealWaveDone();
     this.stage.started = false;
+    const crew = this.grantEarnedCrew();
     return {
-      gold, ...drops, refund, first, crown, best,
+      gold, ...drops, refund, first, crown, best, crew,
     };
+  }
+
+  // The Uncharted Seas' crew the record has earned and the ship hasn't got
+  // yet join it (off the ship: the Muster's crew is put back after the
+  // stage). Each only once: an owned one is never granted again. Returns
+  // the new ones' ids.
+  grantEarnedCrew() {
+    const fresh = Uncharted.crewEarned(this.uncharted).filter((id) => !this.owned.includes(id));
+    this.owned.push(...fresh);
+    return fresh;
   }
 
   // The stage under way was lost, or left: half its Grog back. Returns the refund.
@@ -1362,7 +1373,7 @@ export class Progress {
   // roll of one it lacks is rolled again, which comes to the same), with the
   // Abyss blessing's Legendary weight when blessed.
   static packRates(id, blessed = false) {
-    const crew = packOf(id)?.crew ?? Object.keys(HEROES);
+    const crew = packOf(id)?.crew ?? Object.keys(HEROES).filter((h) => !HEROES[h].earned);
     const present = new Set(crew.map((h) => HEROES[h].rarity));
     const entries = Object.entries(PACKS.rates).filter(([r]) => present.has(r))
       .map(([r, w]) => [r, r === 'legendary' && blessed ? w * PACKS.abyssBlessing.legendary : w]);
@@ -1378,7 +1389,7 @@ export class Progress {
   // (renormalized), for Rare Chests; forceRarity: that rarity (a Legendary
   // Chest, pity), or the pack's rarest below it if it has none.
   static rollHero(id, random = Math.random, { forceRarity = null, minRarity = null, blessed = false } = {}) {
-    const crew = packOf(id)?.crew ?? Object.keys(HEROES);
+    const crew = packOf(id)?.crew ?? Object.keys(HEROES).filter((h) => !HEROES[h].earned);
     const order = Object.keys(RARITY);
     let rates = Progress.packRates(id, blessed);
     let roll = random();

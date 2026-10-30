@@ -138,6 +138,15 @@ export const SPRITES = {
     auroraSeer: { key: 'aurora_seer', dir: 'newcrew2/', height: 28, faceTop: 4 },
     banshee: { key: 'banshee', dir: 'newcrew2/', height: 28, faceTop: 4 },
     boneCaller: { key: 'bone_caller', dir: 'newcrew2/', height: 32, faceTop: 3 },
+    // The Uncharted Seas' crew (public/sprites/uncharted_units/).
+    rigger: { key: 'rigger', dir: 'uncharted_units/', height: 30, faceTop: 4 },
+    gunslinger: { key: 'gunslinger', dir: 'uncharted_units/', height: 29, faceTop: 6 },
+    pearlDiver: { key: 'pearl_diver', dir: 'uncharted_units/', height: 28, faceTop: 6 },
+    tideSinger: { key: 'tide_singer', dir: 'uncharted_units/', height: 26, faceTop: 7 },
+    lookout: { key: 'lookout', dir: 'uncharted_units/', height: 32, faceTop: 5 },
+    octopusTamer: { key: 'octopus_tamer', dir: 'uncharted_units/', height: 32, faceTop: 9 },
+    coralDruid: { key: 'coral_druid', dir: 'uncharted_units/', height: 30, faceTop: 6 },
+    berserker: { key: 'berserker', dir: 'uncharted_units/', height: 31, faceTop: 6 },
   },
   // Crew faces in the UI: this box of each hero's 32x32 sprite (x, width and
   // height in art pixels; y comes from faceTop).
@@ -326,6 +335,23 @@ export const RARITY = {
 //                                     stay in the air)
 //   shotSound: name                 — its shot's sound effect (AUDIO.sfx;
 //                                     cannon_small if not set)
+// The Uncharted Seas' crew (earned from stages, see UNCHARTED.crewRewards;
+// never in a chest) add:
+//   earned: true                    — a stage reward: in no chest
+//   rope: color                     — a rope drawn from the hero to the shot
+//   burst: { count, gapMs }         — each attack fires count shots, gapMs apart
+//   mines: { max, trigger, radius, sprite, blast } — lobs a sea mine onto the
+//          lane (at most max lying there): the first walker or swimmer within
+//          trigger px sets it off, hitting everything on the lane within radius
+//   crewAura: { attackSpeed, range } — the whole crew attacks / reaches that
+//          much more while this crewmate is aboard (and not stunned or frozen)
+//   mend: { share, every }          — repairs share of max hull every `every` ms
+//   reveals: true                   — while aboard, hidden Lurkers and faded Fog
+//          Wraiths can be seen and hit
+//   grab: { holdMs, targets, sprite } — no shot: tentacles hold the nearest
+//          ground foes (targets of them) in place for holdMs (a stun)
+//   returns: true                   — the shot flies back to the hero after it hits
+//   rage: { max }                   — +1% damage per 1% of the hull missing, up to max
 export const HEROES = {
   cabinBoy: {
     name: 'Cabin Boy',
@@ -640,6 +666,136 @@ export const HEROES = {
     antiAir: true,
     catchphrase: 'Up, lads. One more voyage.',
   },
+
+  // The Uncharted Seas' crew: each earned once from a stage (see
+  // UNCHARTED.crewRewards), balanced against crew of its rarity.
+  // Rare, like the Banshee, but twice as hard on flyers.
+  rigger: {
+    name: 'Rigger',
+    shortName: 'Rigger',
+    rarity: 'rare',
+    earned: true,
+    color: 0xc0504d,
+    damage: 11,
+    attackInterval: 1100,
+    range: 330,
+    projectileSpeed: 280,
+    projectile: { sprite: 'grapple_hook', impact: 'hit_spark', rotate: true },
+    rope: 0xd8c08a,
+    antiAir: true,
+    flyerBonus: 2,
+    catchphrase: "If it flies, I can hook it. If I hook it, it don't fly.",
+  },
+  // Rare: two quick pistol shots per attack.
+  gunslinger: {
+    name: 'Gunslinger',
+    shortName: 'Guns',
+    rarity: 'rare',
+    earned: true,
+    color: 0x5d4037,
+    damage: 7,
+    attackInterval: 1000,
+    range: 320,
+    projectileSpeed: 420,
+    projectile: { sprite: 'pistol_shot', impact: 'hit_spark', rotate: true },
+    burst: { count: 2, gapMs: 100 },
+    antiAir: true,
+    catchphrase: 'Two barrels, two chances. I only need the one.',
+  },
+  // Rare: mines lying in wait on the lane.
+  pearlDiver: {
+    name: 'Pearl Diver',
+    shortName: 'Diver',
+    rarity: 'rare',
+    earned: true,
+    color: 0xc8a640,
+    damage: 15,
+    attackInterval: 1500,
+    range: 330,
+    projectile: { sprite: 'sea_mine', impact: 'mine_blast' },
+    lob: { flightTime: 700, arcHeight: 40 },
+    mines: { max: 3, trigger: 8, radius: 24 },
+    catchphrase: 'Mind where ye step. I already did.',
+  },
+  // Rare: a weak shot, but the crew plays faster to her song.
+  tideSinger: {
+    name: 'Tide Singer',
+    shortName: 'Singer',
+    rarity: 'rare',
+    earned: true,
+    color: 0x26a69a,
+    damage: 4,
+    attackInterval: 900,
+    range: 330,
+    projectileSpeed: 180,
+    projectile: { sprite: 'song_note', impact: 'hit_spark' },
+    antiAir: true,
+    crewAura: { attackSpeed: 0.1 },
+    mend: { share: 0.01, every: 8000 },
+    catchphrase: 'Hush now. The sea is listening.',
+  },
+  // Rare: sees what hides, and the whole crew sees further.
+  lookout: {
+    name: 'Lookout',
+    shortName: 'Lookout',
+    rarity: 'rare',
+    earned: true,
+    color: 0xd4a017,
+    damage: 9,
+    attackInterval: 1000,
+    range: 360,
+    projectileSpeed: 260,
+    projectile: { sprite: 'soul_wisp', impact: 'hit_spark' },
+    antiAir: true,
+    reveals: true,
+    crewAura: { range: 0.1 },
+    catchphrase: "Land ho! And three things that ain't land.",
+  },
+  // Legendary: no shot at all; tentacles hold the front of the line.
+  octopusTamer: {
+    name: 'Octopus Tamer',
+    shortName: 'Octo',
+    rarity: 'legendary',
+    earned: true,
+    color: 0x8e5bb5,
+    damage: 22,
+    attackInterval: 1600,
+    range: 300,
+    projectile: { sprite: 'tentacle_grab', impact: 'hit_spark' },
+    grab: { holdMs: 1500, targets: 1 },
+    catchphrase: 'Eight arms, and every one of them hates you.',
+  },
+  // Legendary: a strong bolt, and a wall the horde must hack through.
+  coralDruid: {
+    name: 'Coral Druid',
+    shortName: 'Druid',
+    rarity: 'legendary',
+    earned: true,
+    color: 0x2e8b7a,
+    damage: 26,
+    attackInterval: 1200,
+    range: 340,
+    projectileSpeed: 260,
+    projectile: { sprite: 'aurora_bolt', impact: 'hit_spark' },
+    antiAir: true,
+    catchphrase: 'The reef was here first. It will be here last.',
+  },
+  // Legendary: hits harder the worse the hull looks.
+  berserker: {
+    name: 'Berserker',
+    shortName: 'Berserk',
+    rarity: 'legendary',
+    earned: true,
+    color: 0xb5452a,
+    damage: 22,
+    attackInterval: 1300,
+    range: 320,
+    projectileSpeed: 300,
+    projectile: { sprite: 'axe_spin', impact: 'hit_spark' },
+    returns: true,
+    rage: { max: 0.6 },
+    catchphrase: 'Hole in the hull? GOOD. Now I am angry.',
+  },
 };
 
 export const STARTING_HEROES = ['cabinBoy'];
@@ -832,6 +988,68 @@ export const ABILITIES = {
     count: 3, x: 170, spread: 14, duration: 12000, needs: 'movable',
     circle: 'summon_circle',
     effect: 'Raises {count} skeletons for {duration}',
+  },
+
+  // The Uncharted Seas' crew's (fx sheets in uncharted_units/fx/).
+  // A hook at every flyer on screen: damage x his damage (with his flyer
+  // bonus) and grounded for `ground` ms (an awakened Rigger's: `pin`, till it dies).
+  rigger: {
+    name: 'Rope Swing', cooldown: 18000, color: 0xd8c08a,
+    damage: 3, ground: 1000, speed: 360, air: true, needs: 'flyers',
+    sprite: 'grapple_hook',
+    effect: 'Hooks every flyer, grounds them {ground}',
+  },
+  // `shots` pistol shots, `interval` ms apart, each at a random foe on screen.
+  gunslinger: {
+    name: 'Fan the Hammer', cooldown: 16000, color: 0xffcc80,
+    shots: 6, damage: 1.5, interval: 90, speed: 480, air: true,
+    sprite: 'pistol_shot',
+    effect: '{shots} shots at random foes, {damage} dmg',
+  },
+  // `mines` sea mines lobbed to spots spread down the lane, like hers.
+  pearlDiver: {
+    name: 'Minefield', cooldown: 22000, color: 0xffe082,
+    mines: 5, damage: 1, interval: 100, flightTime: 700, arcHeight: 50,
+    effect: '{mines} mines down the lane, {damage} dmg',
+  },
+  // Every foe slowed to `slow` x its pace (no net: flyers stay up).
+  tideSinger: {
+    name: 'Lullaby', cooldown: 24000, color: 0x80cbc4,
+    slow: 0.5, duration: 3000, air: true,
+    sprite: 'song_note', notes: 8,
+    effect: 'Slows every foe {slow} for {duration}',
+  },
+  // flare bursts over the lane: every foe takes bonus more damage and is
+  // seen (Lurkers, Fog Wraiths) for the duration.
+  lookout: {
+    name: 'Flare', cooldown: 22000, color: 0xffd54f,
+    bonus: 0.25, duration: 5000, air: true,
+    sprite: 'flare', x: 330, y: 70,
+    effect: 'All foes take +{bonus} dmg for {duration}',
+  },
+  // ink_cloud tiled `tiles` wide, centred on x over where ranged foes stop:
+  // ranged foes in it can't shoot for the duration.
+  octopusTamer: {
+    name: 'Ink Cloud', cooldown: 24000, color: 0xb39ddb,
+    duration: 4000, x: 320, tiles: 4, needs: 'ranged',
+    sprite: 'ink_cloud', fadeTime: 300,
+    effect: 'Ranged foes in the ink can\'t shoot {duration}',
+  },
+  // coral_wall grows on the lane at x for the duration: ground foes stop at
+  // it and hack at it (it has hp x her damage).
+  coralDruid: {
+    name: 'Reef Wall', cooldown: 26000, color: 0x4db6ac,
+    duration: 4000, x: 230, hp: 60, width: 18, needs: 'movable',
+    sprite: 'coral_wall',
+    effect: 'A coral wall holds the lane for {duration}',
+  },
+  // A spinning axe sweeps from the ship to the far edge and back, hitting
+  // every foe on the lane once each way (`storms` of them).
+  berserker: {
+    name: 'Axe Storm', cooldown: 24000, color: 0xff8a65,
+    damage: 3, speed: 320, storms: 1, gapMs: 600,
+    sprite: 'axe_spin',
+    effect: 'An axe sweeps the lane twice, {damage} dmg',
   },
 };
 
@@ -2691,6 +2909,15 @@ export const UNCHARTED = {
     fighter: 'red', sailor: 'blue', scout: 'green', mystic: 'purple', caretaker: 'gold',
   },
   colours: ['red', 'blue', 'green', 'purple', 'gold'],
+  // The crew the seas give (HEROES with earned), each once: a boss stage's
+  // on its first clear (stages: stage id -> hero), or a sea's (seas: hero ->
+  // { sea index, crown }) once every stage of it is cleared at that crown.
+  crewRewards: {
+    stages: {
+      '1-6': 'rigger', '2-6': 'gunslinger', '3-6': 'pearlDiver', '4-6': 'tideSinger', '5-6': 'lookout', '6-6': 'octopusTamer',
+    },
+    seas: { coralDruid: { sea: 0, crown: 3 }, berserker: { sea: 1, crown: 3 } },
+  },
   map: { x: 432, y: 112, file: 'map_uncharted.png' },
   chart: { size: [640, 430], offset: [-80, -100] },
   // The stage list (over the chart) and the Grog plaque (top right).
@@ -2816,6 +3043,40 @@ export const AWAKEN = {
     boneCaller: {
       title: 'Lich Bosun', text: '+1 skeleton; skeletons explode when they fall',
       ability: { count: 4, explode: { radius: 30, damage: 2 } },
+    },
+    rigger: {
+      title: 'Sky Reaver', text: 'Rope Swing grounds flyers until they die',
+      ability: { pin: true },
+    },
+    gunslinger: {
+      title: 'Twin Fang', text: 'Every 10th shot is a guaranteed 3x crit',
+      hero: { nthShot: { every: 10, crit: 3 } },
+    },
+    pearlDiver: {
+      title: 'Abyssal Diver', text: 'Mines also slow 30% for 2s',
+      hero: { mines: { max: 3, trigger: 8, radius: 24, chill: { factor: 0.7, duration: 2000 } } },
+      ability: { chill: { factor: 0.7, duration: 2000 } },
+    },
+    tideSinger: {
+      title: 'Siren of the Crew', text: 'Lullaby also stops enemy attacks',
+      ability: { hush: true },
+    },
+    lookout: {
+      title: 'Eagle Eye', text: 'Flare lasts 8s and gives the crew +15% crit (2x)',
+      ability: { duration: 8000, crit: { chance: 0.15, multiplier: 2 } },
+    },
+    octopusTamer: {
+      title: 'Kraken Whisperer', text: 'Grabs 2 foes; each grab ends with a slam (2x)',
+      hero: { grab: { holdMs: 1500, targets: 2, slam: 2 } },
+    },
+    coralDruid: {
+      title: 'Reef Warden', text: 'Reef Wall reflects 20% of the damage it takes',
+      ability: { reflect: 0.2 },
+    },
+    berserker: {
+      title: 'Blood Tide', text: 'Up to +100% damage from the hull; Axe Storm fires twice',
+      hero: { rage: { max: 1 } },
+      ability: { storms: 2 },
     },
   },
 };

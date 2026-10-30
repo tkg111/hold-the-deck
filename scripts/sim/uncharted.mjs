@@ -36,6 +36,8 @@ const SEA = flag('sea') ? Number(flag('sea')) - 1 : null;
 const ONLY = flag('stage')?.split(',') ?? null;   // stage=3-6,4-6: only those
 const CROWNS = flag('crown') ? [Number(flag('crown'))] : [1, 2, 3];
 const MAX_TRIES = 30;
+const ALL_EARNED = Object.keys(HEROES).filter((id) => HEROES[id].earned);
+const EARNED = process.env.EARNED === 'none' ? [] : process.env.EARNED ? process.env.EARNED.split(',') : ALL_EARNED;
 const islandIds = ['skull_cove', 'ember_isle', 'frostbite_reef', 'fogbound_isle'];
 
 // --- 1. Crews (as sim:abyss makes them) ---
@@ -81,9 +83,19 @@ function crews() {
 
 // --- 2. Builds ---
 
+// Builds (b) and (c) also have the Uncharted Seas' own crew (HEROES earned),
+// at the level of the crew's fourth best (EARNED=none leaves them out;
+// EARNED=rigger,berserker gives only those).
 function build(save, which) {
   const p = Progress.fromSave(save);
   p.abyss.runs = Math.max(1, p.abyss.runs);   // the Uncharted Seas are open
+  if (which !== 'a' && EARNED.length) {
+    const level = p.activeHeroes.map(({ id }) => p.heroLevel(id)).sort((x, y) => y - x)[3] ?? 1;
+    for (const id of EARNED) {
+      if (!p.owned.includes(id)) p.owned.push(id);
+      p.heroLevels[id] = level;
+    }
+  }
   if (which === 'b') p.awakened = p.activeHeroes.slice(0, 4).map(({ id }) => id);
   if (which === 'c') {
     p.awakened = [...p.owned];

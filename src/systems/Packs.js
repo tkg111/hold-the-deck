@@ -12,7 +12,7 @@ const heroOfSprite = (key) => Object.keys(SPRITES.heroes).find((id) => SPRITES.h
 const islandByName = (name) => ISLANDS.find((d) => d.name.toLowerCase() === name.trim().toLowerCase()) ?? null;
 
 const everyone = () => [{
-  id: 'all', name: 'Treasure Chest', banner: null, unlock: 'always', island: null, crew: Object.keys(HEROES),
+  id: 'all', name: 'Treasure Chest', banner: null, unlock: 'always', island: null, crew: Object.keys(HEROES).filter((id) => !HEROES[id].earned),
 }];
 
 export const PACK_DATA = {

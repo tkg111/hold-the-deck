@@ -1,10 +1,12 @@
 import Phaser from 'phaser';
-import { DISPLAY, MAP } from '../config.js';
+import { DISPLAY, HEROES, MAP } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
 import { applyRenderScale, fillView } from '../display.js';
+import { TUTORIAL_JSON_KEY, tutorialKey } from '../sprites.js';
 import { stageCost } from '../systems/Uncharted.js';
 import { Button } from '../ui/Button.js';
 import { formatNum } from '../ui/format.js';
+import { createHeroCard } from '../ui/HeroCard.js';
 import {
   dark, hexColor, light, panel, subText, text, UI,
 } from '../ui/kit.js';
@@ -18,7 +20,9 @@ const ROW = 16;
 // The end of a stage of the Uncharted Seas: a parchment card with the stage
 // and its crowns, then won: the gold, the Sea Glass and Heart found, a new
 // crown and Grog back on a first clear; lost or left: the Grog back. Retry
-// (the Muster again) and Back to chart. There's no auto-continue.
+// (the Muster again) and Back to chart. There's no auto-continue. A
+// crewmate the win earned (result.crew) is welcomed first, over the card:
+// its hero card and the Captain's words, one at a time.
 // Launched with { progress, stage, crown, result (Progress.winStage's, or
 // { won: false, refund, retreat }), onRetry, onChart }.
 export class StageEndScene extends Phaser.Scene {
@@ -75,6 +79,36 @@ export class StageEndScene extends Phaser.Scene {
     new Button(this, cx + 56, y + H - 19, {
       width: 100, height: 24, label: 'Back to chart', onClick: () => this.close(this.onChart),
     });
+    this.welcome([...(r.crew ?? [])]);
+  }
+
+  // 'New crewmate!': the first of ids' hero card beside the Captain
+  // (happy) welcoming them; Welcome aboard shows the next, then the results.
+  welcome(ids) {
+    const id = ids.shift();
+    if (!id) return;
+    const cx = DISPLAY.width / 2;
+    const cy = DISPLAY.height / 2;
+    const objs = [fillView(this, 0x07060f, 0.85)];
+    objs.push(panel(this, cx - 150, cy - 96, 300, 192, 'parchment'));
+    const title = text(this, cx, cy - 96, 'NEW CREWMATE!', light()).setOrigin(0.5);
+    objs.push(panel(this, cx - title.inkWidth / 2 - 14, cy - 106, title.inkWidth + 28, 20, 'wood'));
+    this.children.bringToTop(title);
+    objs.push(title);
+    objs.push(createHeroCard(this, cx - 76, cy + 2, id, { size: 'large', stars: 0, level: 1 }));
+    const faces = this.cache.json.get(TUTORIAL_JSON_KEY)?.captain_portrait.faces ?? [];
+    objs.push(this.add.sprite(cx + 18, cy - 76, tutorialKey('captain_portrait'), Math.max(0, faces.indexOf('happy'))).setOrigin(0));
+    objs.push(text(this, cx + 70, cy - 70, 'THE CAPTAIN', subText()));
+    objs.push(text(this, cx + 16, cy - 20, `A new face aboard! Welcome to the crew, ${HEROES[id].name}!`, dark({ wrap: 120 })));
+    sfx.play('legendary');
+    objs.push(new Button(this, cx + 76, cy + 74, {
+      width: 110, height: 24, style: 'gold', label: 'Welcome aboard!',
+      onClick: () => {
+        sfx.play('ui_click');
+        for (const o of objs) o.destroy();
+        this.welcome(ids);
+      },
+    }));
   }
 
   // The Sea Glass and Hearts found, icon and count each ("-" for none).

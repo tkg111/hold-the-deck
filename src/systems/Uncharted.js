@@ -305,6 +305,26 @@ export function rollDrops(stage, crown, { first = false, firstHeart = false } = 
   return { glass, heart };
 }
 
+// --- Crew rewards ---
+
+// The crewmate a stage gives (UNCHARTED.crewRewards) and at which crown:
+// { hero, crown, sea } (sea: given for the whole sea at that crown), or null.
+export function stageCrewReward(stage) {
+  const { stages, seas } = UNCHARTED.crewRewards;
+  if (stages[stage.id]) return { hero: stages[stage.id], crown: 1, sea: false };
+  const entry = Object.entries(seas).find(([, r]) => r.sea === stage.sea);
+  return entry ? { hero: entry[0], crown: entry[1].crown, sea: true } : null;
+}
+
+// Every crewmate the record has earned (its boss stages cleared, its seas
+// cleared at their crown), in UNCHARTED.crewRewards' order.
+export function crewEarned(rec) {
+  const { stages, seas } = UNCHARTED.crewRewards;
+  const earned = Object.entries(stages).filter(([id]) => (rec.crowns[id] ?? 0) >= 1).map(([, hero]) => hero);
+  for (const [hero, { sea, crown }] of Object.entries(seas)) if (seaCrown(rec, sea) >= crown) earned.push(hero);
+  return earned;
+}
+
 // --- Crew Awakening ---
 
 // Sea Glass colour of a crewmate's trait (a Caretaker's is gold).

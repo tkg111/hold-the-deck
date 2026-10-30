@@ -530,7 +530,7 @@ export class Enemy {
   get targetable() { return this.alive && !this.isRising && !this.isHidden; }
   // A flyer in the air (or a falling lava bomb): only anti-air crew can hit it.
   get airborne() { return (!!this.def.flies && !this.isGrounded) || !!this.def.falls; }
-  get isGrounded() { return this.groundTime > 0; }
+  get isGrounded() { return this.groundTime > 0 || !!this.pinned; }
   get hpBarWidth() { return this.def.boss ? 40 : this.def.width + 4; }
   get hpBarY() { return Math.round(this.y - this.def.height / 2 - 4); }
   // Frozen counts as stunned: it can't move or attack.
@@ -624,6 +624,29 @@ export class Enemy {
     this.pushSpeed = speed;
   }
 
+  // The Rigger's Rope Swing: a flyer pulled down to the lane for ms (no
+  // slow); pinned (an awakened Rigger's), it stays down until it dies.
+  applyGround(ms, pin = false) {
+    if (!this.def.flies) return;
+    this.groundTime = Math.max(this.groundTime, ms * (this.def.statusResist ?? 1));
+    if (pin) this.pinned = true;
+  }
+
+  // An awakened Tide Singer's Lullaby: its attacks do nothing for ms (see
+  // Ship.takeDamage; bosses for less, by statusResist).
+  applyHush(ms) {
+    this.hushTime = Math.max(this.hushTime ?? 0, ms * (this.def.statusResist ?? 1));
+  }
+  get isHushed() { return this.hushTime > 0; }
+
+  // The Lookout's Flare: takes bonus more damage from everyone, and is seen
+  // (a hidden Lurker, a faded Fog Wraith), for ms.
+  applyFlare(bonus, ms) {
+    this.flareBonus = Math.max(this.flareTime > 0 ? this.flareBonus : 0, bonus);
+    this.flareTime = Math.max(this.flareTime ?? 0, ms);
+  }
+  get isFlared() { return this.flareTime > 0; }
+
   // jump: an awakened Voodoo Priestess's curse jumps to the nearest enemy
   // within that many px when this one dies (see passCurse).
   applyCurse(bonus, duration, source = null, jump = 0) {
@@ -634,10 +657,11 @@ export class Enemy {
   }
 
   // Extra damage it takes from everyone: an awakened Captain's mark on it
-  // (scene.crewMark) and an awakened Ghost Pirate's fear.
+  // (scene.crewMark), an awakened Ghost Pirate's fear and a Flare.
   get damageTaken() {
     const mark = this.scene.crewMark;
-    return (mark?.enemy === this ? 1 + mark.bonus : 1) * (this.isAfraid ? 1 + (this.fearBonus ?? 0) : 1);
+    return (mark?.enemy === this ? 1 + mark.bonus : 1) * (this.isAfraid ? 1 + (this.fearBonus ?? 0) : 1)
+      * (this.isFlared ? 1 + this.flareBonus : 1);
   }
 
   // Hold back the curse mark for ms (while something else plays on the enemy).
@@ -705,6 +729,9 @@ export class Enemy {
     this.boostTime = Math.max(0, this.boostTime - dt);
     this.charmTime = Math.max(0, this.charmTime - dt);
     this.chillTime = Math.max(0, this.chillTime - dt);
+    if (this.hushTime) this.hushTime = Math.max(0, this.hushTime - dt);
+    if (this.flareTime) this.flareTime = Math.max(0, this.flareTime - dt);
+    if (this.inkTime) this.inkTime = Math.max(0, this.inkTime - dt);
   }
 
   // --- Behaviour ---
@@ -886,7 +913,7 @@ export class Enemy {
     this.attackCooldown -= sdt;
     if (this.attackCooldown > 0) return;
     this.attackCooldown = this.def.attackInterval / this.rage;
-    ally.takeDamage(this.damage);
+    ally.takeDamage(this.damage, this);
     if (this.attackAnim) this.body.play(this.attackAnim);
     else this.scene.tweens.add({ targets: this.body, angle: -15, duration: 80, yoyo: true });
   }
@@ -1136,6 +1163,7 @@ export class Enemy {
   // A Yeti Raider (or Cursed Cannoneer) at its spot: "throw" ("fire") every
   // attackInterval, the snowball (grapeshot) leaving on the release frame.
   throwAt(sdt, ship) {
+    if (this.inkTime > 0) return;   // blinded by an Ink Cloud
     if (this.releaseDue > 0) {
       this.releaseDue -= sdt;
       if (this.releaseDue <= 0) this.releaseShot(ship);

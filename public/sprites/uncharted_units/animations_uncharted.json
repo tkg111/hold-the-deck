@@ -1,0 +1,329 @@
+{
+  "rigger": {
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "idle": {
+      "frames": [
+        0,
+        1
+      ],
+      "fps": 2,
+      "repeat": -1
+    },
+    "attack": {
+      "frames": [
+        2,
+        3
+      ],
+      "fps": 10,
+      "repeat": 0
+    }
+  },
+  "gunslinger": {
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "idle": {
+      "frames": [
+        0,
+        1
+      ],
+      "fps": 2,
+      "repeat": -1
+    },
+    "attack": {
+      "frames": [
+        2,
+        3
+      ],
+      "fps": 10,
+      "repeat": 0
+    }
+  },
+  "pearl_diver": {
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "idle": {
+      "frames": [
+        0,
+        1
+      ],
+      "fps": 2,
+      "repeat": -1
+    },
+    "attack": {
+      "frames": [
+        2,
+        3
+      ],
+      "fps": 10,
+      "repeat": 0
+    }
+  },
+  "tide_singer": {
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "idle": {
+      "frames": [
+        0,
+        1
+      ],
+      "fps": 2,
+      "repeat": -1
+    },
+    "attack": {
+      "frames": [
+        2,
+        3
+      ],
+      "fps": 10,
+      "repeat": 0
+    }
+  },
+  "lookout": {
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "idle": {
+      "frames": [
+        0,
+        1
+      ],
+      "fps": 2,
+      "repeat": -1
+    },
+    "attack": {
+      "frames": [
+        2,
+        3
+      ],
+      "fps": 10,
+      "repeat": 0
+    }
+  },
+  "octopus_tamer": {
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "idle": {
+      "frames": [
+        0,
+        1
+      ],
+      "fps": 2,
+      "repeat": -1
+    },
+    "attack": {
+      "frames": [
+        2,
+        3
+      ],
+      "fps": 10,
+      "repeat": 0
+    }
+  },
+  "coral_druid": {
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "idle": {
+      "frames": [
+        0,
+        1
+      ],
+      "fps": 2,
+      "repeat": -1
+    },
+    "attack": {
+      "frames": [
+        2,
+        3
+      ],
+      "fps": 10,
+      "repeat": 0
+    }
+  },
+  "berserker": {
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "idle": {
+      "frames": [
+        0,
+        1
+      ],
+      "fps": 2,
+      "repeat": -1
+    },
+    "attack": {
+      "frames": [
+        2,
+        3
+      ],
+      "fps": 10,
+      "repeat": 0
+    }
+  },
+  "shellback": {
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "walk": {
+      "frames": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "fps": 6,
+      "repeat": -1
+    },
+    "hide": {
+      "frames": [
+        4
+      ],
+      "fps": 1,
+      "repeat": -1
+    }
+  },
+  "puffer_mine": {
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "float": {
+      "frames": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "fps": 5,
+      "repeat": -1
+    },
+    "inflate": {
+      "frames": [
+        4,
+        5
+      ],
+      "fps": 6,
+      "repeat": -1
+    }
+  },
+  "reef_golem": {
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "walk": {
+      "frames": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "fps": 6,
+      "repeat": -1
+    },
+    "heal": {
+      "frames": [
+        4
+      ],
+      "fps": 1,
+      "repeat": -1
+    }
+  },
+  "eel_rider": {
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "swim": {
+      "frames": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "fps": 8,
+      "repeat": -1
+    },
+    "dodge": {
+      "frames": [
+        4
+      ],
+      "fps": 1,
+      "repeat": 0
+    }
+  },
+  "zap_jelly": {
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "float": {
+      "frames": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "fps": 5,
+      "repeat": -1
+    },
+    "zap": {
+      "frames": [
+        4
+      ],
+      "fps": 1,
+      "repeat": 0
+    }
+  },
+  "lurker": {
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "walk": {
+      "frames": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "fps": 6,
+      "repeat": -1
+    },
+    "lure": [
+      4,
+      4
+    ]
+  },
+  "drowned_drummer": {
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "walk": {
+      "frames": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "fps": 6,
+      "repeat": -1
+    },
+    "drum": {
+      "frames": [
+        4,
+        5
+      ],
+      "fps": 6,
+      "repeat": 0
+    }
+  },
+  "mimic": {
+    "frameWidth": 32,
+    "frameHeight": 32,
+    "hop": {
+      "frames": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "fps": 6,
+      "repeat": -1
+    },
+    "bite": {
+      "frames": [
+        4
+      ],
+      "fps": 4,
+      "repeat": 0
+    }
+  }
+}

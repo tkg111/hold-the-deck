@@ -159,6 +159,7 @@ export class Ship {
   // blames the enemy that charmed them; the balance sim tells them apart).
   takeDamage(amount, enemy = null, crewmate = null) {
     if (this.shieldTime > 0) return;   // an awakened Doctor's shield
+    if (enemy?.isHushed) return;       // an awakened Tide Singer's Lullaby
     if (enemy) this.scene.stats?.hullHit(enemy, Math.min(amount, this.hp));
     this.hp = Math.max(0, this.hp - amount);
     this.scene.cameras.main.shake(80, 0.003);

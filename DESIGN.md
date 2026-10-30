@@ -226,6 +226,23 @@ All heroes are ranged and attack from the ship, except The Captain, who supports
 
 The last eight are the pack crew (`public/sprites/newcrew2/`, see Treasure Chests); the Aurora Seer, Banshee and Bone Caller join the anti-air list above.
 
+### The Uncharted Seas' crew
+
+Eight more crew (`public/sprites/uncharted_units/`, awakened art in `uncharted/awakened/`) come from the Uncharted Seas' stages, like Battle Cats' stage-drop units: each joins **once**, never from a chest (`HEROES` `earned`). See "Crew rewards" under The Uncharted Seas for where each comes from.
+
+| Hero | Trait | Rarity | Attack | Effect |
+|---|---|---|---|---|
+| **Rigger** | Sailor | Rare | Grappling hook (11 damage every 1.1 s), a rope drawn from him to the hook | Anti-air, **2x damage to flyers** |
+| **Gunslinger** | Fighter | Rare | Two pistol shots per attack (7 damage each), 0.1 s apart, every 1 s | Anti-air |
+| **Pearl Diver** | Scout | Rare | Lobs a `sea_mine` onto the lane where her target will be (every 1.5 s), at most **3** lying there at once (she waits while all 3 are out) | The first walker or swimmer within 8 px sets a mine off: `mine_blast` hits everything on the lane within 24 px for 15 damage |
+| **Tide Singer** | Caretaker | Rare | Weak `song_note` (4 damage every 0.9 s) | Aboard: the **whole crew +10% attack speed**, and **1% of the hull repaired every 8 s**. Anti-air |
+| **Lookout** | Scout | Rare | Lantern wisps (9 damage every 1 s, 360 px) | Aboard: **hidden foes are seen** (Lurkers, faded Fog Wraiths can be hit) and the **whole crew +10% range**. Anti-air |
+| **Octopus Tamer** | Sailor | Legendary | No shot: `tentacle_grab` rises round the front foe (22 damage every 1.6 s) | **Holds it 1.5 s** (a stun; bosses resist as usual) |
+| **Coral Druid** | Mystic | Legendary | Coral bolt (26 damage every 1.2 s; the Aurora Seer's `aurora_bolt` art) | Anti-air; her worth is Reef Wall |
+| **Berserker** | Fighter | Legendary | Thrown axe (22 damage every 1.3 s) that flies back to his hand | **+1% damage per 1% of the hull missing**, up to +60% (his abilities too) |
+
+Auras from crew aboard (the Tide Singer's, the Lookout's) only count while that crewmate isn't stunned or frozen (`crewBuffs` in `src/systems/Abilities.js`). The Gunslinger's second shot and the Pearl Diver's mines respect the Muster like any attack.
+
 Status effects are shown on the enemy with sprites: a net draped over a slowed enemy (the same 32x32 box as its sprite), a block of ice over one frozen by the Aurora Veil, poison bubbles over a poisoned one, and stun stars and then the curse mark stacked above the HP bar (above the name on The Kraken). The HP bar also turns purple while cursed, green while poisoned and orange while burning. **Burns** tick like poison but separately (an enemy can be poisoned and burning; each keeps its stronger tick). **Chill** slows movement and attacks like a net but without one, so flyers stay in the air. **Frozen** enemies can't move or attack, like a stun (bosses are never frozen).
 
 ### Abilities
@@ -256,6 +273,14 @@ Every crewmate has one active ability, used during waves from the ability bar (o
 | Aurora Seer | **Aurora Veil** | `aurora_veil` tiled across the sky while it lasts: every enemy on screen but the bosses is **frozen** for 2.5s (`ice_block` over it); bosses are slowed 40% (chill, halved like any slow) | 30s |
 | Banshee | **Wail** | `wail_ring` from the ship (left edge 40px short of where walkers stop, drawn at 3x as its sheet asks): every enemy within 200px of the ship takes 3x her damage, and walkers are shoved 30px back and scared for 2s (bosses resist). Needs an enemy that near | 22s |
 | Bone Caller | **Raise the Crew** | 3 friendly skeletons rise from `summon_circle`s at x=170 (14px apart) and walk out to fight for 12s (see Friendly skeletons). Needs a walker on the lane | 30s |
+| Rigger | **Rope Swing** | A hook (with its rope) at every flyer on screen: 3x his damage with his flyer bonus, and **grounded 1 s** (on the lane, no slow). Needs a flyer | 18s |
+| Gunslinger | **Fan the Hammer** | 6 shots, 90 ms apart, each at a random foe on screen (flyers too) for 1.5x his damage | 16s |
+| Pearl Diver | **Minefield** | 5 mines lobbed to spots spread down the lane (100 ms apart), each a mine like hers for her damage; they don't count against her 3 | 22s |
+| Tide Singer | **Lullaby** | Every foe on screen (flyers too) **slowed 50% for 3 s** (a chill: flyers stay up), notes drifting off her | 24s |
+| Lookout | **Flare** | `flare` bursts over the lane: every foe **takes +25% damage** for 5 s and is seen (a hidden Lurker, a faded Fog Wraith) | 22s |
+| Octopus Tamer | **Ink Cloud** | `ink_cloud` 4 tiles wide over x=320, where ranged foes stop, for 4 s: Yeti Raiders and Cursed Cannoneers in it **can't shoot**. Needs a ranged foe | 24s |
+| Coral Druid | **Reef Wall** | `coral_wall` grows on the lane at x=230 for 4 s: walkers **stop at it and hack at it** like at a skeleton (it has 60x her damage in HP). Needs a walker | 26s |
+| Berserker | **Axe Storm** | A spinning axe sweeps the lane from the ship to the far edge **and back**, hitting every foe on the lane once each way for 3x his damage | 24s |
 
 - **Scaling:** damage from abilities is a multiple of the crewmate's own damage, so it grows with level and stars like their attacks do. Durations (and the Hot Stew stun) are multiplied by 1 + 2% per level above 1 + 10% per star, up to 2x. Speed boosts stack multiplicatively (Rapid Fire during All Hands! is 4.5x).
 - **Using them:** every ability is ready at the start of each wave. An ability only fires with an enemy to use it on: any targetable enemy on screen, or for the attack speed boosts (Rapid Fire, All Hands!) one within 350px of the crewmate. Pressing one that can't fire plays a dull blip and keeps it ready. Stun and slow from abilities are halved on The Kraken like any other.
@@ -494,6 +519,7 @@ A chart of 36 short, hand-built stages in six seas, after Battle Cats' Stories o
   Gale, Night Watch and Barnacled live in the Abyss's `Currents` (`walkPace`, `rangeMult`, `onSpawn`), Doldrums in `Progress.deckBuffs`, Empty Galley in `Progress.mealMods`.
 - **Drops** (on a win): a normal stage drops **1 Sea Glass of each of its colours at 70%** (always at 3 crowns), **x2 at 2 and 3 crowns**; a boss stage drops **3 random Sea Glass** and a **Heart of the Deep** at **5% / 10% / 20%** at 1 / 2 / 3 crowns (15 / 30 / 50% made the first awakening take under a day; see BALANCE_REPORT.md 18.6), certain on its **first 2-crown and 3-crown clears** (the Drowned Throne always gives one). The **first clear of any stage at any crown** adds **3 of each of its colours** (3 random ones on a boss stage). A new best crown is recorded.
 - **The results** (`StageEndScene`): "STAGE CLEARED!" with the stage and crowns, GOLD, FOUND (each item's icon and count), NEW CROWN and "FIRST CLEAR +4 GROG BACK"; or "SHIP SUNK" / "RETREAT" with the Grog back. **Retry** (the Muster again, same stage and crown) and **Back to chart** (the crew as it was, the chart on that sea).
+- **Crew rewards** (`UNCHARTED.crewRewards`): the **first clear of each sea's boss stage** gives a crewmate: 1-6 the **Rigger**, 2-6 the **Gunslinger**, 3-6 the **Pearl Diver**, 4-6 the **Tide Singer**, 5-6 the **Lookout**, 6-6 the **Octopus Tamer**; clearing **every Shipwreck Shallows stage at 3 crowns** gives the **Coral Druid**, and every Cinder Straits stage at 3 crowns the **Berserker**. Each joins once (`Progress.grantEarnedCrew` on a win: whoever the record has earned and the ship doesn't own yet; a save that cleared a stage before this update gets its crewmate on its next win), at level 1, off the ship. The results open with a **"NEW CREWMATE!"** panel over them: the crewmate's card and the Captain (happy): "A new face aboard! Welcome to the crew, Rigger!", with **Welcome aboard!** (the `legendary` fanfare; one panel per crewmate). In the stage list a stage that gives a crewmate shows **its face after the drop icons** until it's earned (a sea's reward on its crown's tab, by each stage not yet cleared at it).
 - **Items:** the **Sea Glass** in five colours, one per trait (red Fighter, blue Sailor, green Scout, purple Mystic, gold Caretaker), and the rare **Heart of the Deep** (`items16.png` / `icons12.png`: grog, red, blue, green, purple, gold, heart). Shown in the Captain's Log's Stats tab as a **Treasure Hold** row.
 - **The seas:**
 
@@ -553,6 +579,14 @@ Battle Cats' true forms for the crew (`AWAKEN` in config, checks and costs in `s
   | Aurora Seer | Polar Oracle | Aurora Veil freezes 3.5 s (from 2.5), then slows 40% for 2 s |
   | Banshee | Wailing Widow | Wail breaks every shield it reaches (Barnacle Knights', Ice Witches') |
   | Bone Caller | Lich Bosun | 4 skeletons (from 3); a beaten skeleton explodes for 2x his damage within 30 px |
+  | Rigger | Sky Reaver | flyers Rope Swing grounds stay grounded until they die |
+  | Gunslinger | Twin Fang | every 10th shot is a guaranteed 3x crit |
+  | Pearl Diver | Abyssal Diver | her mines (and Minefield's) also slow 30% for 2 s |
+  | Tide Singer | Siren of the Crew | Lullaby also hushes them: their hits on the hull do nothing for 3 s (bosses for half) |
+  | Lookout | Eagle Eye | Flare lasts 8 s and gives the whole crew a 15% chance to crit for 2x meanwhile |
+  | Octopus Tamer | Kraken Whisperer | grabs the 2 nearest foes; each grab ends in a slam for 2x his damage |
+  | Coral Druid | Reef Warden | Reef Wall hurts each attacker for 20% of the blow it takes |
+  | Berserker | Blood Tide | up to +100% damage from the hull (from +60%); Axe Storm fires twice (0.6 s apart) |
 
   Awakened crew also show their title in the Crew Roster.
 - **No level cap:** crew levels have no cap in this game, so awakening's "+20 to the level cap" has nothing to raise; buying levels works as before.

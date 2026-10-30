@@ -88,6 +88,7 @@ const readJson = (path) => JSON.parse(readFileSync(new URL(path, sprites), 'utf8
 const fxSheets = {
   ...readJson('fx/fx.json'), ...readJson('ember/fx/fx_ember.json'), ...readJson('frost/fx/fx_frost.json'),
   ...readJson('fog/fx/fx_fog.json'), ...readJson('newcrew2/fx/fx_newcrew.json'),
+  ...readJson('uncharted_units/fx/fx_uncharted.json'), ...readJson('uncharted_bosses/fx/fx_bosses.json'),
 };
 initLayout(readJson('layout.json'));
 initParts(readJson('parts/parts.json'));
@@ -105,6 +106,8 @@ const jsonCache = {
   animations_frost: readJson('frost/animations_frost.json'),
   animations_fog: readJson('fog/animations_fog.json'),
   animations_newcrew: readJson('newcrew2/animations_newcrew.json'),
+  animations_uncharted: readJson('uncharted_units/animations_uncharted.json'),
+  animations_bosses: readJson('uncharted_bosses/animations_bosses.json'),
 };
 
 // --- A stand-in scene: game objects are inert stubs that keep x / y ---

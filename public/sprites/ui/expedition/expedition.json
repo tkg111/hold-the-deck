@@ -98,6 +98,14 @@
     "fire_breather": "mystic",
     "aurora_seer": "mystic",
     "banshee": "mystic",
-    "bone_caller": "mystic"
+    "bone_caller": "mystic",
+    "rigger": "sailor",
+    "gunslinger": "fighter",
+    "pearl_diver": "scout",
+    "tide_singer": "caretaker",
+    "lookout": "scout",
+    "octopus_tamer": "sailor",
+    "coral_druid": "mystic",
+    "berserker": "fighter"
   }
 }

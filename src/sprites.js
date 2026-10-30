@@ -21,7 +21,10 @@ export const SHIP_SLOTS_KEY = 'ship_slots';
 // fog/animations_fog.json (with the Cursed Cannoneer's muzzle, the Lantern
 // Ghoul's lantern, the Siren Queen's pos, mouth and waveHand and Captain
 // Blackbones' feet and muzzle), and the pack crew's (with the ally
-// skeleton) in newcrew2/animations_newcrew.json.
+// skeleton) in newcrew2/animations_newcrew.json, and the Uncharted Seas'
+// crew and enemies in uncharted_units/animations_uncharted.json (with the
+// Lurker's lure) and bosses in uncharted_bosses/animations_bosses.json (with
+// their feet, waterlines, the Angler's lureAt and the ice armour's plates).
 const ANIMATION_FILES = [
   { key: 'animations', dir: '' },
   { key: 'animations_new_enemies', dir: '' },
@@ -29,16 +32,22 @@ const ANIMATION_FILES = [
   { key: 'animations_frost', dir: 'frost/' },
   { key: 'animations_fog', dir: 'fog/' },
   { key: 'animations_newcrew', dir: 'newcrew2/' },
+  { key: 'animations_uncharted', dir: 'uncharted_units/' },
+  { key: 'animations_bosses', dir: 'uncharted_bosses/' },
 ];
 // Effect sheet lists: fx/fx.json, Ember Isle's ember/fx/fx_ember.json,
 // Frostbite Reef's frost/fx/fx_frost.json and Fogbound Isle's
-// fog/fx/fx_fog.json, and the pack crew's newcrew2/fx/fx_newcrew.json.
+// fog/fx/fx_fog.json, the pack crew's newcrew2/fx/fx_newcrew.json, and the
+// Uncharted Seas' uncharted_units/fx/fx_uncharted.json and
+// uncharted_bosses/fx/fx_bosses.json.
 const FX_FILES = [
   { key: 'fx_list', dir: FX.path, file: 'fx.json' },
   { key: 'fx_ember', dir: 'ember/fx/', file: 'fx_ember.json' },
   { key: 'fx_frost', dir: 'frost/fx/', file: 'fx_frost.json' },
   { key: 'fx_fog', dir: 'fog/fx/', file: 'fx_fog.json' },
   { key: 'fx_newcrew', dir: 'newcrew2/fx/', file: 'fx_newcrew.json' },
+  { key: 'fx_uncharted', dir: 'uncharted_units/fx/', file: 'fx_uncharted.json' },
+  { key: 'fx_bosses', dir: 'uncharted_bosses/fx/', file: 'fx_bosses.json' },
 ];
 const LAYOUT_KEY = 'layout';
 const BACKGROUND_KEY = 'bg_tall';  // bg.png's picture with more sky and sea (see SCENERY)

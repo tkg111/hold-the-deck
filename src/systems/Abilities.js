@@ -81,6 +81,7 @@ export class AbilitySystem {
   }
 
   update(dt, auto) {
+    this.scene.crewBuffs = crewBuffs(this.scene.heroes ?? []);
     for (const s of this.slots) s.cooldown = Math.max(0, s.cooldown - dt);
     this.scene.ship.tickShield?.(dt);
     this.effects = this.effects.filter((fx) => {
@@ -107,6 +108,7 @@ export class AbilitySystem {
   targets({ air = false, needs = null, near = Infinity } = {}) {
     return this.scene.enemies.filter((e) => e.canBeHit(air)
       && (needs !== 'flyers' || e.def.flies)
+      && (needs !== 'ranged' || e.def.ranged)
       && (needs !== 'movable' || e.canBeMoved)
       && (needs !== 'near' || nearShip(e) <= near));
   }
@@ -343,6 +345,392 @@ const ACTIONS = {
     sys.effects.push(new AlliesOut(raised));
   },
 };
+
+// --- The Uncharted Seas' crew ---
+
+// What the crew aboard gives the whole crew (HEROES crewAura, reveals),
+// while each giver can act (not stunned or frozen): { attackSpeed, range }
+// multipliers and whether hidden foes are revealed.
+export function crewBuffs(heroes) {
+  const buffs = { attackSpeed: 1, range: 1, reveal: false };
+  for (const h of heroes) {
+    if (h.isStunned || h.isFrozen) continue;
+    const a = h.def.crewAura;
+    if (a?.attackSpeed) buffs.attackSpeed += a.attackSpeed;
+    if (a?.range) buffs.range += a.range;
+    if (h.def.reveals) buffs.reveal = true;
+  }
+  return buffs;
+}
+
+Object.assign(ACTIONS, {
+  // Rope Swing: a hook at every flyer on screen, grounding it.
+  rigger(sys, { hero, def }) {
+    for (const e of sys.targets({ air: true, needs: 'flyers' })) {
+      sys.scene.projectiles.push(new Projectile(sys.scene, {
+        x: hero.x, y: hero.y, target: e, speed: def.speed, sprite: def.sprite, rotate: true,
+        rope: { from: { x: hero.x, y: hero.y }, color: hero.def.rope },
+        onHit: (hit, x, y) => {
+          hit.takeDamage(hero.damage * def.damage * (hero.def.flyerBonus ?? 1), { source: hero.source.ability });
+          if (hit.alive) hit.applyGround(def.ground, !!def.pin);
+          playFx(sys.scene, 'hit_spark', x, y);
+        },
+        findTarget: () => null,
+      }));
+    }
+    sfx.play('cannon_small');
+  },
+
+  // Fan the Hammer: a quick string of shots at random foes.
+  gunslinger(sys, slot) {
+    sys.effects.push(new FanTheHammer(sys, slot));
+  },
+
+  // Minefield: mines lobbed down the lane.
+  pearlDiver(sys, slot) {
+    sys.effects.push(new Minefield(sys, slot));
+  },
+
+  // Lullaby: every foe slowed (awakened: and hushed, its attacks stopped).
+  tideSinger(sys, { hero, def, scale }) {
+    const duration = def.duration * scale;
+    const lulled = sys.targets({ air: true });
+    for (const e of lulled) {
+      e.applyChill(def.slow, duration);
+      if (def.hush) e.applyHush(duration);
+    }
+    sys.scene.stats?.add(hero.id, 'slowed', lulled.length);
+    sys.effects.push(new SongNotes(sys.scene, hero, def));
+    sfx.play('siren_song', { volume: 0.6 });
+  },
+
+  // Flare: every foe marked (more damage taken, seen); awakened, the crew crits.
+  lookout(sys, { def, scale }) {
+    const duration = def.duration * scale;
+    const flare = playFx(sys.scene, def.sprite, def.x, def.y);
+    flare.setScale(2);
+    for (const e of sys.targets({ air: true })) e.applyFlare(def.bonus, duration);
+    for (const e of sys.scene.enemies) if (e.alive && e.def.lurks) e.applyFlare(def.bonus, duration);
+    if (def.crit) for (const h of sys.scene.heroes) h.addBoost(1, duration, null, 'damage', def.crit);
+    sfx.play('cannon_small');
+  },
+
+  // Ink Cloud: ranged foes inside can't shoot.
+  octopusTamer(sys, { def, scale }) {
+    sys.effects.push(new InkCloud(sys, def, def.duration * scale));
+    sfx.play('splash');
+  },
+
+  // Reef Wall: a coral wall the horde must hack through.
+  coralDruid(sys, { hero, def, scale }) {
+    const wall = new CoralWall(sys.scene, def, {
+      hp: def.hp * hero.damage, duration: def.duration * scale, reflect: def.reflect ?? 0, source: hero.source.ability,
+    });
+    sys.allies.push(wall);
+    sys.effects.push(new AlliesOut([wall]));
+    sfx.play('hit_heavy');
+  },
+
+  // Axe Storm: an axe sweeps the lane out and back (awakened: twice over).
+  berserker(sys, { hero, def }) {
+    sys.effects.push(new AxeStorm(sys, def, hero, def.storms));
+    shake(sys.scene, { duration: 120, intensity: 0.002 });
+  },
+});
+
+// A Pearl Diver's sea mine on the lane (from her throw, landing first, or
+// Minefield): the first walker or swimmer within trigger px (plus half its
+// width) sets it off, blasting everything on the lane within radius for
+// `damage` (awakened: chilling them too). owner: the Pearl Diver whose
+// throw it was (her count of mines out), or null.
+export class SeaMine {
+  constructor(sys, owner, {
+    x, trigger, radius, damage, chill = null, source = null,
+  }) {
+    this.sys = sys;
+    this.owner = owner;
+    Object.assign(this, {
+      x, trigger, radius, damage, chill, source,
+    });
+    this.landed = false;
+    this.spent = false;
+    this.sprite = null;
+  }
+
+  land() {
+    if (this.spent || this.landed) return;
+    this.landed = true;
+    this.sprite = fxSprite(this.sys.scene, 'sea_mine', Math.round(this.x), Math.round(laneFeetY(this.x)) + 1)
+      .setOrigin(0.5, 1).setDepth(DEPTH.foreground + 0.4);
+  }
+
+  update() {
+    if (this.spent) return false;
+    if (!this.landed) return true;
+    const hit = this.sys.targets().some((e) => !e.anchored && Math.abs(e.x - this.x) <= this.trigger + e.def.width / 2);
+    if (hit) this.blast();
+    return !this.spent;
+  }
+
+  blast() {
+    this.spent = true;
+    const { scene } = this.sys;
+    for (const e of this.sys.targets()) {
+      if (Math.abs(e.x - this.x) > this.radius + e.def.width / 2) continue;
+      e.takeDamage(this.damage, { lobbed: true, source: this.source });
+      if (this.chill && e.alive) e.applyChill(this.chill.factor, this.chill.duration);
+    }
+    playFx(scene, 'mine_blast', Math.round(this.x), Math.round(laneFeetY(this.x)) + 2).setOrigin(0.5, 1);
+    sfx.play('cannon');
+  }
+
+  destroy() { this.sprite?.destroy(); }
+}
+
+// Minefield: def.mines mines lobbed from the Pearl Diver, def.interval ms
+// apart, to spots spread down the lane (shuffled), each a SeaMine of
+// def.damage x her damage. They don't count against her own mines.
+class Minefield {
+  constructor(sys, { hero, def }) {
+    this.sys = sys;
+    this.hero = hero;
+    this.def = def;
+    this.time = 0;
+    const { radius, trigger } = hero.def.mines;
+    const from = LAYOUT.shipContactX + radius;
+    const to = LAYOUT.enemySpawnX - radius;
+    const spots = Array.from({ length: def.mines }, (_, i) => from + (to - from) * (i + 0.5) / def.mines);
+    this.throws = Phaser.Utils.Array.Shuffle(spots).map((x, i) => ({ x, start: i * def.interval, thrown: false }));
+    this.spec = { trigger, radius, chill: def.chill ?? null };
+  }
+
+  update(dt) {
+    this.time += dt;
+    const { sys, hero, def } = this;
+    for (const t of this.throws) {
+      if (t.thrown || this.time < t.start) continue;
+      t.thrown = true;
+      const mine = new SeaMine(sys, null, {
+        x: t.x, ...this.spec, damage: hero.damage * def.damage, source: hero.source.ability,
+      });
+      sys.effects.push(mine);
+      const at = { alive: true, x: t.x, y: laneFeetY(t.x) - 2 };
+      sys.scene.projectiles.push(new LobProjectile(sys.scene, {
+        x: hero.x, y: hero.y, target: at, flightTime: def.flightTime, arcHeight: def.arcHeight, sprite: 'sea_mine',
+        aimAt: () => at, findTarget: () => null, onHit: () => mine.land(),
+      }));
+    }
+    return this.throws.some((t) => !t.thrown);
+  }
+
+  destroy() {}
+}
+
+// An awakened Octopus Tamer's grab: when the hold ends, a slam for slam x
+// his damage.
+export class GrabHold {
+  constructor(hero, enemy, ms, slam) {
+    Object.assign(this, { hero, enemy, slam });
+    this.time = ms;
+  }
+
+  update(dt) {
+    this.time -= dt;
+    if (this.time > 0) return true;
+    const { enemy, hero } = this;
+    if (enemy.alive) {
+      enemy.takeDamage(hero.damage * this.slam, { source: hero.source.attack });
+      playFx(hero.scene, 'hit_spark', enemy.x, enemy.y);
+      sfx.play('hit_heavy');
+    }
+    return false;
+  }
+
+  destroy() {}
+}
+
+// Fan the Hammer: def.shots pistol shots, def.interval ms apart, each at a
+// random foe on screen (flyers too) for def.damage x his damage.
+class FanTheHammer {
+  constructor(sys, { hero, def }) {
+    Object.assign(this, { sys, hero, def });
+    this.left = def.shots;
+    this.timer = 0;
+  }
+
+  update(dt) {
+    const { sys, hero, def } = this;
+    this.timer -= dt;
+    while (this.timer <= 0 && this.left > 0) {
+      this.timer += def.interval;
+      this.left--;
+      const foes = sys.targets({ air: true });
+      if (!foes.length) continue;
+      const target = foes[Math.floor(Math.random() * foes.length)];
+      sys.scene.projectiles.push(new Projectile(sys.scene, {
+        ...hero.muzzlePoint(), target, speed: def.speed, sprite: def.sprite, rotate: true,
+        onHit: (hit, x, y) => {
+          hit.takeDamage(hero.damage * def.damage, { source: hero.source.ability });
+          playFx(sys.scene, 'hit_spark', x, y);
+        },
+        findTarget: (x, y) => nearestLiving(sys.scene.enemies, x, y, (e) => e.canBeHit(true)),
+      }));
+      sfx.play('cannon_small', { volume: 0.7 });
+    }
+    return this.left > 0;
+  }
+
+  destroy() {}
+}
+
+// Lullaby's look: def.notes song notes drifting up from the Tide Singer.
+class SongNotes {
+  constructor(scene, hero, def) {
+    this.notes = Array.from({ length: def.notes }, (_, i) => ({
+      sprite: fxSprite(scene, def.sprite, hero.x + 6 * (i % 3) - 6, hero.top).setDepth(FX_DEPTH),
+      vx: 30 + 12 * i, vy: -14 - 3 * (i % 4), delay: i * 90,
+    }));
+    this.time = 0;
+  }
+
+  update(dt) {
+    this.time += dt;
+    for (const n of this.notes) {
+      if (this.time < n.delay) continue;
+      n.sprite.x += n.vx * dt / 1000;
+      n.sprite.y += n.vy * dt / 1000;
+      n.sprite.setAlpha(Math.max(0, 1 - (this.time - n.delay) / 1500));
+    }
+    return this.time < 1500 + this.notes.length * 90;
+  }
+
+  destroy() { for (const n of this.notes) n.sprite.destroy(); }
+}
+
+// Ink Cloud: def.tiles ink_cloud tiles side by side centred on def.x, over
+// where ranged foes stop, for the duration (fading at the end). Ranged foes
+// in it can't shoot (Enemy.inkTime).
+class InkCloud {
+  constructor(sys, def, duration) {
+    Object.assign(this, { sys, def });
+    this.time = duration;
+    const { width } = fxSize(sys.scene, def.sprite);
+    this.half = (def.tiles * width) / 2;
+    this.tiles = Array.from({ length: def.tiles }, (_, i) => {
+      const x = def.x - this.half + width * (i + 0.5);
+      return fxSprite(sys.scene, def.sprite, Math.round(x), Math.round(laneFeetY(x)) - 4)
+        .setOrigin(0.5, 1).setDepth(DEPTH.enemyOverlay - 0.2);
+    });
+  }
+
+  update(dt) {
+    this.time -= dt;
+    for (const e of this.sys.scene.enemies) {
+      if (e.alive && e.def.ranged && Math.abs(e.x - this.def.x) <= this.half) e.inkTime = Math.max(e.inkTime ?? 0, Math.min(this.time, 200));
+    }
+    const alpha = Phaser.Math.Clamp(this.time / this.def.fadeTime, 0, 1);
+    for (const t of this.tiles) t.setAlpha(alpha);
+    return this.time > 0;
+  }
+
+  destroy() { for (const t of this.tiles) t.destroy(); }
+}
+
+// Reef Wall: coral_wall grown on the lane at def.x (def.width wide) for the
+// duration. Like a skeleton, it holds walkers up and they hack at it (it
+// has hp); awakened, it hurts each attacker for reflect x the blow.
+class CoralWall {
+  constructor(scene, def, {
+    hp, duration, reflect, source,
+  }) {
+    Object.assign(this, {
+      scene, def, hp, reflect, source,
+    });
+    this.x = def.x;
+    this.width = def.width;
+    this.time = duration;
+    this.alive = true;
+    this.sprite = fxSprite(scene, def.sprite, Math.round(this.x), Math.round(laneFeetY(this.x)) + 2)
+      .setOrigin(0.5, 1).setDepth(DEPTH.ally);
+  }
+
+  get blocks() { return this.alive; }
+
+  update(dt) {
+    if (!this.alive) return false;
+    this.time -= dt;
+    if (this.time <= 0) this.crumble();
+    return this.alive;
+  }
+
+  // A blow from `attacker` (an enemy), reflected in part when awakened.
+  takeDamage(amount, attacker = null) {
+    if (!this.alive) return;
+    this.hp -= amount;
+    if (this.reflect && attacker?.alive) attacker.takeDamage(amount * this.reflect, { ignoreArmor: true, source: this.source });
+    if (this.hp <= 0) this.crumble();
+  }
+
+  crumble() {
+    if (!this.alive) return;
+    this.alive = false;
+    this.scene.tweens.add({ targets: this.sprite, alpha: 0, duration: 250, onComplete: () => this.sprite.destroy() });
+  }
+
+  destroy() {
+    this.alive = false;
+    this.sprite.destroy();
+  }
+}
+
+// Axe Storm: axe_spin from the ship to the far edge and back; each foe on
+// the lane it reaches is hit once each way. `storms` of them, def.gapMs apart.
+class AxeStorm {
+  constructor(sys, def, hero, storms) {
+    Object.assign(this, { sys, def, hero });
+    this.left = storms;
+    this.start();
+  }
+
+  start() {
+    this.left--;
+    this.wait = 0;
+    this.dir = 1;
+    this.x = LAYOUT.shipContactX;
+    this.hit = new Set();
+    this.sprite ??= fxSprite(this.sys.scene, this.def.sprite, 0, 0).setDepth(FX_DEPTH);
+    this.sprite.setVisible(true);
+  }
+
+  update(dt) {
+    const { sys, def, hero } = this;
+    if (this.wait > 0) {
+      this.wait -= dt;
+      if (this.wait <= 0) this.start();
+      return true;
+    }
+    this.x += this.dir * def.speed * dt / 1000;
+    const right = sys.scene.view.right;
+    for (const e of sys.targets()) {
+      if (this.hit.has(e) || Math.abs(e.x - this.x) > e.def.width / 2 + 6) continue;
+      this.hit.add(e);
+      e.takeDamage(hero.damage * def.damage, { source: hero.source.ability });
+    }
+    if (this.dir > 0 && this.x >= right) {
+      this.dir = -1;
+      this.hit = new Set();
+    }
+    this.sprite.setPosition(Math.round(this.x), Math.round(laneFeetY(this.x) - 14));
+    if (this.dir < 0 && this.x <= LAYOUT.shipContactX) {
+      if (this.left <= 0) return false;
+      this.sprite.setVisible(false);
+      this.wait = def.gapMs;
+    }
+    return true;
+  }
+
+  destroy() { this.sprite?.destroy(); }
+}
 
 // Raise the Crew's skeletons, stepped along with the other effects while
 // any is still up (the system keeps the list, for enemies to find them).

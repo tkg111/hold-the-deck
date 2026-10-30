@@ -27,9 +27,12 @@ export function nearestLiving(enemies, x, y, canHit = (e) => e.targetable) {
 }
 
 // Homing shot: flies straight toward its target and calls onHit(target, x, y)
-// on arrival.
+// on arrival. rope: { from: { x, y }, color } draws a rope from there to the
+// shot while it flies (the Rigger's grappling hook).
 export class Projectile {
-  constructor(scene, { x, y, target, speed, sprite, rotate = false, onHit, findTarget }) {
+  constructor(scene, {
+    x, y, target, speed, sprite, rotate = false, onHit, findTarget, rope = null,
+  }) {
     this.target = target;
     this.speed = speed;
     this.rotate = rotate;
@@ -37,6 +40,13 @@ export class Projectile {
     this.findTarget = findTarget;
     this.done = false;
     this.sprite = fxSprite(scene, sprite, x, y).setDepth(FX_DEPTH);
+    this.rope = rope;
+    this.ropeLine = rope ? scene.add.graphics().setDepth(FX_DEPTH - 0.1) : null;
+  }
+
+  drawRope() {
+    const { from, color } = this.rope;
+    this.ropeLine.clear().lineStyle(1, color).lineBetween(from.x, from.y, Math.round(this.sprite.x), Math.round(this.sprite.y));
   }
 
   update(dt) {
@@ -59,11 +69,13 @@ export class Projectile {
     this.sprite.x += dx / dist * step;
     this.sprite.y += dy / dist * step;
     if (this.rotate) this.sprite.rotation = Math.atan2(dy, dx);
+    if (this.rope) this.drawRope();
   }
 
   destroy() {
     this.done = true;
     this.sprite.destroy();
+    this.ropeLine?.destroy();
   }
 }
 
