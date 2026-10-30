@@ -201,7 +201,8 @@ export class ChartScene extends Phaser.Scene {
       const c = this.cache.json.get(ABYSS_JSON_KEY)?.currents.order.find((o) => o.id === current);
       if (c) lines.push(`Current: ${c.name}`);
     }
-    if (stage.hazard) lines.push(stage.hazard === 'lava' ? 'Lava bombs fall' : 'A blizzard blows all stage');
+    const hazard = stage.hazard ?? (this.crown >= 3 ? stage.crownHazard : null);
+    if (hazard) lines.push(hazard === 'lava' ? 'Lava bombs fall' : 'A blizzard blows all stage');
     if (!lines.length) lines.push('No special rules');
     lines.slice(0, 3).forEach((l, k) => add(text(this, x + 12, y + h - 26 + k * 9 - (lines.length > 2 ? 5 : 0), l.toUpperCase(), subText())));
     const cost = stageCost(stage, this.crown);

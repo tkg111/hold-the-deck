@@ -357,6 +357,18 @@ export const TIPS = {
     mode: 'banner',
     lines: [line('laugh', "Look at 'em now! A legend of the seas!")],
   }],
+  // The Uncharted Seas' enemies (a banner) and bosses (a word during the
+  // battle), the first time each comes.
+  lurker: [firstSighting('lurker', 'banner', [line('point', "Something's lurking... a Lookout would spot it!")])],
+  puffer_mine: [firstSighting('pufferMine', 'banner', [line('worried', 'Pop those puffers before they reach us!')])],
+  drowned_drummer: [firstSighting('drownedDrummer', 'banner', [line('point', 'Silence that drummer first!')])],
+  mimic: [firstSighting('mimic', 'banner', [line('laugh', 'That chest has teeth... and treasure!')])],
+  hermit_king: [firstSighting('hermitKing', 'dialog', [line('point', 'When he hides in that wreck, deal with the little crabs!')])],
+  cinderclad: [firstSighting('cinderclad', 'dialog', [line('point', 'Shoot down those mortar shells before they land!')])],
+  captain_rime: [firstSighting('captainRime', 'dialog', [line('point', 'Break his ice armour first, fire works best!')])],
+  abyssal_angler: [firstSighting('abyssalAngler', 'dialog', [line('worried', "Don't stare at the light... smash the lure!")])],
+  storm_roc: [firstSighting('stormRoc', 'dialog', [line('point', 'Hit it when it lands, and bring the Rigger!')])],
+  drowned_king: [firstSighting('drownedKing', 'dialog', [line('worried', 'This is it, the King himself. All hands!')])],
   log: [{
     trigger: 'scene-open',
     when: (g, d) => d.key === 'LogScene',
@@ -364,6 +376,18 @@ export const TIPS = {
     lines: [line('talk0', "My log! Stats, bounties and every fish you've caught.")],
   }],
 };
+
+// The first time an enemy of this kind (ENEMIES key) comes: a banner, or
+// (mode 'dialog') a word from the Captain in the battle.
+function firstSighting(key, mode, lines) {
+  return {
+    trigger: 'enemy-spawned',
+    when: (g, d) => d.key === key,
+    ...(mode === 'dialog' ? { needs: 'wave' } : {}),
+    mode,
+    lines,
+  };
+}
 
 // Arriving at an island (sailing there from the map).
 function islandTip(islandId, lines) {

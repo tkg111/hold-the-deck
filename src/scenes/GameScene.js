@@ -292,7 +292,7 @@ export class GameScene extends Phaser.Scene {
   // (Uncharted.stageIsland).
   get battleIsland() {
     const p = this.progress;
-    if (p.stage) return stageIsland(stageOf(p.stage.id));
+    if (p.stage) return stageIsland(stageOf(p.stage.id), p.stage.crown);
     if (!p.inAbyss) return p.island;
     return this.depthIsland ?? abyssIsland(depthCurrents(p.abyss.run.seed, p.depth).active);
   }
@@ -1812,6 +1812,7 @@ export class GameScene extends Phaser.Scene {
     this.enemies.push(...spawned);
     // First sighting of a type: unlock its poster and announce it.
     for (const e of spawned) if (this.progress.discover(e.key)) this.notices.newEnemy(e.key);
+    for (const e of spawned) if (e.key) this.events.emit('enemy-spawned', { key: e.key });
     // Frostbite Reef: snow puffs off the pines as each one steps out (the
     // Frost Giant shakes them itself; the Frost Wyrm flies in).
     const puff = this.battleIsland.spawnPuff;

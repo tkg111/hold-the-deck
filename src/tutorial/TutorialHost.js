@@ -10,14 +10,14 @@ import { targetShown } from './targets.js';
 // (TutorialManager.tick: the battle between waves, nothing open over it):
 //   GameScene: wave-started { wave, boss, finale, hunt, dive }, crew-awakened { id },
 //     wave-ended (won, { hunt, dive }) (and 'wave-won' for a won island
-//     wave), enemy-killed, boss-material, island-arrived { id },
+//     wave), enemy-spawned { key }, enemy-killed, boss-material, island-arrived { id },
 //     shipwright-toggled { open }, shipwright-tab { tab },
 //     upgrade-bought { kind: 'crew' | 'hull' | 'deck' },
 //     merchant-tappable, merchant-plundered, merchant-gone
 //   GalleyScene: fishing-cast, fishing-bite, reel-started, fish-landed { id }
 //   ExpeditionScene: expedition-plan, expedition-crew, expedition-sent
 const FORWARD = [
-  'wave-started', 'wave-ended', 'enemy-killed', 'boss-material', 'island-arrived', 'crew-awakened',
+  'wave-started', 'wave-ended', 'enemy-spawned', 'enemy-killed', 'boss-material', 'island-arrived', 'crew-awakened',
   'shipwright-toggled', 'shipwright-tab', 'upgrade-bought',
   'merchant-tappable', 'merchant-plundered', 'merchant-gone',
   'fishing-cast', 'fishing-bite', 'reel-started', 'fish-landed',

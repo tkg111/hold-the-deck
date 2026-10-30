@@ -159,8 +159,8 @@ export const stageClearGold = (stage) => Math.round(depthClearBonus(seaDepth(sta
 // The battlefield of a stage, island-shaped like Abyss.abyssIsland: its
 // sea's island (scenery and weather) without that island's hazards, with
 // the stage's own (lava bombs, a blizzard all stage) and, on the Drowned
-// Throne, its Abyss current's.
-export function stageIsland(stage) {
+// Throne, its Abyss current's. At 3 crowns a stage's crownHazard too.
+export function stageIsland(stage, crown = 1) {
   const sea = seaOf(stage);
   const current = stageCurrent(stage);
   const base = sea.battlefield === ABYSS.id
@@ -184,11 +184,12 @@ export function stageIsland(stage) {
     stage: stage.id,
   };
   const all = { from: 1, every: 1, skipBossWaves: false, at: 1500, ms: Infinity };
-  if (stage.hazard === 'lava') {
+  const hazard = stage.hazard ?? (crown >= 3 ? stage.crownHazard : null);
+  if (hazard === 'lava') {
     island.lavaBombs = ISLANDS.find((d) => d.id === 'ember_isle').lavaBombs;
     island.ash = true;
   }
-  if (stage.hazard === 'blizzard') {
+  if (hazard === 'blizzard') {
     island.blizzard = { ...ISLANDS.find((d) => d.id === 'frostbite_reef').blizzard, ...all };
     island.snow = true;
   }
@@ -203,7 +204,7 @@ export function stageOptions(stage, crown) {
   const current = stageCurrent(stage);
   return {
     wave: 1,
-    island: stageIsland(stage),
+    island: stageIsland(stage, crown),
     offset: 0,
     finale: null,
     countFactor: 1,
@@ -232,7 +233,8 @@ export function stagePlan(stage, crown) {
   const { size, perWave, bossEscort } = UNCHARTED.waves;
   const rules = stageRules(stage, crown);
   const swarm = rules.includes('swarm') ? UNCHARTED.rules.swarm : null;
-  const eliteEvery = rules.includes('elite_hunt') ? UNCHARTED.rules.elite_hunt.every : 0;
+  const eliteEvery = rules.includes('elite_hunt') ? (crown >= 3 && stage.crownElites) || UNCHARTED.rules.elite_hunt.every : 0;
+  const bossWaves = (crown >= 3 && stage.crownBosses) || stage.bosses;
   const boss = { hp: 1, damage: 1, ...UNCHARTED.bosses[stage.id] };
   const types = stage.lineup.map((key) => ({ key, ...GROUPS[key] }));
   const totalWeight = types.reduce((s, t) => s + t.weight, 0);
@@ -240,7 +242,7 @@ export function stagePlan(stage, crown) {
   const plan = [];
   let foes = 0;
   for (let w = 0; w < stage.waves; w++) {
-    const bosses = stage.bosses?.[w] ?? [];
+    const bosses = bossWaves?.[w] ?? [];
     let count = size + perWave * w;
     if (bosses.length) count *= bossEscort;
     if (swarm) count *= swarm.count;
