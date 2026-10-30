@@ -304,6 +304,7 @@ export class WaveManager {
     // Cinderclad's smoke).
     this.scene.crewFocus = null;
     this.scene.smoke = null;
+    this.scene.dazzle = null;
   }
 
   stop() {

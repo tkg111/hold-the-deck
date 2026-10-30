@@ -36,6 +36,15 @@ export function describeHero(def) {
   if (def.chain) parts.push(`chain lightning hits up to ${def.chain.targets}`);
   if (def.antiAir) parts.push(def.flyerBonus ? `hits flyers for ${def.flyerBonus}x` : 'hits flyers');
   if (def.netsFlyers) parts.push('nets ground flyers');
+  // The Uncharted Seas' crew.
+  if (def.burst) parts.push(`${def.burst.count} shots per attack`);
+  if (def.mines) parts.push(`lays mines on the lane (${def.mines.max} at once)`);
+  if (def.grab) parts.push(`tentacles hold ${def.grab.targets > 1 ? `${def.grab.targets} foes` : 'the front foe'} ${secs(def.grab.holdMs)}`);
+  if (def.crewAura?.attackSpeed) parts.push(`crew +${pct(def.crewAura.attackSpeed)} attack speed`);
+  if (def.crewAura?.range) parts.push(`crew +${pct(def.crewAura.range)} range`);
+  if (def.mend) parts.push(`repairs ${pct(def.mend.share)} hull every ${secs(def.mend.every)}`);
+  if (def.reveals) parts.push('reveals hidden foes');
+  if (def.rage) parts.push(`+1% dmg per 1% hull missing (max ${pct(def.rage.max)})`);
   if (def.levelSpeed) parts.push(`+${pct(def.levelSpeed.perLevel)} attack speed per level (max ${pct(def.levelSpeed.max)})`);
   const text = parts.join(', ') || 'Fast shots, no effect';
   return text[0].toUpperCase() + text.slice(1);
@@ -58,6 +67,9 @@ export function describeAbility(id, scale = 1) {
     hits: a.hits,
     bombs: a.bombs,
     count: a.count,
+    ground: a.ground != null && secs(a.ground * scale),
+    shots: a.shots,
+    mines: a.mines,
   };
   return a.effect.replace(/\{(\w+)\}/g, (_, key) => values[key]);
 }

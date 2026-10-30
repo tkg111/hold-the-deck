@@ -15,7 +15,9 @@
 // the stages' times. Options: build=a|b|c, sea=1..6, crown=1..3, and
 // stage=3-6,4-6 (only those).
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { AWAKEN, HEROES, SHIP } from '../../src/config.js';
+import {
+  AWAKEN, ENEMIES, HEROES, PACKS, SHIP,
+} from '../../src/config.js';
 import { SEAS } from '../../src/data/uncharted.js';
 import { Progress } from '../../src/systems/Progress.js';
 import { initExpeditions } from '../../src/systems/Expeditions.js';
@@ -31,10 +33,10 @@ const flag = (name) => args.find((a) => a.startsWith(`${name}=`))?.slice(name.le
 const plain = args.filter((a) => !a.includes('='));
 const CREWS = Number(plain[0] ?? 5);
 const TRIES = Number(plain[1] ?? 1);
-const BUILDS = flag('build') ? [flag('build')] : ['a', 'b', 'c'];
+const BUILDS = flag('build')?.split(',') ?? ['a', 'b', 'c'];
 const SEA = flag('sea') ? Number(flag('sea')) - 1 : null;
 const ONLY = flag('stage')?.split(',') ?? null;   // stage=3-6,4-6: only those
-const CROWNS = flag('crown') ? [Number(flag('crown'))] : [1, 2, 3];
+const CROWNS = flag('crown')?.split(',').map(Number) ?? [1, 2, 3];
 const MAX_TRIES = 30;
 const ALL_EARNED = Object.keys(HEROES).filter((id) => HEROES[id].earned);
 const EARNED = process.env.EARNED === 'none' ? [] : process.env.EARNED ? process.env.EARNED.split(',') : ALL_EARNED;
@@ -84,7 +86,7 @@ function crews() {
 // --- 2. Builds ---
 
 // Builds (b) and (c) also have the Uncharted Seas' own crew (HEROES earned),
-// at the level of the crew's fourth best (EARNED=none leaves them out;
+// at 5 stars (as they join) and the level of the crew's fourth best (EARNED=none leaves them out;
 // EARNED=rigger,berserker gives only those).
 function build(save, which) {
   const p = Progress.fromSave(save);
@@ -94,6 +96,7 @@ function build(save, which) {
     for (const id of EARNED) {
       if (!p.owned.includes(id)) p.owned.push(id);
       p.heroLevels[id] = level;
+      p.heroStars[id] = PACKS.maxStars;   // as they join
     }
   }
   if (which === 'b') p.awakened = p.activeHeroes.slice(0, 4).map(({ id }) => id);
@@ -108,10 +111,22 @@ function build(save, which) {
 // someone who hits flyers when the stage has any; The Captain beside the
 // strongest.
 function muster(p, flyers) {
-  const allowed = p.ownedHeroes.filter((id) => p.mayMuster(id)).sort((a, b) => worth(p, b) - worth(p, a));
+  const allowed = p.ownedHeroes.filter((id) => p.mayMuster(id) && !HEROES[id].earned).sort((a, b) => worth(p, b) - worth(p, a));
   const crew = allowed.slice(0, Math.min(p.slotCount, p.stageCrewLimit));
+  // The Uncharted Seas' own crew: each in place of the weakest attacker
+  // (by damage) if it hits harder, as a player comparing the numbers would
+  // (by rarity first, three new Legendaries would push out the Cannoneer and
+  // Ghost Pirate whatever the stage).
+  const earned = p.ownedHeroes.filter((id) => p.mayMuster(id) && HEROES[id].earned).sort((a, b) => p.heroDamage(b) - p.heroDamage(a));
+  for (const id of earned) {
+    const attackers = crew.filter((c) => !HEROES[c].aura && !HEROES[c].earned);
+    const weakest = attackers.reduce((w, c) => (!w || p.heroDamage(c) < p.heroDamage(w) ? c : w), null);
+    if (crew.length < Math.min(p.slotCount, p.stageCrewLimit)) crew.push(id);
+    else if (weakest && p.heroDamage(id) > p.heroDamage(weakest)) crew[crew.indexOf(weakest)] = id;
+  }
+  const flyerCheck = [...allowed, ...earned];
   if (flyers && !crew.some(canHitAir)) {
-    const hunter = allowed.find(canHitAir);
+    const hunter = flyerCheck.find((id) => canHitAir(id) && !crew.includes(id));
     if (hunter) crew[crew.length - 1] = hunter;
   }
   const captain = crew.find((id) => HEROES[id].aura);
@@ -120,6 +135,22 @@ function muster(p, flyers) {
   p.slots = Array(SHIP.maxDecks * SHIP.slotsPerDeck).fill(null);
   order.forEach((id, i) => { p.slots[i] = id; });
 }
+
+// The bot and the Uncharted bosses' mechanics (MECH=use, the default, as a
+// player told by the Captain's tips; MECH=ignore; MECH=none:
+// the crew's own targeting). use: the crew aim first at what the
+// mechanic is about: the Angler's lure, Shellbacks (the Hermit King's),
+// Cinderclad's mortar shells, Captain Rime (his plates), the Storm Roc
+// perched, the Drowned King with his trident out. ignore: they leave the
+// lure, Shellbacks and shells alone while anything else is in range, and
+// Rime while he has plates (hypnosis still makes them look at the lure).
+const MECH = process.env.MECH === 'none' ? null : process.env.MECH ?? 'use';
+const mechanic = (e) => !!(e.def.lure || e.key === 'shellback' || e.def === ENEMIES.cinderShell
+  || (e.def.roc && e.perched) || (e.def.king && e.outLeft > 0));
+const MECH_HOOKS = {
+  use: { botFocus: (e) => mechanic(e) || !!e.def.rime, crewAvoid: null },
+  ignore: { botFocus: null, crewAvoid: (e) => mechanic(e) || (!!e.def.rime && e.plates > 0) },
+};
 
 // One try of a stage at a crown: { won, time }.
 function tryStage(save, stage, crown, seed) {
@@ -133,6 +164,7 @@ function tryStage(save, stage, crown, seed) {
   if (p.beginStage() == null) throw new Error(`can't sail ${stage.id} at ${crown}`);
   const scene = makeBattle(p);
   payKills(scene, p);
+  if (MECH) Object.assign(scene, MECH_HOOKS[MECH]);
   const { won, time } = playWave(scene, p);
   return { won, time };
 }

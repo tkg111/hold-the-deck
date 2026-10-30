@@ -2614,3 +2614,188 @@ Crew; the sim's Muster picks a weak three, and 4-5 won 3 of 3 with a
 better three in 18.5's trace) and 5-5 Dead Calm (Doldrums against every
 island's enemies; 20% for (c)). They don't block any sea, but each one
 keeps its sea's 2-crown tab closed until it's cleared.
+
+### 18.9 New crew, enemies and bosses (the Uncharted content update)
+
+The eight earned crew, the eight new enemies and the six new bosses (see
+DESIGN.md). Reproduce with `npm run sim:uncharted -- 5 1` (the matrix),
+`MECH=use|ignore npm run sim:uncharted -- 5 2 build=b,c crown=1
+stage=1-6,2-6,3-6,4-6,5-6,6-6` (boss mechanics) and `ABYSS_CACHE=<crews>
+npm run sim:crew -- crown=1` (each new crewmate swapped into build (c)).
+Same five crews and seeds as 18.1–18.8.
+
+**The voyage is unchanged:** `npm run sim -- 3 50 voyage` prints the same
+output before and after this update, wave for wave (none of it appears
+before the Abyss; the Abyss's draw below depth 20 is also unchanged).
+
+#### What changed in the sim, and why
+
+- **Builds (b) and (c) own the eight new crew**, at the level of the
+  crew's fourth best (build (c): +20 and awakened, like the rest).
+- **Earned crew join at 5 stars.** The first runs had them at 0 stars,
+  and the bot's crews are mostly 5★ (+100% damage). Earned crew are in no
+  chest, so in the game too they could never get a star from a duplicate
+  and would sit at half strength for good. `Progress.grantEarnedCrew` now
+  gives them `PACKS.maxStars`, so they join fully formed, like Battle Cats'
+  stage-drop units. This is a game change, not only a sim one.
+- **The Muster** ranks by rarity first, so three new Legendaries always
+  pushed out the Cannoneer and Ghost Pirate (the crew's armour and shield
+  answers). Build (b) fell from 83%/70%/50% to 30%/17%/7% on Seas 3–5.
+  With the new crew left out, the old commit and this one give identical
+  results, so the bot was the cause. Now an earned crewmate is only
+  mustered in place of the weakest attacker it out-damages, as a player
+  comparing the numbers would.
+- **The bot uses the bosses' mechanics** (`MECH=use`, now the default), as
+  a player told by the Captain's first-encounter tips would. It aims first
+  at the Angler's lure, Shellbacks, Cinderclad's shells, Captain Rime, the
+  Storm Roc perched, and the Drowned King with his trident out.
+  `MECH=ignore` leaves those alone while anything else is in range;
+  `MECH=none` is the crew's own targeting.
+
+#### Tuning rounds (3, in the order asked: enemy HP, boss HP, crew)
+
+| Round | Changes | What it showed |
+|---|---|---|
+| 0 | as specified (bosses 600 / 520 / 400 / 480 / 460 / 900 HP; the old boss stages' factors) | Seas on target; the Hermit King and Cinderclad 100% for (a), the Roc 100% for (b), the King 80–90% for (c); no boss mechanic mattered except Rime's (b: 40% vs 0%) |
+| 1 | no enemy HP change (the new enemies' stages already met their sea's targets: 3-1, 3-3, 4-1 and 5-1 got harder for (a) and (b), and their seas stayed in band); Hermit 800 HP, Cinderclad 800 HP with shells at 2x its damage, 3-6 factor 0.7 → 0.6, Roc 700, King 1300, the lure 8% → 15% | Cinderclad's shells and Rime's plates matter (a at 2 crowns: 100% vs 0%; b: 100% vs 40%); the others didn't, mostly because the stages were at 100% |
+| 2 | Hermit 1100 HP / 24 smash, Cinderclad 10 per shell, 5-6 factor 0.5 → 0.8, King 1500 HP / 20 damage; **hypnosis dazzles**: crew deal 25% damage during it, and smashing the lure breaks it | the Angler unchanged: its 4-6 factor (0.4) was set for the old Queen + Galleon pair, so it died before its tricks came round |
+| 3 | 4-6 factor 0.4 → 1.0, 5-6 → 1.2, Hermit 1500 / 30, Cinderclad 1000 HP / 16 per shell, King 1700 HP / 30 damage (damage rather than HP: 6-6 already runs ~570 s against the sim's 600 s limit); Octopus Tamer every 1.8 s (from 1.6), holding 1.2 s (from 1.5) | final (below) |
+
+#### After (round 3)
+
+| Sea | a ♛ | a ♛♛ | a ♛♛♛ | b ♛ | b ♛♛ | b ♛♛♛ | c ♛ | c ♛♛ | c ♛♛♛ |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 1 Shipwreck Shallows | 100% | 83% | 57% | 100% | 100% | 83% | 100% | 100% | 97% |
+| 2 Cinder Straits | 67% | 30% | 10% | 83% | 67% | 60% | 87% | 67% | 67% |
+| 3 Glacier Graveyard | 27% | 0% | 0% | 77% | 7% | 0% | 93% | 53% | 30% |
+| 4 Siren's Maze | 27% | 10% | 0% | 47% | 17% | 0% | 80% | 30% | 30% |
+| 5 Storm Crown | 10% | 0% | 0% | 50% | 3% | 3% | 87% | 43% | 30% |
+| 6 The Drowned Throne | 0% | 0% | 0% | 20% | 37% | 3% | 67% | 67% | 20% |
+
+| Stage | a ♛ | a ♛♛ | a ♛♛♛ | b ♛ | b ♛♛ | b ♛♛♛ | c ♛ | c ♛♛ | c ♛♛♛ | Time (a, 1 crown, won) |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 1-1 Low Tide | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 180s |
+| 1-2 Monkey Business | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 43s |
+| 1-3 Barnacle Bay | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 202s |
+| 1-4 Harpy Squall | 100% | 100% | 20% | 100% | 100% | 100% | 100% | 100% | 100% | 87s |
+| 1-5 Skeleton Crew | 100% | 100% | 20% | 100% | 100% | 100% | 100% | 100% | 100% | 420s |
+| 1-6 The Hermit King | 100% | 0% | 0% | 100% | 100% | 0% | 100% | 100% | 80% | 326s |
+| 2-1 Ashfall | 100% | 80% | 60% | 100% | 100% | 100% | 100% | 100% | 100% | 156s |
+| 2-2 Obsidian March | 0% | 0% | 0% | 100% | 0% | 0% | 100% | 0% | 0% | - |
+| 2-3 Firefly Night | 100% | 100% | 0% | 100% | 100% | 100% | 100% | 100% | 100% | 132s |
+| 2-4 Powder Keg Run | 100% | 0% | 0% | 100% | 100% | 100% | 100% | 100% | 100% | 113s |
+| 2-5 The Forge | 0% | 0% | 0% | 0% | 0% | 0% | 20% | 0% | 0% | - |
+| 2-6 Cinderclad | 100% | 0% | 0% | 100% | 100% | 60% | 100% | 100% | 100% | 514s |
+| 3-1 Frozen Watch | 0% | 0% | 0% | 100% | 0% | 0% | 100% | 60% | 0% | - |
+| 3-2 Penguin Stampede | 100% | 0% | 0% | 100% | 40% | 0% | 100% | 100% | 100% | 93s |
+| 3-3 Witch Light | 0% | 0% | 0% | 0% | 0% | 0% | 80% | 0% | 0% | - |
+| 3-4 Yeti Pass | 60% | 0% | 0% | 100% | 0% | 0% | 100% | 80% | 80% | 490s |
+| 3-5 Mystic Frost | 0% | 0% | 0% | 60% | 0% | 0% | 100% | 80% | 0% | - |
+| 3-6 Captain Rime | 0% | 0% | 0% | 100% | 0% | 0% | 80% | 0% | 0% | - |
+| 4-1 Fog Bank | 20% | 0% | 0% | 60% | 0% | 0% | 100% | 0% | 0% | 280s |
+| 4-2 Siren Song | 0% | 0% | 0% | 0% | 0% | 0% | 100% | 0% | 0% | - |
+| 4-3 Graveyard Shift | 100% | 60% | 0% | 100% | 100% | 0% | 100% | 100% | 100% | 308s |
+| 4-4 Grapeshot Alley | 40% | 0% | 0% | 100% | 0% | 0% | 100% | 80% | 80% | 565s |
+| 4-5 Lost Crew | 0% | 0% | 0% | 0% | 0% | 0% | 0% | 0% | 0% | - |
+| 4-6 The Abyssal Angler | 0% | 0% | 0% | 20% | 0% | 0% | 80% | 0% | 0% | - |
+| 5-1 Thunderhead | 0% | 0% | 0% | 100% | 0% | 0% | 100% | 100% | 100% | - |
+| 5-2 Broadside | 60% | 0% | 0% | 100% | 20% | 20% | 100% | 80% | 80% | 246s |
+| 5-3 Giant's Wake | 0% | 0% | 0% | 0% | 0% | 0% | 100% | 0% | 0% | - |
+| 5-4 Elite Squadron | 0% | 0% | 0% | 100% | 0% | 0% | 100% | 60% | 0% | - |
+| 5-5 Dead Calm | 0% | 0% | 0% | 0% | 0% | 0% | 20% | 20% | 0% | - |
+| 5-6 The Storm Roc | 0% | 0% | 0% | 0% | 0% | 0% | 100% | 0% | 0% | - |
+| 6-1 Sunken Steps | 0% | 0% | 0% | 60% | 100% | 20% | 100% | 100% | 100% | - |
+| 6-2 Pressure | 0% | 0% | 0% | 0% | 0% | 0% | 100% | 100% | 20% | - |
+| 6-3 Black Water | 0% | 0% | 0% | 0% | 20% | 0% | 20% | 100% | 0% | - |
+| 6-4 The Gauntlet | 0% | 0% | 0% | 60% | 100% | 0% | 100% | 100% | 0% | - |
+| 6-5 Last Watch | 0% | 0% | 0% | 0% | 0% | 0% | 0% | 0% | 0% | - |
+| 6-6 The Drowned Throne | 0% | 0% | 0% | 0% | 0% | 0% | 80% | 0% | 0% | - |
+
+
+#### Against the targets (18.4's, unchanged)
+
+| Target | Result |
+|---|---|
+| Sea 1, 1 crown: (a) ≥ 80% | **100%** |
+| Seas 2–3, 1 crown: (a) mostly fails, (b) ≥ 60% | (a) 67% / 27%; (b) **83% / 77%**. Sea 2's (a) is higher than "mostly fails" (Ashfall, Firefly Night, Powder Keg Run and Cinderclad all win) |
+| Seas 4–6, 1 crown: (b) mixed, (c) ≥ 60% | (b) 47% / 50% / 20%; (c) **80% / 87% / 67%** |
+| Any 3-crown stage, (c): 20–50% | Seas 3–6 **30% / 30% / 30% / 20%**; Sea 1 97% and Sea 2 67% (too easy, as before) |
+| The Drowned King: (c) clears 6-6 at 1 crown 50–70% | **missed: 80%** (5 seeds), 90% (10 seeds, below) |
+
+The boss stages now take each sea's intended build at 1 crown: 1-6 and 2-6
+(a), 3-6 (b), 4-6 to 6-6 (c). At 2 crowns the Hermit King and Cinderclad
+need (b).
+
+#### Boss mechanics: using them vs ignoring them
+
+Each boss is measured at the build whose clear rate isn't pinned at 0% or
+100%, at 1 crown (2 for (a) where that's where it bites), 10 tries a cell.
+
+| Boss | Build, crown | Use | Ignore | Gap |
+|---|---|---:|---:|---:|
+| Cinderclad (shoot the shells) | (a) ♛ | 100% | 0% | **+100** |
+| Captain Rime (break the plates) | (b) ♛ | 100% | 40% | **+60** |
+| The Hermit King (clear the Shellbacks) | (a) ♛♛ | 0% | 100% | **−100** |
+| The Abyssal Angler (kill the lure) | (b) ♛ | 20% | 40% | **−20** |
+| The Storm Roc (focus it perched) | (c) ♛ / (b) ♛ | 100% / 0% | 100% / 0% | 0 |
+| The Drowned King (hit him with the trident out) | (c) ♛ | 90% | 90% | 0 |
+
+**Not met for four of the six, after the three rounds allowed.** Rime and
+Cinderclad punish ignoring them as intended. For the other four, the
+bot's version of "using" the mechanic is no better or is worse:
+
+- **Hermit King:** the Shellbacks hide in their shells when hit, so
+  aiming at them first spends the crew's time on targets that keep going
+  out of reach. Ignoring them and killing the King wins.
+- **Angler:** with the lure at 15% of its HP, chasing it takes longer than
+  the 5 s ×2 window pays back.
+
+Next steps, not done here (each needs a round):
+- **Hermit King:** stays in the wreck until its Shellbacks are dead, not 4 s.
+- **Angler:** the lure back to 8–10%; hypnosis shorter, or only when the lure has lasted 10 s.
+- **Storm Roc:** perched ×2 (from ×1.25), air ×0.33.
+- **Drowned King:** a trident window of ×2 for 3 s.
+- **King's clear rate:** another HP or damage step.
+
+#### The new crew: how much each one adds
+
+Build (c) with one crewmate swapped in for its weakest attacker in turn,
+5 crews each, on 2-2, 3-3, 4-4, 5-2, 6-2 and 6-3 (stages without a boss):
+
+| Crewmate | 1 crown, all six | 2 crowns, all six |
+|---|---:|---:|
+| (baseline: no new crew) | 37% | 23% |
+| Rigger | 50% | 0% |
+| Gunslinger | 70% | 10% |
+| Pearl Diver | 83% | 27% |
+| Tide Singer | 57% | 37% |
+| Lookout | 83% | 33% |
+| Octopus Tamer | **93%** | **67%** |
+| Coral Druid | 77% | 17% |
+| Berserker | 83% | 53% |
+
+- **The baseline is low** because the weakest attacker swapped out is the
+  Ghost Pirate or Bone Caller, whose Haunt and skeletons often push 2-2's
+  golems out of reach until time runs out (18.3). Any one of the new
+  crew replacing them helps at 1 crown for that reason as much as its own.
+- At 2 crowns, where that matters less:
+  - **The Pearl Diver** (+4 points) **and the Coral Druid** (−6)
+    trivialise nothing.
+  - **The low-hull Berserker** (+30) is strong (stages that chip the hull
+    feed his rage) but loses 3-3 and 2-2 like the rest.
+  - **The Octopus Tamer** (+44) stands out: holding the front enemy every
+    1.6 s nearly stopped the line. Round 3 slowed him to every 1.8 s and
+    1.2 s holds, which didn't move these 5-seed cells. He's the one to watch.
+- None of them makes every stage easy: 2-2 and 3-3 stay at 0% at 2
+  crowns with any one of them.
+
+#### Final numbers
+
+| What | Value |
+|---|---|
+| Boss HP / damage (base) | Hermit King 1500 / 30 smash; Cinderclad 1000 / 16 per shell (x2); Captain Rime 400 / 16; Abyssal Angler 480 / 22 bite; Storm Roc 700 / 5 per feather; Drowned King 1700 / 30 |
+| Boss factors (`UNCHARTED.bosses`) | 3-6 x0.6, 4-6 x1, 5-3 x0.5, 5-6 x1.2, 6-6 x0.4 (1-6 and 2-6 x1) |
+| Angler | lure 15% of its HP; hypnosis dazzles the crew to 25% damage |
+| Octopus Tamer | every 1.8 s, holds 1.2 s (awakened: 2 foes, 1.2 s, slam x2) |
+| Earned crew | join at 5 stars |
+| New enemies | as specified (no HP changes) |

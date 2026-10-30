@@ -6,7 +6,7 @@
 // each one gives. Shows whether any one of them carries
 // stages alone. Needs ABYSS_CACHE (sim:uncharted's crews file).
 import { readFileSync, existsSync } from 'node:fs';
-import { HEROES, SHIP } from '../../src/config.js';
+import { HEROES, PACKS, SHIP } from '../../src/config.js';
 import { Progress } from '../../src/systems/Progress.js';
 import { initExpeditions } from '../../src/systems/Expeditions.js';
 import { stageOf } from '../../src/systems/Uncharted.js';
@@ -36,6 +36,7 @@ function tryOne(save, stage, swap, seed) {
   for (const id of EARNED) {
     p.owned.push(id);
     p.heroLevels[id] = level + 20;
+    p.heroStars[id] = PACKS.maxStars;
     p.awakened.push(id);
   }
   const st = stageOf(stage);

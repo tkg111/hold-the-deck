@@ -1655,7 +1655,7 @@ export class Enemy {
         x: Math.round(spot.x + (i < decks.length ? 0 : 10)), hpMultiplier: 1, damageMultiplier: 1, gold: 0,
         fall: { deck, feetY: spot.feetY, fromY: scene.view?.top ?? c.fromY, ms: c.warnMs },
       });
-      shell.damage = this.damage;
+      shell.damage = this.damage * c.shellMult;
       shell.boss = this;   // the hull's hit is blamed on Cinderclad
       scene.enemies.push(shell);
     }
@@ -1850,19 +1850,21 @@ export class Enemy {
   }
 
   // hypnosis_rings from the lure: every crewmate aims at the lure for
-  // hypnosisMs (scene.crewFocus).
+  // hypnosisMs (scene.crewFocus), dealing dazzle x its damage (scene.dazzle).
   hypnotise() {
     const a = this.def.angler;
     const { lure } = this;
     this.hypnosisLeft = a.hypnosisMs;
     const lureOf = this.lure;
     this.scene.crewFocus = (e) => e === lureOf;
+    this.scene.dazzle = a.dazzle;
     playFx(this.scene, a.rings, Math.round(lure.x), Math.round(lure.y), DEPTH.slotMarkers);
     sfx.play('siren_song');
   }
 
   endHypnosis() {
     this.hypnosisLeft = 0;
+    this.scene.dazzle = null;
     if (this.scene.crewFocus && !this.scene.crewFocus(this.lure ?? {})) return;
     this.scene.crewFocus = null;
   }
@@ -3209,7 +3211,10 @@ export class Enemy {
     this.armorSprite = null;
     if (this.smoke) this.clearSmoke();
     if (this.tide) this.clearTide();
-    if (this.def.angler && this.scene.crewFocus) this.scene.crewFocus = null;
+    if (this.def.angler) {
+      this.scene.crewFocus = null;
+      this.scene.dazzle = null;
+    }
     if (this.current) this.scene.currents?.leave(this.current);
     this.nameTag?.destroy();
     for (const c of this.circles ?? []) c.destroy();

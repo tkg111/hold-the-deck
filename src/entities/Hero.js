@@ -340,8 +340,8 @@ export class Hero {
   // Ability boosts, and a Tide Singer's song aboard (scene.crewBuffs).
   get speedMult() { return this.boostMult('speed') * (this.scene.crewBuffs?.attackSpeed ?? 1); }
   // Its damage now: Progress's (level, stars, deck buffs) x damage boosts
-  // (x the Berserker's rage).
-  get damage() { return this.baseDamage * this.boostMult('damage') * this.rageMult; }
+  // (x the Berserker's rage, x the Abyssal Angler's dazzle while it hypnotises).
+  get damage() { return this.baseDamage * this.boostMult('damage') * this.rageMult * (this.scene.dazzle ?? 1); }
   // The Berserker: +1% per 1% of the hull missing, up to rage.max.
   get rageMult() {
     const { rage } = this.def;
@@ -651,10 +651,18 @@ export class Hero {
     let best = null;
     let bestFresh = null;
     let bestFocus = null;
-    const focus = this.scene.crewFocus;
+    let bestAvoided = null;
+    // The balance sim's bot can ask the crew to look at (botFocus) or
+    // leave alone (crewAvoid) what a boss's mechanic is about.
+    const focus = this.scene.crewFocus ?? this.scene.botFocus;
+    const avoid = this.scene.crewAvoid;
     for (const e of enemies) {
       if (!this.canHit(e)) continue;
       if (Math.hypot(e.x - this.x, e.y - this.y) > range) continue;
+      if (avoid?.(e) && !this.scene.crewFocus?.(e)) {
+        if (!bestAvoided || e.x < bestAvoided.x) bestAvoided = e;
+        continue;
+      }
       if (!best || (furthest ? e.x > best.x : e.x < best.x)) best = e;
       const fresh = (curse && !e.isCursed) || (poison && !e.isPoisoned) || (netsFlyers && e.airborne);
       if (fresh && (!bestFresh || e.x < bestFresh.x)) bestFresh = e;
@@ -663,7 +671,7 @@ export class Hero {
       const wanted = focus ? focus(e) : e.def.priority;
       if (wanted && (!bestFocus || e.x < bestFocus.x)) bestFocus = e;
     }
-    return bestFocus || bestFresh || best;
+    return bestFocus || bestFresh || best || bestAvoided;
   }
 
   // How far it reaches now: a fog bank, Night Watch and Cinderclad's smoke

@@ -124,7 +124,7 @@ export class StageEndScene extends Phaser.Scene {
     objs.push(panel(this, cx - title.inkWidth / 2 - 14, cy - 106, title.inkWidth + 28, 20, 'wood'));
     this.children.bringToTop(title);
     objs.push(title);
-    objs.push(createHeroCard(this, cx - 76, cy + 2, id, { size: 'large', stars: 0, level: 1 }));
+    objs.push(createHeroCard(this, cx - 76, cy + 2, id, { size: 'large', stars: this.progress.heroStarCount(id), level: 1 }));
     const faces = this.cache.json.get(TUTORIAL_JSON_KEY)?.captain_portrait.faces ?? [];
     objs.push(this.add.sprite(cx + 18, cy - 76, tutorialKey('captain_portrait'), Math.max(0, faces.indexOf('happy'))).setOrigin(0));
     objs.push(text(this, cx + 70, cy - 70, 'THE CAPTAIN', subText()));

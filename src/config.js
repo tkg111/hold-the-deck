@@ -763,10 +763,10 @@ export const HEROES = {
     earned: true,
     color: 0x8e5bb5,
     damage: 22,
-    attackInterval: 1600,
+    attackInterval: 1800,
     range: 300,
     projectile: { sprite: 'tentacle_grab', impact: 'hit_spark' },
-    grab: { holdMs: 1500, targets: 1 },
+    grab: { holdMs: 1200, targets: 1 },
     catchphrase: 'Eight arms, and every one of them hates you.',
   },
   // Legendary: a strong bolt, and a wall the horde must hack through.
@@ -2083,9 +2083,9 @@ export const ENEMIES = {
     origin: [48 / 96, 78 / 80],
     width: 70,
     height: 64,
-    hp: 600,
+    hp: 1500,
     speed: 6.8,         // 60% of the Frost Giant's
-    damage: 18,         // per smash on the hull
+    damage: 30,         // per smash on the hull
     attackInterval: 4000,   // a smash every, at the ship
     gold: 50,
     statusResist: 0.5,
@@ -2120,9 +2120,9 @@ export const ENEMIES = {
     origin: [0.5, 77 / 80],
     width: 100,
     height: 60,
-    hp: 520,
+    hp: 1000,
     speed: 30,          // sailing in
-    damage: 8,          // per mortar shell that lands
+    damage: 16,         // per mortar shell that lands
     attackInterval: 1000,
     gold: 50,
     statusResist: 0.5,
@@ -2132,13 +2132,14 @@ export const ENEMIES = {
     // Sails in on the water from the right to stopX (its frame's left edge
     // at stopLeft), out of reach until it stops. Every mortarEvery ms
     // (first firstMortarAt) "mortar": `shells` shells (ENEMIES
-    // cinderShell) fall on random decks over the bomb warning, shootable on
+    // cinderShell) fall on random decks over the bomb warning, each for
+    // shellMult x its damage, shootable on
     // the way down like lava bombs. Every smokeEvery ms "vent": smoke_screen
     // drifts over the deck for smokeMs, crew range x range. Below overheatAt
     // of its HP it overheats: everything x overheat as fast, its boiler
     // tint pulsing.
     clad: {
-      stopLeft: 260, firstMortarAt: 2500, mortarEvery: 6000, shells: 2, warnMs: 1500, fromY: -30,
+      stopLeft: 260, firstMortarAt: 2500, mortarEvery: 6000, shells: 2, shellMult: 2, warnMs: 1500, fromY: -30,
       firstSmokeAt: 6000, smokeEvery: 15000, smokeMs: 5000, range: 0.6, smoke: 'smoke_screen', smokeTiles: 3,
       overheatAt: 0.5, overheat: 1.3, tint: 0xff7a3a, pulseMs: 400,
     },
@@ -2226,13 +2227,15 @@ export const ENEMIES = {
     // only its lure shows), "rise", then "idle". Its lure (ENEMIES
     // anglerLure, lureShare of its HP) follows its sheet's lureAt each frame.
     // Every hypnosisEvery ms (first firstHypnosisAt) hypnosis_rings pulse from
-    // the lure and for hypnosisMs every crewmate aims at the lure. The lure
+    // the lure and for hypnosisMs every crewmate aims at the lure, dazzled:
+    // they deal dazzle x their damage meanwhile (shooting the lure down
+    // breaks it). The lure
     // shot down: stunned ("stunned") for stunMs, taking stunnedTaken x
     // damage; the lure grows back regrowMs later. Every biteEvery ms "bite":
     // the hull takes its damage.
     angler: {
-      lurkMs: 3000, lureShare: 0.08, regrowMs: 12000, stunMs: 5000, stunnedTaken: 2,
-      firstHypnosisAt: 5000, hypnosisEvery: 10000, hypnosisMs: 3000, rings: 'hypnosis_rings',
+      lurkMs: 3000, lureShare: 0.15, regrowMs: 12000, stunMs: 5000, stunnedTaken: 2,
+      firstHypnosisAt: 5000, hypnosisEvery: 10000, hypnosisMs: 3000, dazzle: 0.25, rings: 'hypnosis_rings',
       firstBiteAt: 4000, biteEvery: 8000, biteAt: 300,
       shake: { duration: 250, intensity: 0.006 },
       aboveWater: 23,
@@ -2269,7 +2272,7 @@ export const ENEMIES = {
     origin: [0.5, 0.5],
     width: 70,
     height: 50,
-    hp: 460,
+    hp: 700,
     speed: 0,
     damage: 5,          // per feather
     attackInterval: 1000,
@@ -2309,9 +2312,9 @@ export const ENEMIES = {
     origin: [0.5, 106 / 112],
     width: 70,
     height: 100,
-    hp: 900,
+    hp: 1700,
     speed: 0,
-    damage: 14,
+    damage: 30,
     attackInterval: 1000,
     gold: 50,
     statusResist: 0.5,
@@ -3355,10 +3358,10 @@ export const UNCHARTED = {
   // opens the next sea asks for the build its sea is aimed at rather than
   // being a wall (stage id -> { hp, damage }; others x1).
   bosses: {
-    '3-6': { hp: 0.7, damage: 0.7 },
-    '4-6': { hp: 0.4, damage: 0.4 },
+    '3-6': { hp: 0.6, damage: 0.6 },
+    '4-6': { hp: 1, damage: 1 },
     '5-3': { hp: 0.5, damage: 0.5 },
-    '5-6': { hp: 0.5, damage: 0.5 },
+    '5-6': { hp: 1.2, damage: 1.2 },
     '6-6': { hp: 0.4, damage: 0.4 },
   },
   rules: {
@@ -3544,7 +3547,7 @@ export const AWAKEN = {
     },
     octopusTamer: {
       title: 'Kraken Whisperer', text: 'Grabs 2 foes; each grab ends with a slam (2x)',
-      hero: { grab: { holdMs: 1500, targets: 2, slam: 2 } },
+      hero: { grab: { holdMs: 1200, targets: 2, slam: 2 } },
     },
     coralDruid: {
       title: 'Reef Warden', text: 'Reef Wall reflects 20% of the damage it takes',

@@ -1145,11 +1145,13 @@ export class Progress {
 
   // The Uncharted Seas' crew the record has earned and the ship hasn't got
   // yet join it (off the ship: the Muster's crew is put back after the
-  // stage). Each only once: an owned one is never granted again. Returns
-  // the new ones' ids.
+  // stage), fully formed at PACKS.maxStars (they're in no chest, so they
+  // could never earn stars from duplicates). Each only once: an owned one is
+  // never granted again. Returns the new ones' ids.
   grantEarnedCrew() {
     const fresh = Uncharted.crewEarned(this.uncharted).filter((id) => !this.owned.includes(id));
     this.owned.push(...fresh);
+    for (const id of fresh) this.heroStars[id] = PACKS.maxStars;
     return fresh;
   }
 

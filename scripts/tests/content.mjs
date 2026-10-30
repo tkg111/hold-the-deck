@@ -6,7 +6,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  ABYSS, ENEMIES, HEROES, MIMIC, SHIP, UNCHARTED,
+  ABYSS, ENEMIES, HEROES, MIMIC, PACKS, SHIP, UNCHARTED,
 } from '../../src/config.js';
 import { LAYOUT } from '../../src/layout.js';
 import { Enemy } from '../../src/entities/Enemy.js';
@@ -356,7 +356,7 @@ test('drowned king: rises at 50% (out of reach, immune), then phase 2: x1.5 whil
 
 // --- Rewards ---
 
-test('rewards: each boss stage and 3-crown sea gives its crewmate exactly once', () => {
+test('rewards: each boss stage and 3-crown sea gives its crewmate exactly once, at 5 stars', () => {
   const p = new Progress();
   p.abyss.runs = 1;
   const win = (id, crown = 1) => {
@@ -373,6 +373,7 @@ test('rewards: each boss stage and 3-crown sea gives its crewmate exactly once',
   assert.deepEqual(win('1-6'), ['rigger']);
   assert.deepEqual(win('1-6'), [], 'not twice');
   assert.equal(p.owned.filter((id) => id === 'rigger').length, 1);
+  assert.equal(p.heroStarCount('rigger'), PACKS.maxStars, 'joins at 5 stars');
   assert.equal(stageCrewReward(stageOf('1-6')).hero, 'rigger');
   for (let c = 2; c <= 3; c++) for (let i = 1; i <= 6; i++) win(`1-${i}`, c);
   assert.ok(p.isOwned('coralDruid'), 'all of Sea 1 at 3 crowns');
