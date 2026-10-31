@@ -281,8 +281,8 @@ export function stagePlan(stage, crown) {
           delay: first ? 0 : i === 0 ? interval : WAVES.formationSpacing,
           follow: g.escort && i > 0 ? leader : null,
           gate: first && w > 0 ? w + 1 : null,
-          hpFactor: def.boss ? boss.hp : swarm ? swarm.hp : 1,
-          damageFactor: def.boss ? boss.damage : 1,
+          hpFactor: def.boss ? boss.only?.[key]?.hp ?? boss.hp : swarm ? swarm.hp : 1,
+          damageFactor: def.boss ? boss.only?.[key]?.damage ?? boss.damage : 1,
         });
       });
     });

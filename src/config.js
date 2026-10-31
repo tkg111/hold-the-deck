@@ -3358,13 +3358,15 @@ export const UNCHARTED = {
   // bosses: a boss stage's bosses have hp x their HP and damage x their
   // damage (on top of the sea's depth and the crown), so the stage that
   // opens the next sea asks for the build its sea is aimed at rather than
-  // being a wall (stage id -> { hp, damage }; others x1).
+  // being a wall (stage id -> { hp, damage }; others x1). `only` gives a
+  // boss of its own factors on that stage (ENEMIES key -> { hp, damage }),
+  // in place of the stage's: 6-6's Drowned King, after its boss pairs.
   bosses: {
     '3-6': { hp: 0.6, damage: 0.6 },
     '4-6': { hp: 1, damage: 1 },
     '5-3': { hp: 0.5, damage: 0.5 },
     '5-6': { hp: 1.25, damage: 1.25 },
-    '6-6': { hp: 0.4, damage: 0.4 },
+    '6-6': { hp: 0.4, damage: 0.4, only: { drownedKing: { hp: 0.5, damage: 1.05 } } },
   },
   rules: {
     skeleton_crew: { crew: 3 },

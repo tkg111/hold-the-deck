@@ -2869,7 +2869,7 @@ The other stages, and the crew head-to-heads, are as in 18.9.
 | What | Value |
 |---|---|
 | Boss HP / damage (base) | Hermit King 1500 / 30 smash; Cinderclad 1000 / 16 per shell (x2); Captain Rime 400 / 16; Abyssal Angler 480 / 22 bite; Storm Roc 700 / 5 per feather; Drowned King 2600 / 45 |
-| Boss factors (`UNCHARTED.bosses`) | 3-6 x0.6, 4-6 x1, 5-3 x0.5, 5-6 x1.25, 6-6 x0.4 (1-6 and 2-6 x1) |
+| Boss factors (`UNCHARTED.bosses`) | 3-6 x0.6, 4-6 x1, 5-3 x0.5, 5-6 x1.25, 6-6 x0.4 (its Drowned King x0.5 HP, x1.05 damage, 18.11) (1-6 and 2-6 x1) |
 | Hermit King | hides until its crabs are dead (15 s at most) |
 | Angler | lure 10% of its HP; hypnosis dazzles the crew to 25% damage |
 | Storm Roc | x0.33 in the air (x2 from crew strong against flyers), x2 perched |
@@ -2877,3 +2877,35 @@ The other stages, and the crew head-to-heads, are as in 18.9.
 | Octopus Tamer | every 1.8 s, holds 1.2 s (awakened: 2 foes, 1.2 s, slam x2) |
 | Earned crew | join at 5 stars |
 | New enemies | as specified (no HP changes) |
+
+### 18.11 The Drowned King's own factor
+
+18.10's lever: a boss stage's factors can now name a boss with its own
+(`UNCHARTED.bosses[stage].only`, ENEMIES key -> { hp, damage }), so 6-6's
+Drowned King is tuned apart from the three boss pairs before him (which
+keep x0.4). Swept with build (c) at 1 crown, 10 tries each, the bot using
+his mechanic:
+
+| King's factor (HP / damage) | (c) clears 6-6 | Time won |
+|---|---:|---:|
+| x0.4 / x0.4 (as before) | 90% | 436 s |
+| x0.6 / x0.6 | 70% | 568 s |
+| x0.8 / x0.8 | 0% | - |
+| x1 / x1 | 0% | - |
+| x0.5 / x1 | 70% (20 tries: 70%) | 496 s |
+| **x0.5 / x1.05** | 50% (**20 tries: 55%**) | 490 s |
+| x0.5 / x1.1 | 50% | 485 s |
+| x0.4 / x1.2 | 70% | 430 s |
+| x0.6 / x1.2 | 0% | - |
+
+**Kept: x0.5 HP, x1.05 damage: (c) clears 6-6 at 1 crown 55% of the
+time (target 50–70%).** Damage rather than HP does the work: the HP-heavy
+settings that land in the band (x0.6 / x0.6) only do so near the sim's
+600 s limit, where a loss can be the clock rather than the ship. The 5-try
+matrix cell reads 40% (Sea 6's (c) row about 60%); 2 and 3 crowns stay 0%
+for every build, as before.
+
+His mechanic: using the trident window 55% vs ignoring it 45% (20 tries
+each): **+10**, still short of the 20-point gap. With the King no longer
+the pushover he was, the window matters a little; the rest of the stage
+(the three boss pairs) still decides most tries.

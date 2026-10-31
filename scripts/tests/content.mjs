@@ -359,6 +359,15 @@ test('drowned king: rises at 50% (out of reach, immune), then phase 2: x2 for 3s
   assert.equal(scene.currents.has(boss.current), false, 'its current leaves with him');
 });
 
+test("boss factors: the Drowned King has 6-6's own factor, the pairs before him the stage's", () => {
+  const plan = stagePlan(stageOf('6-6'), 1);
+  const f = UNCHARTED.bosses['6-6'];
+  const king = plan.find((e) => e.key === 'drownedKing');
+  assert.equal(king.hpFactor, f.only.drownedKing.hp);
+  assert.equal(king.damageFactor, f.only.drownedKing.damage);
+  for (const e of plan.filter((p) => p.def.boss && p.key !== 'drownedKing')) assert.equal(e.hpFactor, f.hp);
+});
+
 // --- Rewards ---
 
 test('rewards: each boss stage and 3-crown sea gives its crewmate exactly once, at 5 stars', () => {
