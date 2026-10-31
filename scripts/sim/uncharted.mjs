@@ -38,6 +38,7 @@ const SEA = flag('sea') ? Number(flag('sea')) - 1 : null;
 const ONLY = flag('stage')?.split(',') ?? null;   // stage=3-6,4-6: only those
 const CROWNS = flag('crown')?.split(',').map(Number) ?? [1, 2, 3];
 const MAX_TRIES = 30;
+const TRACE = !!process.env.TRACE;
 const ALL_EARNED = Object.keys(HEROES).filter((id) => HEROES[id].earned);
 const EARNED = process.env.EARNED === 'none' ? [] : process.env.EARNED ? process.env.EARNED.split(',') : ALL_EARNED;
 const islandIds = ['skull_cove', 'ember_isle', 'frostbite_reef', 'fogbound_isle'];
@@ -110,7 +111,25 @@ function build(save, which) {
 // The Muster: the best crew the stage's rules allow, up to its limit, with
 // someone who hits flyers when the stage has any; The Captain beside the
 // strongest.
+// A crewmate's sheet DPS: its damage now (level, stars, awakening) x the
+// shots of an attack, over its attack interval. Supports (The Captain) 0.
+const sheetDps = (p, id) => (HEROES[id].aura ? 0
+  : p.heroDamage(id) * (HEROES[id].burst?.count ?? 1) * 1000 / HEROES[id].attackInterval);
+
 function muster(p, flyers) {
+  // Skeleton Crew (a crew limit under the ship's slots): the crew with the
+  // most sheet DPS, someone anti-air among them when flyers come.
+  if (p.stageCrewLimit < p.slotCount) {
+    const pool = p.ownedHeroes.filter((id) => p.mayMuster(id)).sort((a, b) => sheetDps(p, b) - sheetDps(p, a));
+    const few = pool.slice(0, p.stageCrewLimit);
+    if (flyers && !few.some(canHitAir)) {
+      const hunter = pool.find((id) => canHitAir(id) && !few.includes(id));
+      if (hunter) few[few.length - 1] = hunter;
+    }
+    p.slots = Array(SHIP.maxDecks * SHIP.slotsPerDeck).fill(null);
+    few.forEach((id, i) => { p.slots[i] = id; });
+    return;
+  }
   const allowed = p.ownedHeroes.filter((id) => p.mayMuster(id) && !HEROES[id].earned).sort((a, b) => worth(p, b) - worth(p, a));
   const crew = allowed.slice(0, Math.min(p.slotCount, p.stageCrewLimit));
   // The Uncharted Seas' own crew: each in place of the weakest attacker
@@ -166,15 +185,23 @@ function tryStage(save, stage, crown, seed) {
   const scene = makeBattle(p);
   payKills(scene, p);
   if (MECH) Object.assign(scene, MECH_HOOKS[MECH]);
+  // TRACE=1: the hull damage each kind of enemy did (BattleStats' hullHit).
+  const hull = {};
+  if (TRACE) {
+    scene.stats = {
+      hullHit: (e, n) => { const k = e.key ?? e.boss?.key ?? e.def.name; hull[k] = (hull[k] ?? 0) + n; },
+      dealt() {}, add() {}, kill() {}, abilityUsed() {},
+    };
+  }
   const { won, time } = playWave(scene, p);
-  return { won, time };
+  return { won, time, hull };
 }
 
 // --- Report ---
 
 const list = crews();
 const stages = STAGES.filter((s) => (SEA == null || s.sea === SEA) && (!ONLY || ONLY.includes(s.id)));
-const results = {};   // `${build}:${stage}:${crown}` -> [{ won, time }]
+const results = {};   // `${build}:${stage}:${crown}` -> [{ won, time, hull }]
 const t0 = Date.now();
 for (const which of BUILDS) {
   const saves = list.map((c) => build(c.save, which));
@@ -194,13 +221,15 @@ for (const which of BUILDS) {
 const pct = (rs) => (rs.length ? `${Math.round(100 * rs.filter((r) => r.won).length / rs.length)}%` : '-');
 const n = list.length * TRIES;
 console.log(`\n### Clear rate per stage (${list.length} crews x ${TRIES} = ${n} tries each; builds: ${BUILDS.join(', ')})\n`);
-console.log(`| Stage | ${BUILDS.flatMap((b) => CROWNS.map((c) => `${b} ${'♛'.repeat(c)}`)).join(' | ')} | Time (a, 1 crown, won) |`);
-console.log(`|---|${BUILDS.flatMap(() => CROWNS.map(() => '---:')).join('|')}|---:|`);
+console.log(`| Stage | ${BUILDS.flatMap((b) => CROWNS.map((c) => `${b} ${'♛'.repeat(c)}`)).join(' | ')} | ${BUILDS.map((b) => `Time (${b}, ${CROWNS[0]} crown, won)`).join(' | ')} |`);
+console.log(`|---|${BUILDS.flatMap(() => CROWNS.map(() => '---:')).join('|')}|${BUILDS.map(() => '---:').join('|')}|`);
 for (const stage of stages) {
   const cells = BUILDS.flatMap((b) => CROWNS.map((c) => pct(results[`${b}:${stage.id}:${c}`])));
-  const won = (results[`${BUILDS[0]}:${stage.id}:${CROWNS[0]}`] ?? []).filter((r) => r.won);
-  const time = won.length ? `${Math.round(won.reduce((s, r) => s + r.time, 0) / won.length / 1000)}s` : '-';
-  console.log(`| ${stage.id} ${stage.name} | ${cells.join(' | ')} | ${time} |`);
+  const times = BUILDS.map((b) => {
+    const won = (results[`${b}:${stage.id}:${CROWNS[0]}`] ?? []).filter((r) => r.won);
+    return won.length ? `${Math.round(won.reduce((s, r) => s + r.time, 0) / won.length / 1000)}s` : '-';
+  });
+  console.log(`| ${stage.id} ${stage.name} | ${cells.join(' | ')} | ${times.join(' | ')} |`);
 }
 
 console.log('\n### Clear rate per sea and crown\n');
@@ -215,3 +244,18 @@ console.log(`\nAWAKEN.level ${AWAKEN.level}; crews: ${list.map((c) => {
   const p = Progress.fromSave(c.save);
   return p.activeHeroes.map(({ id }) => `${HEROES[id].shortName} ${p.heroLevel(id)}`).join(' ');
 }).join(' / ')}`);
+
+// TRACE=1: who did the hull damage, per stage, build and crown (lost tries
+// only, where it decided something; all tries if none were lost).
+if (TRACE) {
+  console.log('\n### Hull damage by enemy (TRACE)\n');
+  for (const [key, rs] of Object.entries(results)) {
+    const lost = rs.filter((r) => !r.won);
+    const sum = {};
+    for (const r of lost.length ? lost : rs) for (const [k, n] of Object.entries(r.hull)) sum[k] = (sum[k] ?? 0) + n;
+    const total = Object.values(sum).reduce((s, n) => s + n, 0) || 1;
+    const top = Object.entries(sum).sort((a, b) => b[1] - a[1]).slice(0, 5)
+      .map(([k, n]) => `${k} ${Math.round(100 * n / total)}%`).join(', ');
+    console.log(`- ${key} (${lost.length}/${rs.length} lost): ${top || '-'}`);
+  }
+}

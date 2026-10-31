@@ -111,16 +111,28 @@ test('unlock: a sea opens with the sea before\'s boss stage at 1 crown', () => {
   assert.ok(!isSeaOpen(rec, 2));
 });
 
-test('unlock: a crown tab opens when every stage is cleared at the crown below', () => {
+test('unlock: a crown tab opens with the boss stage and any 4 of 6 cleared at the crown below', () => {
   const rec = opened().uncharted;
   for (const s of SEAS[0].stages.slice(0, 5)) rec.crowns[s.id] = 1;
-  assert.ok(!isCrownOpen(rec, 0, 2));
+  assert.ok(!isCrownOpen(rec, 0, 2), 'not without the boss stage');
   rec.crowns['1-6'] = 1;
   assert.ok(isCrownOpen(rec, 0, 2));
   assert.ok(!isCrownOpen(rec, 0, 3));
+  // Every stage of an open 2- or 3-crown tab is open; 1 crown keeps its order.
   assert.ok(isStageOpen(rec, stageOf('1-1'), 2));
-  assert.ok(!isStageOpen(rec, stageOf('1-2'), 2));
+  assert.ok(isStageOpen(rec, stageOf('1-6'), 2));
   assert.equal(seaCrown(rec, 0), 1);
+  // 3 crowns: the boss and 3 others at 2 crowns is one short; a 4th opens it,
+  // whichever stages are still at 1.
+  for (const id of ['1-6', '1-1', '1-2', '1-3']) rec.crowns[id] = 2;
+  assert.ok(isCrownOpen(rec, 0, 3), 'boss + 3 = 4 of 6');
+  rec.crowns['1-3'] = 1;
+  assert.ok(!isCrownOpen(rec, 0, 3), '3 of 6');
+  rec.crowns['1-5'] = 2;
+  assert.ok(isCrownOpen(rec, 0, 3), 'any 4');
+  const fresh = opened().uncharted;
+  for (const s of SEAS[0].stages.slice(0, 4)) fresh.crowns[s.id] = 1;
+  assert.ok(!isStageOpen(fresh, stageOf('1-6'), 1), '1 crown still in order');
 });
 
 test('unlock: a win records the best crown', () => {

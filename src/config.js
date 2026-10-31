@@ -2103,7 +2103,7 @@ export const ENEMIES = {
     hermit: {
       firstCannonAt: 5000, cannonEvery: 10000, shots: 2, shotMult: 0.4, stun: 500, flightTime: 1200, arcHeight: 70,
       shot: 'hermit_cannonball', impact: 'explosion',
-      hideAt: [0.66, 0.33], hideMs: 15000, spawn: 'shellback', count: 3, spread: 16,
+      hideAt: [0.66, 0.33], hideMs: 15000, spawn: 'shellback', count: 4, spread: 16,
       smashShake: { duration: 220, intensity: 0.008 },
     },
   },
@@ -2236,7 +2236,7 @@ export const ENEMIES = {
     // the hull takes its damage.
     angler: {
       lurkMs: 3000, lureShare: 0.1, regrowMs: 12000, stunMs: 5000, stunnedTaken: 2,
-      firstHypnosisAt: 5000, hypnosisEvery: 10000, hypnosisMs: 3000, dazzle: 0.25, rings: 'hypnosis_rings',
+      firstHypnosisAt: 5000, hypnosisEvery: 10000, hypnosisMs: 3000, dazzle: 0.1, rings: 'hypnosis_rings',
       firstBiteAt: 4000, biteEvery: 8000, biteAt: 300,
       shake: { duration: 250, intensity: 0.006 },
       aboveWater: 23,
@@ -3325,7 +3325,9 @@ export const ABYSS = {
 //          down); the first clear of a stage at a crown gives back all of it.
 //   depths: each sea's strength: enemies have the Abyss's HP and damage at
 //          that depth (no Tide, no currents' Armoured unless one is on).
-//   crowns: enemy HP and damage x these at 1 / 2 / 3 crowns.
+//   crowns: enemy HP and damage x these at 1 / 2 / 3 crowns (more damage
+//          than HP, so 3 crowns stay hard without being slower);
+//          bossCrowns: bosses' HP and damage x these instead.
 //   goldMult: kill gold and the clear bonus x this (stages don't replace
 //          the Abyss for gold). clearBonus: the clear pays this many of the
 //          depth's clear bonuses.
@@ -3349,12 +3351,18 @@ export const UNCHARTED = {
   grog: { cap: 30, regenMs: 5 * 60 * 1000, galleon: 3, coral: [1, 2] },
   cost: [4, 5, 6, 6, 7, 8],
   crownCost: [0, 1, 2],
+  // A sea's 2- and 3-crown tabs: open once its boss stage and this many of
+  // its stages (the boss counting) are cleared at the crown below.
+  crownUnlock: { stages: 4 },
   retreatRefund: 0.5,
   depths: [15, 36, 52, 48, 46, 34],
-  crowns: [{ hp: 1, damage: 1 }, { hp: 1.25, damage: 1.25 }, { hp: 1.5, damage: 1.5 }],
+  crowns: [{ hp: 1, damage: 1 }, { hp: 1.15, damage: 1.4 }, { hp: 1.3, damage: 1.8 }],
+  // A boss's HP and damage x these at 1 / 2 / 3 crowns, in place of crowns',
+  // so crowns mostly toughen the escorts and the rules.
+  bossCrowns: [1, 1, 1],
   goldMult: 0.5,
   clearBonus: 2,
-  waves: { size: 14, perWave: 2, bossEscort: 0.5, gap: 2000 },
+  waves: { size: 8, perWave: 2, bossEscort: 0.5, gap: 2000 },
   // bosses: a boss stage's bosses have hp x their HP and damage x their
   // damage (on top of the sea's depth and the crown), so the stage that
   // opens the next sea asks for the build its sea is aimed at rather than
@@ -3362,11 +3370,12 @@ export const UNCHARTED = {
   // boss of its own factors on that stage (ENEMIES key -> { hp, damage }),
   // in place of the stage's: 6-6's Drowned King, after its boss pairs.
   bosses: {
+    '1-6': { hp: 1, damage: 2.5 },
     '3-6': { hp: 0.6, damage: 0.6 },
     '4-6': { hp: 1, damage: 1 },
     '5-3': { hp: 0.5, damage: 0.5 },
-    '5-6': { hp: 1.25, damage: 1.25 },
-    '6-6': { hp: 0.4, damage: 0.4, only: { drownedKing: { hp: 0.5, damage: 1.05 } } },
+    '5-6': { hp: 1.1, damage: 1.1 },
+    '6-6': { hp: 0.4, damage: 0.4, only: { drownedKing: { hp: 0.5, damage: 1.3 } } },
   },
   rules: {
     skeleton_crew: { crew: 3 },
@@ -3391,17 +3400,20 @@ export const UNCHARTED = {
     fighter: 'red', sailor: 'blue', scout: 'green', mystic: 'purple', caretaker: 'gold',
   },
   colours: ['red', 'blue', 'green', 'purple', 'gold'],
-  // The crew the seas give (HEROES with earned), each once: a boss stage's
-  // on its first clear (stages: stage id -> hero), or a sea's (seas: hero ->
-  // { sea index, crown }) once every stage of it is cleared at that crown.
+  // The crew the seas give (HEROES with earned), each once: on the first
+  // clear of its stage at its crown (or higher).
   // The last boss stage: its first clear is the Captain's Log's trophy.
   finalStage: '6-6',
-  crewRewards: {
-    stages: {
-      '1-6': 'rigger', '2-6': 'gunslinger', '3-6': 'pearlDiver', '4-6': 'tideSinger', '5-6': 'lookout', '6-6': 'octopusTamer',
-    },
-    seas: { coralDruid: { sea: 0, crown: 3 }, berserker: { sea: 1, crown: 3 } },
-  },
+  crewRewards: [
+    { stage: '1-6', crown: 1, hero: 'rigger' },
+    { stage: '2-6', crown: 1, hero: 'gunslinger' },
+    { stage: '3-6', crown: 1, hero: 'pearlDiver' },
+    { stage: '4-6', crown: 1, hero: 'tideSinger' },
+    { stage: '5-6', crown: 1, hero: 'lookout' },
+    { stage: '6-6', crown: 1, hero: 'octopusTamer' },
+    { stage: '1-6', crown: 3, hero: 'coralDruid' },
+    { stage: '2-6', crown: 3, hero: 'berserker' },
+  ],
   map: { x: 432, y: 112, file: 'map_uncharted.png' },
   chart: { size: [640, 430], offset: [-80, -100] },
   // The stage list (over the chart) and the Grog plaque (top right).

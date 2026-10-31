@@ -13,10 +13,13 @@ import { ABYSS } from '../config.js';
 // crown, or null) and extra (added at 2 and 3 crowns), drops (Sea Glass
 // colours; a boss stage drops random glass and a Heart instead), and for a
 // boss stage bosses: { wave index: [ENEMIES keys] } (several boss waves come
-// one after another), hazard: 'lava' (Ember Isle's bombs) or 'blizzard'
+// one after another; normal stages have 4 waves, boss stages 5 with the boss
+// in the last), hazard: 'lava' (Ember Isle's bombs) or 'blizzard'
 // (Frostbite Reef's, the whole stage). At 3 crowns a boss stage may have
 // crownBosses (in place of bosses), crownHazard (a hazard then only) and
-// crownElites (Elite Hunt's every n-th, in place of the rule's). adds:
+// crownElites (Elite Hunt's every n-th, in place of the rule's), and any
+// stage an extra3 rule (added at 3 crowns only). once: groups that come at
+// most once a wave on this stage (2-5's Obsidian Golem). adds:
 // { wave index: [ENEMIES keys] } that always come in that wave (1-2's Mimic).
 
 // The groups a lineup draws from: the Abyss's own (ABYSS.enemies), plus the
@@ -52,10 +55,10 @@ export const SEAS = [
       },
       { id: '1-3', name: 'Barnacle Bay', lineup: ['barnacleKnight', 'ironCrab', 'shellback'], waves: 4, rule: 'barnacled', extra: 'leaky_hull', drops: ['blue'] },
       { id: '1-4', name: 'Harpy Squall', lineup: ['stormHarpy', 'boardingBoat', 'zapJelly'], waves: 4, rule: 'gale', extra: 'night_watch', drops: ['green'] },
-      { id: '1-5', name: 'Skeleton Crew', lineup: SKULL, waves: 5, rule: 'skeleton_crew', extra: 'swarm', drops: ['red', 'purple'] },
+      { id: '1-5', name: 'Skeleton Crew', lineup: SKULL, waves: 4, rule: 'skeleton_crew', extra: 'swarm', drops: ['red', 'purple'] },
       {
-        id: '1-6', name: 'The Hermit King', lineup: ['shellback', 'boardingBoat'], waves: 4, rule: null, extra: 'elite_hunt',
-        bosses: { 3: ['hermitKing'] }, crownBosses: { 3: ['hermitKing', 'kraken'] },
+        id: '1-6', name: 'The Hermit King', lineup: ['shellback', 'boardingBoat'], waves: 5, rule: null, extra: 'elite_hunt',
+        bosses: { 4: ['hermitKing'] }, crownBosses: { 4: ['hermitKing', 'kraken'] },
       },
     ],
   },
@@ -64,14 +67,17 @@ export const SEAS = [
     name: 'Cinder Straits',
     battlefield: 'ember_isle',
     stages: [
-      { id: '2-1', name: 'Ashfall', lineup: ['cinderSkeleton', 'ashBat'], waves: 5, rule: null, extra: 'night_watch', drops: ['red'] },
-      { id: '2-2', name: 'Obsidian March', lineup: ['obsidianGolem', 'magmaCrab'], waves: 5, rule: 'leaky_hull', extra: 'barnacled', drops: ['blue'] },
-      { id: '2-3', name: 'Firefly Night', lineup: ['ashBat', 'zapJelly'], waves: 5, rule: 'night_watch', extra: 'gale', drops: ['green'] },
-      { id: '2-4', name: 'Powder Keg Run', lineup: ['kegRunner', 'cinderSkeleton', 'pufferMine'], waves: 5, rule: 'hourglass', extra: 'swarm', drops: ['gold'] },
-      { id: '2-5', name: 'The Forge', lineup: EMBER, waves: 5, rule: 'fighters_only', extra: 'doldrums', drops: ['red', 'gold'] },
+      { id: '2-1', name: 'Ashfall', lineup: ['cinderSkeleton', 'ashBat'], waves: 4, rule: null, extra: 'night_watch', drops: ['red'] },
+      { id: '2-2', name: 'Obsidian March', lineup: ['obsidianGolem', 'magmaCrab'], waves: 4, rule: 'leaky_hull', extra: 'barnacled', drops: ['blue'] },
+      { id: '2-3', name: 'Firefly Night', lineup: ['ashBat', 'zapJelly'], waves: 4, rule: 'night_watch', extra: 'gale', drops: ['green'] },
+      { id: '2-4', name: 'Powder Keg Run', lineup: ['kegRunner', 'cinderSkeleton', 'pufferMine'], waves: 4, rule: 'hourglass', extra: 'swarm', drops: ['gold'] },
       {
-        id: '2-6', name: 'Cinderclad', lineup: ['cinderSkeleton', 'ashBat', 'pufferMine'], waves: 4, rule: null, extra: 'leaky_hull',
-        bosses: { 3: ['cinderclad'] }, crownBosses: { 3: ['cinderclad', 'moltenLeviathan'] },
+        id: '2-5', name: 'The Forge', lineup: ['obsidianGolem', 'magmaCrab', 'cinderSkeleton'], once: ['obsidianGolem'], waves: 4, rule: 'fighters_only',
+        extra: 'doldrums', drops: ['red', 'gold'],
+      },
+      {
+        id: '2-6', name: 'Cinderclad', lineup: ['cinderSkeleton', 'ashBat', 'pufferMine'], waves: 5, rule: null, extra: 'leaky_hull',
+        bosses: { 4: ['cinderclad'] }, crownBosses: { 4: ['cinderclad', 'moltenLeviathan'] },
       },
     ],
   },
@@ -80,14 +86,14 @@ export const SEAS = [
     name: 'Glacier Graveyard',
     battlefield: 'frostbite_reef',
     stages: [
-      { id: '3-1', name: 'Frozen Watch', lineup: ['frozenCorsair', 'boneDeckhand', 'drownedDrummer'], waves: 5, rule: null, extra: 'doldrums', drops: ['blue'] },
-      { id: '3-2', name: 'Penguin Stampede', lineup: ['sledPenguin'], waves: 5, rule: 'gale', extra: 'swarm', drops: ['green'] },
-      { id: '3-3', name: 'Witch Light', lineup: ['iceWitch', 'lanternGhoul', 'frozenCorsair', 'lurker'], waves: 5, rule: 'elite_hunt', extra: 'night_watch', drops: ['purple'] },
-      { id: '3-4', name: 'Yeti Pass', lineup: ['yetiRaider', 'cursedCannoneer', 'frozenCorsair'], waves: 5, rule: 'leaky_hull', extra: 'hourglass', drops: ['red'] },
-      { id: '3-5', name: 'Mystic Frost', lineup: [...FROST, ...FOG], waves: 5, rule: 'mystics_only', extra: 'no_galley', drops: ['purple', 'blue'] },
+      { id: '3-1', name: 'Frozen Watch', lineup: ['frozenCorsair', 'boneDeckhand', 'drownedDrummer'], waves: 4, rule: null, extra: 'doldrums', drops: ['blue'] },
+      { id: '3-2', name: 'Penguin Stampede', lineup: ['sledPenguin'], waves: 4, rule: 'gale', extra: 'swarm', drops: ['green'] },
+      { id: '3-3', name: 'Witch Light', lineup: ['iceWitch', 'lanternGhoul', 'frozenCorsair', 'lurker'], waves: 4, rule: 'elite_hunt', extra: 'night_watch', drops: ['purple'] },
+      { id: '3-4', name: 'Yeti Pass', lineup: ['yetiRaider', 'cursedCannoneer', 'frozenCorsair'], waves: 4, rule: 'leaky_hull', extra: 'hourglass', drops: ['red'] },
+      { id: '3-5', name: 'Mystic Frost', lineup: [...FROST, ...FOG], waves: 4, rule: 'mystics_only', extra: 'no_galley', drops: ['purple', 'blue'] },
       {
-        id: '3-6', name: 'Captain Rime', lineup: ['frozenCorsair', 'drownedDrummer'], waves: 4, rule: null, extra: 'elite_hunt',
-        bosses: { 3: ['captainRime'] }, crownBosses: { 3: ['captainRime', 'frostWyrm'] }, crownHazard: 'blizzard',
+        id: '3-6', name: 'Captain Rime', lineup: ['frozenCorsair', 'drownedDrummer'], waves: 5, rule: null, extra: 'elite_hunt',
+        bosses: { 4: ['captainRime'] }, crownBosses: { 4: ['captainRime', 'frostWyrm'] }, crownHazard: 'blizzard',
       },
     ],
   },
@@ -96,14 +102,14 @@ export const SEAS = [
     name: "Siren's Maze",
     battlefield: 'fogbound_isle',
     stages: [
-      { id: '4-1', name: 'Fog Bank', lineup: ['fogWraith', 'boneDeckhand', 'lurker', 'lurker'], waves: 5, rule: 'night_watch', extra: 'gale', drops: ['green'] },
-      { id: '4-2', name: 'Siren Song', lineup: ['siren', 'boneDeckhand'], waves: 5, rule: 'no_galley', extra: 'doldrums', drops: ['purple'] },
-      { id: '4-3', name: 'Graveyard Shift', lineup: ['lanternGhoul', 'boneDeckhand'], waves: 5, rule: 'swarm', extra: 'barnacled', drops: ['gold'] },
-      { id: '4-4', name: 'Grapeshot Alley', lineup: ['cursedCannoneer', 'barnacleKnight', 'shellback'], waves: 5, rule: 'doldrums', extra: 'leaky_hull', drops: ['red'] },
-      { id: '4-5', name: 'Lost Crew', lineup: FOG, waves: 5, rule: 'skeleton_crew', extra: 'elite_hunt', drops: ['blue', 'purple'] },
+      { id: '4-1', name: 'Fog Bank', lineup: ['fogWraith', 'boneDeckhand', 'lurker', 'lurker'], waves: 4, rule: 'night_watch', extra: 'gale', drops: ['green'] },
+      { id: '4-2', name: 'Siren Song', lineup: ['siren', 'boneDeckhand'], waves: 4, rule: 'no_galley', extra: 'doldrums', drops: ['purple'] },
+      { id: '4-3', name: 'Graveyard Shift', lineup: ['lanternGhoul', 'boneDeckhand'], waves: 4, rule: 'swarm', extra: 'barnacled', drops: ['gold'] },
+      { id: '4-4', name: 'Grapeshot Alley', lineup: ['cursedCannoneer', 'barnacleKnight', 'shellback'], waves: 4, rule: 'doldrums', extra: 'leaky_hull', drops: ['red'] },
+      { id: '4-5', name: 'Lost Crew', lineup: FOG, waves: 4, rule: 'skeleton_crew', extra: 'elite_hunt', drops: ['blue', 'purple'] },
       {
-        id: '4-6', name: 'The Abyssal Angler', lineup: ['siren', 'lurker'], waves: 4, rule: 'no_galley', extra: 'night_watch',
-        bosses: { 3: ['abyssalAngler'] }, crownBosses: { 3: ['abyssalAngler', 'sirenQueen'] },
+        id: '4-6', name: 'The Abyssal Angler', lineup: ['siren', 'lurker', 'boneDeckhand'], waves: 5, rule: null, extra: 'night_watch', extra3: 'no_galley',
+        bosses: { 4: ['abyssalAngler'] }, crownBosses: { 4: ['abyssalAngler', 'sirenQueen'] },
       },
     ],
   },
@@ -113,17 +119,17 @@ export const SEAS = [
     battlefield: 'skull_cove',
     storm: true,
     stages: [
-      { id: '5-1', name: 'Thunderhead', lineup: ['stormHarpy', 'ashBat', 'eelRider'], waves: 5, rule: 'gale', extra: 'swarm', drops: ['green'] },
-      { id: '5-2', name: 'Broadside', lineup: ['boardingBoat', 'cursedCannoneer', 'pufferMine', 'eelRider'], waves: 5, rule: 'leaky_hull', extra: 'barnacled', drops: ['red'] },
+      { id: '5-1', name: 'Thunderhead', lineup: ['stormHarpy', 'ashBat', 'eelRider'], waves: 4, rule: 'gale', extra: 'swarm', drops: ['green'] },
+      { id: '5-2', name: 'Broadside', lineup: ['boardingBoat', 'cursedCannoneer', 'pufferMine', 'eelRider'], waves: 4, rule: 'leaky_hull', extra: 'barnacled', drops: ['red'] },
       {
-        id: '5-3', name: "Giant's Wake", lineup: ['yetiRaider', 'frozenCorsair', 'sledPenguin'], waves: 5, rule: 'hourglass', extra: 'doldrums', drops: ['blue'],
+        id: '5-3', name: "Giant's Wake", lineup: ['yetiRaider', 'frozenCorsair', 'sledPenguin'], waves: 4, rule: 'hourglass', extra: 'doldrums', drops: ['blue'],
         bosses: { 2: ['frostGiant'] },
       },
-      { id: '5-4', name: 'Elite Squadron', lineup: ALL, waves: 5, rule: 'elite_hunt', extra: 'gale', drops: ['purple'] },
-      { id: '5-5', name: 'Dead Calm', lineup: ALL, waves: 5, rule: 'doldrums', extra: 'no_galley', drops: ['gold', 'red'] },
+      { id: '5-4', name: 'Elite Squadron', lineup: ALL, waves: 4, rule: 'elite_hunt', extra: 'gale', drops: ['purple'] },
+      { id: '5-5', name: 'Dead Calm', lineup: ALL, waves: 4, rule: 'doldrums', extra: 'no_galley', drops: ['gold', 'red'] },
       {
-        id: '5-6', name: 'The Storm Roc', lineup: ['stormHarpy', 'zapJelly'], waves: 4, rule: 'gale', extra: 'elite_hunt',
-        bosses: { 3: ['stormRoc'] }, crownBosses: { 3: ['stormRoc', 'ghostGalleon'] },
+        id: '5-6', name: 'The Storm Roc', lineup: ['stormHarpy', 'zapJelly'], waves: 5, rule: 'gale', extra: 'elite_hunt',
+        bosses: { 4: ['stormRoc'] }, crownBosses: { 4: ['stormRoc', 'ghostGalleon'] },
       },
     ],
   },
@@ -133,17 +139,15 @@ export const SEAS = [
     battlefield: 'abyss',
     current: true,
     stages: [
-      { id: '6-1', name: 'Sunken Steps', lineup: ALL, waves: 5, rule: 'elite_hunt', extra: 'swarm', drops: ['red', 'blue'] },
-      { id: '6-2', name: 'Pressure', lineup: [...ARMOURED, 'reefGolem'], waves: 5, rule: 'barnacled', extra: 'leaky_hull', drops: ['blue', 'green'] },
-      { id: '6-3', name: 'Black Water', lineup: [...ALL, 'lurker', 'zapJelly'], waves: 5, rule: 'night_watch', extra: 'doldrums', drops: ['green', 'purple'] },
-      { id: '6-4', name: 'The Gauntlet', lineup: [...ALL, 'drownedDrummer', 'eelRider'], waves: 5, rule: 'hourglass', extra: 'gale', drops: ['purple', 'gold'] },
-      { id: '6-5', name: 'Last Watch', lineup: ALL, waves: 5, rule: 'skeleton_crew', extra: 'no_galley', drops: ['gold', 'red'] },
+      { id: '6-1', name: 'Sunken Steps', lineup: ALL, waves: 4, rule: 'elite_hunt', extra: 'swarm', drops: ['red', 'blue'] },
+      { id: '6-2', name: 'Pressure', lineup: [...ARMOURED, 'reefGolem'], waves: 4, rule: 'barnacled', extra: 'leaky_hull', drops: ['blue', 'green'] },
+      { id: '6-3', name: 'Black Water', lineup: [...ALL, 'lurker', 'zapJelly'], waves: 4, rule: 'night_watch', extra: 'doldrums', drops: ['green', 'purple'] },
+      { id: '6-4', name: 'The Gauntlet', lineup: [...ALL, 'drownedDrummer', 'eelRider'], waves: 4, rule: 'hourglass', extra: 'gale', drops: ['purple', 'gold'] },
+      { id: '6-5', name: 'Last Watch', lineup: ALL, waves: 4, rule: 'skeleton_crew', extra: 'no_galley', drops: ['gold', 'red'] },
       {
-        id: '6-6', name: 'The Drowned Throne', lineup: [...ALL, 'reefGolem', 'eelRider'], waves: 4, rule: 'elite_hunt', extra: 'leaky_hull',
+        id: '6-6', name: 'The Drowned Throne', lineup: [...ALL, 'reefGolem', 'eelRider'], waves: 5, rule: 'elite_hunt', extra: 'leaky_hull',
         heart: true,
-        bosses: {
-          0: ['kraken', 'moltenLeviathan'], 1: ['frostWyrm', 'frostGiant'], 2: ['sirenQueen', 'captainBlackbones'], 3: ['drownedKing'],
-        },
+        bosses: { 0: ['kraken', 'moltenLeviathan'], 2: ['sirenQueen', 'captainBlackbones'], 4: ['drownedKing'] },
         crownElites: 2,
       },
     ],

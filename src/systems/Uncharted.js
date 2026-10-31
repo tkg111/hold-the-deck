@@ -41,10 +41,10 @@ export function stageCurrent(stage) {
   return ids[hash(`current:${stage.id}`) % ids.length];
 }
 
-// The rules on a stage at a crown: its own at 1 crown, and its extra one
-// too at 2 and 3.
+// The rules on a stage at a crown: its own at 1 crown, its extra one too
+// at 2 and 3 crowns, and its extra3 at 3.
 export function stageRules(stage, crown) {
-  const rules = [stage.rule, crown >= 2 ? stage.extra : null].filter(Boolean);
+  const rules = [stage.rule, crown >= 2 ? stage.extra : null, crown >= 3 ? stage.extra3 : null].filter(Boolean);
   return [...new Set(rules)];
 }
 export const hasRule = (stage, crown, id) => stageRules(stage, crown).includes(id);
@@ -119,18 +119,23 @@ export function isSeaOpen(rec, sea) {
   return (rec.crowns[prev[prev.length - 1].id] ?? 0) >= 1;
 }
 
-// A crown tab of a sea opens once every stage of it is cleared at the
-// crown below.
+// A crown tab of a sea opens once its boss stage (its last) and at least
+// UNCHARTED.crownUnlock.stages of its stages (the boss counting) are
+// cleared at the crown below, so one stage that can't be won doesn't lock
+// the tab for good.
 export function isCrownOpen(rec, sea, crown) {
   if (!isSeaOpen(rec, sea)) return false;
-  return crown === 1 || SEAS[sea].stages.every((s) => (rec.crowns[s.id] ?? 0) >= crown - 1);
+  if (crown === 1) return true;
+  const { stages } = SEAS[sea];
+  const cleared = (s) => (rec.crowns[s.id] ?? 0) >= crown - 1;
+  return cleared(stages[stages.length - 1]) && stages.filter(cleared).length >= UNCHARTED.crownUnlock.stages;
 }
 
-// Stages open in order within a sea, at each crown: the first, then each
-// after one cleared at that crown.
+// At 1 crown a sea's stages open in order: the first, then each after one
+// cleared. At 2 and 3 crowns every stage of an open tab is open.
 export function isStageOpen(rec, stage, crown) {
   if (!isCrownOpen(rec, stage.sea, crown)) return false;
-  if (stage.index === 0) return true;
+  if (stage.index === 0 || crown > 1) return true;
   const prev = SEAS[stage.sea].stages[stage.index - 1];
   return (rec.crowns[prev.id] ?? 0) >= crown;
 }
@@ -236,6 +241,10 @@ export function stagePlan(stage, crown) {
   const eliteEvery = rules.includes('elite_hunt') ? (crown >= 3 && stage.crownElites) || UNCHARTED.rules.elite_hunt.every : 0;
   const bossWaves = (crown >= 3 && stage.crownBosses) || stage.bosses;
   const boss = { hp: 1, damage: 1, ...UNCHARTED.bosses[stage.id] };
+  // Bosses take UNCHARTED.bossCrowns in place of the crown's own factors
+  // (stageScaling gives everyone the crown's; this swaps it for bosses).
+  const c = UNCHARTED.crowns[crown - 1];
+  const bossCrown = { hp: UNCHARTED.bossCrowns[crown - 1] / c.hp, damage: UNCHARTED.bossCrowns[crown - 1] / c.damage };
   const types = stage.lineup.map((key) => ({ key, ...GROUPS[key] }));
   const totalWeight = types.reduce((s, t) => s + t.weight, 0);
   const interval = WAVES.minSpawnInterval;
@@ -253,7 +262,8 @@ export function stagePlan(stage, crown) {
       let roll = random() * totalWeight;
       let t = types.find((g) => (roll -= g.weight) < 0) ?? types[types.length - 1];
       // A once-a-wave group already in: the next type that isn't.
-      if (t.once && used.has(t.key)) t = types.find((g) => !g.once) ?? null;
+      const once = (g) => g.once || stage.once?.includes(g.key);
+      if (once(t) && used.has(t.key)) t = types.find((g) => !once(g)) ?? null;
       if (!t) break;
       used.add(t.key);
       const members = t.pack
@@ -281,8 +291,8 @@ export function stagePlan(stage, crown) {
           delay: first ? 0 : i === 0 ? interval : WAVES.formationSpacing,
           follow: g.escort && i > 0 ? leader : null,
           gate: first && w > 0 ? w + 1 : null,
-          hpFactor: def.boss ? boss.only?.[key]?.hp ?? boss.hp : swarm ? swarm.hp : 1,
-          damageFactor: def.boss ? boss.only?.[key]?.damage ?? boss.damage : 1,
+          hpFactor: def.boss ? (boss.only?.[key]?.hp ?? boss.hp) * bossCrown.hp : swarm ? swarm.hp : 1,
+          damageFactor: def.boss ? (boss.only?.[key]?.damage ?? boss.damage) * bossCrown.damage : 1,
         });
       });
     });
@@ -317,22 +327,15 @@ export function rollDrops(stage, crown, { first = false, firstHeart = false } = 
 
 // --- Crew rewards ---
 
-// The crewmate a stage gives (UNCHARTED.crewRewards) and at which crown:
-// { hero, crown, sea } (sea: given for the whole sea at that crown), or null.
-export function stageCrewReward(stage) {
-  const { stages, seas } = UNCHARTED.crewRewards;
-  if (stages[stage.id]) return { hero: stages[stage.id], crown: 1, sea: false };
-  const entry = Object.entries(seas).find(([, r]) => r.sea === stage.sea);
-  return entry ? { hero: entry[0], crown: entry[1].crown, sea: true } : null;
-}
+// The crewmates a stage gives (UNCHARTED.crewRewards): [{ stage, crown,
+// hero }], lowest crown first.
+export const stageCrewRewards = (stage) => UNCHARTED.crewRewards.filter((r) => r.stage === stage.id)
+  .sort((x, y) => x.crown - y.crown);
 
-// Every crewmate the record has earned (its boss stages cleared, its seas
-// cleared at their crown), in UNCHARTED.crewRewards' order.
+// Every crewmate the record has earned (each reward's stage cleared at its
+// crown or higher), in UNCHARTED.crewRewards' order.
 export function crewEarned(rec) {
-  const { stages, seas } = UNCHARTED.crewRewards;
-  const earned = Object.entries(stages).filter(([id]) => (rec.crowns[id] ?? 0) >= 1).map(([, hero]) => hero);
-  for (const [hero, { sea, crown }] of Object.entries(seas)) if (seaCrown(rec, sea) >= crown) earned.push(hero);
-  return earned;
+  return UNCHARTED.crewRewards.filter((r) => (rec.crowns[r.stage] ?? 0) >= r.crown).map((r) => r.hero);
 }
 
 // --- Crew Awakening ---

@@ -14,7 +14,7 @@ import { depthPlan, depthTypes } from '../../src/systems/Abyss.js';
 import { initExpeditions } from '../../src/systems/Expeditions.js';
 import { Progress } from '../../src/systems/Progress.js';
 import {
-  crewEarned, stageCrewReward, stageOf, stagePlan, STAGES,
+  crewEarned, stageCrewRewards, stageOf, stagePlan, STAGES,
 } from '../../src/systems/Uncharted.js';
 import { makeBattle, rebuildHeroes } from '../sim/simulate.mjs';
 
@@ -204,13 +204,13 @@ test('abyss: the new enemies join the mix from depth 20 only', () => {
 // A source of damage from this crewmate (as Hero hits carry).
 const from = (hero) => ({ hero, kind: 'attack' });
 
-test('hermit king: hides in the wreck at 66% and 33%, immune, until the 3 Shellbacks that crawl out are dead', () => {
+test('hermit king: hides in the wreck at 66% and 33%, immune, until the Shellbacks that crawl out are dead', () => {
   const { scene } = battle();
   const boss = spawn(scene, 'hermitKing');
   boss.takeDamage(boss.maxHp * 0.36);
   assert.ok(boss.wreckTime > 0, 'hiding');
   assert.equal(boss.targetable, false);
-  assert.equal(scene.enemies.filter((e) => e.key === 'shellback').length, 3);
+  assert.equal(scene.enemies.filter((e) => e.key === 'shellback').length, ENEMIES.hermitKing.hermit.count);
   const hp = boss.hp;
   boss.takeDamage(1000);
   assert.equal(boss.hp, hp, 'immune in the wreck');
@@ -221,7 +221,7 @@ test('hermit king: hides in the wreck at 66% and 33%, immune, until the 3 Shellb
   assert.ok(boss.targetable, 'out once they are dead');
   boss.takeDamage(boss.maxHp * 0.34);
   assert.ok(boss.wreckTime > 0, 'again at 33%');
-  assert.equal(scene.enemies.filter((e) => e.alive && e.key === 'shellback').length, 3);
+  assert.equal(scene.enemies.filter((e) => e.alive && e.key === 'shellback').length, ENEMIES.hermitKing.hermit.count);
   step(scene, ENEMIES.hermitKing.hermit.hideMs + DT, { crew: false });
   assert.ok(boss.targetable, 'out after hideMs at most');
 });
@@ -370,7 +370,7 @@ test("boss factors: the Drowned King has 6-6's own factor, the pairs before him 
 
 // --- Rewards ---
 
-test('rewards: each boss stage and 3-crown sea gives its crewmate exactly once, at 5 stars', () => {
+test('rewards: each boss stage gives its crewmate exactly once, at 5 stars; 1-6 and 2-6 one more at 3 crowns', () => {
   const p = new Progress();
   p.abyss.runs = 1;
   const win = (id, crown = 1) => {
@@ -388,12 +388,15 @@ test('rewards: each boss stage and 3-crown sea gives its crewmate exactly once, 
   assert.deepEqual(win('1-6'), [], 'not twice');
   assert.equal(p.owned.filter((id) => id === 'rigger').length, 1);
   assert.equal(p.heroStarCount('rigger'), PACKS.maxStars, 'joins at 5 stars');
-  assert.equal(stageCrewReward(stageOf('1-6')).hero, 'rigger');
-  for (let c = 2; c <= 3; c++) for (let i = 1; i <= 6; i++) win(`1-${i}`, c);
-  assert.ok(p.isOwned('coralDruid'), 'all of Sea 1 at 3 crowns');
+  assert.deepEqual(stageCrewRewards(stageOf('1-6')).map((r) => r.hero), ['rigger', 'coralDruid']);
+  for (let i = 1; i <= 5; i++) win(`1-${i}`, 2);
+  assert.deepEqual(win('1-6', 2), [], 'not at 2 crowns');
+  for (let i = 1; i <= 5; i++) win(`1-${i}`, 3);
+  assert.deepEqual(win('1-6', 3), ['coralDruid'], '1-6 at 3 crowns');
   assert.deepEqual(crewEarned(p.uncharted), ['rigger', 'coralDruid']);
-  assert.ok(!Object.keys(HEROES).some((id) => HEROES[id].earned && !Object.values(UNCHARTED.crewRewards.stages).includes(id)
-    && !(id in UNCHARTED.crewRewards.seas)), 'every earned crewmate has a reward');
+  const rewarded = UNCHARTED.crewRewards.map((r) => r.hero);
+  assert.ok(Object.keys(HEROES).filter((id) => HEROES[id].earned).every((id) => rewarded.includes(id)), 'every earned crewmate has a reward');
+  assert.deepEqual(stageCrewRewards(stageOf('2-6')).map((r) => [r.hero, r.crown]), [['gunslinger', 1], ['berserker', 3]]);
 });
 
 // --- Run ---

@@ -2909,3 +2909,262 @@ His mechanic: using the trident window 55% vs ignoring it 45% (20 tries
 each): **+10**, still short of the 20-point gap. With the King no longer
 the pushover he was, the window matters a little; the rest of the stage
 (the three boss pairs) still decides most tries.
+
+## 19. Uncharted Seas fixes (from section 18)
+
+Reproduce with:
+- `npm run sim:uncharted -- 5 1`: the matrix, now with a time column per build.
+- `MECH=use|ignore npm run sim:uncharted -- 5 2 build=b,c crown=1 stage=1-6,2-6,3-6,4-6,5-6,6-6`,
+  and `... build=a crown=1,2 stage=1-6,2-6`: the boss mechanics.
+- `npm run sim:crew -- crown=2`: the head-to-heads.
+- `TRACE=1 npm run sim:uncharted ...` (new): the hull damage each kind of
+  enemy did, on the lost tries.
+
+Same five crews and seeds as section 18; three tuning rounds. **The voyage
+is unchanged:** `npm run sim -- 3 50 voyage` prints the same output as
+before, wave for wave.
+
+### 19.1 What changed before tuning
+
+- **Crew rewards** (`UNCHARTED.crewRewards` is now a list of
+  `{ stage, crown, hero }`): the **Coral Druid** comes from the first clear
+  of **1-6 at 3 crowns** and the **Berserker** from **2-6 at 3 crowns**,
+  not from clearing every stage of their sea at 3 crowns (2-5 made the
+  Berserker impossible). On each crown tab the stage list shows the face
+  of the highest reward at or below that crown not yet earned. On 1-6 that
+  is the Rigger on every tab until he's earned, then the Coral Druid on
+  the 3-crown tab.
+- **Crown tabs:** a sea's 2- and 3-crown tab opens once its **boss stage
+  and any 4 of its 6 stages** (the boss counting) are cleared at the crown
+  below (`UNCHARTED.crownUnlock`). **Also changed, so that this works:**
+  stages used to open in order at every crown, so a 2-crown wall (2-2 is
+  0% for (a)) still blocked 2-6 at 2 crowns, and with it the 3-crown tab
+  and the Berserker. Now only 1 crown goes in order; every stage of an
+  open 2- or 3-crown tab is open.
+- **2-5 The Forge:** its line-up is now Obsidian Golems, Magma Crabs and
+  Cinder Skeletons, with at most one golem a wave (stage `once`). Traced
+  first: the Magma Crabs did 69–77% of the hull damage on the lost tries,
+  the golems 21%.
+- **Skeleton Crew Muster** (the sim): the three with the highest sheet
+  DPS (damage now x shots per attack / attack interval), with someone
+  anti-air among them when flyers come. 4-5 and 6-5 then cleared 60–80%
+  for (c), so neither needed a 4-crew limit.
+- **5-5 Dead Calm** already had only Doldrums at 1 crown and Empty Galley
+  as its 2-crown extra, so nothing changed there. It's at 100% for (c)
+  after the wave and crown changes below.
+- **Stage length:**
+  - **4 waves** for normal stages and **5** for boss stages, the boss in
+    the last.
+  - Waves of **8 + 2** (from 14 + 2; 10 + 2 in round 1).
+  - Crowns at **HP x1 / x1.15 / x1.3** and **damage x1 / x1.4 / x1.8**.
+- **Boss crowns** (`UNCHARTED.bossCrowns`): a boss's HP and damage take
+  these in place of the crown's.
+- **4-6 The Abyssal Angler:**
+  - No rule at 1 crown, Night Watch at 2, Empty Galley at 3 (new: a
+    stage's `extra3`).
+  - A Bone Deckhand group in its line-up beside the Siren and Lurkers,
+    which halves the Lurkers.
+- **6-6 The Drowned Throne:** two boss pairs (Kraken + Leviathan, Siren
+  Queen + Blackbones; Wyrm + Giant gone), then the King, over 5 waves.
+
+### 19.2 3-3 Witch Light: what sinks the ship (not changed)
+
+Traced as asked, with `TRACE=1` on builds (b) and (c), 5 tries each,
+before any of 19.1:
+
+| Build, crown | Lost | Hull damage on the lost tries |
+|---|---:|---|
+| (b) ♛ | 5/5 | Lurkers 35%, Frozen Corsairs 33%, Bone Deckhands 17%, Mimics 15% |
+| (b) ♛♛ | 5/5 | **Lurkers 86%**, Frozen Corsairs 14% |
+| (c) ♛ | 1/5 | Frozen Corsairs 35%, Mimics 33%, Bone Deckhands 16%, Lurkers 16% |
+| (c) ♛♛ | 5/5 | **Lurkers 87%**, Frozen Corsairs 13% |
+
+The 2-crown wall is the **Lurkers added in the content update** (Part D).
+They're out of reach until 160 px from the ship and hit for 9, under the
+stage's 2-crown extra rule, Night Watch (crew range x0.6). At 1 crown
+nothing dominates for (b).
+
+3-3 was left as it was, as asked. After 19.1's wave and crown changes,
+(b) wins it at 1 crown 100% and (c) at 2 crowns 20%.
+
+### 19.3 Tuning rounds
+
+| Round | Changes | What it showed |
+|---|---|---|
+| 1 | 19.1, with waves of 10 + 2; boss crowns x1 / x1.1 / x1.2 | every stage ≥ 40% for (c) at 1 crown; stages much shorter; the King +20 (two pairs); Hermit 0, Angler −30; 5-6 (c) 40%, 6-6 (c) 80%; boss stages 3-6 to 6-6 at 0% at 3 crowns (a second boss joins there) |
+| 2 | waves 8 + 2; 1-6's boss factor x1.2 HP / x2 damage; 5-6's x1.25 → x1.1; the King's own damage x1.05 → x1.3; boss crowns x1 / x1.1 / x0.8; the Angler's dazzle 25% → 10% | King (c) 60% and +40; Roc +20; 5-6 (c) 100%; Hermit (a) "use" 80% but +10; Angler 0 |
+| 3 | 1-6 x1 HP / x2.5 damage (faster, same pressure); the Hermit King's crabs 3 → 4; boss crowns x1 / x1 / x1 | final (below) |
+
+### 19.4 The matrix (round 3)
+
+| Stage | a ♛ | a ♛♛ | a ♛♛♛ | b ♛ | b ♛♛ | b ♛♛♛ | c ♛ | c ♛♛ | c ♛♛♛ | Time (a, 1 crown, won) | Time (b, 1 crown, won) | Time (c, 1 crown, won) |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 1-1 Low Tide | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 169s | 107s | 102s |
+| 1-2 Monkey Business | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 31s | 29s | 28s |
+| 1-3 Barnacle Bay | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 189s | 124s | 114s |
+| 1-4 Harpy Squall | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 65s | 56s | 52s |
+| 1-5 Skeleton Crew | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 298s | 196s | 179s |
+| 1-6 The Hermit King | 60% | 20% | 0% | 100% | 100% | 40% | 100% | 100% | 100% | 364s | 260s | 211s |
+| 2-1 Ashfall | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 91s | 74s | 64s |
+| 2-2 Obsidian March | 20% | 0% | 0% | 100% | 100% | 40% | 100% | 100% | 100% | 597s | 419s | 350s |
+| 2-3 Firefly Night | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 84s | 63s | 61s |
+| 2-4 Powder Keg Run | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 67s | 56s | 51s |
+| 2-5 The Forge | 0% | 0% | 0% | 0% | 0% | 0% | 100% | 0% | 0% | - | - | 268s |
+| 2-6 Cinderclad | 100% | 100% | 0% | 100% | 100% | 100% | 100% | 100% | 100% | 533s | 317s | 242s |
+| 3-1 Frozen Watch | 100% | 0% | 0% | 100% | 60% | 0% | 100% | 100% | 100% | 189s | 130s | 109s |
+| 3-2 Penguin Stampede | 100% | 60% | 0% | 100% | 100% | 100% | 100% | 100% | 100% | 59s | 58s | 53s |
+| 3-3 Witch Light | 60% | 0% | 0% | 100% | 0% | 0% | 100% | 20% | 0% | 426s | 273s | 181s |
+| 3-4 Yeti Pass | 100% | 0% | 0% | 100% | 100% | 100% | 100% | 100% | 100% | 248s | 173s | 136s |
+| 3-5 Mystic Frost | 100% | 20% | 0% | 100% | 100% | 100% | 100% | 100% | 100% | 382s | 273s | 220s |
+| 3-6 Captain Rime | 0% | 0% | 0% | 100% | 0% | 0% | 100% | 60% | 80% | - | 273s | 206s |
+| 4-1 Fog Bank | 80% | 0% | 0% | 100% | 0% | 0% | 100% | 80% | 80% | 197s | 136s | 128s |
+| 4-2 Siren Song | 60% | 0% | 0% | 100% | 20% | 0% | 100% | 100% | 80% | 244s | 153s | 124s |
+| 4-3 Graveyard Shift | 100% | 60% | 60% | 100% | 100% | 100% | 100% | 100% | 100% | 212s | 134s | 99s |
+| 4-4 Grapeshot Alley | 100% | 60% | 60% | 100% | 100% | 40% | 100% | 100% | 100% | 368s | 248s | 185s |
+| 4-5 Lost Crew | 20% | 0% | 0% | 80% | 0% | 0% | 80% | 0% | 0% | 537s | 346s | 300s |
+| 4-6 The Abyssal Angler | 0% | 0% | 0% | 40% | 0% | 0% | 100% | 80% | 0% | - | 361s | 229s |
+| 5-1 Thunderhead | 60% | 60% | 0% | 100% | 100% | 100% | 100% | 100% | 100% | 126s | 82s | 67s |
+| 5-2 Broadside | 100% | 40% | 60% | 100% | 60% | 100% | 100% | 100% | 100% | 188s | 110s | 84s |
+| 5-3 Giant's Wake | 0% | 0% | 0% | 100% | 0% | 0% | 100% | 100% | 100% | - | 169s | 129s |
+| 5-4 Elite Squadron | 100% | 0% | 0% | 100% | 80% | 0% | 100% | 80% | 100% | 389s | 247s | 196s |
+| 5-5 Dead Calm | 0% | 0% | 0% | 100% | 100% | 40% | 100% | 100% | 100% | - | 469s | 380s |
+| 5-6 The Storm Roc | 0% | 0% | 0% | 0% | 0% | 0% | 100% | 20% | 0% | - | - | 399s |
+| 6-1 Sunken Steps | 0% | 100% | 80% | 100% | 100% | 100% | 100% | 100% | 100% | - | 415s | 353s |
+| 6-2 Pressure | 40% | 0% | 0% | 100% | 100% | 100% | 100% | 100% | 100% | 482s | 368s | 332s |
+| 6-3 Black Water | 40% | 60% | 0% | 60% | 100% | 100% | 100% | 100% | 100% | 405s | 404s | 501s |
+| 6-4 The Gauntlet | 40% | 100% | 40% | 100% | 100% | 100% | 100% | 100% | 100% | 292s | 213s | 176s |
+| 6-5 Last Watch | 0% | 0% | 0% | 100% | 40% | 0% | 80% | 80% | 0% | - | 440s | 385s |
+| 6-6 The Drowned Throne | 0% | 0% | 0% | 0% | 0% | 0% | 60% | 0% | 0% | - | - | 452s |
+
+| Sea | a ♛ | a ♛♛ | a ♛♛♛ | b ♛ | b ♛♛ | b ♛♛♛ | c ♛ | c ♛♛ | c ♛♛♛ |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 1 Shipwreck Shallows | 93% | 87% | 83% | 100% | 100% | 90% | 100% | 100% | 100% |
+| 2 Cinder Straits | 70% | 67% | 50% | 83% | 83% | 73% | 100% | 83% | 83% |
+| 3 Glacier Graveyard | 77% | 13% | 0% | 100% | 60% | 50% | 100% | 80% | 80% |
+| 4 Siren's Maze | 60% | 20% | 20% | 87% | 37% | 23% | 97% | 77% | 60% |
+| 5 Storm Crown | 43% | 17% | 10% | 83% | 57% | 40% | 100% | 83% | 83% |
+| 6 The Drowned Throne | 20% | 43% | 20% | 77% | 73% | 67% | 90% | 80% | 67% |
+
+#### Against the targets
+
+| Target | Result |
+|---|---|
+| Every stage, (c) at 1 crown, ≥ 40% | **all 36** (the lowest: 6-6 60%, 4-5 and 6-5 80%) |
+| Sea 1, 1 crown: (a) ≥ 80% | 93% |
+| Seas 2–3, 1 crown: (b) ≥ 60% | 83% / 100% |
+| Seas 4–6, 1 crown: (c) ≥ 60% | 97% / 100% / 90% |
+| 5-6 The Storm Roc, (c) at 1 crown ≥ 60% | **100%** |
+| The Drowned King: (c) clears 6-6 at 1 crown 50–70% | **60%** (5 tries; 60% over 10 in the mechanics run) |
+| Boss stages 3-6 to 6-6, (c) at 2 crowns 30–50% | **missed:** 3-6 60%, 4-6 80%, 5-6 20%, 6-6 0% |
+| Boss stages 3-6 to 6-6, (c) at 3 crowns 10–25% | **missed:** 3-6 80%, 4-6 0%, 5-6 0%, 6-6 0% |
+
+**Why the boss-crown targets are missed:** one set of multipliers for
+every boss can't put four stages this different into one band.
+- **3-6** is easier at 3 crowns than at 2: its 3-crown second boss (the
+  Frost Wyrm) dies fast under 3-6's x0.6 factor.
+- **4-6 and 6-6** keep a second boss or pairs that don't die fast (the
+  Siren Queen, the Kraken + Leviathan and Queen + Blackbones).
+- **5-6 and 6-6** lose at 2 crowns to their extra rules (Elite Hunt;
+  Leaky Hull with Elites) more than to their boss.
+
+Per-stage boss crowns (like `only`) would be the next step.
+
+#### Stage times (won, 1 crown, the sea's intended build)
+
+Target 2–4 minutes, boss stages 3–5, 6-6 up to 6. In section 18 many
+took 5–9 minutes for (a).
+
+| Sea (build) | In range | Over | Under 2 minutes |
+|---|---|---|---|
+| 1 (a) | 1-1 169 s, 1-3 189 s | 1-5 298 s, 1-6 364 s | 1-2 31 s, 1-4 65 s |
+| 2 (b) | 2-6 317 s (just over 5 min) | 2-2 419 s; 2-5 268 s for (c), (b) can't win it | 2-1 74 s, 2-3 63 s, 2-4 56 s |
+| 3 (b) | 3-1 130 s, 3-4 173 s, 3-6 273 s | 3-3 273 s, 3-5 273 s | 3-2 58 s |
+| 4 (c) | 4-1 128 s, 4-2 124 s, 4-4 185 s, 4-6 229 s | 4-5 300 s | 4-3 99 s |
+| 5 (c) | 5-3 129 s, 5-4 196 s | 5-5 380 s, 5-6 399 s | 5-1 67 s, 5-2 84 s |
+| 6 (c) | 6-4 176 s | 6-1 353 s, 6-2 332 s, 6-3 501 s, 6-5 385 s, 6-6 452 s | |
+
+The three levers (fewer waves, smaller waves, damage-led crowns) took the
+long stages from 420–600 s to 270–500 s, but not into range. What's left
+is the tank-heavy line-ups: Obsidian Golems in 2-2, armoured enemies and
+Reef Golems in Sea 6. Their time is set by each enemy's HP, not their
+number, so a per-stage HP factor for them would be the next lever.
+
+Some stages are now short (30–90 s): Monkey Business, Harpy Squall,
+Firefly Night, Powder Keg Run, Thunderhead.
+
+### 19.5 Boss mechanics (round 3)
+
+| Boss | Build, crown | Use | Ignore | Gap |
+|---|---|---:|---:|---:|
+| Cinderclad | (a) ♛ | 100% | 0% | **+100** |
+| Captain Rime | (b) ♛ | 100% | 40% | **+60** |
+| The Drowned King | (c) ♛ | 60% | 20% | **+40** |
+| The Storm Roc | (b) ♛ | 20% | 0% | **+20** |
+| The Hermit King | (a) ♛ | 60% | 60% | **0** |
+| The Abyssal Angler | (b) ♛ | 50% | 50% | **0** |
+
+- **The Drowned King** passes now that the Wyrm + Giant pair is gone.
+  **The Storm Roc** passes at 1 crown for (b).
+- **The Hermit King:** 1-6's boss factor (x1 HP, x2.5 damage) puts (a)'s
+  "use" in 60–80% at 1 crown, as asked, but ignoring his crabs does as
+  well, even with 4 crabs out of the wreck. The bot's "ignore" only
+  avoids the crabs while there's something else in range, and while he's
+  in the wreck there's nothing else, so it shoots them anyway.
+- **The Abyssal Angler:** with 4-6's escorts and rules eased, the Angler
+  decides the stage. 10% dazzle was tried (round 2), but using and
+  ignoring the lure still tie for (b), and (c) wins either way.
+
+### 19.6 The new crew (round 3, `sim:crew`)
+
+Build (c) with one crewmate swapped in for its weakest attacker in turn,
+5 crews each, on 2-2, 3-3, 4-4, 5-2, 6-2 and 6-3:
+
+| Crewmate | 1 crown, six stages | 2 crowns, six stages |
+|---|---:|---:|
+| (baseline) | 87% | 67% |
+| Rigger | 83% | 77% |
+| Gunslinger | 87% | 80% |
+| Pearl Diver | 100% | 83% |
+| Tide Singer | 100% | 87% |
+| Lookout | 100% | 83% |
+| Octopus Tamer | 100% | 97% |
+| Coral Druid | 100% | 83% |
+| Berserker | 100% | 93% |
+
+The **Octopus Tamer adds +30 points at 2 crowns** (97% against the
+baseline's 67%), the Berserker +26. That's under the +35 the request set,
+so **his hold stays 1.2 s**. With shorter, smaller stages the baseline is
+higher than in 18.9, so every crewmate's gap is smaller.
+
+### 19.7 Time to the first awakening
+
+`npm run sim:awaken-pace -- 4000 stages=...` with Sea 1's round-3 clear
+rates for (a): every stage 100% at every crown, except 1-6 at 60% / 20% /
+0%. Result: **median 2.2 days** (10%–90%: 0.75–5.3), 352 Grog net and 120
+stage tries for the Storm Caller (25 purple, 8 gold, 3 Hearts). That's
+about the 2 days of 18.6.
+
+### 19.8 Every number changed
+
+| What | Was | Now |
+|---|---|---|
+| Coral Druid's reward | all of Sea 1 at 3 crowns | 1-6 at 3 crowns |
+| Berserker's reward | all of Sea 2 at 3 crowns | 2-6 at 3 crowns |
+| A crown tab opens with | every stage at the crown below | the boss stage + any 4 of 6 (`crownUnlock.stages` 4) |
+| Stage order | in order at every crown | in order at 1 crown only |
+| Waves per stage | 4–5 (boss stages 4) | 4 (boss stages 5, the boss last) |
+| Wave size | 14 + 2 per wave | 8 + 2 per wave |
+| Crowns, HP | x1 / x1.25 / x1.5 | x1 / x1.15 / x1.3 |
+| Crowns, damage | x1 / x1.25 / x1.5 | x1 / x1.4 / x1.8 |
+| Boss crowns (`bossCrowns`) | (the crowns') | x1 / x1 / x1 |
+| 1-6's boss factor | x1 | x1 HP, x2.5 damage |
+| 5-6's boss factor | x1.25 | x1.1 |
+| 6-6's Drowned King (`only`) | x0.5 HP, x1.05 damage | x0.5 HP, x1.3 damage |
+| 6-6's boss waves | Kraken + Leviathan, Wyrm + Giant, Queen + Blackbones, King | Kraken + Leviathan, Queen + Blackbones, King |
+| The Hermit King's crabs | 3 | 4 |
+| The Angler's hypnosis dazzle | 25% | 10% |
+| 2-5 The Forge's line-up | all of Ember Isle | Obsidian Golem (one a wave), Magma Crab, Cinder Skeleton |
+| 4-6's rules | Empty Galley; +Night Watch | none; +Night Watch at 2; +Empty Galley at 3 |
+| 4-6's line-up | Siren, Lurkers | Siren, Lurkers, Bone Deckhands |
+| The sim's Skeleton Crew Muster | its usual order | the top 3 by sheet DPS (anti-air if flyers) |
+| Octopus Tamer | holds 1.2 s | unchanged (+30 < +35) |
