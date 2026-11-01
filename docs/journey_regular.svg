@@ -1,0 +1,128 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 622" width="760" height="622" font-family="system-ui, sans-serif">
+<style>
+  .bg { fill: #fcfcfb; } .t { font-size: 13px; font-weight: 600; fill: #0b0b0b; } .s { font-size: 10px; fill: #52514e; }
+  .v { font-size: 9px; fill: #0b0b0b; } .g { stroke: #e4e3df; stroke-width: 1; }
+  @media (prefers-color-scheme: dark) { .bg { fill: #1a1a19; } .t, .v { fill: #f0efec; } .s { fill: #c3c2b7; } .g { stroke: #383835; } }
+</style>
+<rect class="bg" width="100%" height="100%"/>
+<text x="64" y="28" class="t" style="font-size:15px">Hold the Deck: the journey of a median Regular player</text>
+<text x="64" y="44" class="s">npm run sim:journey -- regular 5 (BALANCE_REPORT section 21)</text>
+<text x="64" y="64" class="t">Furthest progress after each session</text><text x="64" y="78" class="s">Regular, seed 1004: 13 sessions of 20 minutes at x4 over 4 days</text>
+<text x="90.15384615384616" y="100" class="v" text-anchor="middle">E22</text>
+<text x="142.46153846153845" y="100" class="v" text-anchor="middle">F21</text>
+<text x="194.76923076923077" y="100" class="v" text-anchor="middle">Fo9</text>
+<text x="247.07692307692307" y="100" class="v" text-anchor="middle">Fo49</text>
+<text x="299.38461538461536" y="100" class="v" text-anchor="middle">Fo50</text>
+<text x="351.6923076923077" y="100" class="v" text-anchor="middle">U 2-5</text>
+<text x="403.99999999999994" y="100" class="v" text-anchor="middle">U 2-6</text>
+<text x="456.30769230769226" y="100" class="v" text-anchor="middle">U 3-6</text>
+<text x="508.6153846153846" y="100" class="v" text-anchor="middle">U 4-1</text>
+<text x="560.9230769230769" y="100" class="v" text-anchor="middle">U 4-6</text>
+<text x="613.2307692307693" y="100" class="v" text-anchor="middle">U 5-6</text>
+<text x="665.5384615384615" y="100" class="v" text-anchor="middle">U 6-1</text>
+<text x="717.8461538461538" y="100" class="v" text-anchor="middle">U 6-6</text>
+<text x="64" y="120" class="t">Gold earned per session</text><text x="64" y="134" class="s">log scale</text>
+<line x1="64" x2="744" y1="256" y2="256" class="g"/><text x="58" y="259" class="s" text-anchor="end">1M</text>
+<line x1="64" x2="744" y1="240.28571428571428" y2="240.28571428571428" class="g"/><text x="58" y="243.28571428571428" class="s" text-anchor="end">10M</text>
+<line x1="64" x2="744" y1="224.57142857142858" y2="224.57142857142858" class="g"/><text x="58" y="227.57142857142858" class="s" text-anchor="end">100M</text>
+<line x1="64" x2="744" y1="208.85714285714286" y2="208.85714285714286" class="g"/><text x="58" y="211.85714285714286" class="s" text-anchor="end">1B</text>
+<line x1="64" x2="744" y1="193.14285714285714" y2="193.14285714285714" class="g"/><text x="58" y="196.14285714285714" class="s" text-anchor="end">10B</text>
+<line x1="64" x2="744" y1="177.42857142857144" y2="177.42857142857144" class="g"/><text x="58" y="180.42857142857144" class="s" text-anchor="end">100B</text>
+<line x1="64" x2="744" y1="161.71428571428572" y2="161.71428571428572" class="g"/><text x="58" y="164.71428571428572" class="s" text-anchor="end">1T</text>
+<line x1="64" x2="744" y1="146" y2="146" class="g"/><text x="58" y="149" class="s" text-anchor="end">10T</text>
+<rect x="67" y="255.9833409592778" width="46.30769230769231" height="1" rx="2" fill="#2a78d6"><title>Session 1: 1M gold</title></rect>
+<rect x="119.3076923076923" y="231.7516677263483" width="46.30769230769231" height="24.248332273651698" rx="2" fill="#2a78d6"><title>Session 2: 34.9M gold</title></rect>
+<rect x="171.6153846153846" y="213.21069643630867" width="46.30769230769231" height="42.789303563691334" rx="2" fill="#2a78d6"><title>Session 3: 528.4M gold</title></rect>
+<rect x="223.9230769230769" y="192.30882925680692" width="46.30769230769231" height="63.691170743193084" rx="2" fill="#2a78d6"><title>Session 4: 11.3B gold</title></rect>
+<rect x="276.2307692307692" y="169.26549183920133" width="46.30769230769231" height="86.73450816079867" rx="2" fill="#2a78d6"><title>Session 5: 330.7B gold</title></rect>
+<rect x="328.53846153846155" y="167.69262277803858" width="46.30769230769231" height="88.30737722196142" rx="2" fill="#2a78d6"><title>Session 6: 416.4B gold</title></rect>
+<rect x="380.8461538461538" y="168.50890053638543" width="46.30769230769231" height="87.49109946361457" rx="2" fill="#2a78d6"><title>Session 7: 369.5B gold</title></rect>
+<rect x="433.15384615384613" y="162.21448889210404" width="46.30769230769231" height="93.78551110789596" rx="2" fill="#2a78d6"><title>Session 8: 929.3B gold</title></rect>
+<rect x="485.46153846153845" y="160.3236303775239" width="46.30769230769231" height="95.6763696224761" rx="2" fill="#2a78d6"><title>Session 9: 1.2T gold</title></rect>
+<rect x="537.7692307692307" y="163.785544445037" width="46.30769230769231" height="92.214455554963" rx="2" fill="#2a78d6"><title>Session 10: 738.2B gold</title></rect>
+<rect x="590.0769230769231" y="161.15721352087704" width="46.30769230769231" height="94.84278647912296" rx="2" fill="#2a78d6"><title>Session 11: 1.1T gold</title></rect>
+<rect x="642.3846153846154" y="164.30671025961544" width="46.30769230769231" height="91.69328974038456" rx="2" fill="#2a78d6"><title>Session 12: 684B gold</title></rect>
+<rect x="694.6923076923076" y="164.59295467489983" width="46.30769230769231" height="91.40704532510017" rx="2" fill="#2a78d6"><title>Session 13: 655.9B gold</title></rect>
+<text x="64" y="286" class="t">Where the gold came from</text><text x="64" y="300" class="s">share of each session's gold</text>
+<rect x="64" y="304" width="10" height="10" rx="2" fill="#2a78d6"/><text x="78" y="313" class="s">Battle</text>
+<rect x="125" y="304" width="10" height="10" rx="2" fill="#eb6834"/><text x="139" y="313" class="s">Offline</text>
+<rect x="192.5" y="304" width="10" height="10" rx="2" fill="#1baf7a"/><text x="206.5" y="313" class="s">Merchants</text>
+<rect x="273" y="304" width="10" height="10" rx="2" fill="#eda100"/><text x="287" y="313" class="s">Expeditions</text>
+<line x1="64" x2="744" y1="416" y2="416" class="g"/><text x="58" y="419" class="s" text-anchor="end">0%</text>
+<line x1="64" x2="744" y1="371" y2="371" class="g"/><text x="58" y="374" class="s" text-anchor="end">50%</text>
+<line x1="64" x2="744" y1="326" y2="326" class="g"/><text x="58" y="329" class="s" text-anchor="end">100%</text>
+<rect x="67" y="333.2943366412488" width="46.30769230769231" height="82.70566335875121" rx="1" fill="#2a78d6"><title>Session 1, Battle: 93%</title></rect>
+<rect x="67" y="327" width="46.30769230769231" height="5.294336641248788" rx="1" fill="#1baf7a"><title>Session 1, Merchants: 7%</title></rect>
+<rect x="119.3076923076923" y="335.6072804395243" width="46.30769230769231" height="80.3927195604757" rx="1" fill="#2a78d6"><title>Session 2, Battle: 90%</title></rect>
+<rect x="119.3076923076923" y="332.8443971708342" width="46.30769230769231" height="1.762883268690079" rx="1" fill="#eb6834"><title>Session 2, Offline: 2%</title></rect>
+<rect x="119.3076923076923" y="327" width="46.30769230769231" height="5.844397170834221" rx="1" fill="#1baf7a"><title>Session 2, Merchants: 8%</title></rect>
+<rect x="171.6153846153846" y="338.58959904429014" width="46.30769230769231" height="77.41040095570986" rx="1" fill="#2a78d6"><title>Session 3, Battle: 87%</title></rect>
+<rect x="171.6153846153846" y="335.52364643652896" width="46.30769230769231" height="2.065952607761193" rx="1" fill="#eb6834"><title>Session 3, Offline: 3%</title></rect>
+<rect x="171.6153846153846" y="327.31242060808387" width="46.30769230769231" height="7.211225828445087" rx="1" fill="#1baf7a"><title>Session 3, Merchants: 9%</title></rect>
+<rect x="223.9230769230769" y="335.7975369405127" width="46.30769230769231" height="80.2024630594873" rx="1" fill="#2a78d6"><title>Session 4, Battle: 90%</title></rect>
+<rect x="223.9230769230769" y="332.9375411363136" width="46.30769230769231" height="1.8599958041990874" rx="1" fill="#eb6834"><title>Session 4, Offline: 2%</title></rect>
+<rect x="223.9230769230769" y="327.5309696632908" width="46.30769230769231" height="5.406571473022755" rx="1" fill="#1baf7a"><title>Session 4, Merchants: 7%</title></rect>
+<rect x="223.9230769230769" y="325.99999999999994" width="46.30769230769231" height="0.5309696632908608" rx="1" fill="#eda100"><title>Session 4, Expeditions: 1%</title></rect>
+<rect x="276.2307692307692" y="335.91776706508716" width="46.30769230769231" height="80.08223293491284" rx="1" fill="#2a78d6"><title>Session 5, Battle: 90%</title></rect>
+<rect x="276.2307692307692" y="333.3896542155555" width="46.30769230769231" height="1.5281128495316874" rx="1" fill="#eb6834"><title>Session 5, Offline: 2%</title></rect>
+<rect x="276.2307692307692" y="327.3914093945859" width="46.30769230769231" height="5.9982448209696235" rx="1" fill="#1baf7a"><title>Session 5, Merchants: 8%</title></rect>
+<rect x="328.53846153846155" y="368.65456382898464" width="46.30769230769231" height="47.34543617101538" rx="1" fill="#2a78d6"><title>Session 6, Battle: 54%</title></rect>
+<rect x="328.53846153846155" y="328.34939112617826" width="46.30769230769231" height="39.30517270280638" rx="1" fill="#eb6834"><title>Session 6, Offline: 45%</title></rect>
+<rect x="328.53846153846155" y="326" width="46.30769230769231" height="1.3493911261782379" rx="1" fill="#eda100"><title>Session 6, Expeditions: 1%</title></rect>
+<rect x="380.8461538461538" y="361.09210205190783" width="46.30769230769231" height="54.907897948092156" rx="1" fill="#2a78d6"><title>Session 7, Battle: 62%</title></rect>
+<rect x="380.8461538461538" y="358.4705162091275" width="46.30769230769231" height="1.621585842780322" rx="1" fill="#eb6834"><title>Session 7, Offline: 2%</title></rect>
+<rect x="380.8461538461538" y="326.99999999999994" width="46.30769230769231" height="31.470516209127517" rx="1" fill="#eda100"><title>Session 7, Expeditions: 36%</title></rect>
+<rect x="433.15384615384613" y="342.5552742825456" width="46.30769230769231" height="73.44472571745438" rx="1" fill="#2a78d6"><title>Session 8, Battle: 83%</title></rect>
+<rect x="433.15384615384613" y="340.9105315198591" width="46.30769230769231" height="0.644742762686497" rx="1" fill="#eb6834"><title>Session 8, Offline: 1%</title></rect>
+<rect x="433.15384615384613" y="326.99999999999994" width="46.30769230769231" height="13.910531519859125" rx="1" fill="#eda100"><title>Session 8, Expeditions: 17%</title></rect>
+<rect x="485.46153846153845" y="361.9678201750201" width="46.30769230769231" height="54.03217982497988" rx="1" fill="#2a78d6"><title>Session 9, Battle: 61%</title></rect>
+<rect x="485.46153846153845" y="327.48871887883195" width="46.30769230769231" height="33.479101296188155" rx="1" fill="#eda100"><title>Session 9, Expeditions: 38%</title></rect>
+<rect x="537.7692307692307" y="345.5106051677776" width="46.30769230769231" height="70.48939483222239" rx="1" fill="#2a78d6"><title>Session 10, Battle: 79%</title></rect>
+<rect x="537.7692307692307" y="343.6989664832832" width="46.30769230769231" height="0.8116386844944508" rx="1" fill="#eb6834"><title>Session 10, Offline: 1%</title></rect>
+<rect x="537.7692307692307" y="327" width="46.30769230769231" height="16.69896648328317" rx="1" fill="#eda100"><title>Session 10, Expeditions: 20%</title></rect>
+<rect x="590.0769230769231" y="340.27874842757956" width="46.30769230769231" height="75.72125157242047" rx="1" fill="#2a78d6"><title>Session 11, Battle: 85%</title></rect>
+<rect x="590.0769230769231" y="338.72653709400845" width="46.30769230769231" height="0.5522113335711134" rx="1" fill="#eb6834"><title>Session 11, Offline: 1%</title></rect>
+<rect x="590.0769230769231" y="327.00000000000006" width="46.30769230769231" height="11.726537094008414" rx="1" fill="#eda100"><title>Session 11, Expeditions: 14%</title></rect>
+<rect x="642.3846153846154" y="349.8522245915549" width="46.30769230769231" height="66.14777540844509" rx="1" fill="#2a78d6"><title>Session 12, Battle: 75%</title></rect>
+<rect x="642.3846153846154" y="347.9761767264892" width="46.30769230769231" height="0.8760478650656667" rx="1" fill="#eb6834"><title>Session 12, Offline: 1%</title></rect>
+<rect x="642.3846153846154" y="326.99999999999994" width="46.30769230769231" height="20.97617672648925" rx="1" fill="#eda100"><title>Session 12, Expeditions: 24%</title></rect>
+<rect x="694.6923076923076" y="401.49142169084183" width="46.30769230769231" height="14.508578309158155" rx="1" fill="#2a78d6"><title>Session 13, Battle: 17%</title></rect>
+<rect x="694.6923076923076" y="399.5778484101103" width="46.30769230769231" height="0.91357328073158" rx="1" fill="#eb6834"><title>Session 13, Offline: 1%</title></rect>
+<rect x="694.6923076923076" y="327" width="46.30769230769231" height="72.57784841011026" rx="1" fill="#eda100"><title>Session 13, Expeditions: 82%</title></rect>
+<text x="64" y="446" class="t">Minutes played per mode</text><text x="64" y="460" class="s">battle time at x4 plus results screens, per session</text>
+<rect x="64" y="464" width="10" height="10" rx="2" fill="#2a78d6"/><text x="78" y="473" class="s">Islands</text>
+<rect x="131.5" y="464" width="10" height="10" rx="2" fill="#eb6834"/><text x="145.5" y="473" class="s">Boss Hunts</text>
+<rect x="218.5" y="464" width="10" height="10" rx="2" fill="#1baf7a"/><text x="232.5" y="473" class="s">The Abyss</text>
+<rect x="299" y="464" width="10" height="10" rx="2" fill="#eda100"/><text x="313" y="473" class="s">Uncharted Seas</text>
+<line x1="64" x2="744" y1="576" y2="576" class="g"/><text x="58" y="579" class="s" text-anchor="end">0m</text>
+<line x1="64" x2="744" y1="531" y2="531" class="g"/><text x="58" y="534" class="s" text-anchor="end">10m</text>
+<line x1="64" x2="744" y1="486" y2="486" class="g"/><text x="58" y="489" class="s" text-anchor="end">20m</text>
+<rect x="67" y="493.09000000000003" width="46.30769230769231" height="82.91" rx="1" fill="#2a78d6"><title>Session 1, Islands: 18.6 min</title></rect>
+<rect x="119.3076923076923" y="496.6478125" width="46.30769230769231" height="79.3521875" rx="1" fill="#2a78d6"><title>Session 2, Islands: 17.9 min</title></rect>
+<rect x="171.6153846153846" y="499.4190625" width="46.30769230769231" height="76.58093749999999" rx="1" fill="#2a78d6"><title>Session 3, Islands: 17.2 min</title></rect>
+<rect x="223.9230769230769" y="501.9971875" width="46.30769230769231" height="74.0028125" rx="1" fill="#2a78d6"><title>Session 4, Islands: 16.7 min</title></rect>
+<rect x="276.2307692307692" y="572.875" width="46.30769230769231" height="3.125" rx="1" fill="#2a78d6"><title>Session 5, Islands: 0.9 min</title></rect>
+<rect x="276.2307692307692" y="497.995" width="46.30769230769231" height="73.88000000000001" rx="1" fill="#1baf7a"><title>Session 5, The Abyss: 16.6 min</title></rect>
+<rect x="328.53846153846155" y="498.235" width="46.30769230769231" height="77.765" rx="1" fill="#eda100"><title>Session 6, Uncharted Seas: 17.5 min</title></rect>
+<rect x="380.8461538461538" y="496.3403125" width="46.30769230769231" height="79.6596875" rx="1" fill="#eda100"><title>Session 7, Uncharted Seas: 17.9 min</title></rect>
+<rect x="433.15384615384613" y="495.8621875" width="46.30769230769231" height="80.13781250000001" rx="1" fill="#eda100"><title>Session 8, Uncharted Seas: 18.0 min</title></rect>
+<rect x="485.46153846153845" y="488.3359375" width="46.30769230769231" height="87.6640625" rx="1" fill="#eda100"><title>Session 9, Uncharted Seas: 19.7 min</title></rect>
+<rect x="537.7692307692307" y="493.7621875" width="46.30769230769231" height="82.23781249999999" rx="1" fill="#eda100"><title>Session 10, Uncharted Seas: 18.5 min</title></rect>
+<rect x="590.0769230769231" y="492.82" width="46.30769230769231" height="83.18" rx="1" fill="#eda100"><title>Session 11, Uncharted Seas: 18.7 min</title></rect>
+<rect x="642.3846153846154" y="494.250625" width="46.30769230769231" height="81.74937500000001" rx="1" fill="#eda100"><title>Session 12, Uncharted Seas: 18.4 min</title></rect>
+<rect x="694.6923076923076" y="546.4421875" width="46.30769230769231" height="29.5578125" rx="1" fill="#eda100"><title>Session 13, Uncharted Seas: 6.8 min</title></rect>
+<text x="90.15384615384616" y="592" class="s" text-anchor="middle">1</text>
+<text x="142.46153846153845" y="592" class="s" text-anchor="middle">2</text>
+<text x="194.76923076923077" y="592" class="s" text-anchor="middle">3</text>
+<text x="247.07692307692307" y="592" class="s" text-anchor="middle">4</text>
+<text x="299.38461538461536" y="592" class="s" text-anchor="middle">5</text>
+<text x="351.6923076923077" y="592" class="s" text-anchor="middle">6</text>
+<text x="403.99999999999994" y="592" class="s" text-anchor="middle">7</text>
+<text x="456.30769230769226" y="592" class="s" text-anchor="middle">8</text>
+<text x="508.6153846153846" y="592" class="s" text-anchor="middle">9</text>
+<text x="560.9230769230769" y="592" class="s" text-anchor="middle">10</text>
+<text x="613.2307692307693" y="592" class="s" text-anchor="middle">11</text>
+<text x="665.5384615384615" y="592" class="s" text-anchor="middle">12</text>
+<text x="717.8461538461538" y="592" class="s" text-anchor="middle">13</text>
+<text x="64" y="608" class="s">session (day 0, 1, 2, 3)</text>
+</svg>

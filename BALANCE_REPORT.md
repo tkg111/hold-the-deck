@@ -3168,3 +3168,478 @@ about the 2 days of 18.6.
 | 4-6's line-up | Siren, Lurkers | Siren, Lurkers, Bone Deckhands |
 | The sim's Skeleton Crew Muster | its usual order | the top 3 by sheet DPS (anti-air if flyers) |
 | Octopus Tamer | holds 1.2 s | unchanged (+30 < +35) |
+
+## 21. The whole journey: fresh save to the Drowned King
+
+(There is no section 20.)
+
+Reproduce with `npm run sim:journey -- all 5 svg=docs/journey_regular.svg`
+(`scripts/sim/journey.mjs`, the tables from `scripts/sim/journey_report.mjs`;
+`npm run sim:journey -- <profile> <seeds>` for one profile, `out=` for every
+run's full record as JSON, `playon` to keep playing past 6-6). It plays the
+whole game the way a player would, from a fresh save, in sessions of real time
+with the game closed between them, until 6-6 is beaten at 1 crown or day 120.
+**Measurement only: no balance number changed.** The 15 runs (3 profiles x
+seeds 1000–1004) took **196 s** of wall clock on 11 processes.
+
+### 21.1 How it's played
+
+Every system runs through the game's own code: the battles (`playWave`
+from `simulate.mjs`), Progress, chests, parts, hunts, expeditions
+(`Expeditions.send` / `collect`), meals, merchants (`rollMerchant`,
+`rollPlunder`, `Progress.plunder`), offline earnings (`Offline.comeBack` /
+`collect`), Grog and awakening. The sim owns `Date.now`, so Grog, Bait,
+expeditions, offline time and the hunts' daily doubles all run on its clock.
+
+| Profile | Sessions a day (start) | Length | Speed | Merchants tapped |
+|---|---|---|---|---|
+| Casual | 2 (08:00, 20:00) | 15 min | x1 | 70% |
+| Regular | 4 (08, 12, 17, 21) | 20 min | x4 | 90% |
+| Hardcore | 6 (07, 10, 13, 16, 19, 22) | 45 min | x4 | 90% |
+
+(Every speed in `GAME_SPEEDS` is open from the start, so "the fastest
+unlocked" is x4.) Each session: collect (offline, expeditions back); spend
+(parts as soon as materials and gold allow, then the greedy bot: chests
+whenever affordable, decks, levels and hull cheapest first, which is what
+x10/MAX buying comes to; awaken anyone who can be); send idle crew (not on
+the ship) on the longest expedition back before the next session; fish all
+the Bait and eat the best meal that can be made; then battle for the rest of
+the session, spending after every battle. Islands: sail on; after 5 losses in
+a row on one wave, the day's Boss Hunts, then the wall again (see 21.8).
+Once the Abyss is open: Uncharted stages while there's Grog (leaving a dive,
+as the chart does), then dives from the deepest checkpoint. Uncharted: the
+lowest open stage and crown not yet won (sea, crown, stage), skipping one
+lost 3 times in a row until the crew's power is up 10%; with none left,
+farm the colour (or Hearts) the next awakening is short of, for the
+crewmate it adds the most DPS to.
+
+### 21.2 A. Timeline
+
+Days are real days since the save was made (day 0 starts at midnight; the
+first session is at 08:00, so a milestone in day 0's last session reads
+about 0.9). Hours are hours played. Attempts are battles so far (island
+waves, hunts, depths and stages, won or lost). Median (range) of 5 seeds.
+
+**The headline: everything in the game is done in 19 days by a Casual
+player (10.6 hours played), in 3.3 days by a Regular one (4.2 h) and inside
+the first day by a Hardcore one (4.5 h).** The four islands take 1.4 hours
+of play at x4 (4.2 at x1) with almost no losses, the Abyss is barely
+touched, and the Uncharted Seas are the whole late game.
+
+#### Runs
+
+| Profile | Seed | Stopped | Day | Hours played | Battles | Islands / hunts / Abyss / Uncharted battles | Skipped (fast-forward) | Final crew | Wall clock |
+|---|---:|---|---:|---:|---:|---|---:|---|---:|
+| casual | 1000 | 6-6 beaten | 18.8 | 10.4 | 307 | 202 / 0 / 9 / 96 | 0 | Storm 118A, Captain 119, Duelist 119A, Cannon 118A, Aurora 118A, Bones 118; hull 165; parts kraken 2 ghostweave 2 magma 2 blackbones 2 | 77s |
+| casual | 1001 | 6-6 beaten | 22.3 | 12.8 | 319 | 206 / 6 / 5 / 102 | 0 | Cannon 119A, Duelist 118A, Aurora 118A, Storm 118, Ghost 118A, Bones 118; hull 165; parts kraken 3 ghostweave 3 magma 2 blackbones 2 | 85s |
+| casual | 1002 | 6-6 beaten | 17.8 | 9.8 | 301 | 200 / 0 / 5 / 96 | 0 | Storm 118A, Captain 118, Cannon 118A, Duelist 118A, Aurora 117A, Bones 117; hull 163; parts kraken 2 ghostweave 2 magma 2 blackbones 2 | 66s |
+| casual | 1003 | 6-6 beaten | 19.3 | 10.6 | 312 | 201 / 0 / 13 / 98 | 0 | Storm 120A, Captain 121, Duelist 121A, Cannon 120A, Aurora 120A, Bones 120; hull 167; parts kraken 2 ghostweave 2 magma 2 blackbones 2 | 73s |
+| casual | 1004 | 6-6 beaten | 20.3 | 11.3 | 313 | 201 / 0 / 12 / 100 | 0 | Storm 121A, Captain 121, Aurora 121A, Cannon 120A, Duelist 120, Bones 120; hull 167; parts kraken 2 ghostweave 2 magma 2 blackbones 2 | 74s |
+| regular | 1000 | 6-6 beaten | 3.3 | 4.3 | 342 | 201 / 0 / 29 / 112 | 0 | Storm 118A, Captain 118, Aurora 118A, Duelist 118, Cannon 118A, Bones 117; hull 163; parts kraken 2 ghostweave 2 magma 2 blackbones 1 | 104s |
+| regular | 1001 | 6-6 beaten | 3.7 | 4.9 | 427 | 204 / 0 / 102 / 121 | 14 | Aurora 119A, Captain 118, Storm 119A, Cannon 119A, Druid 119A, Ghost 119A; hull 165; parts kraken 4 ghostweave 3 magma 3 blackbones 1 | 120s |
+| regular | 1002 | 6-6 beaten | 2.7 | 3.8 | 325 | 201 / 0 / 14 / 110 | 0 | Aurora 117A, Captain 117, Storm 117A, Cannon 117A, Duelist 116, Bones 116; hull 162; parts kraken 2 ghostweave 2 magma 2 blackbones 1 | 86s |
+| regular | 1003 | 6-6 beaten | 2.7 | 3.5 | 339 | 208 / 3 / 30 / 98 | 0 | Aurora 118A, Captain 118, Storm 117A, Cannon 117A, Duelist 117, Bones 117; hull 163; parts kraken 2 ghostweave 2 magma 3 blackbones 1 | 94s |
+| regular | 1004 | 6-6 beaten | 3.3 | 4.2 | 340 | 201 / 0 / 30 / 109 | 0 | Aurora 118A, Captain 118, Duelist 118A, Storm 118, Cannon 118A, Bones 118; hull 164; parts kraken 2 ghostweave 2 magma 3 blackbones 1 | 105s |
+| hardcore | 1000 | 6-6 beaten | 0.9 | 4.5 | 374 | 201 / 0 / 59 / 114 | 0 | Aurora 118A, Captain 117, Storm 117A, Cannon 117A, Ghost 117A, Druid 117; hull 163; parts kraken 2 ghostweave 2 magma 3 blackbones 1 | 112s |
+| hardcore | 1001 | 6-6 beaten | 1.6 | 6.4 | 464 | 212 / 3 / 123 / 126 | 5 | Storm 121A, Captain 119, Aurora 121A, Duelist 121A, Cannon 121A, Ghost 121A; hull 168; parts kraken 3 ghostweave 3 magma 4 blackbones 2 | 129s |
+| hardcore | 1002 | 6-6 beaten | 0.9 | 4.2 | 355 | 218 / 3 / 26 / 108 | 0 | Storm 116A, Captain 117, Duelist 117A, Aurora 116, Cannon 116A, Bones 116; hull 162; parts kraken 2 ghostweave 2 magma 3 blackbones 1 | 79s |
+| hardcore | 1003 | 6-6 beaten | 1.3 | 5.0 | 400 | 203 / 0 / 80 / 117 | 3 | Storm 118A, Captain 118, Aurora 118A, Cannon 118A, Ghost 118A, Druid 118A; hull 163; parts kraken 3 ghostweave 2 magma 2 blackbones 1 | 87s |
+| hardcore | 1004 | 6-6 beaten | 0.9 | 4.0 | 341 | 201 / 0 / 29 / 111 | 0 | Aurora 117A, Captain 115, Duelist 116, Cannon 116A, Storm 116, Druid 116A; hull 162; parts kraken 2 ghostweave 2 magma 2 blackbones 1 | 67s |
+
+#### A. Timeline: casual
+
+| Milestone | Days (median, range) | Hours played | Attempts so far | Runs |
+|---|---|---|---|---:|
+| Skull Cove cleared | 1.8 (1.3–1.8) | 0.9 (0.8–1.1) | 51 (50–62) | 5/5 |
+| Ember Isle cleared | 3.8 (3.8–4.3) | 2.1 (2.0–2.3) | 101 (100–112) | 5/5 |
+| Frostbite Reef cleared | 6.3 (5.8–6.3) | 3.2 (3.1–3.4) | 151 (150–162) | 5/5 |
+| Fogbound Isle cleared | 7.8 (7.8–8.3) | 4.2 (4.1–4.5) | 201 (200–212) | 5/5 |
+| The Abyss opened | 7.8 (7.8–8.3) | 4.2 (4.1–4.5) | 201 (200–212) | 5/5 |
+| Abyss depth 25 | - | - | - | 0/5 |
+| Abyss depth 50 | - | - | - | 0/5 |
+| Abyss depth 100 | - | - | - | 0/5 |
+| 1-6 beaten | 8.8 (8.3–9.3) | 4.7 (4.5–5.0) | 219 (211–223) | 5/5 |
+| 2-6 beaten | 10.8 (10.3–11.3) | 5.6 (5.4–5.9) | 237 (229–241) | 5/5 |
+| 3-6 beaten | 13.3 (11.8–13.3) | 7.1 (6.4–7.3) | 256 (247–261) | 5/5 |
+| 4-6 beaten | 15.3 (13.8–16.3) | 8.4 (7.5–9.0) | 275 (265–280) | 5/5 |
+| 5-6 beaten | 17.3 (15.8–18.8) | 9.6 (8.6–10.4) | 293 (283–298) | 5/5 |
+| 6-6 beaten | 19.3 (17.8–22.3) | 10.6 (9.8–12.8) | 312 (301–319) | 5/5 |
+| First awakening | 9.8 (9.3–10.3) | 5.2 (5.0–5.5) | 231 (223–235) | 5/5 |
+| 4 awakened | 19.1 (17.8–21.3) | 10.5 (9.8–12.0) | 310 (301–312) | 4/5 |
+| All awakened | - | - | - | 0/5 |
+| Earned: Rigger | 8.8 (8.3–9.3) | 4.7 (4.5–5.0) | 219 (211–223) | 5/5 |
+| Earned: Gunslinger | 10.8 (10.3–11.3) | 5.6 (5.4–5.9) | 237 (229–241) | 5/5 |
+| Earned: Pearl Diver | 13.3 (11.8–13.3) | 7.1 (6.4–7.3) | 256 (247–261) | 5/5 |
+| Earned: Tide Singer | 15.3 (13.8–16.3) | 8.4 (7.5–9.0) | 275 (265–280) | 5/5 |
+| Earned: Lookout | 17.3 (15.8–18.8) | 9.6 (8.6–10.4) | 293 (283–298) | 5/5 |
+| Earned: Octopus Tamer | 19.3 (17.8–22.3) | 10.6 (9.8–12.8) | 312 (301–319) | 5/5 |
+| Earned: Coral Druid | 9.8 (9.3–10.3) | 5.2 (5.0–5.5) | 231 (223–235) | 5/5 |
+| Earned: Berserker | 12.8 (11.3–12.8) | 6.8 (6.1–7.0) | 250 (241–255) | 5/5 |
+| Full roster | 19.3 (17.8–22.3) | 10.6 (9.8–12.8) | 312 (301–319) | 5/5 |
+
+#### A. Timeline: regular
+
+| Milestone | Days (median, range) | Hours played | Attempts so far | Runs |
+|---|---|---|---|---:|
+| Skull Cove cleared | 0.3 (0.3–0.3) | 0.3 (0.2–0.3) | 51 (50–54) | 5/5 |
+| Ember Isle cleared | 0.5 (0.5–0.5) | 0.6 (0.6–0.7) | 101 (101–111) | 5/5 |
+| Frostbite Reef cleared | 0.9 (0.7–0.9) | 1.1 (1.0–1.1) | 151 (151–161) | 5/5 |
+| Fogbound Isle cleared | 1.3 (0.9–1.3) | 1.4 (1.3–1.4) | 201 (201–211) | 5/5 |
+| The Abyss opened | 1.3 (0.9–1.3) | 1.4 (1.3–1.4) | 201 (201–211) | 5/5 |
+| Abyss depth 25 | 1.3 (1.3–1.3) | 1.6 (1.6–1.7) | 228 (226–236) | 4/5 |
+| Abyss depth 50 | - | - | - | 0/5 |
+| Abyss depth 100 | - | - | - | 0/5 |
+| 1-6 beaten | 1.5 (1.3–1.5) | 1.8 (1.4–1.8) | 237 (221–247) | 5/5 |
+| 2-6 beaten | 1.5 (1.3–2.7) | 2.0 (1.7–3.5) | 255 (239–352) | 5/5 |
+| 3-6 beaten | 1.9 (1.7–2.9) | 2.7 (2.3–3.8) | 278 (261–370) | 5/5 |
+| 4-6 beaten | 2.5 (1.9–3.3) | 3.2 (2.7–4.2) | 300 (283–390) | 5/5 |
+| 5-6 beaten | 2.7 (2.3–3.5) | 3.7 (3.1–4.5) | 319 (305–408) | 5/5 |
+| 6-6 beaten | 3.3 (2.7–3.7) | 4.2 (3.5–4.9) | 340 (325–427) | 5/5 |
+| First awakening | 1.5 (1.3–1.5) | 1.9 (1.6–2.0) | 249 (233–259) | 5/5 |
+| 4 awakened | 2.9 (2.7–3.3) | 4.0 (3.5–4.2) | 339 (311–384) | 5/5 |
+| All awakened | - | - | - | 0/5 |
+| Earned: Rigger | 1.5 (1.3–1.5) | 1.8 (1.4–1.8) | 237 (221–247) | 5/5 |
+| Earned: Gunslinger | 1.5 (1.3–2.7) | 2.0 (1.7–3.5) | 255 (239–352) | 5/5 |
+| Earned: Pearl Diver | 1.9 (1.7–2.9) | 2.7 (2.3–3.8) | 278 (261–370) | 5/5 |
+| Earned: Tide Singer | 2.5 (1.9–3.3) | 3.2 (2.7–4.2) | 300 (283–390) | 5/5 |
+| Earned: Lookout | 2.7 (2.3–3.5) | 3.7 (3.1–4.5) | 319 (305–408) | 5/5 |
+| Earned: Octopus Tamer | 3.3 (2.7–3.7) | 4.2 (3.5–4.9) | 340 (325–427) | 5/5 |
+| Earned: Coral Druid | 1.5 (1.3–1.5) | 1.9 (1.6–2.0) | 249 (233–259) | 5/5 |
+| Earned: Berserker | 1.9 (1.7–2.7) | 2.6 (2.2–3.7) | 272 (255–364) | 5/5 |
+| Full roster | 3.3 (2.7–3.7) | 4.2 (3.5–4.9) | 340 (325–427) | 5/5 |
+
+#### A. Timeline: hardcore
+
+| Milestone | Days (median, range) | Hours played | Attempts so far | Runs |
+|---|---|---|---|---:|
+| Skull Cove cleared | 0.3 (0.3–0.3) | 0.3 (0.2–0.3) | 51 (50–54) | 5/5 |
+| Ember Isle cleared | 0.3 (0.3–0.3) | 0.6 (0.6–0.7) | 103 (101–121) | 5/5 |
+| Frostbite Reef cleared | 0.4 (0.4–0.4) | 1.0 (1.0–1.2) | 153 (151–171) | 5/5 |
+| Fogbound Isle cleared | 0.4 (0.4–0.4) | 1.4 (1.2–1.5) | 203 (201–221) | 5/5 |
+| The Abyss opened | 0.4 (0.4–0.4) | 1.4 (1.2–1.5) | 203 (201–221) | 5/5 |
+| Abyss depth 25 | 0.6 (0.4–0.7) | 1.8 (1.4–2.6) | 246 (226–293) | 5/5 |
+| Abyss depth 50 | 0.8 (0.8–0.8) | 3.8 (3.8–3.8) | 346 (346–346) | 1/5 |
+| Abyss depth 100 | - | - | - | 0/5 |
+| 1-6 beaten | 0.5 (0.5–0.6) | 1.7 (1.7–1.9) | 236 (222–253) | 5/5 |
+| 2-6 beaten | 0.6 (0.6–1.3) | 2.2 (1.9–4.6) | 271 (254–384) | 5/5 |
+| 3-6 beaten | 0.7 (0.7–1.3) | 2.8 (2.5–5.2) | 293 (276–407) | 5/5 |
+| 4-6 beaten | 0.8 (0.7–1.4) | 3.4 (3.0–5.7) | 314 (297–428) | 5/5 |
+| 5-6 beaten | 0.9 (0.8–1.4) | 4.1 (3.6–6.0) | 354 (321–446) | 5/5 |
+| 6-6 beaten | 0.9 (0.9–1.6) | 4.5 (4.0–6.4) | 374 (341–464) | 5/5 |
+| First awakening | 0.6 (0.6–0.6) | 1.8 (1.8–2.1) | 248 (234–265) | 5/5 |
+| 4 awakened | 0.9 (0.9–1.4) | 4.4 (4.0–5.9) | 374 (341–440) | 5/5 |
+| All awakened | - | - | - | 0/5 |
+| Earned: Rigger | 0.5 (0.5–0.6) | 1.7 (1.7–1.9) | 236 (222–253) | 5/5 |
+| Earned: Gunslinger | 0.6 (0.6–1.3) | 2.2 (1.9–4.6) | 271 (254–384) | 5/5 |
+| Earned: Pearl Diver | 0.7 (0.7–1.3) | 2.8 (2.5–5.2) | 293 (276–407) | 5/5 |
+| Earned: Tide Singer | 0.8 (0.7–1.4) | 3.4 (3.0–5.7) | 314 (297–428) | 5/5 |
+| Earned: Lookout | 0.9 (0.8–1.4) | 4.1 (3.6–6.0) | 354 (321–446) | 5/5 |
+| Earned: Octopus Tamer | 0.9 (0.9–1.6) | 4.5 (4.0–6.4) | 374 (341–464) | 5/5 |
+| Earned: Coral Druid | 0.6 (0.6–0.6) | 1.8 (1.8–2.1) | 248 (234–265) | 5/5 |
+| Earned: Berserker | 0.7 (0.7–1.3) | 2.7 (2.4–5.1) | 287 (270–401) | 5/5 |
+| Full roster | 1.1 (0.9–1.6) | 4.6 (4.0–6.4) | 378 (341–464) | 4/5 |
+
+Every earned crewmate joins on the first clear of its stage (21.1's order
+puts 1-6 at 3 crowns, the Coral Druid, right after the first awakening's
+farming), so "Full roster" is the Octopus Tamer at 6-6 in nearly every run:
+the chests had every other crewmate long before.
+
+### 21.3 B. Walls
+
+Only four places held a run for more than a real day, all in the Uncharted
+Seas: 2-5 The Forge (twice) and two 3-crown tabs. **No island wave held any
+run for a day; across all 15 runs the islands cost 60 losses in 3,060 island
+battles**, and the "stuck after 5 losses" rule fired in 4 runs (15 hunts in
+all).
+
+| Profile | Seed | Where (stage@crowns) | From day | Days stuck | Tries (lost) | What sank the ship (hull damage, lost tries) | Crew at the start | Got past by |
+|---|---:|---|---:|---:|---|---|---|---|
+| casual | 1001 | 2-5@2 | 11.3 | 1.5 | 4 (3) | Magma Crab 75%, Obsidian Golem 25% | Aurora 109, Captain 109, Duelist 108, Storm 108, Bones 108, Cannon 108; hull 148; parts kraken 3 ghostweave 3 magma 2 blackbones 1 | won at 3 crowns, upgrades (+10 levels), chest pulls (+8) |
+| casual | 1001 | 5-5@3 | 20.3 | 2.0 | 4 (3) | Ash Bat 69%, Sled Penguin 31% | Cannon 118A, Aurora 118A, Storm 118, Duelist 118, Ghost 118A, Bones 117; hull 163; parts kraken 3 ghostweave 3 magma 2 blackbones 2 | upgrades (+3 levels), chest pulls (+18), an awakening, a meal (angler_bake) |
+| casual | 1004 | 5-6@3 (open) | 19.3 | 1.0 | 3 (3) | Boarding Boat 96%, The Storm Roc 2%, The Ghost Galleon 1%, Storm Harpy 1% | Storm 121A, Captain 120, Aurora 120A, Cannon 120A, Duelist 120, Bones 120; hull 166; parts kraken 2 ghostweave 2 magma 2 blackbones 2 | (still stuck when the run stopped) |
+| regular | 1001 | 2-5@1 | 1.5 | 1.2 | 5 (4) | Magma Crab 56%, Obsidian Golem 34%, Mimic 7%, Cinder Skeleton 3% | Aurora 106, Captain 106, Storm 106, Druid 106, Cannon 105, Ghost 105A; hull 146; parts kraken 2 ghostweave 2 magma 2 blackbones 1 | upgrades (+25 levels), chest pulls (+41), parts (+2), an awakening |
+
+casual 1000: 2 island losses, 0 hunts; casual 1001: 6 island losses, 6 hunts; casual 1002: 0 island losses, 0 hunts; casual 1003: 1 island losses, 0 hunts; casual 1004: 1 island losses, 0 hunts; regular 1000: 1 island losses, 0 hunts; regular 1001: 4 island losses, 0 hunts; regular 1002: 1 island losses, 0 hunts; regular 1003: 8 island losses, 3 hunts; regular 1004: 1 island losses, 0 hunts; hardcore 1000: 1 island losses, 0 hunts; hardcore 1001: 12 island losses, 3 hunts; hardcore 1002: 18 island losses, 3 hunts; hardcore 1003: 3 island losses, 0 hunts; hardcore 1004: 1 island losses, 0 hunts
+
+- **2-5 The Forge** is the one wall on the way to 6-6 (regular 1001, a
+  day at 1 crown). It holds casual 1001 for 1.5 days at 2 crowns, which
+  ends when 2-5 is won at 3 crowns (crowns above 1 open sea-wide, so a
+  stage can be passed at the crown above). Magma
+  Crabs do 56–76% of the hull damage and Obsidian Golems the rest. Section
+  19.4 already had it at 0% for build (b). What got 1001 past it was
+  everything at once: +25 levels, 41 chest pulls, 2 part levels and an
+  awakening over 1.2 days.
+- The 3-crown walls (5-5, 5-6) are optional. 5-6 at 3 crowns is the
+  Boarding Boat (96% of the hull damage), still unbeaten when casual 1004
+  beat 6-6 a day later.
+- Because 21.1 sweeps by sea first, a blocked 2- or 3-crown stage costs a
+  few tries and is skipped, so none of these delayed 6-6 by more than the
+  tries themselves.
+
+### 21.4 C. Pacing curve
+
+![The median Regular run, per session](docs/journey_regular.svg)
+
+`docs/journey_regular.svg`: the median Regular run (seed 1004, 6-6 on day
+3.3), per session (it is over in 13 sessions, so per day it's only 4 bars):
+the furthest progress, gold earned (log scale), its share by source, and
+minutes per mode. The same as tables:
+
+#### C. Pacing: the median Regular run (seed 1004), per day
+
+| Day | Furthest | Gold earned | Battle | Offline | Merchants | Expeditions | Islands | Hunts | Abyss | Uncharted |
+|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 0 | Fo49 | 11.9B | 90% | 2% | 7% | 1% | 70m | - | - | - |
+| 1 | Uncharted 3-6 (43♛), Abyss 31 | 2T | 74% | 10% | 1% | 14% | 1m | - | 17m | 53m |
+| 2 | Uncharted 6-1 (90♛), Abyss 31 | 3.7T | 74% | 1% | 0% | 25% | - | - | - | 75m |
+| 3 | Uncharted 6-6 (95♛), Abyss 31 | 655.9B | 17% | 1% | 0% | 82% | - | - | - | 7m |
+
+Per session:
+
+| Session | Day, hour | Furthest | Gold earned | Battle | Offline | Merchants | Expeditions | Islands | Hunts | Abyss | Uncharted | New crew / stars / parts / awakenings |
+|---:|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| 1 | 0, 08:00 | E22 | 1M | 93% | 0% | 7% | 0% | 19m | - | - | - | 13 / 52 / 3 / 0 |
+| 2 | 0, 12:00 | F21 | 34.9M | 90% | 2% | 8% | 0% | 18m | - | - | - | 5 / 41 / 1 / 0 |
+| 3 | 0, 17:00 | Fo9 | 528.4M | 87% | 3% | 9% | 0% | 17m | - | - | - | 1 / 36 / 0 / 0 |
+| 4 | 0, 21:00 | Fo49 | 11.3B | 90% | 2% | 7% | 1% | 17m | - | - | - | 0 / 38 / 2 / 0 |
+| 5 | 1, 08:00 | Fo50 (0♛), Abyss 30 | 330.7B | 90% | 2% | 8% | 0% | 1m | - | 17m | - | 2 / 43 / 2 / 0 |
+| 6 | 1, 12:00 | Uncharted 2-5 (23♛), Abyss 31 | 416.4B | 54% | 45% | 0% | 1% | - | - | - | 18m | 0 / 8 / 0 / 1 |
+| 7 | 1, 17:00 | Uncharted 2-6 (32♛), Abyss 31 | 369.5B | 62% | 2% | 0% | 36% | - | - | - | 18m | 0 / 7 / 0 / 0 |
+| 8 | 1, 21:00 | Uncharted 3-6 (43♛), Abyss 31 | 929.3B | 83% | 1% | 0% | 17% | - | - | - | 18m | 0 / 10 / 0 / 1 |
+| 9 | 2, 08:00 | Uncharted 4-1 (53♛), Abyss 31 | 1.2T | 61% | 1% | 0% | 38% | - | - | - | 20m | 0 / 6 / 0 / 0 |
+| 10 | 2, 12:00 | Uncharted 4-6 (63♛), Abyss 31 | 738.2B | 79% | 1% | 0% | 20% | - | - | - | 18m | 0 / 6 / 0 / 0 |
+| 11 | 2, 17:00 | Uncharted 5-6 (80♛), Abyss 31 | 1.1T | 85% | 1% | 0% | 14% | - | - | - | 19m | 0 / 5 / 0 / 1 |
+| 12 | 2, 21:00 | Uncharted 6-1 (90♛), Abyss 31 | 684B | 75% | 1% | 0% | 24% | - | - | - | 18m | 0 / 5 / 0 / 0 |
+| 13 | 3, 08:00 | Uncharted 6-6 (95♛), Abyss 31 | 655.9B | 17% | 1% | 0% | 82% | - | - | - | 7m | 0 / 6 / 0 / 1 |
+
+#### The median casual run (seed 1003), per day
+
+| Day | Furthest | Gold earned | Battle | Offline | Merchants | Expeditions | Islands | Hunts | Abyss | Uncharted |
+|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 0 | S38 | 98.4K | 79% | 18% | 3% | 0% | 27m | - | - | - |
+| 1 | E17 | 920K | 60% | 21% | 3% | 16% | 27m | - | - | - |
+| 2 | E38 | 8.6M | 39% | 18% | 2% | 41% | 27m | - | - | - |
+| 3 | F10 | 33.9M | 38% | 26% | 2% | 34% | 29m | - | - | - |
+| 4 | F35 | 257.3M | 30% | 12% | 1% | 57% | 28m | - | - | - |
+| 5 | F49 | 800.5M | 24% | 23% | 1% | 52% | 27m | - | - | - |
+| 6 | Fo30 | 3.4B | 53% | 16% | 4% | 28% | 26m | - | - | - |
+| 7 | Fo50 | 24.9B | 34% | 18% | 3% | 45% | 30m | - | - | - |
+| 8 | Uncharted 1-6 (6♛), Abyss 14 | 183.7B | 46% | 32% | 3% | 19% | - | - | 14m | 13m |
+| 9 | Uncharted 1-6 (18♛), Abyss 14 | 586.1B | 11% | 2% | 0% | 86% | - | - | - | 27m |
+| 10 | Uncharted 2-6 (26♛), Abyss 14 | 680.1B | 29% | 2% | 0% | 69% | - | - | - | 28m |
+| 11 | Uncharted 2-6 (35♛), Abyss 14 | 771.8B | 29% | 2% | 0% | 69% | - | - | - | 29m |
+| 12 | Uncharted 3-6 (45♛), Abyss 14 | 1.3T | 56% | 1% | 0% | 43% | - | - | - | 33m |
+| 13 | Uncharted 3-6 (50♛), Abyss 14 | 1T | 41% | 1% | 0% | 58% | - | - | - | 27m |
+| 14 | Uncharted 3-6 (54♛), Abyss 14 | 885.3B | 38% | 2% | 0% | 61% | - | - | - | 33m |
+| 15 | Uncharted 4-6 (65♛), Abyss 14 | 1.3T | 52% | 1% | 0% | 47% | - | - | - | 33m |
+| 16 | Uncharted 4-6 (72♛), Abyss 14 | 1.1T | 42% | 1% | 0% | 57% | - | - | - | 30m |
+| 17 | Uncharted 5-6 (83♛), Abyss 14 | 1.1T | 53% | 1% | 0% | 46% | - | - | - | 28m |
+| 18 | Uncharted 6-3 (93♛), Abyss 14 | 1.1T | 43% | 1% | 0% | 56% | - | - | - | 33m |
+| 19 | Uncharted 6-6 (96♛), Abyss 14 | 344.4B | 21% | 2% | 0% | 77% | - | - | - | 10m |
+
+#### The median hardcore run (seed 1000), per day
+
+| Day | Furthest | Gold earned | Battle | Offline | Merchants | Expeditions | Islands | Hunts | Abyss | Uncharted |
+|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 0 | Uncharted 6-6 (91♛), Abyss 37 | 6T | 83% | 9% | 1% | 8% | 67m | - | 33m | 153m |
+
+The shape: gold multiplies about 10x a session through the islands (1M →
+11B on day 0), then flattens at 0.3–1.2T a session once the crew is at
+level ~110–118 in the Uncharted Seas. Time goes islands (day 0) → one
+afternoon of Abyss → Uncharted only. The Casual curve is the same shape
+stretched: islands days 0–7, Uncharted days 8–19, the Abyss on day 8 only.
+
+### 21.5 D. Dead time
+
+| Profile | Days with no progress (median, range) | Sessions with nothing to spend on | Longest stretch with no new crewmate, part level or awakening |
+|---|---|---|---|
+| casual | 0 (0–0) | 1 of 199 | 84.0 h (72.0 h–108.0 h) real (7 (6–9) sessions) |
+| regular | 0 (0–0) | 0 of 63 | 9.0 h (9.0 h–20.0 h) real (2 (2–3) sessions) |
+| hardcore | 0 (0–0) | 0 of 34 | 3.0 h (3.0 h–12.0 h) real (1 (1–2) sessions) |
+
+- **No day without progress** in any run: every day clears island waves or
+  stages. Sessions with nothing to spend on: 1 of 296 (Casual), since a
+  crew level is always for sale.
+- The longest stretch with no new crewmate, part level or awakening is the
+  Casual Uncharted middle (days 10–18): 72–108 real hours (6–9 sessions)
+  between awakenings, with the roster complete except for earned crew and
+  parts stuck at level 2 (21.6).
+
+### 21.6 E. Economy checks
+
+| Profile | Gold from battle | Offline | Merchants | Expeditions | Offline payouts at the 8-wave hold / at the 4 h cap | Offline paid vs the time cap alone |
+|---|---:|---:|---:|---:|---|---:|
+| casual | 53% | 2% | 0% | 45% | 194 / 0 of 194 | 9% |
+| regular | 71% | 5% | 1% | 23% | 58 / 0 of 58 | 14% |
+| hardcore | 78% | 7% | 2% | 14% | 21 / 0 of 29 | 30% |
+
+| Profile | Grog regained | Wasted at the cap | Share wasted | First-clear refunds | Loss refunds | Galleons | Coral Shallows | Grog spent |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| casual | 0 | 3105 | 100% | 642 | 8 | 0 | 0 | 658 |
+| regular | 42 | 484 | 92% | 626 | 51 | 6 | 0 | 744 |
+| hardcore | 47 | 77 | 62% | 620 | 51 | 12 | 0 | 772 |
+
+(Medians per run.)
+
+| Profile | Pearls earned | Spent | Full roster (day) | Battles with a meal on | Meals cooked (all runs) |
+|---|---:|---:|---|---:|---|
+| casual | 2662 | 2664 | 19.3 (17.8–22.3) (5/5) | 92% | grilled_mackerel 37, puffer_sashimi 29, snapper_curry 20, angler_bake 15, ember_eel_skewers 14, fish_stew 8, ice_cod_chowder 7, swordfish_steak 5, ghost_carp_soup 3, moonfish_pie 1 |
+| regular | 1852 | 1848 | 3.3 (2.7–3.7) (5/5) | 70% | fish_stew 29, grilled_mackerel 25, swordfish_steak 13, ice_cod_chowder 11, snapper_curry 9, puffer_sashimi 8, ember_eel_skewers 6, boot_soup 5, angler_bake 5, ghost_carp_soup 3, moonfish_pie 1 |
+| hardcore | 1911 | 1912 | 1.1 (0.9–1.6) (4/5) | 63% | grilled_mackerel 39, fish_stew 31, swordfish_steak 9, ice_cod_chowder 8, puffer_sashimi 6, snapper_curry 6, ember_eel_skewers 5, angler_bake 4, boot_soup 3, ghost_carp_soup 2, moonfish_pie 1 |
+
+| Profile | Merchants seen / tapped | Expeditions (by length) | Casts / landed |
+|---|---|---|---|
+| casual | 648 / 461 | 8h 532 | 1535 / 1155 |
+| regular | 942 / 837 | 2h 130, 8h 39 | 588 / 463 |
+| hardcore | 1225 / 1101 | 2h 72, 8h 15 | 523 / 398 |
+
+- **Offline:** the 8-wave hold binds on every payout but 8 (all of them for
+  Casual and Regular; the 4-hour cap never bound). It pays only 9–30% of what
+  the time cap alone would, and 2–7% of all gold. It works as designed.
+- **Expeditions are the second income, and for Casual nearly the first:**
+  45% of all Casual gold (42% before the Abyss, up to 86% on one day), 23%
+  Regular, 14% Hardcore. Three 8-hour runs a gap at 40 minutes of battle
+  gold each (x the party bonus: 3 crew at 5 stars is +75%) beat 15 minutes
+  of battle at x1. Unlike offline, nothing caps it.
+- **Grog doesn't bind.** First clears refund their whole cost and refunds
+  may go over the cap, so sweeping stages keeps the bar full: 620–640 Grog
+  of first-clear refunds against 660–770 spent per run. The cap then throws
+  away 92% (Regular) to 100% (Casual) of the regen. The Uncharted Seas are
+  gated by session time, not Grog. (Coral Shallows brought 0 Grog: the
+  expedition bot prefers chest runs.)
+- **Pearls:** 1,850–2,660 earned per run, all spent on chests (the bot
+  opens whatever it can). The chest crew is complete by the first days of
+  the Uncharted Seas, and the roster with the Octopus Tamer at 6-6.
+- **Meals:** on for 92% of Casual battles (2 x 6 Bait a day for 30 minutes
+  of play) and 63–70% for Regular and Hardcore (Bait regen can't keep up).
+  Most cooked: Grilled Mackerel and Fish Stew (common fish), then Puffer
+  Sashimi, Snapper Curry and the Swordfish Steak. The Golden Koi Feast was
+  never cooked (it needs a Legendary catch: 1% of bites, landed 30% of the
+  time in this reel model; 2,646 casts in all). Boot Soup gets cooked when it's the only meal possible.
+- **Merchants:** 1–2% of gold (8–10% on the island days), 70–90% tapped as
+  set. Small, as section 16.2 predicted.
+
+### 21.7 Played on past 6-6
+
+The stop rule leaves the Abyss's depths and "all awakened" unreached, so
+`playon` runs Regular and Hardcore on to day 20 (same seeds, same bot; with
+the Uncharted Seas swept, the Grog goes on farming for awakenings and the
+rest of each session on dives):
+
+| Milestone (to day 20) | Regular: day (median, range) | hours played | Hardcore: day | hours played |
+|---|---|---|---|---|
+| 6-6 beaten (as above) | 3.3 (2.7–3.7) | 4.2 | 0.9 (0.9–1.6) | 4.5 |
+| Abyss depth 50 | 5.9 (4.7–7.7) | 8.2 | 1.3 (0.8–1.7) | 5.2 |
+| All 108 crowns | 5.7 (3.9–12.3) | | 1.8 (1.7–2.4) | |
+| 7th awakening | 4.7 (3.9–5.7) | | 1.9 (1.8–2.4) | |
+| Abyss depth 100 | not reached (best 80–92 on day 20) | 27.5 at day 20 | 17.4 (12.4–17.6), 3 of 5 runs (best 91–107) | 78.5 |
+| All 30 awakened | not reached (7 each) | | not reached (7–8) | |
+
+(The play-on took 7,255 s of wall clock: 10 runs, 20 days each, 34,663
+battles, 416 of them fast-forwarded. Its walls table is left out: it ran
+before the fix that closes a stage's lower-crown wall when a higher crown is
+won, so its "open" 2-crown walls are bookkeeping, not walls.)
+
+- **After the sweep there's only the Abyss, and it stalls.** With every
+  crown won, the bot's sessions are all dives. The Abyss best then sits on
+  one depth (79–107) for 15–30 sessions in a row for Regular (4–7 real
+  days) and 23–46 for Hardcore, while gold keeps coming in (30–90T a day by
+  day 19). Nothing new is bought but levels, as parts are at 5 and the chest
+  crew is complete.
+- **Awakenings stop at the deck.** The bot awakens the 6–7 crew it fields
+  (all of them by day ~5 Regular, ~2 Hardcore) and then has no one at level
+  80 to awaken: the other 23 crew stay at their chest level because the
+  greedy bot levels only the deck. A real player wouldn't level a
+  bench crewmate to 80 either, so "all awakened" is not a goal the game
+  gives a reason to chase.
+- **Grog then has nothing to do:** 4,935–5,508 Grog of regen thrown away at
+  the cap per run in 20 days (against 1,018–1,410 spent). The Hearts the
+  bot still farms for the next awakening target pile up for crew under 80.
+
+### 21.8 What's approximated
+
+- **Merchants** (`MerchantClock` in journey.mjs): the game's timing rules
+  (game time of island waves and dives, `firstAt`, `every`, none while a
+  boss is alive), but a ship is tapped (or not) the moment it comes, with no
+  crossing time, and G uses the same income window as `Merchants.js`. Its
+  `goldPerSecond` is also the idle-rate sample, as in the game.
+- **Fishing:** a bite's rarity and fish are rolled by `Fishing.js` at the
+  ship's spot (the Abyss once open, else the island). The reel: each press
+  lands in the zone at 3 x its width (Common 90%, Uncommon 66%, Rare 45%,
+  Legendary 30%), and the fish is landed with 3 hits (4 for a Legendary)
+  before 2 misses. Nibbles are never tapped. 10 s of real time a cast.
+- **Real time that isn't battle:** 3 s between battles, 8 s after a stage,
+  6 s after a dive, 45 s of menus per session.
+- **"Farm an earlier wave":** the game has no way to replay an earlier
+  wave, so a stuck player does the day's Boss Hunts and then keeps hitting
+  the wall (a loss still pays its kills). Hunts happen only then, as asked.
+- **Expeditions:** chest runs first, then Pearls, Coral Shallows (once
+  the Uncharted Seas are open), mixed, gold; the party is the idle crew
+  with the favoured trait, then the most stars.
+- **Meals:** the best meal is scored on crew damage and speed, then hull,
+  boss damage, gold and the hazard where the ship fights.
+- **Earned crew** join at level 1. The greedy bot only levels the crew on
+  deck, so on its own it would never field them. The sim puts one in for the
+  weakest attacker when it would hit harder at that crewmate's level, and
+  pays to bring it up to that level when the gold is there.
+- **Fast-forward** (a depth or stage won its last 3 times, each time with a
+  crew the current one is at least as strong as, skipped at those wins'
+  average) was barely needed: 22 of 5,259 battles were skipped (Regular
+  1001 and two Hardcore runs, Abyss depths and stages); every island wave
+  and hunt was played.
+- **The plain voyage's walls** (`npm run sim -- 5 50 voyage`) are its
+  15-tries cap: the same greedy bot with no cap clears all four islands in
+  every seed (25–47 losses, the longest run of losses 27 in a row; 4.0–5.4
+  hours of battle). The journey's extra income (offline, merchants,
+  expeditions, parts, meals) cuts that to 0–18 losses.
+
+### 21.9 F. Top 5 problems
+
+1. **The game is over in days, not weeks.** Casual 6-6 on day 19 (10.6 h
+   played), Regular day 3.3 (4.2 h), Hardcore day 0.9 (4.5 h); four
+   islands in 1.4 hours played. *Evidence:* 21.2; 200 island waves won in
+   ~203 attempts; the median Regular player is in the Uncharted Seas after
+   their fifth session. *Why:* a loss costs only time (its kills are paid),
+   retries are unlimited, and x4 is open from the start, so the island curve
+   never outpaces gold for long. *Suggested fix:* decide the target length
+   first (say 2–3 weeks Regular), then slow the island curve where x4 makes
+   it trivial (enemy HP growth per wave on Ember Isle onward, or less kill
+   gold on a lost wave), and measure walls with this sim (losses per island
+   and real days) rather than the voyage's 15-try cap.
+2. **Expeditions out-earn playing for Casual.** *Evidence:* 45% of Casual
+   gold (86% on day 9 of seed 1003), more than battle on most of its days;
+   23% Regular. *Why:* an 8-hour run pays `goldMinutes` 4 x mult 10 = 40
+   minutes of battle gold (x up to +175% party bonus), three slots, twice a
+   day, against 30 minutes played, and nothing caps it the way offline's
+   8-wave hold does. *Suggested fix:* a hold for expedition gold like
+   offline's (e.g. N waves of gold per run), or a smaller 8 h mult (10 → 5).
+3. **The Abyss is optional and gets skipped.** *Evidence:* Casual best
+   depth 6–14 when 6-6 falls (never 25, so no Abyss blessing); Regular
+   15–32; Hardcore 26–52. Only 1 of 15 runs reached depth 50 before 6-6.
+   Played on (21.7), it is all that is left and it stalls: the best depth
+   sits still for 4–8 real days at a time around depth 80–107.
+   *Why:* nothing in the Uncharted Seas needs a depth, the Grog-first rule
+   plus free first clears fill every session with stages, and dives pay
+   gold the stages also pay. *Suggested fix:* gate seas on Abyss depth (e.g.
+   sea n opens at depth 10n), or put something the Uncharted Seas need
+   (Hearts, Sea Glass) on depth milestones.
+4. **Grog is not a limit.** *Evidence:* 92–100% of Casual and Regular regen
+   wasted at the cap; first-clear refunds (620–640 a run) are almost all the
+   Grog spent. *Why:* a first clear refunds its full cost on top of the bar,
+   so a sweep never runs dry, and the bar then sits full between sessions.
+   *Suggested fix:* if Grog is meant to pace the seas, refund first clears
+   up to the cap only (or half); if it isn't, drop the cap's waste by letting
+   regen run over it while the bar is full of refunds.
+5. **Boss Hunts and parts barely matter.** *Evidence:* 15 hunts across 15
+   runs; parts end at level 1–4 (Kraken Figurehead 2, Ghostweave Sails 2,
+   Magma Cannons 2–3, the Lantern 1–2) while the crew reaches level 118.
+   *Why:* hunts are the stuck player's tool and nobody gets stuck; parts'
+   gold costs are set in waves of their island's gold and are cheap late,
+   but their materials only come from bosses and hunts. *Suggested fix:*
+   make hunts part of the daily loop (the doubles already reset daily: a
+   daily-bounty Pearl reward for using them), and/or drop boss materials in
+   the Uncharted Seas' boss stages and Abyss boss depths at a rate that
+   gets a part to 5 over the late game.
+
+Also seen: **2-5 The Forge** is the only stage that walls the way to 6-6
+(one run, 1.2 days; 1.5 days at 2 crowns in another, 21.3).

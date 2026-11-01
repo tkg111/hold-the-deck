@@ -297,8 +297,9 @@ const canHitAir = (id) => !!(HEROES[id].antiAir || HEROES[id].netsFlyers);
 // Rough worth of a crewmate on the ship: rarity first, then damage.
 const worth = (p, id) => RARITY_RANK.indexOf(HEROES[id].rarity) * 1000 + (HEROES[id].aura ? 500 : p.heroDamage(id));
 
+// (Not crew away on an expedition: the journey sim sends them.)
 function arrangeCrew(p) {
-  const owned = p.ownedHeroes.sort((a, b) => worth(p, b) - worth(p, a));
+  const owned = p.ownedHeroes.filter((id) => !p.isAway(id)).sort((a, b) => worth(p, b) - worth(p, a));
   const crew = owned.slice(0, p.slotCount);
   // Harpies from wave 8: make sure someone can hit them.
   if (p.wave >= 8 && !crew.some(canHitAir)) {
@@ -429,7 +430,9 @@ export function run(seed, policy, {
   return { progress, log, attempts, playTime, crew, wall: tries >= maxTries };
 }
 
-export { seedRandom, between, worth, canHitAir, rebuildHeroes };
+export {
+  seedRandom, between, worth, canHitAir, rebuildHeroes, arrangeCrew, spendGold,
+};
 
 const mins = (ms) => `${Math.round(ms / 60000)}m`;
 const bandOf = (wave) => Math.floor((wave - 1) / 10);
