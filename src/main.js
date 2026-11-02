@@ -5,6 +5,7 @@ import { AbyssEndScene } from './scenes/AbyssEndScene.js';
 import { AwayScene } from './scenes/AwayScene.js';
 import { ChartScene } from './scenes/ChartScene.js';
 import { CollectionScene } from './scenes/CollectionScene.js';
+import { CrewGridScene } from './scenes/CrewGridScene.js';
 import { EndingScene } from './scenes/EndingScene.js';
 import { ExpeditionScene } from './scenes/ExpeditionScene.js';
 import { GalleyScene } from './scenes/GalleyScene.js';
@@ -23,6 +24,7 @@ import { tutorial } from './tutorial/TutorialManager.js';
 import { loadUiSpec } from './ui/kit.js';
 import { installPortraitGuard, installTouchGuards } from './phone.js';
 import { installApp } from './native.js';
+import { startKeepAwake } from './keepAwake.js';
 import { installPwa } from './pwa.js';
 
 // ui.json (icon order, slice sizes, colours) loads before the game starts.
@@ -48,7 +50,7 @@ loadUiSpec().then(() => {
     // A long press (or right click) on the canvas opens no menu.
     disableContextMenu: true,
     // First: the title, which loads everything and then starts the battle.
-    scene: [TitleScene, GameScene, PackScene, CollectionScene, WantedScene, MapScene, LogScene, EndingScene, ExpeditionScene, ShipyardScene, AbyssEndScene, GalleyScene, AwayScene, ChartScene, StageEndScene,
+    scene: [TitleScene, GameScene, PackScene, CollectionScene, WantedScene, MapScene, LogScene, EndingScene, ExpeditionScene, ShipyardScene, AbyssEndScene, GalleyScene, AwayScene, ChartScene, StageEndScene, CrewGridScene,
       // Over the map and the Captain's Log, which open it.
       RankingsScene,
       // Last: over every other scene.
@@ -65,6 +67,7 @@ loadUiSpec().then(() => {
   installTouchGuards(game);
   installPortraitGuard(game);
   installApp(game, tutorial);
+  startKeepAwake();
 
   // The Captain's tutorial listens to the scenes once they exist.
   game.events.once('ready', () => {

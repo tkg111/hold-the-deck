@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import {
-  BATTLE_LOG, DISPLAY, ENEMIES, HEROES, UI_KIT, UNCHARTED,
+  BATTLE_LOG, DISPLAY, ENEMIES, FISHING, HEROES, UI_KIT, UNCHARTED,
 } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
 import { applyRenderScale, fillView } from '../display.js';
@@ -14,6 +14,9 @@ import {
 } from '../ui/kit.js';
 import { itemCounts } from '../ui/uncharted.js';
 import { enemyThumb } from '../ui/wanted.js';
+
+// The Fish Log's rarity totals, in this order.
+const RARITY_ORDER = ['common', 'uncommon', 'rare', 'legendary', 'junk'];
 
 const TABS = [
   { key: 'last', label: 'Last Wave' },
@@ -301,14 +304,26 @@ export class LogScene extends Phaser.Scene {
     this.scrolls = this.rows.length > BATTLE_LOG.visibleRows;
   }
 
-  // Fish Log: every fish in fishing.json's order, in a grid, with how many
-  // have been caught; one never caught is a dark silhouette and "???".
+  // Fish Log: every fish in fishing.json's order, in a grid, each on a card
+  // bordered in its rarity's colour with how many have been caught; one
+  // never caught is a dark silhouette and "???" (its border still shows
+  // the rarity). On the info line, each rarity's fish found ("RARE 1/3").
   drawFishLog() {
     const p = this.progress;
     const { panel: P, rowsY } = BATTLE_LOG;
     const { cols, cellWidth, cellHeight } = BATTLE_LOG.fishLog;
     const found = FISH_DATA.fish.filter((f) => p.hasCaught(f.id)).length;
     this.summary.setText(`${found}/${FISH_DATA.fish.length} FOUND  -  ${formatNum(p.fishCaught)} CAUGHT`);
+    let tx = P.x + P.width - 10;
+    for (const r of [...RARITY_ORDER].reverse()) {
+      const fish = FISH_DATA.fish.filter((f) => f.rarity === r);
+      if (!fish.length) continue;
+      const spec = FISHING.rarities[r];
+      const t = text(this, tx, BATTLE_LOG.infoY, `${spec.label.toUpperCase()} ${fish.filter((f) => p.hasCaught(f.id)).length}/${fish.length}`,
+        subText({ color: spec.border })).setOrigin(1, 0.5);
+      this.body.add(t);
+      tx -= t.inkWidth + 8;
+    }
     const left = P.x + Math.round((P.width - cols * cellWidth) / 2);
     FISH_DATA.fish.forEach((f, i) => {
       const x = left + (i % cols) * cellWidth + cellWidth / 2;
@@ -317,10 +332,13 @@ export class LogScene extends Phaser.Scene {
       const art = caught
         ? this.add.image(x, y + 16, fishingKey('fish'), f.index)
         : this.add.image(x, y + 16, fishingKey('items'), itemFrame('unknown_fish'));
+      const border = hexColor(rarityOf(f.id).border);
       this.body.add([
+        this.add.rectangle(x - cellWidth / 2 + 3, y - 3, cellWidth - 6, cellHeight - 4).setOrigin(0).setStrokeStyle(1, border),
+        this.add.rectangle(x - cellWidth / 2 + 4, y - 2, cellWidth - 8, 2, border).setOrigin(0),
         art.setScale(2),
         text(this, x, y + 37, caught ? f.name.toUpperCase() : '???', subText({ align: 'center', wrap: cellWidth - 4 })).setOrigin(0.5, 0),
-        text(this, x, y + 47, caught ? rarityOf(f.id).label.toUpperCase() : '', subText()).setOrigin(0.5, 0),
+        text(this, x, y + 47, rarityOf(f.id).label.toUpperCase(), subText({ color: rarityOf(f.id).border })).setOrigin(0.5, 0),
         text(this, x, y + 58, caught ? `X${formatNum(p.fishLog[f.id])}` : '', dark()).setOrigin(0.5, 0),
       ]);
     });

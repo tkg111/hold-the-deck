@@ -313,7 +313,7 @@ test('saves: a Muster saves the crew as it was before it', () => {
 test('saves: a v24 save starts with full Grog, nothing cleared, nobody awakened', () => {
   const { uncharted, awakened, ...v24 } = opened().toSave();
   const p = progressFromRecord({ version: 24, data: v24 });
-  assert.equal(SAVE_VERSION, 25);
+  assert.ok(SAVE_VERSION >= 25);
   assert.equal(p.uncharted.grog, cap);
   assert.deepEqual(p.uncharted.crowns, {});
   assert.deepEqual(p.awakened, []);

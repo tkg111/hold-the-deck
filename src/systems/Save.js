@@ -11,7 +11,7 @@ export const SAVE_KEY = 'kampung-defense/save';
 const CORRUPT_BACKUP_KEY = 'kampung-defense/save-corrupt-backup';
 
 // Bump when the saved shape changes, and add a migration from the old version.
-export const SAVE_VERSION = 25;
+export const SAVE_VERSION = 26;
 
 // v5 pirate reskin: old hero IDs -> new hero IDs.
 const V5_HERO_IDS = {
@@ -231,6 +231,8 @@ const MIGRATIONS = {
   // v25: the Uncharted Seas (a full Grog ration, no items, no stages
   // cleared) and Crew Awakening (nobody awakened).
   24: (data) => ({ ...data, uncharted: newUnchartedRecord(), awakened: [] }),
+  // v26: playtest round 2: the Settings' Keep screen on, on.
+  25: (data) => ({ ...data, keepScreenOn: true }),
 };
 
 function migrate(save) {

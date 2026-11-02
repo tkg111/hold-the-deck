@@ -4,8 +4,7 @@
 //   1. the newest open dialog (Settings, a confirmation, a save code, the
 //      captain name), which registers itself here with onBack();
 //   2. else the topmost scene over the battle (its back(), or close());
-//   3. else the battle's hero picker;
-//   4. else, on the battle, "Leave port?" (GameScene.confirmLeave).
+//   3. else, on the battle, "Leave port?" (GameScene.confirmLeave).
 // Nothing happens while the Captain is mid-lesson (his blocker is up) or
 // before the battle exists (the title screen leaves at once).
 
@@ -38,10 +37,6 @@ export function handleBack(game, tutorial) {
   if (top) {
     if (typeof top.back === 'function') top.back();
     else top.close?.();
-    return true;
-  }
-  if (battle.heroPicker?.visible) {
-    battle.heroPicker.close();
     return true;
   }
   battle.confirmLeave();

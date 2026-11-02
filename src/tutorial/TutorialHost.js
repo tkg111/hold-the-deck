@@ -81,7 +81,7 @@ export class TutorialHost {
     const overlay = open.some((s) => s !== gs);
     switch (needs) {
       case 'any': return true;
-      case 'idle': return gs.state === 'idle' && !overlay && !gs.modalOpen && !gs.heroPicker.visible;
+      case 'idle': return gs.state === 'idle' && !overlay && !gs.modalOpen;
       case 'wave': return gs.state === 'running' && !overlay;
       default: return open.includes(this.scene(needs));
     }

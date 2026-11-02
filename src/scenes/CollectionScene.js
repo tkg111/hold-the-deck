@@ -4,7 +4,7 @@ import { sfx } from '../audio/Sfx.js';
 import { applyRenderScale, fillView } from '../display.js';
 import { Button } from '../ui/Button.js';
 import { createHeroCard, HERO_CARD_SIZE } from '../ui/HeroCard.js';
-import { cooldownLabel, describeAbility } from '../ui/HeroPicker.js';
+import { cooldownLabel, describeAbility } from '../ui/crewText.js';
 import {
   dark, light, panel, subText, text, traitIcon,
 } from '../ui/kit.js';

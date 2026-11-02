@@ -5,7 +5,7 @@ import { awakenedKey } from '../sprites.js';
 import { traitOf } from '../systems/Expeditions.js';
 import { awakening } from '../systems/Uncharted.js';
 import { cssColor, formatNum } from './format.js';
-import { describeHero } from './HeroPicker.js';
+import { describeHero } from './crewText.js';
 import {
   antiAirIcon, dark, expeditionKey, hitsFlyers, icon, light, panel, starRow, subText, text, traitIcon, UI,
 } from './kit.js';
@@ -106,7 +106,7 @@ const rarityColorOnWood = (rarity) => cssColor(RARITY[rarity].color);
 
 // The hero's single sprite (or a rectangle in their colour without one),
 // feet at feetY. Black for a silhouette; its awakened art once awakened.
-function heroPortrait(scene, id, feetY, scale, silhouette, awakened = false) {
+export function heroPortrait(scene, id, feetY, scale, silhouette, awakened = false) {
   const sprite = SPRITES.heroes[id];
   if (!sprite) {
     return scene.add.rectangle(0, feetY, (16 * scale), (26 * scale), silhouette ? 0x000000 : HEROES[id].color)

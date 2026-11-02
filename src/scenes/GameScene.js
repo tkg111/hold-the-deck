@@ -8,6 +8,7 @@ import { initAudio, preloadAudio } from '../audio/load.js';
 import { music } from '../audio/Music.js';
 import { sfx } from '../audio/Sfx.js';
 import { DEV_TOOLS } from '../devFlag.js';
+import { setBusy, setKeepAwake } from '../keepAwake.js';
 import {
   applyRenderScale, fullscreenSupported, hudEdges, isFullscreen, setLargeText, toggleFullscreen,
 } from '../display.js';
@@ -58,7 +59,7 @@ import { SettingsDialog } from '../ui/SettingsDialog.js';
 import { CaptainNameDialog } from '../ui/CaptainNameDialog.js';
 import { attachRankings, online, scores } from '../online/index.js';
 import { formatNum, pearlsLabel } from '../ui/format.js';
-import { HeroPicker } from '../ui/HeroPicker.js';
+import { QuickUpgrade } from '../ui/QuickUpgrade.js';
 import { Notices } from '../ui/Notices.js';
 import { AutoContinue } from '../ui/AutoContinue.js';
 import { ScrollPanel } from '../ui/ScrollPanel.js';
@@ -119,6 +120,7 @@ export class GameScene extends Phaser.Scene {
     this.applyAudioSettings();
     setVibration(this.progress.vibration);
     setLargeText(this.progress.largeText);
+    setKeepAwake(this.progress.keepScreenOn);
     this.state = STATE.IDLE;
     this.speed = this.speed ?? GAME_SPEEDS[0];  // kept across restarts in a session
     this.slowMotion = 1;   // x the battle's speed (the tutorial's first merchant)
@@ -236,7 +238,6 @@ export class GameScene extends Phaser.Scene {
   // expeditions row's button collects too, then opens Expeditions.
   showAway(report) {
     this.awayOpen = true;
-    if (this.heroPicker?.visible) this.heroPicker.close();
     const done = (thenExpeditions) => {
       Offline.collect(this.progress, report);
       this.awayOpen = false;
@@ -420,11 +421,6 @@ export class GameScene extends Phaser.Scene {
       onOpenShipyard: () => this.openShipyard(),
       onAwaken: (id) => this.openAwaken(id),
     });
-    this.heroPicker = new HeroPicker(this, 0, 0, UI_KIT.pickerWidth, (id) => this.onHeroPicked(id));
-    this.heroPicker.on('closed', () => {
-      this.ship.selectSlot(-1);
-      this.refreshUi();  // brings the Shipwright back
-    });
 
     if (DEV_TOOLS) import('../dev/devTools.js').then((m) => m.installDevTools(this));
 
@@ -552,7 +548,6 @@ export class GameScene extends Phaser.Scene {
     const rows = Math.floor((barTop - 2 - swTop - fit) / UI_KIT.rowHeight);
     this.shipwright.setVisibleRows(Math.min(UI_KIT.shipwrightRows, rows));
     this.shipwright.setAnchor(right + 473 - UI_KIT.shipwrightWidth, view.right - 3, swTop);
-    this.heroPicker.setPosition(right + 473 - UI_KIT.pickerWidth, e.top + 64);
     this.bottomBar.setPosition(right, e.bottom);
     this.abilityBar.layout(view);
     this.notices.layout(view);
@@ -642,7 +637,7 @@ export class GameScene extends Phaser.Scene {
     if (this.settingsButton.enabled !== idle) this.settingsButton.setEnabled(idle);
     this.muteButton.setIcon(p.muted ? 'sound_off' : 'sound_on');
     this.fullscreenButton.setIcon(isFullscreen() ? 'windowed' : 'fullscreen');
-    this.shipwright.setVisible(idle && !this.heroPicker.visible);
+    this.shipwright.setVisible(idle);
     this.devTools?.refresh(idle);
     if (idle) this.shipwright.refresh();
     this.placeAutoNext();
@@ -883,7 +878,6 @@ export class GameScene extends Phaser.Scene {
   // off, Replay tutorial, and Reset progress.
   openSettings() {
     if (this.state !== STATE.IDLE) return;
-    if (this.heroPicker.visible) this.heroPicker.close();
     sfx.play('ui_open');
     const p = this.progress;
     new SettingsDialog(this, {
@@ -909,6 +903,12 @@ export class GameScene extends Phaser.Scene {
         p.vibration = on;
         setVibration(on);
         haptic('light');
+        this.save();
+      },
+      keepScreenOn: p.keepScreenOn,
+      onKeepScreenOn: (on) => {
+        p.keepScreenOn = on;
+        setKeepAwake(on);
         this.save();
       },
       onReplay: () => tutorial.replay(),
@@ -943,7 +943,6 @@ export class GameScene extends Phaser.Scene {
   // Rankings (Settings' Join): over the battle, between waves.
   openRankings() {
     if (this.state !== STATE.IDLE) return;
-    if (this.heroPicker.visible) this.heroPicker.close();
     sfx.play('ui_open');
     this.scene.launch('RankingsScene', { progress: this.progress, onClose: () => this.refreshUi() });
   }
@@ -977,7 +976,6 @@ export class GameScene extends Phaser.Scene {
   // or Leave, which saves and closes the app.
   confirmLeave() {
     if (this.modalOpen) return;
-    if (this.heroPicker.visible) this.heroPicker.close();
     new ConfirmDialog(this, {
       title: 'Leave port?',
       message: 'Your ship and crew are saved.',
@@ -992,7 +990,6 @@ export class GameScene extends Phaser.Scene {
 
   confirmReset() {
     if (this.state !== STATE.IDLE) return;
-    if (this.heroPicker.visible) this.heroPicker.close();
     new ConfirmDialog(this, {
       title: 'Reset all progress?',
       message: "Your wave, gold, Pearls, upgrades and heroes will be wiped. This can't be undone.",
@@ -1008,7 +1005,6 @@ export class GameScene extends Phaser.Scene {
   // change the ship's look and the crew's speed, so both are rebuilt after.
   openShipyard() {
     if (this.state !== STATE.IDLE) return;
-    if (this.heroPicker.visible) this.heroPicker.close();
     sfx.play('ui_open');
     this.scene.launch('ShipyardScene', { progress: this.progress, onClose: () => this.onUpgradePurchased() });
   }
@@ -1020,7 +1016,6 @@ export class GameScene extends Phaser.Scene {
   // ('crew-awakened').
   openAwaken(id) {
     if (this.state !== STATE.IDLE) return;
-    if (this.heroPicker.visible) this.heroPicker.close();
     sfx.play('ui_open');
     new AwakenDialog(this, this.progress, id, {
       onAwaken: () => {
@@ -1091,11 +1086,42 @@ export class GameScene extends Phaser.Scene {
     this.save();
   }
 
+  // A ship slot tapped between waves: a crewmate there gets their
+  // quick-upgrade card; an empty slot opens the crew grid.
   onSlotClicked(slot) {
-    if (this.state !== STATE.IDLE) return;
+    if (this.state !== STATE.IDLE || this.modalOpen) return;
+    const id = this.progress.slots[slot];
+    if (!id) {
+      this.openCrewGrid(slot);
+      return;
+    }
+    sfx.play('ui_open');
     this.ship.selectSlot(slot);
-    this.heroPicker.open(slot, this.progress);
-    this.shipwright.setVisible(false);  // the picker takes its place
+    const card = new QuickUpgrade(this, this.progress, id, {
+      onBuy: () => this.onUpgradePurchased(),
+      onAwaken: (who) => this.openAwaken(who),
+      onSwap: () => this.openCrewGrid(slot),
+    });
+    card.once('destroy', () => {
+      if (!this.scene.isActive('CrewGridScene')) this.ship.selectSlot(-1);
+    });
+  }
+
+  // Who sails (CrewGridScene), on the given slot: between waves and at a
+  // stage's Muster.
+  openCrewGrid(slot) {
+    if (this.state !== STATE.IDLE) return;
+    sfx.play('ui_open');
+    this.ship.selectSlot(slot);
+    this.scene.launch('CrewGridScene', {
+      progress: this.progress,
+      slot,
+      onAssign: (s, id) => this.assignSlot(s, id),
+      onClose: () => {
+        this.ship.selectSlot(-1);
+        this.refreshUi();
+      },
+    });
   }
 
   // A ship slot tapped during a wave: breaks the ice on a frozen crewmate
@@ -1105,33 +1131,31 @@ export class GameScene extends Phaser.Scene {
     this.heroes.find((h) => h.slot === slot)?.tapFree();
   }
 
-  onHeroPicked(id) {
+  // Put a crewmate (null: nobody) in a slot, from the crew grid. Returns
+  // null when done, else { title, detail } saying why not (a stage's
+  // Muster lets only the crew its rules allow sail, up to its limit).
+  assignSlot(slot, id) {
     const p = this.progress;
-    // A stage's Muster: only the crew its rules let sail, up to its limit.
     if (p.stage && id) {
-      const swap = p.slots[this.ship.selectedSlot] != null || p.slotOf(id) >= 0;
+      const swap = p.slots[slot] != null || p.slotOf(id) >= 0;
       const full = !swap && p.activeHeroes.length >= p.stageCrewLimit;
       if (!p.mayMuster(id) || full) {
-        const rule = !p.mayMuster(id) ? p.stage.rules.find((r) => UNCHARTED.rules[r]?.trait) : 'skeleton_crew';
-        this.heroPicker.close();
-        sfx.play('ui_error');
-        this.showBanner(ruleOf(this, rule).name.toUpperCase(), { detail: ruleOf(this, rule).text.toUpperCase(), color: UI.colors.warn });
-        return;
+        const rule = ruleOf(this, !p.mayMuster(id) ? p.stage.rules.find((r) => UNCHARTED.rules[r]?.trait) : 'skeleton_crew');
+        return { title: rule.name.toUpperCase(), detail: rule.text.toUpperCase() };
       }
     }
-    this.progress.assignHero(this.ship.selectedSlot, id);
-    this.heroPicker.close();
+    if (!p.assignHero(slot, id)) return { title: "CAN'T SAIL", detail: 'THAT CREWMATE IS BUSY' };
     this.ship.sync(this.progress);
     this.rebuildHeroes();
     this.shipwright.rebuild();  // it lists the heroes on the ship
     if (p.stage) this.drawMusterPlaque();
     this.refreshUi();
     this.save();
+    return null;
   }
 
   // Owned heroes or stars changed (packs, dev toggle).
   onRosterChanged() {
-    if (this.heroPicker.visible) this.heroPicker.close();
     this.shipwright.rebuild();
     this.ship.sync(this.progress);
     this.rebuildHeroes();
@@ -1141,7 +1165,6 @@ export class GameScene extends Phaser.Scene {
 
   openCollection() {
     if (this.state !== STATE.IDLE) return;
-    if (this.heroPicker.visible) this.heroPicker.close();
     sfx.play('ui_open');
     this.scene.launch('CollectionScene', { progress: this.progress, onClose: () => this.refreshUi() });
   }
@@ -1162,7 +1185,6 @@ export class GameScene extends Phaser.Scene {
 
   openWanted() {
     if (this.state !== STATE.IDLE) return;
-    if (this.heroPicker.visible) this.heroPicker.close();
     sfx.play('ui_open');
     this.scene.launch('WantedScene', {
       progress: this.progress,
@@ -1177,7 +1199,6 @@ export class GameScene extends Phaser.Scene {
   // hull, so both are rebuilt after.
   openGalley() {
     if (this.state !== STATE.IDLE) return;
-    if (this.heroPicker.visible) this.heroPicker.close();
     sfx.play('ui_open');
     this.scene.launch('GalleyScene', { progress: this.progress, onClose: () => this.onUpgradePurchased() });
   }
@@ -1185,7 +1206,6 @@ export class GameScene extends Phaser.Scene {
   // The Captain's Log: what the crew did in the last few waves.
   openLog() {
     if (this.state !== STATE.IDLE) return;
-    if (this.heroPicker.visible) this.heroPicker.close();
     sfx.play('ui_open');
     this.scene.launch('LogScene', { progress: this.progress, onClose: () => this.refreshUi() });
   }
@@ -1196,7 +1216,6 @@ export class GameScene extends Phaser.Scene {
   // chart: a sea to open the Uncharted Seas' chart on at once.
   openMap({ chart = null } = {}) {
     if (this.state !== STATE.IDLE || !this.progress.mapUnlocked) return;
-    if (this.heroPicker.visible) this.heroPicker.close();
     sfx.play('ui_open');
     this.scene.launch('MapScene', {
       progress: this.progress,
@@ -1291,7 +1310,6 @@ export class GameScene extends Phaser.Scene {
     }
     const stage = stageOf(p.stage.id);
     const options = stageOptions(stage, p.stage.crown);
-    if (this.heroPicker.visible) this.heroPicker.close();
     this.ship.setSlotsEnabled(false);
     this.rebuildHeroes();   // Doldrums, and meals off with an Empty Galley
     this.ship.restore();
@@ -1376,7 +1394,6 @@ export class GameScene extends Phaser.Scene {
   // The results: Retry (the Muster again, same stage and crown) or Back to
   // the chart.
   showStageEnd(stage, crown, result) {
-    if (this.heroPicker.visible) this.heroPicker.close();
     this.scene.launch('StageEndScene', {
       progress: this.progress,
       stage,
@@ -1422,7 +1439,6 @@ export class GameScene extends Phaser.Scene {
   // crew are rebuilt after. onClosed: also tell the opener (the world map).
   openExpeditions({ onClosed = null } = {}) {
     if (this.state !== STATE.IDLE || !Expeditions.isUnlocked(this.progress)) return;
-    if (this.heroPicker.visible) this.heroPicker.close();
     sfx.play('ui_open');
     this.scene.launch('ExpeditionScene', {
       progress: this.progress,
@@ -1446,7 +1462,6 @@ export class GameScene extends Phaser.Scene {
 
   openPacks() {
     if (this.state !== STATE.IDLE) return;
-    if (this.heroPicker.visible) this.heroPicker.close();
     sfx.play('ui_open');
     this.scene.launch('PackScene', { progress: this.progress, onClose: () => this.onRosterChanged() });
   }
@@ -1481,7 +1496,6 @@ export class GameScene extends Phaser.Scene {
       this.startStage();
       return;
     }
-    if (this.heroPicker.visible) this.heroPicker.close();
     const p = this.progress;
     // A depth of the Abyss plays like an island wave (options.wave) with
     // its own line-up, scaling and currents.
@@ -1701,7 +1715,6 @@ export class GameScene extends Phaser.Scene {
   // the same depth (or the deepest checkpoint below it still open); Map
   // takes the ship back to its island and opens the map.
   showDiveEnd(summary) {
-    if (this.heroPicker.visible) this.heroPicker.close();
     this.scene.launch('AbyssEndScene', {
       progress: this.progress,
       summary,
@@ -1738,7 +1751,6 @@ export class GameScene extends Phaser.Scene {
   // Its Continue then opens the map, which reveals the Abyss (once).
   playEnding() {
     this.endingDue = false;
-    if (this.heroPicker.visible) this.heroPicker.close();
     this.scene.launch('EndingScene', {
       progress: this.progress,
       onClose: () => {
@@ -1765,7 +1777,9 @@ export class GameScene extends Phaser.Scene {
 
   // Run the battle at this.speed while a wave is on, 1x otherwise: game logic
   // (via update's steps), sprite animations, tweens and timers all follow it.
+  // (A wave under way also keeps the screen on.)
   applySpeed() {
+    setBusy('battle', this.state === STATE.RUNNING);
     const scale = (this.state === STATE.RUNNING ? this.speed : 1) * this.slowMotion;
     this.anims.globalTimeScale = scale;
     this.tweens.timeScale = scale;
@@ -1776,6 +1790,7 @@ export class GameScene extends Phaser.Scene {
     this.notices.update(Math.min(delta, 100));
     // A merchant sails on at the battle's speed (1x between waves).
     this.merchants.update(Math.min(delta, 100) * this.time.timeScale);
+    this.merchants.updateLoot(Math.min(delta, 100));
     this.storm.update(Math.min(delta, 100));
     for (const w of this.weathers) w.update(Math.min(delta, 100));
     this.watchExpeditions(delta);

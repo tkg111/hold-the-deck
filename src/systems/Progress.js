@@ -152,6 +152,7 @@ export class Progress {
     this.sfxVolume = AUDIO.defaults.sfx;
     this.vibration = true;          // the Android app's haptics (Settings)
     this.largeText = false;         // Settings' Text size: Large (the Captain's words, tooltips)
+    this.keepScreenOn = true;       // Settings' Keep screen on (src/keepAwake.js)
     this.autoAbilities = false;     // ability bar's Auto toggle
     // The Shipwright: how many levels a buy button buys (UI_KIT.buyAmounts:
     // '1', '10' or 'max'), and whether the panel is out (or slid away).
@@ -193,6 +194,7 @@ export class Progress {
       sfxVolume: this.sfxVolume,
       vibration: this.vibration,
       largeText: this.largeText,
+      keepScreenOn: this.keepScreenOn,
       autoAbilities: this.autoAbilities,
       buyAmount: this.buyAmount,
       shipwrightOpen: this.shipwrightOpen,
@@ -282,6 +284,7 @@ export class Progress {
     p.sfxVolume = int(data.sfxVolume, 0, 100, AUDIO.defaults.sfx);
     p.vibration = data.vibration !== false;
     p.largeText = data.largeText === true;
+    p.keepScreenOn = data.keepScreenOn !== false;
     p.autoAbilities = data.autoAbilities === true;
     if (UI_KIT.buyAmounts.includes(data.buyAmount)) p.buyAmount = data.buyAmount;
     p.shipwrightOpen = data.shipwrightOpen !== false;

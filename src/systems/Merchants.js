@@ -45,6 +45,14 @@ export function rollPlunder(progress, typeId, G, random = Math.random) {
   };
 }
 
+// A type's speed on a lane (px/s): its own, or slower, so a ship w px
+// wide can be tapped for at least MERCHANTS.minTapMs (from its middle
+// passing tapFromX to its bow reaching the lane's fadeX).
+export function laneSpeed(typeId, lane, w) {
+  const span = lane.fadeX - MERCHANTS.tapFromX - w / 2;
+  return Math.min(MERCHANTS.types[typeId].speed, span / (MERCHANTS.minTapMs / 1000));
+}
+
 // Passing merchant ships in battle (MERCHANTS; art from merchants.json). The
 // battle's clock (game time of waves, carried over between them) brings
 // one every so often; it sails left to right across the far sea, behind
@@ -63,6 +71,7 @@ export class Merchants {
     this.data = scene.cache.json.get(MERCHANTS_JSON_KEY);
     this.ship = null;
     this.forceNext = null;
+    this.loot = [];   // plunder on screen (see showLoot), in real time
     this.reset();
     tutorial.registerTarget('merchant', () => this.ship?.sprite);
   }
@@ -143,7 +152,7 @@ export class Merchants {
     sprite.disableInteractive();
     this.ship = {
       id, spec, sprite, wake, w, h, wakeX: w - ax, wakeY: ay,
-      x, speed: MERCHANTS.types[id].speed, struck: false, fading: 0, fadeTotal: 0, tappable: false,
+      x, speed: laneSpeed(id, this.lane, w), struck: false, fading: 0, fadeTotal: 0, tappable: false,
     };
     this.due = this.clock + between(MERCHANTS.every);
     this.place();
@@ -241,7 +250,8 @@ export class Merchants {
 
   // The loot crate pops up over the ship and rises crateRise px, the
   // plunder's lines rising above it (gold in gold, the rest in their
-  // colours), then both fade.
+  // colours), then both hold and fade, in real time (updateLoot), so
+  // they're up as long at any battle speed.
   showLoot(x, y, reward) {
     const { scene } = this;
     const c = MERCHANTS.colors;
@@ -255,21 +265,26 @@ export class Merchants {
       .setOrigin(0.5).setDepth(FX_DEPTH + 1));
     const starts = labels.map((t) => t.anchorY);
     sfx.play('plunder');
-    scene.tweens.addCounter({
-      from: 0,
-      to: 1,
-      duration: MERCHANTS.crateMs,
-      onUpdate: (tw) => {
-        const t = tw.getValue();
-        const rise = Math.round(MERCHANTS.crateRise * t);
-        const alpha = t < 0.6 ? 1 : 1 - (t - 0.6) / 0.4;
-        crate.setY(y - rise).setAlpha(alpha);
-        labels.forEach((l, i) => l.setPosition(x, starts[i] - rise).setAlpha(alpha));
-      },
-      onComplete: () => {
-        crate.destroy();
-        for (const l of labels) l.destroy();
-      },
+    this.loot.push({
+      crate, labels, starts, x, y, ms: 0,
     });
+  }
+
+  // ms of real time went by: the plunder on screen rises, holds and fades
+  // (MERCHANTS.crateMs, crateHoldMs, crateFadeMs).
+  updateLoot(ms) {
+    const { crateMs, crateHoldMs, crateFadeMs, crateRise } = MERCHANTS;
+    for (const l of this.loot) {
+      l.ms += ms;
+      const rise = Math.round(crateRise * Math.min(1, l.ms / crateMs));
+      const alpha = 1 - Phaser.Math.Clamp((l.ms - crateHoldMs) / crateFadeMs, 0, 1);
+      l.crate.setY(l.y - rise).setAlpha(alpha);
+      l.labels.forEach((t, i) => t.setPosition(l.x, l.starts[i] - rise).setAlpha(alpha));
+      if (alpha > 0) continue;
+      l.crate.destroy();
+      for (const t of l.labels) t.destroy();
+      l.done = true;
+    }
+    this.loot = this.loot.filter((l) => !l.done);
   }
 }

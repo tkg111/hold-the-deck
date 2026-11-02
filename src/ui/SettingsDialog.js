@@ -11,7 +11,7 @@ import { Slider } from './Slider.js';
 const WIDTH = 248;
 const PLATE_W = 120;
 const PLATE_H = 20;
-const ROW_H = 22;
+const ROW_H = 22;   // fewer px when that many rows wouldn't fit the view
 const SLIDER_W = 76;
 const HALF_W = (WIDTH - 24 - 4) / 2;
 
@@ -28,14 +28,15 @@ const IOS_INSTALL = 'Tap Share, then Add to Home Screen.';
 // (captain: { name } or { name: null } before joining), a Captain name row
 // after Captain's tips: the name (closes them for its rename dialog), or
 // Join, which opens Rankings. Text size NORMAL / LARGE (largeText,
-// onLargeText) comes after Captain's tips, then in the Android app
+// onLargeText) comes after Captain's tips, then Keep screen on ON / OFF
+// (keepScreenOn, onKeepScreenOn), then in the Android app
 // (vibration: true / false; null elsewhere) Vibration on / off
 // (onVibration).
 // onAudio({ music, sfx, muted }, done) fires as the sound settings change;
 // done once a slider is let go (or the mute toggled): time to save.
 export class SettingsDialog extends Phaser.GameObjects.Container {
   constructor(scene, {
-    audio, onAudio, tipsOn, onTips, largeText = false, onLargeText = () => {}, vibration = null, onVibration = null, onReplay, onReset, onExport, onImport, install, onInstall,
+    audio, onAudio, tipsOn, onTips, largeText = false, onLargeText = () => {}, keepScreenOn = true, onKeepScreenOn = () => {}, vibration = null, onVibration = null, onReplay, onReset, onExport, onImport, install, onInstall,
     captain = null, onCaptain = null,
   }) {
     super(scene, 0, 0);
@@ -55,18 +56,20 @@ export class SettingsDialog extends Phaser.GameObjects.Container {
       backdrop.destroy();
     });
 
-    // Rows: the five settings (and Vibration, Captain name), two rows of
+    // Rows: the six settings (and Vibration, Captain name), two rows of
     // paired buttons, Install, Close.
     const textRow = 4;
-    const vibrationRow = vibration == null ? null : 5;
-    const captainRowAt = 5 + (vibrationRow == null ? 0 : 1);
+    const awakeRow = 5;
+    const vibrationRow = vibration == null ? null : 6;
+    const captainRowAt = 6 + (vibrationRow == null ? 0 : 1);
     const first = captainRowAt + (captain ? 1 : 0);   // the first row of paired buttons
     const closeRow = first + (install ? 3 : 2);
-    const height = 22 + closeRow * ROW_H + 24;
+    const rowH = Math.min(ROW_H, Math.floor((DISPLAY.height - 8 - 46) / closeRow));
+    const height = 22 + closeRow * rowH + 24;
     const cx = DISPLAY.width / 2;
     const top = Math.round(DISPLAY.height / 2 - height / 2);
     const left = cx - WIDTH / 2;
-    const rowY = (i) => top + 22 + i * ROW_H;
+    const rowY = (i) => top + 22 + i * rowH;
     const close = (then) => {
       this.destroy();
       then?.();
@@ -127,6 +130,17 @@ export class SettingsDialog extends Phaser.GameObjects.Container {
     const paintTextSize = () => textSize.setLabel(this.largeText ? 'LARGE' : 'NORMAL').setStyle(this.largeText ? 'gold' : 'wood');
     paintTextSize();
 
+    this.keepScreenOn = keepScreenOn;
+    const awake = new Button(scene, left + WIDTH - 40, rowY(awakeRow), {
+      width: 56, height: 18, font: 'small', label: '', onClick: () => {
+        this.keepScreenOn = !this.keepScreenOn;
+        paintAwake();
+        onKeepScreenOn(this.keepScreenOn);
+      },
+    });
+    const paintAwake = () => awake.setLabel(this.keepScreenOn ? 'ON' : 'OFF').setStyle(this.keepScreenOn ? 'gold' : 'wood');
+    paintAwake();
+
     let vibrationRowItems = [];
     if (vibrationRow != null) {
       this.vibration = vibration;
@@ -162,6 +176,8 @@ export class SettingsDialog extends Phaser.GameObjects.Container {
       tips,
       label(textRow, 'Text size'),
       textSize,
+      label(awakeRow, 'Keep screen on'),
+      awake,
       ...vibrationRowItems,
       ...captainRow,
       ...pair(first, ['Replay tutorial', onReplay], ['Reset progress', onReset]),

@@ -244,11 +244,26 @@ export const UI_KIT = {
       log: 24, map: 24, voyage: 65, galley: 57, start: 106, chests: 62, crew: 51, wanted: 66,
     },
   },
-  // The hero picker: wider than the Shipwright (it extends left over the
-  // sea) with taller rows that also show each crewmate's ability.
-  pickerWidth: 260,
-  pickerRows: 4,
-  pickerRowHeight: 36,
+  // The crew grid (CrewGridScene: who sails, the Muster too): cards at
+  // least minCardWidth wide, cols[0] to cols[1] a row (as many as the
+  // view's width fits), cardHeight tall, gap apart, from gridTop down; the
+  // header's two rows (title and filters) above it. The ribbon is the gold
+  // ON DECK band across a card's bottom; selected: the chosen slot's card
+  // outline.
+  crewGrid: {
+    minCardWidth: 84,
+    cols: [4, 6],
+    cardHeight: 60,
+    gap: 4,
+    margin: 8,
+    gridTop: 52,
+    ribbon: { height: 11, color: 0xf2c14e },
+    selectedColor: 0xfff6c8,
+    filters: { chip: 20, chipGap: 2, groupGap: 8, y: 38 },
+    noticeMs: 2200,
+  },
+  // The quick-upgrade card (tapping a crewmate on the ship between waves).
+  quickUpgrade: { width: 232, height: 150, buyWidth: 64, buyHeight: 20 },
 };
 
 // Effect sprite sheets in public/sprites/fx/ (fx.json gives each one's frame
@@ -810,7 +825,7 @@ export const STARTING_HEROES = ['cabinBoy'];
 // stars like it does), and every `duration` / `stun` grows with
 // ABILITY_SCALING. `effect` is the line shown in the crew picker and Crew
 // Roster; {placeholders} are filled from the ability's numbers (see
-// describeAbility in src/ui/HeroPicker.js). `color` tints its name as it
+// describeAbility in src/ui/crewText.js). `color` tints its name as it
 // floats up. Sprite fields name fx sheets (see FX): `fx` stands on each
 // boosted crewmate's slot while the boost lasts (behind them with behind),
 // `sprite` is what's thrown or dropped and `impact` plays where it hits.
@@ -3607,15 +3622,21 @@ export const MOTES = {
 //   lane: the ship's waterline on screen (waterY) and where its bow starts
 //          fading out (fadeX), over fadeMs; `lanes` overrides it per
 //          battlefield (island id, or the Abyss's) where the backdrop has
-//          something in the way (Frostbite Reef's iceberg, Fogbound Isle's
-//          wreck, the Abyss's pillar), so a merchant is gone before it.
+//          something in the way: on Frostbite Reef it sails nearer, in
+//          front of the iceberg; on Fogbound Isle and in the Abyss a little
+//          higher, clear of the wreck's mast and the pillar's top.
+//   minTapMs: game ms a ship can be tapped for at least: from its middle
+//          passing tapFromX to its bow reaching fadeX. A type faster than
+//          that lane allows sails at the lane's pace instead.
 //   bobFps: its sail frames (0-2); hitPad: px round the frame that still
 //          count as a tap on it; tapFromX: it can be tapped once its middle
 //          is past this x (clear of our ship's sails and rigging).
 //   shot: a cannonball from the bow (ship image pixels) in an arc of
 //          arcHeight px over ms. On a hit: the struck frame, speed x slow,
-//          a loot crate rising crateRise px while the plunder text rises,
-//          both fading over crateMs, and the ship fading over fadeMs.
+//          a loot crate rising crateRise px while the plunder text rises
+//          (crateMs), holding for crateHoldMs of real time (at any battle
+//          speed) before they fade over crateFadeMs, and the ship fading
+//          over fadeMs.
 export const MERCHANTS = {
   path: 'merchants/',   // under SPRITES.path
   firstAt: [45000, 75000],
@@ -3634,10 +3655,11 @@ export const MERCHANTS = {
   floorKills: 5,
   lane: { waterY: 160, fadeX: 360, fadeMs: 1000 },
   lanes: {
-    frostbite_reef: { fadeX: 195 },
-    fogbound_isle: { fadeX: 232 },
-    abyss: { waterY: 156, fadeX: 195 },
+    frostbite_reef: { waterY: 206 },
+    fogbound_isle: { waterY: 156 },
+    abyss: { waterY: 150 },
   },
+  minTapMs: 12000,
   bobFps: 3,
   hitPad: 6,
   tapFromX: 160,
@@ -3645,7 +3667,9 @@ export const MERCHANTS = {
   slow: 0.4,
   fadeMs: 2000,
   crateRise: 20,
-  crateMs: 1400,
+  crateMs: 800,
+  crateHoldMs: 1500,
+  crateFadeMs: 600,
   // Plunder text colours (over the scene): gold, Spice, Bait, materials.
   colors: { gold: '#ffd86a', spice: '#ff9a4a', bait: '#ff8a9a', material: '#c8ffe0' },
 };
@@ -3671,8 +3695,9 @@ export const MERCHANTS = {
 //          one sweep's ms). hits to land it (legendaryHits for a
 //          Legendary), strikes misses and it escapes; every hit moves the
 //          zone and speeds the marker up by speedUp.
-//   rarities: chance of each (rolled at the bite, not shown), and the
-//          name's colour.
+//   rarities: chance of each (rolled at the bite, not shown), the name's
+//          colour (over the scene) and border: the Fish Log card's border
+//          and the rarity's text on parchment.
 //   pools: the fish of each rarity by spot (an island id, the Abyss's, or
 //          `any`): [fish id, weight] pairs. An island's own uncommon fish
 //          is `local` of its uncommon rolls (the rest split the plain ones).
@@ -3691,11 +3716,11 @@ export const FISHING = {
     zone: 0x3fae3f, hitColor: '#7fd36a', missColor: '#ff6a5a',
   },
   rarities: {
-    junk: { chance: 0.08, zone: 0.35, sweepMs: 1200, color: '#a8a8a8', label: 'Junk' },
-    common: { chance: 0.52, zone: 0.30, sweepMs: 1100, color: '#fff3d6', label: 'Common' },
-    uncommon: { chance: 0.28, zone: 0.22, sweepMs: 1000, color: '#7fd36a', label: 'Uncommon' },
-    rare: { chance: 0.11, zone: 0.15, sweepMs: 900, color: '#5aa9f0', label: 'Rare' },
-    legendary: { chance: 0.01, zone: 0.10, sweepMs: 800, color: '#ffb03a', label: 'Legendary' },
+    junk: { chance: 0.08, zone: 0.35, sweepMs: 1200, color: '#a8a8a8', border: '#8b5a2b', label: 'Junk' },
+    common: { chance: 0.52, zone: 0.30, sweepMs: 1100, color: '#fff3d6', border: '#8f8f8f', label: 'Common' },
+    uncommon: { chance: 0.28, zone: 0.22, sweepMs: 1000, color: '#7fd36a', border: '#3f9e3a', label: 'Uncommon' },
+    rare: { chance: 0.11, zone: 0.15, sweepMs: 900, color: '#5aa9f0', border: '#2f72c4', label: 'Rare' },
+    legendary: { chance: 0.01, zone: 0.10, sweepMs: 800, color: '#ffb03a', border: '#d4a017', label: 'Legendary' },
   },
   pools: {
     junk: { any: [['old_boot', 1]] },
@@ -4002,6 +4027,10 @@ export const MOBILE = {
     openMs: 250,
     ledgerFrame: 32,
   },
+  // Keep screen on (src/keepAwake.js): on while a wave, stage, dive or cast
+  // is playing out, and on menus until idleMs of no input; checked every
+  // checkMs.
+  keepAwake: { idleMs: 2 * 60 * 1000, checkMs: 5000 },
 };
 
 // Rankings (src/online/, RankingsScene): the Abyss leaderboard and crew

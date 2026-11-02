@@ -23,6 +23,8 @@
     "app:apk": "node scripts/app-apk.mjs"
   },
   "dependencies": {
+    "@capacitor-community/admob": "^7.2.0",
+    "@capacitor-community/keep-awake": "^7.1.0",
     "@capacitor/app": "^7.1.2",
     "@capacitor/core": "^7.6.9",
     "@capacitor/haptics": "^7.0.5",

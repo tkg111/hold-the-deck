@@ -5,6 +5,7 @@ import {
 import { sfx } from '../audio/Sfx.js';
 import { applyRenderScale, fillView, hudEdges } from '../display.js';
 import { LAYOUT } from '../layout.js';
+import { setBusy } from '../keepAwake.js';
 import { haptic } from '../native.js';
 import { showBackdrop } from '../scenery.js';
 import {
@@ -67,7 +68,10 @@ export class GalleyScene extends Phaser.Scene {
     this.backdrop = fillView(this, 0x0d1117, 1).setDepth(-100);
     this.backdrop.on('pointerdown', () => this.onTap());
     this.input.keyboard?.on('keydown-SPACE', () => this.onTap());
-    this.events.once('shutdown', () => this.input.keyboard?.off('keydown-SPACE'));
+    this.events.once('shutdown', () => {
+      this.input.keyboard?.off('keydown-SPACE');
+      setBusy('fishing', false);
+    });
 
     const spots = fishingSpots(this.progress);
     const here = this.progress.inAbyss ? 'abyss' : this.progress.islandId;
@@ -84,6 +88,13 @@ export class GalleyScene extends Phaser.Scene {
       this.layoutUi(view);
     });
     this.layoutUi(this.view);
+  }
+
+  // The fishing minigame's state (S); a cast under way keeps the screen on.
+  get state() { return this.fishState; }
+  set state(s) {
+    this.fishState = s;
+    setBusy('fishing', s !== S.IDLE);
   }
 
   // --- The scene ---
@@ -635,8 +646,8 @@ export class GalleyScene extends Phaser.Scene {
     }
   }
 
-  // Landed: held up, named in its rarity's colour, NEW! the first time
-  // (with its Spice).
+  // Landed: held up, named in its rarity's colour with the rarity under
+  // it, NEW! the first time (with its Spice).
   landFish() {
     this.bar.setVisible(false);
     this.bobber.setVisible(false);
@@ -651,7 +662,8 @@ export class GalleyScene extends Phaser.Scene {
     this.splash();
     sfx.play('splash');
     sfx.play(fish.rarity === 'legendary' ? 'fish_legendary' : 'fish_catch');
-    const lines = [[fish.name.toUpperCase(), reelSpec(fish.rarity).color]];
+    const spec = reelSpec(fish.rarity);
+    const lines = [[fish.name.toUpperCase(), spec.color], [spec.label.toUpperCase(), spec.color, 'small']];
     if (isNew) lines.push([`NEW!${spice ? `  +${spice} SPICE` : ''}`, '#ffd86a', 'small']);
     this.finish(lines);
     this.events.emit('fish-landed', { id });
