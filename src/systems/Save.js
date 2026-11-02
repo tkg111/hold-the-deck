@@ -231,8 +231,9 @@ const MIGRATIONS = {
   // v25: the Uncharted Seas (a full Grog ration, no items, no stages
   // cleared) and Crew Awakening (nobody awakened).
   24: (data) => ({ ...data, uncharted: newUnchartedRecord(), awakened: [] }),
-  // v26: playtest round 2: the Settings' Keep screen on, on.
-  25: (data) => ({ ...data, keepScreenOn: true }),
+  // v26: playtest round 2: the Settings' Keep screen on (on) and the
+  // Galley's cooking pots (empty; meals already in the Pantry stay).
+  25: (data) => ({ ...data, keepScreenOn: true, pots: Array(MEALS.pots).fill(null) }),
 };
 
 function migrate(save) {

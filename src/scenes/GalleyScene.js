@@ -23,8 +23,14 @@ import { Button } from '../ui/Button.js';
 import { ConfirmDialog } from '../ui/ConfirmDialog.js';
 import { fmtClock, formatNum } from '../ui/format.js';
 import {
-  dark, glyph, hexColor, light, nineSlice, panel, subText, text, UI,
+  dark, glyph, hexColor, light, nineSlice, panel, subText, tapArea, text, UI,
 } from '../ui/kit.js';
+
+// A recipe's cook time: "5 MIN", "1 H".
+function cookTime(mealId) {
+  const min = Math.round(MEALS.list[mealId].cookMs / 60000);
+  return min >= 60 && min % 60 === 0 ? `${min / 60} H` : `${min} MIN`;
+}
 
 const TABS = [
   { key: 'fishing', label: 'Fishing' },
@@ -257,30 +263,34 @@ export class GalleyScene extends Phaser.Scene {
 
   // --- Cooking ---
 
-  // The Spice and active meal strip, the twelve recipes down the left (the
-  // Pantry's count of each, a green up-arrow on one that can be cooked
-  // now), and the chosen recipe on the right.
+  // The Spice, active meal and pots strip, the twelve recipes down the left
+  // (each one's cook time and the Pantry's count, a green up-arrow on one
+  // that can be cooked now), and the chosen recipe on the right.
   drawCooking() {
     const p = this.progress;
     const C = GALLEY.cooking;
     const ui = this.cookingUi;
     ui.removeAll(true);
+    this.potNote = null;
     const add = (...objs) => ui.add(objs);
 
-    // Spice, and the meal being eaten.
+    // Spice, the meal being eaten, and the pots.
     add(panel(this, 8, C.stripY, 84, 20, 'wood'));
     add(this.add.image(19, C.stripY + 10, fishingKey('items'), itemFrame('spice')));
     add(text(this, 30, C.stripY + 10, `SPICE ${formatNum(p.spice)}`, light()).setOrigin(0, 0.5));
-    add(panel(this, 96, C.stripY, 376, 20, 'wood'));
+    const mealW = this.potX(0) - 4 - 96;
+    add(panel(this, 96, C.stripY, mealW, 20, 'wood'));
     if (p.meal) {
       const meal = mealOf(p.meal.id);
       const n = p.meal.wavesLeft;
       add(this.add.image(107, C.stripY + 10, fishingKey('meals'), meal.index));
-      add(text(this, 118, C.stripY + 10, `EATING: ${meal.name.toUpperCase()}`, light()).setOrigin(0, 0.5));
-      add(text(this, 466, C.stripY + 10, `${n} WAVE${n === 1 ? '' : 'S'} LEFT`, light({ font: 'small', color: '#ffd86a' })).setOrigin(1, 0.5));
+      add(text(this, 118, C.stripY + 10, meal.name.toUpperCase(), light({ font: 'small' })).setOrigin(0, 0.5));
+      add(text(this, 96 + mealW - 6, C.stripY + 10, `${n} WAVE${n === 1 ? '' : 'S'}`, light({ font: 'small', color: '#ffd86a' })).setOrigin(1, 0.5));
     } else {
-      add(text(this, 104, C.stripY + 10, 'NO MEAL - COOK ONE, THEN EAT IT', light({ font: 'small' })).setOrigin(0, 0.5));
+      add(text(this, 104, C.stripY + 10, 'NO MEAL - COOK, THEN EAT', light({ font: 'small' })).setOrigin(0, 0.5));
     }
+    this.potsReady = p.readyPots();
+    this.potViews = p.pots.map((_, i) => this.drawPot(i));
 
     // The recipes.
     const L = C.list;
@@ -296,9 +306,11 @@ export class GalleyScene extends Phaser.Scene {
       if (!known) img.setTintFill(hexColor(UI.colors.subText)).setAlpha(0.6);
       const name = text(this, L.x + 26, cy, known ? meal.name : '???', dark()).setOrigin(0, 0.5);
       add(img, name);
-      if (p.canCook(meal.id)) add(glyph(this, name.anchorX + name.inkWidth + 5, cy, 'up', UI_KIT.affordColor));
+      if (p.canCook(meal.id) && p.freePot >= 0) add(glyph(this, name.anchorX + name.inkWidth + 5, cy, 'up', UI_KIT.affordColor));
+      const time = text(this, L.x + L.width - 8, cy, cookTime(meal.id), subText()).setOrigin(1, 0.5);
+      add(time);
       const n = p.pantryCount(meal.id);
-      if (n) add(text(this, L.x + L.width - 8, cy, `X${formatNum(n)}`, subText({ color: UI.colors.textOnParchment })).setOrigin(1, 0.5));
+      if (n) add(text(this, time.anchorX - time.inkWidth - 6, cy, `X${formatNum(n)}`, subText({ color: UI.colors.textOnParchment })).setOrigin(1, 0.5));
       const hit = this.add.rectangle(L.x + 4, y, L.width - 8, L.rowHeight, 0xffffff, 0).setOrigin(0)
         .setInteractive({ useHandCursor: true });
       hit.on('pointerdown', () => {
@@ -331,7 +343,7 @@ export class GalleyScene extends Phaser.Scene {
     } else {
       const caretaker = p.activeHeroes.some(({ id }) => traitOf(id) === MEALS.caretakerTrait);
       const extra = caretaker ? ` (CARETAKER +${MEALS.caretakerWaves})` : '';
-      add(text(this, x + 46, y + 25, `LASTS ${p.mealWaves(meal.id)} WAVES${extra}`, subText()));
+      add(text(this, x + 46, y + 25, `LASTS ${p.mealWaves(meal.id)} WAVES${extra}  -  COOKS IN ${cookTime(meal.id)}`, subText()));
       const lines = mealEffectLines(meal);
       lines.forEach((line, i) => add(text(this, x + 12, y + 46 + i * 10, line, ink())));
       if (meal.note) add(text(this, x + 12, y + 46 + lines.length * 10, `"${meal.note.toUpperCase()}"`, subText()));
@@ -355,18 +367,100 @@ export class GalleyScene extends Phaser.Scene {
         subText({ color: have >= n ? UI.colors.textOnParchment : UI.colors.warn })).setOrigin(1, 0.5));
     });
 
-    // Cook, the Pantry and Eat.
+    // Cook (with "BOTH POTS BUSY" over it while it can't), the Pantry and
+    // Eat (a finished one still in its pot counts).
     const by = y + D.height - 16;
+    const busy = p.freePot < 0;
     const cook = new Button(this, x + 44, by, {
       width: 72, height: 20, style: 'gold', label: 'Cook', onClick: () => this.cook(meal.id),
     });
     const eat = new Button(this, x + D.width - 44, by, {
       width: 72, height: 20, label: 'Eat', onClick: () => this.eat(meal.id),
     });
-    add(cook.setEnabled(p.canCook(meal.id)), eat.setEnabled(p.pantryCount(meal.id) > 0));
+    const inPot = p.pots.some((pot, i) => pot?.meal === meal.id && p.potReady(i));
+    add(cook.setEnabled(p.canCook(meal.id) && !busy), eat.setEnabled(p.pantryCount(meal.id) > 0 || inPot));
+    if (busy && known) add(text(this, x + 44, by - 17, MEALS.pots === 2 ? 'BOTH POTS BUSY' : 'ALL POTS BUSY', subText({ color: UI.colors.warn })).setOrigin(0.5));
     add(text(this, x + D.width / 2, by, `PANTRY: ${formatNum(p.pantryCount(meal.id))}`, ink()).setOrigin(0.5, 0.5));
   }
 
+  // Pot i's left edge on the strip (the pots fill its right end).
+  potX(i) {
+    const P = GALLEY.cooking.pot;
+    return DISPLAY.width - 8 - (MEALS.pots - i) * (P.width + 4) + 4;
+  }
+
+  // Pot i on the strip: empty, cooking (the meal, its time left and steam
+  // rising off the pot) or ready (the meal and a pulsing READY!; tapping it
+  // takes the meal out into the Pantry).
+  drawPot(i) {
+    const p = this.progress;
+    const P = GALLEY.cooking.pot;
+    const y = GALLEY.cooking.stripY;
+    const x = this.potX(i);
+    const pot = p.pots[i];
+    const add = (...objs) => this.cookingUi.add(objs);
+    const bg = panel(this, x, y, P.width, 20, 'wood');
+    add(bg, this.add.image(x + 10, y + 11, fishingKey('icon_pot')));
+    const view = { i, label: null, steam: [] };
+    if (!pot) {
+      add(text(this, x + 20, y + 10, 'EMPTY POT', light({ font: 'small', color: UI.colors.subText })).setOrigin(0, 0.5));
+    } else {
+      add(this.add.image(x + 28, y + 10, fishingKey('meals'), mealOf(pot.meal).index));
+      view.label = text(this, x + P.width - 6, y + 10, '', light({ font: 'small' })).setOrigin(1, 0.5);
+      add(view.label);
+      for (let k = 0; k < 3; k++) {
+        const puff = this.add.rectangle(x + 7 + k * 3, y + 4, 2, 2, 0xffffff, 0.8).setOrigin(0);
+        add(puff);
+        this.tweens.add({
+          targets: puff, y: y - 7, alpha: 0, duration: P.steamMs, delay: k * (P.steamMs / 3), repeat: -1,
+        });
+        view.steam.push(puff);
+      }
+    }
+    tapArea(bg, P.width, 20, { useHandCursor: true });
+    bg.on('pointerdown', () => this.tapPot(i));
+    this.refreshPot(view);
+    return view;
+  }
+
+  // A pot's time left ("12:34") or READY!, and its steam (while it cooks).
+  refreshPot(view) {
+    const p = this.progress;
+    const pot = p.pots[view.i];
+    if (!pot || !view.label) return;
+    const ready = p.potReady(view.i);
+    view.label.setText(ready ? 'READY!' : fmtClock(pot.doneAt - Date.now())).setColor(ready ? '#ffd86a' : UI.colors.text);
+    view.label.setAlpha(ready ? 0.6 + 0.4 * Math.abs(Math.sin(this.time.now / 300)) : 1);
+    for (const s of view.steam) s.setVisible(!ready);
+  }
+
+  // A pot tapped: a finished meal goes into the Pantry; one still cooking
+  // says how long it has left.
+  tapPot(i) {
+    const p = this.progress;
+    const pot = p.pots[i];
+    if (!pot) {
+      sfx.play('ui_click');
+      return;
+    }
+    if (!p.potReady(i)) {
+      sfx.play('ui_click');
+      this.potNote?.destroy();
+      const msg = `${mealOf(pot.meal).name.toUpperCase()} READY IN ${fmtClock(pot.doneAt - Date.now())}`;
+      this.potNote = text(this, DISPLAY.width - 8, GALLEY.cooking.stripY + 27, msg, light({ font: 'small' })).setOrigin(1, 0.5);
+      this.cookingUi.add(this.potNote);
+      const note = this.potNote;
+      this.time.delayedCall(2000, () => note.destroy());
+      return;
+    }
+    p.collectPot(i);
+    sfx.play('cook');
+    saveProgress(p);
+    this.events.emit('meal-collected', { id: pot.meal });
+    this.drawCooking();
+  }
+
+  // Start cooking the recipe in a free pot.
   cook(id) {
     if (!this.progress.cook(id)) return;
     sfx.play('cook');
@@ -374,10 +468,11 @@ export class GalleyScene extends Phaser.Scene {
     this.drawCooking();
   }
 
-  // Eat a meal from the Pantry; one still going is replaced, after a
-  // confirm.
+  // Eat a meal from the Pantry (a finished one still in its pot is taken
+  // out first); one still going is replaced, after a confirm.
   eat(id) {
     const p = this.progress;
+    if (p.pantryCount(id) < 1) p.collectReady(Date.now(), id);
     if (p.pantryCount(id) < 1) return;
     const doEat = () => {
       p.eat(id);
@@ -675,6 +770,11 @@ export class GalleyScene extends Phaser.Scene {
     if (this.baitClock >= 250) {
       this.baitClock = 0;
       this.refreshBait();
+      // The pots' time left; one that just finished redraws the tab.
+      if (this.tab === 'cooking' && this.potViews) {
+        if (this.progress.readyPots() !== this.potsReady) this.drawCooking();
+        for (const v of this.potViews) this.refreshPot(v);
+      }
     }
     if (this.state === S.REELING) {
       const r = this.reel;

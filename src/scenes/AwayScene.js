@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { DISPLAY, MOBILE } from '../config.js';
 import { sfx } from '../audio/Sfx.js';
 import { applyRenderScale, fillView } from '../display.js';
-import { tutorialKey } from '../sprites.js';
+import { fishingKey, tutorialKey } from '../sprites.js';
 import { formatAway } from '../systems/Offline.js';
 import { Button } from '../ui/Button.js';
 import { formatNum } from '../ui/format.js';
@@ -23,8 +23,9 @@ const O = MOBILE.offline;
 // panel over the paused battle, fading in as the ship's ledger opens, with
 // the Captain's mini portrait and "The crew kept busy, Cap'n!", then a row
 // each: the time away ("(MAX 4 H)" past the time cap), the gold (counting
-// up with coin ticks; "(HOLD IS FULL)" when the waves cap held it back), expeditions back (with a button to them, if they can open now)
-// and Bait refilled. Collect plays plunder and pays.
+// up with coin ticks; "(HOLD IS FULL)" when the waves cap held it back), expeditions back (with a button to them, if they can open now),
+// Bait refilled and meals ready in the Galley's pots. Collect plays
+// plunder and pays.
 // Launched with { report, canOpenExpeditions, onCollect, onExpeditions }.
 export class AwayScene extends Phaser.Scene {
   constructor() {
@@ -49,6 +50,7 @@ export class AwayScene extends Phaser.Scene {
     const rows = [['TIME AWAY', 'time'], ['GOLD', 'gold']];
     if (r.expeditions) rows.push([null, 'expeditions']);
     if (r.bait) rows.push(['BAIT', 'bait']);
+    if (r.meals) rows.push([null, 'meals']);
     const H = ROWS_Y + rows.length * ROW + 30;
     const cx = DISPLAY.width / 2;
     const x = cx - W / 2;
@@ -77,6 +79,9 @@ export class AwayScene extends Phaser.Scene {
         // The hold's limit (Offline: waveCap waves' gold), after the final amount.
         if (r.full) add(text(this, vx + 15 + this.goldText.inkWidth + 4, ry, '(HOLD IS FULL)', subText()).setOrigin(0, 0.5));
         this.goldText.setText('+0');
+      } else if (kind === 'meals') {
+        add(this.add.image(x + 18, ry, fishingKey('icon_pot')));
+        add(text(this, x + 28, ry, `${r.meals} meal${r.meals === 1 ? '' : 's'} ready in the Galley`, dark()).setOrigin(0, 0.5));
       } else if (kind === 'expeditions') {
         const n = r.expeditions;
         // (No label: the line starts in the labels' column, clear of OPEN.)

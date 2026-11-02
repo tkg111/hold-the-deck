@@ -128,6 +128,10 @@ export class Progress {
     this.bait = FISHING.bait.cap;
     this.baitAt = Date.now();
     this.pantry = {};
+    // Cooking pots (MEALS.pots): the meal cooking in each ({ meal,
+    // startedAt, doneAt }, Date.now() ms; it's ready from doneAt, offline
+    // too, until collected into the Pantry) or null.
+    this.pots = Array(MEALS.pots).fill(null);
     this.meal = null;
     this.fishLog = {};
     this.merchantsPlundered = 0;
@@ -231,6 +235,7 @@ export class Progress {
       bait: this.bait,
       baitAt: this.baitAt,
       pantry: { ...this.pantry },
+      pots: this.pots.map((pot) => pot && { ...pot }),
       meal: this.meal && { ...this.meal },
       fishLog: { ...this.fishLog },
       merchantsPlundered: this.merchantsPlundered,
@@ -367,6 +372,12 @@ export class Progress {
     p.fish = counts(data.fish, knownFish);
     p.fishLog = counts(data.fishLog, knownFish);
     p.pantry = counts(data.pantry, (id) => id in MEALS.list);
+    p.pots = p.pots.map((_, i) => {
+      const pot = Array.isArray(data.pots) ? data.pots[i] : null;
+      if (!pot || !(pot.meal in MEALS.list) || !Number.isFinite(pot.doneAt)) return null;
+      const startedAt = Number.isFinite(pot.startedAt) ? pot.startedAt : pot.doneAt - MEALS.list[pot.meal].cookMs;
+      return { meal: pot.meal, startedAt, doneAt: pot.doneAt };
+    });
     p.spice = int(data.spice, 0);
     p.bait = int(data.bait, 0, Infinity, p.bait);
     if (Number.isFinite(data.baitAt)) p.baitAt = data.baitAt;
@@ -1284,15 +1295,51 @@ export class Progress {
   }
   canCook(mealId) { return this.isRecipeKnown(mealId) && this.hasIngredients(mealId); }
 
-  // Cook a meal into the Pantry, using up its fish and Spice.
-  cook(mealId) {
-    if (!this.canCook(mealId)) return false;
+  // A free cooking pot's index, or -1 (every pot busy).
+  get freePot() { return this.pots.indexOf(null); }
+
+  // Pot i holds a meal that's done cooking (at now).
+  potReady(i, now = Date.now()) {
+    const pot = this.pots[i];
+    return !!pot && now >= pot.doneAt;
+  }
+
+  // How many pots hold a finished meal (at now).
+  readyPots(now = Date.now()) {
+    return this.pots.filter((_, i) => this.potReady(i, now)).length;
+  }
+
+  // Start cooking a meal in a free pot (MEALS.list[mealId].cookMs from now),
+  // using up its fish and Spice at once. False if it can't (unknown, short
+  // of something, or every pot busy).
+  cook(mealId, now = Date.now()) {
+    const pot = this.freePot;
+    if (!this.canCook(mealId) || pot < 0) return false;
     for (const [id, n] of Object.entries(MEALS.list[mealId].needs)) {
       if (id === 'spice') this.spice -= n;
       else this.fish[id] -= n;
     }
-    this.pantry[mealId] = this.pantryCount(mealId) + 1;
+    this.pots[pot] = { meal: mealId, startedAt: now, doneAt: now + MEALS.list[mealId].cookMs };
     return true;
+  }
+
+  // Take a finished meal out of pot i into the Pantry. Returns its meal id,
+  // or null (empty, or still cooking).
+  collectPot(i, now = Date.now()) {
+    if (!this.potReady(i, now)) return null;
+    const { meal } = this.pots[i];
+    this.pots[i] = null;
+    this.pantry[meal] = this.pantryCount(meal) + 1;
+    return meal;
+  }
+
+  // Collect every finished meal (only mealId's, if given); returns how many.
+  collectReady(now = Date.now(), mealId = null) {
+    let n = 0;
+    this.pots.forEach((pot, i) => {
+      if (pot && (!mealId || pot.meal === mealId) && this.collectPot(i, now)) n++;
+    });
+    return n;
   }
 
   // How many waves a meal eaten now lasts: its own, plus

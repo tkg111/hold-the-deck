@@ -3768,25 +3768,33 @@ export const FISHING = {
 //   abyssGrowth: the Abyss's rising tide (enemy HP and damage growth per
 //         depth) counts this much lower
 // note: an extra line on the recipe card.
+const MIN = 60 * 1000;
+
 export const MEALS = {
+  // Cooking pots: how many meals cook at once; each meal's cookMs (by its
+  // tier: commons 5 min, uncommons 15, rares 30, the Golden Koi Feast 60)
+  // of real time, offline too.
+  pots: 2,
   caretakerWaves: 5,
   caretakerTrait: 'caretaker',
   healEveryMs: 10000,
   list: {
-    fish_stew: { needs: { sardine: 3 }, waves: 10, gold: 0.1 },
-    grilled_mackerel: { needs: { mackerel: 3 }, waves: 10, attackSpeed: 0.08 },
-    snapper_curry: { needs: { red_snapper: 2, spice: 1 }, waves: 10, damage: 0.12 },
-    puffer_sashimi: { needs: { pufferfish: 2 }, waves: 10, damage: 0.18, hull: -0.15 },
-    moonfish_pie: { needs: { moonfish: 1, sardine: 2 }, waves: 10, heal: 0.02 },
-    swordfish_steak: { needs: { swordfish: 1, spice: 1 }, waves: 10, bossDamage: 0.2 },
-    ember_eel_skewers: { needs: { ember_eel: 2, spice: 1 }, waves: 10, lavaDamage: -0.5, damage: 0.05 },
-    ice_cod_chowder: { needs: { ice_cod: 2, spice: 1 }, waves: 10, freeze: -0.5, hull: 0.1 },
-    ghost_carp_soup: { needs: { ghost_carp: 2, spice: 1 }, waves: 10, charm: -0.5, fog: -0.5 },
-    angler_bake: { needs: { abyss_angler: 1, spice: 2 }, waves: 10, abyssGrowth: -0.25 },
-    golden_koi_feast: {
-      needs: { golden_koi: 1, spice: 2 }, waves: 20, gold: 0.4, damage: 0.1, attackSpeed: 0.1,
+    fish_stew: { needs: { sardine: 3 }, waves: 10, cookMs: 5 * MIN, gold: 0.1 },
+    grilled_mackerel: { needs: { mackerel: 3 }, waves: 10, cookMs: 5 * MIN, attackSpeed: 0.08 },
+    snapper_curry: { needs: { red_snapper: 2, spice: 1 }, waves: 10, cookMs: 15 * MIN, damage: 0.12 },
+    puffer_sashimi: { needs: { pufferfish: 2 }, waves: 10, cookMs: 15 * MIN, damage: 0.18, hull: -0.15 },
+    moonfish_pie: { needs: { moonfish: 1, sardine: 2 }, waves: 10, cookMs: 30 * MIN, heal: 0.02 },
+    swordfish_steak: { needs: { swordfish: 1, spice: 1 }, waves: 10, cookMs: 30 * MIN, bossDamage: 0.2 },
+    ember_eel_skewers: {
+      needs: { ember_eel: 2, spice: 1 }, waves: 10, cookMs: 15 * MIN, lavaDamage: -0.5, damage: 0.05,
     },
-    boot_soup: { needs: { old_boot: 3 }, waves: 10, gold: 0.01, note: 'It tastes awful.' },
+    ice_cod_chowder: { needs: { ice_cod: 2, spice: 1 }, waves: 10, cookMs: 15 * MIN, freeze: -0.5, hull: 0.1 },
+    ghost_carp_soup: { needs: { ghost_carp: 2, spice: 1 }, waves: 10, cookMs: 15 * MIN, charm: -0.5, fog: -0.5 },
+    angler_bake: { needs: { abyss_angler: 1, spice: 2 }, waves: 10, cookMs: 30 * MIN, abyssGrowth: -0.25 },
+    golden_koi_feast: {
+      needs: { golden_koi: 1, spice: 2 }, waves: 20, cookMs: 60 * MIN, gold: 0.4, damage: 0.1, attackSpeed: 0.1,
+    },
+    boot_soup: { needs: { old_boot: 3 }, waves: 10, cookMs: 5 * MIN, gold: 0.01, note: 'It tastes awful.' },
   },
 };
 
@@ -3797,11 +3805,12 @@ export const GALLEY = {
   tabWidth: 84,
   spots: { y: 36, width: 70, height: 18, gap: 3 },
   recipes: { x: 12, y: 46, cols: 3, cardWidth: 148, cardHeight: 44, gapX: 4, gapY: 4, rows: 4 },
-  // The Cooking tab: the Spice / active meal strip, the recipe list (a row
+  // The Cooking tab: the Spice / active meal / pots strip, the recipe list (a row
   // per meal) and the chosen recipe's panel (needsY: where its ingredients
   // start).
   cooking: {
     stripY: 30,
+    pot: { width: 88, steamMs: 900 },   // each pot on the strip; its steam's rise
     list: { x: 8, y: 54, width: 196, height: 212, rowHeight: 17 },
     detail: { x: 208, y: 54, width: 264, height: 212, needsY: 96 },
   },

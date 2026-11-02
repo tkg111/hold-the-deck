@@ -60,8 +60,9 @@ export function waveGoldOf(progress) {
 // in since progress.lastSeen, and lastSeen moves to now. Expeditions and
 // Bait are brought up to now here; the gold is only reported (paid by
 // collect()). Returns { awayMs, capped, gold, expeditions (that came back
-// while away), bait: { from, to } or null } or null if there's nothing to
-// tell (or the player was away under minAwayMs).
+// while away), bait: { from, to } or null, meals (finished meals waiting
+// in the Galley's pots, when one finished while away) } or null if there's
+// nothing to tell (or the player was away under minAwayMs).
 export function comeBack(progress, now = Date.now()) {
   const { lastSeen } = progress;
   const earned = awayEarnings({
@@ -76,10 +77,14 @@ export function comeBack(progress, now = Date.now()) {
   const baitFrom = progress.bait;
   progress.tickBait(now);
   const bait = progress.bait > baitFrom ? { from: baitFrom, to: progress.bait } : null;
+  const readyThen = Number.isFinite(lastSeen) && lastSeen <= now ? progress.readyPots(lastSeen) : progress.readyPots(now);
+  const meals = progress.readyPots(now) > readyThen ? progress.readyPots(now) : 0;
   progress.lastSeen = now;
   if (earned.backwards || earned.awayMs < O.minAwayMs) return null;
-  if (!earned.gold && !expeditions && !bait) return null;
-  return { ...earned, expeditions, bait };
+  if (!earned.gold && !expeditions && !bait && !meals) return null;
+  return {
+    ...earned, expeditions, bait, meals,
+  };
 }
 
 // Pay a comeBack() report's gold.
