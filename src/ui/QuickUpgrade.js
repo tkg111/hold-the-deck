@@ -25,11 +25,11 @@ const AMOUNTS = [['1', 'x1'], ['10', 'x10'], ['max', 'MAX']];
 // (the awakened art once awakened), name and title, level, stars and trait,
 // damage now -> after one more level, their ability and its cooldown, and
 // x1 / x10 / MAX buy buttons with their costs, which level them up right
-// here (Progress.bulkPlan, like the Shipwright's). The Awaken button shows
-// once the Uncharted Seas are open (gold when they can be); Swap opens the
-// crew grid for their slot. Modal like ConfirmDialog; Android's back button
-// closes it. Callbacks: onBuy() after levels are bought, onAwaken(id),
-// onSwap().
+// here (Progress.heroBuyPlan / buyHeroLevels, like the Shipwright's). The
+// Awaken button shows once the Uncharted Seas are open (gold when they can
+// be); Swap opens the crew grid for their slot. Modal like ConfirmDialog;
+// Android's back button closes it. Callbacks: onBuy() after levels are
+// bought, onAwaken(id), onSwap().
 export class QuickUpgrade extends Phaser.GameObjects.Container {
   constructor(scene, progress, id, { onBuy, onAwaken, onSwap }) {
     super(scene, 0, 0);
@@ -121,10 +121,7 @@ export class QuickUpgrade extends Phaser.GameObjects.Container {
 
   // Each button's plan at the gold held now.
   plan(amount) {
-    const p = this.progress;
-    const lv = p.heroLevel(this.id);
-    const plan = p.bulkPlan((k) => p.heroLevelCost(this.id, lv + k), amount);
-    return { ...plan, affordable: plan.count > 0 && plan.cost <= p.gold };
+    return this.progress.heroBuyPlan(this.id, amount);
   }
 
   refresh() {
@@ -148,13 +145,9 @@ export class QuickUpgrade extends Phaser.GameObjects.Container {
     if (this.awaken) this.awaken.setStyle(p.canAwaken(id) ? 'gold' : 'wood');
   }
 
-  // Buy a button's levels (all affordable when planned).
+  // Buy a button's levels.
   buy(amount) {
-    const p = this.progress;
-    const { count } = this.plan(amount);
-    let bought = 0;
-    while (bought < count && p.levelHero(this.id)) bought++;
-    if (!bought) return;
+    if (!this.progress.buyHeroLevels(this.id, amount)) return;
     sfx.play('buy');
     this.refresh();
     this.onBuy();

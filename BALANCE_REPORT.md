@@ -3643,3 +3643,97 @@ won, so its "open" 2-crown walls are bookkeeping, not walls.)
 
 Also seen: **2-5 The Forge** is the only stage that walls the way to 6-6
 (one run, 1.2 days; 1.5 days at 2 crowns in another, 21.3).
+
+## 22. Playtest round 2: offline, expeditions, cooking, the depth gate and ad speeds
+
+Reproduce with `npm run sim:journey -- <profile> 5 days=<cap> speeds=old`
+and the same without `speeds=old` (caps: Casual 60 days, Regular 30,
+Hardcore 14; every run beat 6-6 well inside its cap). Seeds 1000-1004, 30 runs.
+
+**No balance number changed** apart from this round's own rules: offline
+gold (nothing the first hour, then 100 / 75 / 50 / 25%, then nothing),
+the expedition gold cap (1 / 3 / 6 waves), cooking pots (2, 5-60 minutes)
+and the Uncharted Seas' Abyss depth gate (10 / 20 / 30 / 40 / 55 / 70).
+
+The journey sim's changes (`scripts/sim/journey.mjs`):
+
+- **Speeds.** The bot plays at **x2**, and at **x4** on an ad pass for a share
+  of its battles (Casual and Regular 30%, Hardcore 70%). Rather than rolling
+  dice (which would reshuffle every run's luck), each battle takes its
+  expected real time at that mix. **Auto is always on**, its pass re-watched
+  as it runs out (free until Skull Cove is cleared). Each ad costs **35 s** of
+  real time; a stage counts as 3 waves of a pass. `speeds=old` plays the
+  speeds from before this round (x1 Casual, x4 Regular and Hardcore, no ads),
+  so that column shows what the round's other changes do alone.
+- **Cooking.** Both pots are kept busy with the best meal that can be
+  cooked; the best one in the Pantry is eaten when none is on (also after
+  every battle, collecting whatever has finished).
+- **The gate.** The bot only picks stages that are open at its best depth;
+  otherwise it dives.
+
+### 22.1 Milestones: days (median of 5, range)
+
+| Milestone | Casual 21 | Casual rules only | Casual after | Regular 21 | Regular rules only | Regular after | Hardcore 21 | Hardcore rules only | Hardcore after |
+|---|---|---|---|---|---|---|---|---|---|
+| Skull Cove cleared | 1.8 | 1.8 | 0.8 | 0.3 | 0.3 | 0.5 | 0.3 | 0.3 | 0.3 |
+| Fogbound Isle cleared (Abyss open) | 7.8 | 8.3 | 4.3 | 1.3 | 1.3 | 1.7 | 0.4 | 0.4 | 0.6 |
+| 1-6 beaten | 8.8 | 9.3 | 5.3 | 1.5 | 1.5 | 1.9 | 0.5 | 0.5 | 0.7 |
+| 2-6 beaten | 10.8 | 23.8 (21.8–27.8) | 14.3 (6.3–21.8) | 1.5 | 2.3 | 4.7 (2.3–6.3) | 0.6 | 0.7 | 0.7 |
+| 3-6 beaten | 13.3 | 26.3 | 15.8 | 1.9 | 2.5 | 6.7 | 0.7 | 0.8 | 1.3 |
+| 4-6 beaten | 15.3 | 29.3 | 17.3 | 2.5 | 4.3 | 7.7 | 0.8 | 0.9 | 1.4 |
+| 5-6 beaten | 17.3 | 33.8 | 19.8 | 2.7 | 6.5 | 8.7 | 0.9 | 1.4 | 1.7 |
+| **6-6 beaten** | **19.3** (17.8–22.3) | **42.3** (37.3–42.8) | **23.8** (22.8–31.3) | **3.3** (2.7–3.7) | **7.5** (6.3–8.7) | **10.7** (9.5–16.5) | **0.9** (0.9–1.6) | **2.7** (1.8–4.9) | **3.6** (2.5–6.9) |
+| Abyss depth 25 | never | 23.8 | 13.8 | 1.3 (4/5) | 1.3 | 5.3 | 0.6 | 0.6 | 0.6 |
+| Abyss depth 50 | never | 32.8 | 18.8 | never | 6.3 | 7.7 | 0.8 | 0.9 | 1.6 |
+| First awakening | 9.8 | 10.3 | 5.8 | 1.5 | 1.5 | 2.3 | 0.6 | 0.6 | 0.7 |
+| 4 awakened | 19.1 (4/5) | 16.8 | 9.8 | 2.9 | 3.5 | 4.3 | 0.9 | 1.3 | 1.4 |
+
+(Hours played to 6-6, rules only / after: Casual 22.8 / 12.3,
+Regular 10.2 / 14.4, Hardcore 12.1 / 15.6, against 10.6 / 4.2 / 4.5 in 21.)
+
+### 22.2 What the round adds
+
+- **This round's rules alone (same speeds as section 21) add about 23 days
+  for Casual (19.3 -> 42.3, x2.2), 4.2 days for Regular (3.3 -> 7.5, x2.3)
+  and 1.8 days for Hardcore (0.9 -> 2.7, x3).** Played hours double or
+  triple the same way (Regular 4.2 h -> 10.2 h).
+- **Almost all of it is the depth gate.** The islands and 1-6 move by at most
+  half a day. The jump is at **2-6** (sea 2 needs depth 20: Casual 10.8 -> 23.8
+  days) and again before **6-6** (depth 70: Casual 33.8 -> 42.3 days from 5-6).
+  Before, the bot barely touched the Abyss (Casual never reached depth 25);
+  now it has to dive to 70, and the late game is Abyss grinding between
+  stages. Depth 100 is never reached.
+- **Offline and expeditions.** The 8-wave hold still binds almost every
+  payout (Casual 392 of 405, Regular 106 of 149). The expedition cap cuts
+  expeditions' share of gold only a little (Casual 45% -> 49% of a much
+  longer run's gold; Regular 23% -> 21%), because a run already paid about a
+  wave's worth. Offline's share rises (Casual 2% -> 27%) because 6-6 now takes
+  weeks of Abyss play, where one wave is a deep depth's gold and fills the hold.
+- **Cooking** barely shows: 81–95% of battles still had a meal on (63–92%
+  in 21), because both pots are kept busy and the meals that matter cook in
+  5–15 minutes.
+- **The new speeds** (x2 with x4 on ads, ad time counted) *speed up* Casual
+  a lot, since it used to play at x1 (42.3 -> 23.8 days, +4.5 days over
+  section 21 in all). They slow Regular and Hardcore, who used to play at
+  x4 for free (Regular 7.5 -> 10.7 days, Hardcore 2.7 -> 3.6). The median
+  run watched about 33 x4 + 69 Auto ads (Casual), 40 + 86 (Regular) and
+  83 + 76 (Hardcore), about 1.0–1.5 hours of ads per run.
+
+### 22.3 After, against section 21
+
+| Profile | 6-6, section 21 | 6-6 now | Added |
+|---|---:|---:|---:|
+| Casual | 19.3 days (10.6 h) | 23.8 days (12.3 h) | +4.5 days |
+| Regular | 3.3 days (4.2 h) | 10.7 days (14.4 h) | +7.4 days |
+| Hardcore | 0.9 days (4.5 h) | 3.6 days (15.6 h) | +2.7 days |
+
+### 22.4 Things to look at
+
+1. **The depth gate is the whole story.** If 6-6 should stay a two-to-three-week
+   goal for Regular rather than ten-plus days, lower the later depths (55 / 70)
+   or give the Abyss a shallower curve for these players. Sea 2's depth 20 is
+   the first real wall: it adds 2–13 days for Casual depending on the seed.
+2. **Ads per run are high.** About 100–160 rewarded ads per run, an hour or more
+   of watching. Larger passes (for example 20 waves of x4, 30 of Auto) would halve that.
+3. **Hardcore's spread widened** (6-6 between 2.5 and 6.9 days): one seed
+   (1002) spent days grinding depth for sea 6.

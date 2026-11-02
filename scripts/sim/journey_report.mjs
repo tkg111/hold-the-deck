@@ -129,7 +129,7 @@ function longestGap(run) {
 
 function economy(runs) {
   const out = [];
-  out.push('| Profile | Gold from battle | Offline | Merchants | Expeditions | Offline payouts at the 8-wave hold / at the 4 h cap | Offline paid vs the time cap alone |',
+  out.push('| Profile | Gold from battle | Offline | Merchants | Expeditions | Offline payouts at the 8-wave hold / past the last hour that pays | Offline paid vs the hours alone |',
     '|---|---:|---:|---:|---:|---|---:|');
   for (const [profile, rs] of Object.entries(byProfile(runs))) {
     const g = (k) => sum(rs.flatMap((r) => r.days.map((d) => d.gold[k])));
@@ -156,12 +156,14 @@ function economy(runs) {
       + `${pct(sum(rs.map((r) => r.meals.withMeal)), sum(rs.map((r) => r.meals.battles)))} | `
       + `${Object.entries(cooked).sort((a, b) => b[1] - a[1]).map(([id, n]) => `${id} ${n}`).join(', ')} |`);
   }
-  out.push('', '| Profile | Merchants seen / tapped | Expeditions (by length) | Casts / landed |', '|---|---|---|---|');
+  out.push('', '| Profile | Merchants seen / tapped | Expeditions (by length) | Casts / landed | Ads watched: x4 / Auto (median per run) | Ad time (median, hours) |', '|---|---|---|---|---|---:|');
   for (const [profile, rs] of Object.entries(byProfile(runs))) {
     const lengths = {};
     for (const r of rs) for (const [id, n] of Object.entries(r.expeditions.byDuration)) lengths[id] = (lengths[id] ?? 0) + n;
+    const ads = (k) => median(rs.map((r) => Math.round(r.ads?.[k] ?? 0)));
     out.push(`| ${profile} | ${sum(rs.map((r) => r.merchants.seen))} / ${sum(rs.map((r) => r.merchants.tapped))} | `
-      + `${Object.entries(lengths).map(([id, n]) => `${id} ${n}`).join(', ')} | ${sum(rs.map((r) => r.fishing.casts))} / ${sum(rs.map((r) => r.fishing.landed))} |`);
+      + `${Object.entries(lengths).map(([id, n]) => `${id} ${n}`).join(', ')} | ${sum(rs.map((r) => r.fishing.casts))} / ${sum(rs.map((r) => r.fishing.landed))} | `
+      + `${ads('speed4x')} / ${ads('auto')} | ${f1(median(rs.map((r) => (r.ads?.ms ?? 0) / HOUR)))} |`);
   }
   return out.join('\n');
 }
@@ -179,10 +181,11 @@ function runsTable(runs) {
 }
 
 export function report(results, {
-  wallSec, days, ff, playOn, profiles,
+  wallSec, days, ff, playOn, profiles, speeds = 'new',
 }) {
   const runs = profiles.flatMap((p) => sorted(results.filter((r) => r.profile === p)));
-  const parts = [`# Journey sim: ${runs.length} runs, ${days}-day cap${ff ? '' : ', no fast-forward'}${playOn ? ', played on past 6-6' : ''}, ${Math.round(wallSec)} s wall clock`, ''];
+  const speedNote = speeds === 'old' ? ', the old speeds (x1 / x4 / x4, no ads)' : ', x2 with x4 on an ad pass, Auto on an ad pass';
+  const parts = [`# Journey sim: ${runs.length} runs, ${days}-day cap${ff ? '' : ', no fast-forward'}${playOn ? ', played on past 6-6' : ''}${speedNote}, ${Math.round(wallSec)} s wall clock`, ''];
   parts.push('## Runs', '', runsTable(runs), '');
   for (const [profile, rs] of Object.entries(byProfile(runs))) parts.push(`## A. Timeline: ${profile}`, '', timeline(rs), '');
   parts.push('## B. Walls', '', walls(runs), '', islandLosses(runs), '');
@@ -238,7 +241,7 @@ export function svg(results) {
     y += 14;
   };
   // 1. Furthest progress, as labels.
-  head('Furthest progress after each session', `Regular, seed ${run.seed}: ${log.length} sessions of 20 minutes at x4 over ${Math.ceil(run.endDay)} days`);
+  head('Furthest progress after each session', `Regular, seed ${run.seed}: ${log.length} sessions of 20 minutes over ${Math.ceil(run.endDay)} days`);
   log.forEach((s, i) => {
     const label = s.progress.crowns ? `U ${s.progress.frontier}` : s.progress.island;
     panels.push(`<text x="${x(i) + barW / 2}" y="${y + 10}" class="v" text-anchor="middle">${esc(label)}</text>`);
@@ -284,7 +287,7 @@ export function svg(results) {
   };
   stack('Where the gold came from', 'share of each session\'s gold', 'gold', SERIES.gold, null);
   const maxMin = Math.max(...log.map((s) => sum(Object.values(s.modeMs)) / 60e3));
-  stack('Minutes played per mode', 'battle time at x4 plus results screens, per session', 'modeMs', SERIES.mode, Math.ceil(maxMin / 5) * 5);
+  stack('Minutes played per mode', "battle time at the profile's speeds plus results screens and ads, per session", 'modeMs', SERIES.mode, Math.ceil(maxMin / 5) * 5);
   // x axis: session numbers.
   log.forEach((s, i) => panels.push(`<text x="${x(i) + barW / 2}" y="${y - 14}" class="s" text-anchor="middle">${i + 1}</text>`));
   panels.push(`<text x="${left}" y="${y + 2}" class="s">session (day ${log.map((s) => s.day).filter((d, i, a) => a.indexOf(d) === i).join(', ')})</text>`);

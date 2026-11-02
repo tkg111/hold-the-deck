@@ -12,6 +12,9 @@
 //   noff         play every battle (no fast-forward, see below)
 //   playon       keep playing after 6-6 (to the day cap), for the
 //                milestones past it (the Abyss's depths, awakenings)
+//   speeds=old   the battle speeds before playtest round 2 (x1 for Casual,
+//                x4 for the others, no ads), to see what the round's other
+//                changes alone do
 //
 // The player plays in sessions of real time (PROFILES), with the game closed
 // between them; the clock (Date.now) is the sim's, so Grog, Bait,
@@ -25,8 +28,10 @@
 //      MAX buying comes to), awakening anyone who can be.
 //   3. Expeditions: idle crew (not on the ship) on the longest run that's
 //      back before the next session.
-//   4. The Galley: fish with all the Bait (a reel model, see castLine), cook
-//      and eat the best meal that can be made (mealScore) when none is on.
+//   4. The Galley: fish with all the Bait (a reel model, see castLine), keep
+//      both pots cooking the best meal that can be made (mealScore), and
+//      eat the best one in the Pantry when none is on (also after every
+//      battle, taking out whatever has finished).
 //   5. Battle for the rest of the session, spending after every battle;
 //      merchants come by in waves and dives (MerchantClock) and are tapped
 //      at the profile's rate.
@@ -36,8 +41,9 @@
 //        earlier wave; a loss there still pays its kills) until the session
 //        ends. The next session sails at it again.
 //      - Once the Abyss is open: the Uncharted Seas while there's Grog
-//        (leaving a dive under way, as the chart does), then dives from the
-//        deepest checkpoint for the rest of the session.
+//        (leaving a dive under way, as the chart does) and a stage is open
+//        (the seas' Abyss depth gate counting), then dives from the deepest
+//        checkpoint for the rest of the session.
 //      - The Uncharted Seas: the lowest open stage and crown not yet won
 //        (sea, then crown, then stage) that isn't blocked (lost
 //        BLOCK_LOSSES times in a row, until the crew's power is up
@@ -61,7 +67,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { cpus } from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
-  AWAKEN, ENEMIES, EXPEDITIONS, FISHING, GAME_SPEEDS, HEROES, ISLANDS, MEALS, MERCHANTS, UNCHARTED,
+  ADS, AWAKEN, ENEMIES, EXPEDITIONS, FISHING, HEROES, ISLANDS, MEALS, MERCHANTS, UNCHARTED,
 } from '../../src/config.js';
 import { SEAS } from '../../src/data/uncharted.js';
 import * as Expeditions from '../../src/systems/Expeditions.js';
@@ -85,15 +91,28 @@ initFishing(readJson('fishing/fishing.json'));
 // --- The players ---
 
 // sessions: the hours of the day each session starts; minutes: how long it
-// lasts (real time); speed: the battle speed (all of GAME_SPEEDS are open
-// from the start, so "the fastest unlocked" is the top one); tap: the share
-// of merchant ships tapped.
-const FASTEST = Math.max(...GAME_SPEEDS);
+// lasts (real time); speed: the battle speed off an ad pass (x2, free);
+// x4: the share of battles played at x4 on a rewarded-ad pass (re-watched
+// as it runs out); tap: the share of merchant ships tapped. Auto battle is
+// always on, its pass re-watched as it runs out (it's free until Skull Cove
+// is cleared). Rather than rolling dice for the speed (which would shift
+// every run's luck), each battle takes its expected real time at the mix.
 export const PROFILES = {
-  casual: { sessions: [8, 20], minutes: 15, speed: 1, tap: 0.7 },
-  regular: { sessions: [8, 12, 17, 21], minutes: 20, speed: FASTEST, tap: 0.9 },
-  hardcore: { sessions: [7, 10, 13, 16, 19, 22], minutes: 45, speed: FASTEST, tap: 0.9 },
+  casual: {
+    sessions: [8, 20], minutes: 15, speed: 2, x4: 0.3, tap: 0.7,
+  },
+  regular: {
+    sessions: [8, 12, 17, 21], minutes: 20, speed: 2, x4: 0.3, tap: 0.9,
+  },
+  hardcore: {
+    sessions: [7, 10, 13, 16, 19, 22], minutes: 45, speed: 2, x4: 0.7, tap: 0.9,
+  },
 };
+// speeds=old: the speeds before playtest round 2 (every speed free, x4 the
+// top one; Casual played at x1), with no ads.
+const OLD_SPEEDS = { casual: 1, regular: 4, hardcore: 4 };
+// A rewarded ad's real time (the ad, and back to the game).
+const AD_MS = 35000;
 
 // Real time that isn't battle (at any speed): between battles (the
 // auto-continue's AUTO_CONTINUE.delayMs, the banner), after a stage or a
@@ -131,7 +150,7 @@ const shortName = (id) => HEROES[id].shortName ?? HEROES[id].name;
 const pick = (xs, f) => xs.reduce((best, x) => (best == null || f(x) > f(best) ? x : best), null);
 
 export function journey(profileId, seed, {
-  days = 120, ff = true, without = [], playOn = false,
+  days = 120, ff = true, without = [], playOn = false, oldSpeeds = false,
 } = {}) {
   const off = new Set(without);
   const P = PROFILES[profileId];
@@ -165,6 +184,7 @@ export function journey(profileId, seed, {
     pearls: { earned: 0, spent: 0 },
     meals: { battles: 0, withMeal: 0, cooked: {}, eaten: {} },
     merchants: { seen: 0, tapped: 0 },
+    ads: { speed4x: 0, auto: 0, ms: 0 },   // ads watched (fractional: battles' shares) and their time
     expeditions: { sent: 0, byDuration: {}, byDest: {} },
     fishing: { casts: 0, landed: 0 },
     ff: { skipped: { abyss: 0, uncharted: 0 }, played: { islands: 0, hunts: 0, abyss: 0, uncharted: 0 } },
@@ -411,14 +431,20 @@ export function journey(profileId, seed, {
     eatBest();
     return casts * OVERHEAD.cast;
   }
+  // Take out what has finished cooking, keep the pots busy with the best
+  // meal that can be made, and eat the best one in the Pantry if none is on.
   function eatBest() {
-    if (p.meal) return;
+    p.collectReady(now);
     const where = p.abyssUnlocked ? 'abyss' : p.islandId;
-    const id = pick(Object.keys(MEALS.list).filter((m) => (p.pantryCount(m) > 0 || p.canCook(m)) && mealScore(m, where) > 0),
-      (m) => mealScore(m, where));
-    if (!id) return;
-    if (p.pantryCount(id) < 1 && p.cook(id)) J.meals.cooked[id] = (J.meals.cooked[id] ?? 0) + 1;
-    if (p.eat(id)) J.meals.eaten[id] = (J.meals.eaten[id] ?? 0) + 1;
+    const meals = Object.keys(MEALS.list).filter((m) => mealScore(m, where) > 0);
+    while (p.freePot >= 0) {
+      const id = pick(meals.filter((m) => p.canCook(m)), (m) => mealScore(m, where));
+      if (!id || !p.cook(id, now)) break;
+      J.meals.cooked[id] = (J.meals.cooked[id] ?? 0) + 1;
+    }
+    if (p.meal) return;
+    const id = pick(meals.filter((m) => p.pantryCount(m) > 0), (m) => mealScore(m, where));
+    if (id && p.eat(id)) J.meals.eaten[id] = (J.meals.eaten[id] ?? 0) + 1;
   }
 
   // --- 6. Battles ---
@@ -498,10 +524,25 @@ export function journey(profileId, seed, {
       });
       if (skippable) noteFf(key, result.won, result.time);
     }
-    const ms = result.time / P.speed + (kind === 'uncharted' ? OVERHEAD.stage : OVERHEAD.battle);
+    const ms = battleMs(result.time, kind) + (kind === 'uncharted' ? OVERHEAD.stage : OVERHEAD.battle);
     tally('modeMs', kind, ms);
     advance(ms);
     return { ...result, hull: { ...hull } };
+  }
+  // A battle's real time (game time at the profile's speeds; see PROFILES),
+  // and the ads it costs: x4's pass re-watched every ADS.passes.speed4x.waves
+  // battles at x4, Auto's every ADS.passes.auto.waves once it isn't free (an
+  // Uncharted stage counts ADS.stageWaves).
+  function battleMs(time, kind) {
+    if (oldSpeeds) return time / OLD_SPEEDS[profileId];
+    const fast = ADS.passes.speed4x.speed;
+    const units = kind === 'uncharted' ? ADS.stageWaves : 1;
+    const speed4x = units * P.x4 / ADS.passes.speed4x.waves;
+    const auto = p.autoFree ? 0 : units / ADS.passes.auto.waves;
+    J.ads.speed4x += speed4x;
+    J.ads.auto += auto;
+    J.ads.ms += AD_MS * (speed4x + auto);
+    return time * (P.x4 / fast + (1 - P.x4) / P.speed) + AD_MS * (speed4x + auto);
   }
   const advance = (ms) => {
     now += ms;
@@ -592,7 +633,7 @@ export function journey(profileId, seed, {
     const open = [];
     for (const stage of STAGES) {
       for (let crown = 1; crown <= 3; crown++) {
-        if (bestCrown(rec, stage) < crown && isStageOpen(rec, stage, crown) && !blocked(`${stage.id}@${crown}`)) {
+        if (bestCrown(rec, stage) < crown && isStageOpen(rec, stage, crown, p.abyss.best) && !blocked(`${stage.id}@${crown}`)) {
           open.push({ stage, crown });
         }
       }
@@ -908,8 +949,10 @@ function mealScore(id, where) {
 
 const isMain = !!process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (isMain && process.argv[2] === '--child') {
-  const [, , , profile, seed, days, ff, playOn] = process.argv;
-  const J = journey(profile, Number(seed), { days: Number(days), ff: ff === '1', playOn: playOn === '1' });
+  const [, , , profile, seed, days, ff, playOn, speeds] = process.argv;
+  const J = journey(profile, Number(seed), {
+    days: Number(days), ff: ff === '1', playOn: playOn === '1', oldSpeeds: speeds === 'old',
+  });
   process.send(J);
 } else if (isMain) {
   const args = process.argv.slice(2);
@@ -922,6 +965,7 @@ if (isMain && process.argv[2] === '--child') {
   const days = Number(flag('days') ?? 120);
   const ff = !args.includes('noff');
   const playOn = args.includes('playon');
+  const speeds = flag('speeds') ?? 'new';
   const jobs = Number(flag('jobs') ?? Math.max(1, cpus().length - 1));
   const queue = profiles.flatMap((profile) => seeds.map((seed) => ({ profile, seed })));
   const results = [];
@@ -934,7 +978,7 @@ if (isMain && process.argv[2] === '--child') {
       while (running < jobs && queue.length) {
         const job = queue.shift();
         running++;
-        const child = fork(self, ['--child', job.profile, `${job.seed}`, `${days}`, ff ? '1' : '0', playOn ? '1' : '0'], {
+        const child = fork(self, ['--child', job.profile, `${job.seed}`, `${days}`, ff ? '1' : '0', playOn ? '1' : '0', speeds], {
           execArgv: ['--import', new URL('./register.mjs', import.meta.url).href],
         });
         child.on('message', (J) => {
@@ -949,7 +993,7 @@ if (isMain && process.argv[2] === '--child') {
   const wallSec = Number(process.hrtime.bigint() - t0) / 1e9;
   const { report, svg } = await import('./journey_report.mjs');
   console.log(report(results, {
-    wallSec, days, ff, playOn, profiles, seeds,
+    wallSec, days, ff, playOn, profiles, seeds, speeds,
   }));
   if (flag('out')) writeFileSync(flag('out'), JSON.stringify(results));
   if (flag('svg')) writeFileSync(flag('svg'), svg(results));

@@ -18,9 +18,10 @@
     "sim:awaken-pace": "node --import ./scripts/sim/register.mjs scripts/sim/awaken_pace.mjs",
     "sim:journey": "node --import ./scripts/sim/register.mjs scripts/sim/journey.mjs",
     "sim:crew": "node --import ./scripts/sim/register.mjs scripts/sim/crewcheck.mjs",
-    "test": "node --import ./scripts/sim/register.mjs scripts/tests/tutorial.mjs && node --import ./scripts/sim/register.mjs scripts/tests/audio.mjs && node --import ./scripts/sim/register.mjs scripts/tests/mobile.mjs && node --import ./scripts/sim/register.mjs scripts/tests/rankings.mjs && node --import ./scripts/sim/register.mjs scripts/tests/uncharted.mjs && node --import ./scripts/sim/register.mjs scripts/tests/content.mjs",
+    "test": "node --import ./scripts/sim/register.mjs scripts/tests/tutorial.mjs && node --import ./scripts/sim/register.mjs scripts/tests/audio.mjs && node --import ./scripts/sim/register.mjs scripts/tests/mobile.mjs && node --import ./scripts/sim/register.mjs scripts/tests/rankings.mjs && node --import ./scripts/sim/register.mjs scripts/tests/uncharted.mjs && node --import ./scripts/sim/register.mjs scripts/tests/content.mjs && node --import ./scripts/sim/register.mjs scripts/tests/playtest2.mjs",
     "app:sync": "npm run build && npx cap sync android",
-    "app:apk": "node scripts/app-apk.mjs"
+    "app:apk": "node scripts/app-apk.mjs",
+    "sim:offline": "node --import ./scripts/sim/register.mjs scripts/sim/offline_report.mjs"
   },
   "dependencies": {
     "@capacitor-community/admob": "^7.2.0",

@@ -1563,6 +1563,23 @@ export class Progress {
     return { id, pity, isNew: false, stars: PACKS.maxStars, bonus: this.heroBonus[id], bonusLevel: true };
   }
 
+  // A crewmate's buy button at amount ('1', '10' or 'max', as bulkPlan):
+  // { count, cost, affordable } (the quick-upgrade card).
+  heroBuyPlan(id, amount) {
+    const lv = this.heroLevel(id);
+    const plan = this.bulkPlan((k) => this.heroLevelCost(id, lv + k), amount);
+    return { ...plan, affordable: plan.count > 0 && plan.cost <= this.gold };
+  }
+
+  // Buy that plan's levels if it's affordable; returns how many were bought.
+  buyHeroLevels(id, amount) {
+    const { count, affordable } = this.heroBuyPlan(id, amount);
+    if (!affordable) return 0;
+    let bought = 0;
+    while (bought < count && this.levelHero(id)) bought++;
+    return bought;
+  }
+
   levelHero(id) {
     if (!this.isOwned(id) || !this.spend(this.heroLevelCost(id))) return false;
     this.heroLevels[id] = this.heroLevel(id) + 1;
