@@ -5,14 +5,17 @@ import { SEAS } from '../data/uncharted.js';
 import { applyRenderScale, fillView, hudEdges } from '../display.js';
 import { CURRENTS_KEY, ABYSS_JSON_KEY, UNCHARTED_JSON_KEY, unchartedKey } from '../sprites.js';
 import {
-  bestCrown, hourglassMs, isBossStage, isCrownOpen, isSeaOpen, isStageOpen, seaCrown, stageCost, stageCrewRewards, stageCurrent,
+  bestCrown, hourglassMs, isBossStage, isCrownOpen, isStageOpen, seaCrown, stageCost, stageCrewRewards, stageCurrent,
   stageRules,
 } from '../systems/Uncharted.js';
 import { Button } from '../ui/Button.js';
 import { fmtClock } from '../ui/format.js';
 import {
-  dark, face, hexColor, light, panel, subText, tapArea, text, UI,
+  dark, face, glyph, hexColor, light, panel, subText, tapArea, text, UI,
 } from '../ui/kit.js';
+
+// "REACH DEPTH 30 IN THE ABYSS": a sea shut by the depth gate.
+const depthLabel = (depth) => `REACH DEPTH ${depth} IN THE ABYSS`;
 import {
   crownRow, GrogPlaque, itemIcon, nodeImage, ruleIcon, ruleOf,
 } from '../ui/uncharted.js';
@@ -21,8 +24,10 @@ import {
 // its 480x270 safe view at 80,100, drawn at -80,-100 like the title's art)
 // with each sea's name at its legend.json label_at, its boss marker (locked,
 // open or cleared) at its top-right and under the name the best crown fully
-// cleared there. A locked sea's name is greyed. The Grog plaque sits top
-// right. Tapping an open sea opens its stage list (after
+// cleared there. A locked sea's name is greyed; one shut by the Abyss depth
+// gate (UNCHARTED.seaDepths) also shows a lock and "REACH DEPTH 30 IN THE
+// ABYSS" under its name. The Grog plaque sits top right. Tapping an open
+// sea (or one shut only by its depth) opens its stage list (after
 // preview_stage_list.png): a parchment panel with the sea's name, its crown
 // tabs (a tab opens once every stage is cleared at the crown below), a row
 // per stage (marker, number and name, crowns earned, rule icons, drop
@@ -70,10 +75,13 @@ export class ChartScene extends Phaser.Scene {
     this.closeButton.setPosition(e.left + 20, e.top + 18);
   }
 
-  // A sea: its name, its boss marker and its best crown; tappable once open.
+  // A sea: its name, its boss marker and its best crown (or, shut by the
+  // depth gate, a lock and the depth it needs); tappable once open, or to
+  // see its stages while only the depth keeps it shut.
   drawSea(spot, i) {
     const rec = this.progress.uncharted;
-    const open = isSeaOpen(rec, i);
+    const lock = this.progress.seaLock(i);
+    const open = !lock;
     const [cx, cy] = [spot.centre[0] + this.ox, spot.centre[1] + this.oy];
     const [lx, ly] = [spot.label_at[0] + this.ox, spot.label_at[1] + this.oy];
     const sea = SEAS[i];
@@ -83,11 +91,15 @@ export class ChartScene extends Phaser.Scene {
     text(this, lx, ly, sea.name, dark({ color: open ? UI.colors.textOnParchment : UI.colors.subText })).setOrigin(0.5);
     const crowns = seaCrown(rec, i);
     if (crowns) crownRow(this, lx - (crowns - 1) * 5.5, ly + 12, crowns);
+    if (lock?.depth != null) {
+      const label = text(this, lx + 6, ly + 11, depthLabel(lock.depth), subText({ color: UI.colors.warn })).setOrigin(0.5);
+      glyph(this, lx - label.inkWidth / 2, ly + 11, 'lock', UI.colors.warn);
+    }
     const hit = this.add.zone(cx, cy, 76, 64);
     tapArea(hit, 76, 64, { useHandCursor: true });
     hit.on('pointerdown', () => {
       if (this.list.visible && this.list.length) return;
-      if (open) this.showList(i);
+      if (!lock || lock.depth != null) this.showList(i);
       else this.notice(`CLEAR ${SEAS[i - 1].name.toUpperCase()}'S LAST STAGE FIRST`);
     });
   }
@@ -108,10 +120,11 @@ export class ChartScene extends Phaser.Scene {
     if (!quiet) sfx.play('ui_open');
     const rec = this.progress.uncharted;
     this.sea = sea;
-    this.crown = [3, 2, 1].find((c) => isCrownOpen(rec, sea, c)) ?? 1;
+    const best = this.progress.abyss.best;
+    this.crown = [3, 2, 1].find((c) => isCrownOpen(rec, sea, c, best)) ?? 1;
     const stages = SEAS[sea].stages;
     // The first stage not yet cleared at this crown (or the last).
-    const next = stages.find((s) => bestCrown(rec, s) < this.crown && isStageOpen(rec, s, this.crown));
+    const next = stages.find((s) => bestCrown(rec, s) < this.crown && isStageOpen(rec, s, this.crown, best));
     this.selected = (next ?? stages[stages.length - 1]).id;
     this.drawList();
   }
@@ -124,6 +137,8 @@ export class ChartScene extends Phaser.Scene {
 
   drawList() {
     const rec = this.progress.uncharted;
+    const deepest = this.progress.abyss.best;
+    const depthLock = this.progress.seaLock(this.sea)?.depth;
     const { x, y, width: w, height: h, rowH } = UNCHARTED.list;
     const sea = SEAS[this.sea];
     const add = (...objs) => this.list.add(objs);
@@ -140,7 +155,7 @@ export class ChartScene extends Phaser.Scene {
 
     // Crown tabs.
     [1, 2, 3].forEach((crown, i) => {
-      const open = isCrownOpen(rec, this.sea, crown);
+      const open = isCrownOpen(rec, this.sea, crown, deepest);
       const tx = x + 12 + 22 + i * 50;
       const b = new Button(this, tx, y + 36, {
         width: 46, height: 16, label: '', style: crown === this.crown ? 'gold' : 'wood',
@@ -153,7 +168,7 @@ export class ChartScene extends Phaser.Scene {
     // The rows.
     sea.stages.forEach((stage, i) => {
       const ry = y + 48 + i * rowH;
-      const open = isStageOpen(rec, stage, this.crown);
+      const open = isStageOpen(rec, stage, this.crown, deepest);
       const cleared = bestCrown(rec, stage) >= this.crown;
       const selected = stage.id === this.selected;
       if (selected) add(this.add.rectangle(x + 6, ry, w - 12, rowH - 1, 0xf5d77a).setOrigin(0));
@@ -204,9 +219,11 @@ export class ChartScene extends Phaser.Scene {
     const hazard = stage.hazard ?? (this.crown >= 3 ? stage.crownHazard : null);
     if (hazard) lines.push(hazard === 'lava' ? 'Lava bombs fall' : 'A blizzard blows all stage');
     if (!lines.length) lines.push('No special rules');
+    // Shut by the depth gate: that first.
+    if (depthLock != null) lines.unshift(depthLabel(depthLock));
     lines.slice(0, 3).forEach((l, k) => add(text(this, x + 12, y + h - 26 + k * 9 - (lines.length > 2 ? 5 : 0), l.toUpperCase(), subText())));
     const cost = stageCost(stage, this.crown);
-    const open = isStageOpen(rec, stage, this.crown);
+    const open = isStageOpen(rec, stage, this.crown, deepest);
     const enough = this.progress.grog >= cost;
     const sail = new Button(this, x + w - 56, y + h - 18, {
       width: 92, height: 24, style: 'gold', label: !open ? 'LOCKED' : enough ? 'SET SAIL' : `NEED ${cost}`,

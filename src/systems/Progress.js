@@ -249,6 +249,7 @@ export class Progress {
         items: { ...this.uncharted.items },
         crowns: { ...this.uncharted.crowns },
         firstClears: [...this.uncharted.firstClears],
+        opened: [...this.uncharted.opened],
       },
       awakened: this.awakened.filter((id) => owned.includes(id)),
     };
@@ -1070,7 +1071,7 @@ export class Progress {
   // Whether a stage can be sailed at a crown: open, and the Grog for it.
   canSailStage(stage, crown, now = Date.now()) {
     Uncharted.tickGrog(this.uncharted, now);
-    return Uncharted.isStageOpen(this.uncharted, stage, crown) && this.uncharted.grog >= Uncharted.stageCost(stage, crown);
+    return Uncharted.isStageOpen(this.uncharted, stage, crown, this.abyss.best) && this.uncharted.grog >= Uncharted.stageCost(stage, crown);
   }
 
   // The Muster for a stage: the crew as it is now is kept to put back after
@@ -1089,6 +1090,14 @@ export class Progress {
       kept++;
       return id;
     });
+  }
+
+  // What keeps sea i of the Uncharted Seas shut (null: open; see
+  // Uncharted.seaLock), at the best Abyss depth reached.
+  seaLock(sea) { return Uncharted.seaLock(this.uncharted, sea, this.abyss.best); }
+  // A sea shut by the depth gate alone (the Captain's tip, the first time).
+  get seaDepthLocked() {
+    return UNCHARTED.seaDepths.some((_, i) => this.seaLock(i)?.depth != null);
   }
 
   // How many crew the stage under way lets sail, and whether one may.
@@ -1111,7 +1120,7 @@ export class Progress {
   // null if it can't (not open, not enough Grog).
   beginStage(now = Date.now()) {
     const stage = this.stage && Uncharted.stageOf(this.stage.id);
-    if (!stage || !Uncharted.isStageOpen(this.uncharted, stage, this.stage.crown)) return null;
+    if (!stage || !Uncharted.isStageOpen(this.uncharted, stage, this.stage.crown, this.abyss.best)) return null;
     const cost = Uncharted.stageCost(stage, this.stage.crown);
     if (!Uncharted.spendGrog(this.uncharted, cost, now)) return null;
     this.stage.cost = cost;
@@ -1617,5 +1626,8 @@ function unchartedFromSave(u, int) {
     rec.firstClears = [...new Set(u.firstClears.filter((k) => typeof k === 'string' && Uncharted.stageOf(k.split(':')[0])))];
   }
   rec.seen = u.seen === true;
+  if (Array.isArray(u.opened)) {
+    rec.opened = [...new Set(u.opened.filter((i) => Number.isInteger(i) && i >= 0 && i < UNCHARTED.seaDepths.length))];
+  }
   return rec;
 }

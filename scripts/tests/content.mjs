@@ -373,6 +373,7 @@ test("boss factors: the Drowned King has 6-6's own factor, the pairs before him 
 test('rewards: each boss stage gives its crewmate exactly once, at 5 stars; 1-6 and 2-6 one more at 3 crowns', () => {
   const p = new Progress();
   p.abyss.runs = 1;
+  p.abyss.best = 70;   // every sea past the depth gate
   const win = (id, crown = 1) => {
     p.uncharted.grog = 99;
     p.musterStage(stageOf(id), crown);

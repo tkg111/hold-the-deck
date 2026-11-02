@@ -1302,7 +1302,7 @@ export class GameScene extends Phaser.Scene {
     }
     if (p.beginStage() == null) {
       sfx.play('ui_error');
-      const open = isStageOpen(p.uncharted, stageOf(p.stage.id), p.stage.crown);
+      const open = isStageOpen(p.uncharted, stageOf(p.stage.id), p.stage.crown, p.abyss.best);
       this.showBanner(open ? 'NOT ENOUGH GROG' : 'STAGE LOCKED', {
         detail: open ? 'IT COMES BACK 1 EVERY 5 MINUTES' : 'CLEAR THE STAGE BEFORE IT FIRST', color: UI.colors.warn,
       });

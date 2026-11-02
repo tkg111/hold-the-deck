@@ -2,6 +2,7 @@ import {
   EXPEDITIONS, FISHING, HEROES, ISLANDS, PARTS, SPRITES,
   UNCHARTED,
 } from '../config.js';
+import { depthGold } from './Abyss.js';
 import { islandContent, waveGold } from './WaveManager.js';
 import {
   materialInGame, materialOf, materialOfBoss, PART_DATA,
@@ -107,6 +108,24 @@ export function goldPerMinute(progress) {
   return estimatedWaveGold(progress) / (EXPEDITIONS.fallbackWaveMs / 60000);
 }
 
+// The gold for clearing one wave where the player has got to: in the Abyss
+// the depth under way; otherwise the furthest island reached, at the
+// furthest wave reached there (its kills and clear bonus; see waveGold).
+// An expedition's gold is at most its duration's goldWaves of it, time
+// away's at most MOBILE.offline.waveCap (Offline.js).
+export function waveGoldOf(progress) {
+  if (progress.inAbyss) return depthGold(progress.abyss.run.seed, progress.depth);
+  let at = null;
+  for (const island of ISLANDS) {
+    const r = progress.islands[island.id];
+    if (!r) continue;
+    const wave = Math.max(1, r.wave, r.best);
+    if (!at || island.waveOffset + wave > at.island.waveOffset + at.wave) at = { island, wave };
+  }
+  at ??= { island: ISLANDS[0], wave: 1 };
+  return waveGold(at.wave, { island: at.island, offset: at.island.waveOffset });
+}
+
 // Gold a win of the current wave pays: every enemy's kill gold plus the
 // wave-clear bonus.
 const estimatedWaveGold = (progress) => waveGold(progress.wave, progress.waveOptions);
@@ -124,9 +143,11 @@ export function partyBonus(progress, party, dest) {
   };
 }
 
-// What a run would bring, before the dice: gold and Pearls as [min, max],
-// chests found for sure, the chance of one more (mixed runs), whether a
-// chest may be a better tier, and the bonus find's chance.
+// What a run would bring, before the dice: gold and Pearls as [min, max]
+// (the gold at most goldCap: the duration's goldWaves waves of gold where
+// the player has got to; goldRaw before that cap; capped: whether it may
+// bite), chests found for sure, the chance of one more (mixed runs),
+// whether a chest may be a better tier, and the bonus find's chance.
 export function preview(progress, destId, party, durationId) {
   const dest = destinationOf(destId);
   const duration = durationOf(durationId);
@@ -137,8 +158,13 @@ export function preview(progress, destId, party, durationId) {
   const s = EXPEDITIONS.spread;
   const range = (v) => [Math.round(v * (1 - s)), Math.round(v * (1 + s))];
   const fishing = FISHING.expedition.dest === destId ? FISHING.expedition : null;
+  const goldCap = Math.round(duration.goldWaves * waveGoldOf(progress));
+  const goldRaw = range(gold);
   return {
-    gold: range(gold),
+    gold: goldRaw.map((g) => Math.min(g, goldCap)),
+    goldRaw,
+    goldCap,
+    capped: goldRaw[1] > goldCap,
     pearls: pearls > 0 ? range(pearls).map((n) => Math.max(1, n)) : [0, 0],
     bait: fishing ? fishing.bait : null,
     fishChance: fishing ? fishing.fishChance : 0,
@@ -191,7 +217,10 @@ export function rollLoot(progress, destId, party, durationId, random = Math.rand
   const chests = [];
   for (let i = 0; i < p.chests; i++) chests.push(rollChestTier(duration, random));
   if (p.chestChance && random() < p.chestChance) chests.push(rollChestTier(duration, random));
-  const loot = { gold: between(p.gold), pearls: p.pearls[1] ? between(p.pearls) : 0, chests, bonus: null };
+  const rolled = between(p.goldRaw);
+  const loot = {
+    gold: Math.min(rolled, p.goldCap), goldCapped: rolled > p.goldCap, pearls: p.pearls[1] ? between(p.pearls) : 0, chests, bonus: null,
+  };
   if (p.bonus.guaranteed || random() < EXPEDITIONS.bonusChance) {
     if (dest.rewardFocus === 'pearls') loot.bonus = { kind: 'pearls', pearls: loot.pearls };
     else {

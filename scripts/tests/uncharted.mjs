@@ -25,6 +25,7 @@ const { regenMs, cap } = UNCHARTED.grog;
 function opened() {
   const p = new Progress();
   p.abyss.runs = 1;
+  p.abyss.best = 70;   // deep enough for every sea (the depth gate has tests of its own)
   return p;
 }
 // A random() that returns these numbers in turn.

@@ -2928,9 +2928,9 @@ export const EXPEDITIONS = {
   // Longer runs pay more per run (mult) but less per hour. betterChests: a
   // chest found may be a better tier (chestOdds).
   durations: [
-    { id: '30m', label: '30M', ms: 30 * 60e3, mult: 1 },
-    { id: '2h', label: '2H', ms: 2 * 3600e3, mult: 3.2 },
-    { id: '8h', label: '8H', ms: 8 * 3600e3, mult: 10, betterChests: true },
+    { id: '30m', label: '30M', ms: 30 * 60e3, mult: 1, goldWaves: 1 },
+    { id: '2h', label: '2H', ms: 2 * 3600e3, mult: 3.2, goldWaves: 3 },
+    { id: '8h', label: '8H', ms: 8 * 3600e3, mult: 10, goldWaves: 6, betterChests: true },
   ],
   // Party bonus: +traitBonus for each crewmate with the destination's
   // favoured trait, +starBonus for every star in the party. A full party
@@ -3369,6 +3369,9 @@ export const UNCHARTED = {
   // A sea's 2- and 3-crown tabs: open once its boss stage and this many of
   // its stages (the boss counting) are cleared at the crown below.
   crownUnlock: { stages: 4 },
+  // Sea N also needs this best Abyss depth (seas 1-6); a sea a save had open
+  // before this gate stays open (the record's `opened`).
+  seaDepths: [10, 20, 30, 40, 55, 70],
   retreatRefund: 0.5,
   depths: [15, 36, 52, 48, 46, 34],
   crowns: [{ hp: 1, damage: 1 }, { hp: 1.15, damage: 1.4 }, { hp: 1.3, damage: 1.8 }],
@@ -4011,10 +4014,11 @@ export const TITLE = {
 //   offline: While you were away. idleRate is an exponential moving average
 //     (weight emaWeight) of the gold per second of battle, sampled at each
 //     wave cleared on an island or in the Abyss (not Boss Hunts); away
-//     earnings are idleRate x share per second away, at most capMs of it,
-//     and at most waveCap waves' worth of gold (one wave at the furthest
-//     island and wave reached, or the depth under way: Offline.waveGoldOf),
-//     nothing under minAwayMs. A page hidden for returnAfterMs or more counts
+//     earnings are idleRate x share per second away, x the rate of each
+//     hour away (hours: the first hour 0, the second 100%, then 75%, 50%,
+//     25%; nothing after the last), and at most waveCap waves' worth of
+//     gold (one wave at the furthest island and wave reached, or the depth
+//     under way: Offline.waveGoldOf), nothing under minAwayMs. A page hidden for returnAfterMs or more counts
 //     as coming back. The panel fades in over openMs as its ledger
 //     (ledger_sheet.png, ledgerFrame px square frames: closed, open) opens;
 //     its gold counts up over countMs with a coin tick every tickMs.
@@ -4027,7 +4031,7 @@ export const MOBILE = {
   offline: {
     emaWeight: 0.2,
     share: 0.10,
-    capMs: 4 * 60 * 60 * 1000,
+    hours: [0, 1, 0.75, 0.5, 0.25],
     waveCap: 8,
     minAwayMs: 2 * 60 * 1000,
     returnAfterMs: 2 * 60 * 1000,

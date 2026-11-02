@@ -352,6 +352,14 @@ export const TIPS = {
       line('laugh', '...and treasure that makes our crew legends.'),
     ],
   }],
+  // A sea of the Uncharted Seas shut by the Abyss depth gate, the first
+  // time the chart shows one.
+  sea_depth: [{
+    trigger: 'scene-open',
+    when: (g, d) => d.key === 'ChartScene' && g.progress.seaDepthLocked,
+    mode: 'banner',
+    lines: [line('worried', "These waters are deeper than we've sailed, Cap'n. Dive the Abyss first!")],
+  }],
   awakened: [{
     trigger: 'crew-awakened',
     mode: 'banner',

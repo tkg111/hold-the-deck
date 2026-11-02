@@ -22,8 +22,10 @@ const O = MOBILE.offline;
 // While you were away: back after time away (Offline.comeBack), a parchment
 // panel over the paused battle, fading in as the ship's ledger opens, with
 // the Captain's mini portrait and "The crew kept busy, Cap'n!", then a row
-// each: the time away ("(MAX 4 H)" past the time cap), the gold (counting
-// up with coin ticks; "(HOLD IS FULL)" when the waves cap held it back), expeditions back (with a button to them, if they can open now),
+// each: the time away ("(CREW STOPPED AT 5 H)" past the last hour that
+// pays), the gold (counting
+// up with coin ticks; "(HOLD IS FULL)" when the waves cap held it back),
+// a line on how time away pays, expeditions back (with a button to them, if they can open now),
 // Bait refilled and meals ready in the Galley's pots. Collect plays
 // plunder and pays.
 // Launched with { report, canOpenExpeditions, onCollect, onExpeditions }.
@@ -47,7 +49,7 @@ export class AwayScene extends Phaser.Scene {
     // Over everything, the Captain included (he waits for this).
     this.scene.bringToTop();
     const r = this.report;
-    const rows = [['TIME AWAY', 'time'], ['GOLD', 'gold']];
+    const rows = [['TIME AWAY', 'time'], ['GOLD', 'gold'], [null, 'note']];
     if (r.expeditions) rows.push([null, 'expeditions']);
     if (r.bait) rows.push(['BAIT', 'bait']);
     if (r.meals) rows.push([null, 'meals']);
@@ -72,7 +74,9 @@ export class AwayScene extends Phaser.Scene {
       const vx = x + VALUE_X;
       if (kind === 'time') {
         const t = add(text(this, vx, ry, formatAway(r.awayMs), dark()).setOrigin(0, 0.5));
-        if (r.capped) add(text(this, vx + t.inkWidth + 4, ry, `(MAX ${O.capMs / 3600000} H)`, subText()).setOrigin(0, 0.5));
+        if (r.capped) add(text(this, vx + t.inkWidth + 4, ry, `(CREW STOPPED AT ${O.hours.length} H)`, subText()).setOrigin(0, 0.5));
+      } else if (kind === 'note') {
+        add(text(this, x + 12, ry, 'The crew rest the first hour, then work for about four.', subText()).setOrigin(0, 0.5));
       } else if (kind === 'gold') {
         add(icon(this, vx + 6, ry, 'gold'));
         this.goldText = add(text(this, vx + 15, ry, `+${formatNum(r.gold)}`, dark()).setOrigin(0, 0.5));

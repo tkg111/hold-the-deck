@@ -485,7 +485,12 @@ export class ExpeditionScene extends Phaser.Scene {
       this.add2(text(this, tx, B.y + 34, X.destinationOf(dest).name.toUpperCase(), subText()));
     } else {
       const v = X.preview(p, dest, party, duration);
-      this.add2(text(this, tx, B.y + 7, `~${formatNum(v.gold[0])}-${formatNum(v.gold[1])} gold`, dark()));
+      const gold = this.add2(text(this, tx, B.y + 7, `~${formatNum(v.gold[0])}-${formatNum(v.gold[1])} gold`, dark()));
+      // The gold's cap: the duration's waves of gold where the crew have got to.
+      if (v.capped) {
+        const n = X.durationOf(duration).goldWaves;
+        this.add2(text(this, tx + gold.inkWidth + 4, B.y + 9, `(MAX ${n} WAVE${n === 1 ? '' : 'S'})`, subText()));
+      }
       const extras = [];
       if (v.pearls[1]) extras.push(`${formatNum(v.pearls[0])}-${formatNum(v.pearls[1])} PEARLS`);
       if (v.chests) extras.push(`${v.chests} CHEST${v.betterChests ? ', MAYBE RARE+' : ''}`);
@@ -533,7 +538,7 @@ export class ExpeditionScene extends Phaser.Scene {
   // Bait and a fish (Coral Shallows), then the bonus find.
   rewardsOf(entry) {
     const { loot } = entry;
-    const list = [{ kind: 'gold', amount: loot.gold }];
+    const list = [{ kind: 'gold', amount: loot.gold, capped: !!loot.goldCapped }];
     if (loot.pearls) list.push({ kind: 'pearls', amount: loot.pearls });
     for (const tier of loot.chests) list.push({ kind: 'chest', tier });
     if (loot.material) list.push({ kind: 'material', id: loot.material.id, amount: loot.material.count });
@@ -640,7 +645,7 @@ export class ExpeditionScene extends Phaser.Scene {
     let label;
     if (r.kind === 'gold') {
       amount = `+${formatNum(r.amount)}`;
-      label = 'GOLD';
+      label = r.capped ? 'GOLD (CAPPED)' : 'GOLD';
     } else if (r.kind === 'pearls') {
       amount = `+${formatNum(r.amount)}`;
       label = r.bonus ? 'PEARLS X2' : 'PEARLS';

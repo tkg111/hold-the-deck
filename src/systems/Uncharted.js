@@ -72,6 +72,7 @@ export function newRecord(now = Date.now()) {
     crowns: {},
     firstClears: [],
     seen: false,
+    opened: [],   // seas open before the depth gate (saves from v25), kept open
   };
 }
 
@@ -112,19 +113,33 @@ export function addGrog(rec, n) {
 
 export const bestCrown = (rec, stage) => rec.crowns[stage.id] ?? 0;
 
-// A sea opens once the sea before's boss stage is cleared at 1 crown.
-export function isSeaOpen(rec, sea) {
-  if (sea === 0) return true;
-  const prev = SEAS[sea - 1].stages;
-  return (rec.crowns[prev[prev.length - 1].id] ?? 0) >= 1;
+// What keeps a sea shut: null (it's open), { boss: true } (the sea
+// before's boss stage isn't cleared at 1 crown) or { depth } (the best
+// Abyss depth, best, is short of UNCHARTED.seaDepths). A sea in rec.opened
+// (open before the depth gate) is always open. Leaving best out ignores
+// the depth gate (the rules alone).
+export function seaLock(rec, sea, best = Infinity) {
+  if (rec.opened?.includes(sea)) return null;
+  if (sea > 0) {
+    const prev = SEAS[sea - 1].stages;
+    if ((rec.crowns[prev[prev.length - 1].id] ?? 0) < 1) return { boss: true };
+  }
+  const depth = UNCHARTED.seaDepths[sea];
+  return best >= depth ? null : { depth };
+}
+
+// A sea opens once the sea before's boss stage is cleared at 1 crown and
+// the best Abyss depth has reached its UNCHARTED.seaDepths (see seaLock).
+export function isSeaOpen(rec, sea, best = Infinity) {
+  return seaLock(rec, sea, best) == null;
 }
 
 // A crown tab of a sea opens once its boss stage (its last) and at least
 // UNCHARTED.crownUnlock.stages of its stages (the boss counting) are
 // cleared at the crown below, so one stage that can't be won doesn't lock
 // the tab for good.
-export function isCrownOpen(rec, sea, crown) {
-  if (!isSeaOpen(rec, sea)) return false;
+export function isCrownOpen(rec, sea, crown, best = Infinity) {
+  if (!isSeaOpen(rec, sea, best)) return false;
   if (crown === 1) return true;
   const { stages } = SEAS[sea];
   const cleared = (s) => (rec.crowns[s.id] ?? 0) >= crown - 1;
@@ -133,8 +148,8 @@ export function isCrownOpen(rec, sea, crown) {
 
 // At 1 crown a sea's stages open in order: the first, then each after one
 // cleared. At 2 and 3 crowns every stage of an open tab is open.
-export function isStageOpen(rec, stage, crown) {
-  if (!isCrownOpen(rec, stage.sea, crown)) return false;
+export function isStageOpen(rec, stage, crown, best = Infinity) {
+  if (!isCrownOpen(rec, stage.sea, crown, best)) return false;
   if (stage.index === 0 || crown > 1) return true;
   const prev = SEAS[stage.sea].stages[stage.index - 1];
   return (rec.crowns[prev.id] ?? 0) >= crown;

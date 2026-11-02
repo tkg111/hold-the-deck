@@ -1,9 +1,9 @@
 import {
-  ABYSS, AUDIO, ECONOMY, ENEMIES, EXPEDITIONS, FISHING, ISLANDS, MEALS, STARTING_HEROES,
+  ABYSS, AUDIO, ECONOMY, ENEMIES, EXPEDITIONS, FISHING, ISLANDS, MEALS, STARTING_HEROES, UNCHARTED,
 } from '../config.js';
 import { newOnlineRecord } from '../online/record.js';
 import { Progress } from './Progress.js';
-import { newRecord as newUnchartedRecord } from './Uncharted.js';
+import { isSeaOpen, newRecord as newUnchartedRecord } from './Uncharted.js';
 import { enemyFirstWave } from './WaveManager.js';
 
 // Storage keys keep the original project name so existing saves are found.
@@ -133,6 +133,16 @@ export function addTutorial(data) {
 }
 
 // MIGRATIONS[n] upgrades a version-n save to version n + 1.
+// v26: the seas a v25 save had open (by the rules before the depth gate),
+// kept open in its Uncharted record.
+function grandfatherSeas(data) {
+  const rec = { ...newUnchartedRecord(), ...data.uncharted };
+  const unlocked = (data.abyss?.runs ?? 0) > 0;
+  const opened = UNCHARTED.seaDepths.map((_, i) => i)
+    .filter((i) => isSeaOpen({ ...rec, opened: [] }, i) && (i > 0 || unlocked));
+  return { ...rec, opened };
+}
+
 const MIGRATIONS = {
   // v2: sound mute setting saved with progress.
   1: (data) => ({ ...data, muted: false }),
@@ -231,9 +241,13 @@ const MIGRATIONS = {
   // v25: the Uncharted Seas (a full Grog ration, no items, no stages
   // cleared) and Crew Awakening (nobody awakened).
   24: (data) => ({ ...data, uncharted: newUnchartedRecord(), awakened: [] }),
-  // v26: playtest round 2: the Settings' Keep screen on (on) and the
-  // Galley's cooking pots (empty; meals already in the Pantry stay).
-  25: (data) => ({ ...data, keepScreenOn: true, pots: Array(MEALS.pots).fill(null) }),
+  // v26: playtest round 2: the Settings' Keep screen on (on), the Galley's
+  // cooking pots (empty; meals already in the Pantry stay), and the
+  // Uncharted Seas' depth gate: every sea the save already had open stays
+  // open (the first only if the seas had opened, with a dive).
+  25: (data) => ({
+    ...data, keepScreenOn: true, pots: Array(MEALS.pots).fill(null), uncharted: grandfatherSeas(data),
+  }),
 };
 
 function migrate(save) {

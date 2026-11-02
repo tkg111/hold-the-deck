@@ -312,6 +312,7 @@ const GLYPHS = {
   left: ['..#', '.##', '###', '.##', '..#'],                   // ◀
   dot: ['##', '##'],                                           // ·
   cross: ['#...#', '.#.#.', '..#..', '.#.#.', '#...#'],        // ×
+  lock: ['.###.', '#...#', '#...#', '#####', '##.##', '##.##', '#####'],   // a padlock
 };
 
 // A small glyph centred on (x, y) in a CSS colour (a Graphics: setX() after
