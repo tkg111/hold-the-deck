@@ -228,6 +228,9 @@ export const UI_KIT = {
     // right of it.
     meal: { y: 53, width: 44, height: 22, gap: 4 },
     speed: { width: 44, height: 32 },   // bottom-right, during waves
+    // "Auto ended" (an Auto pass ran out): its width, its centre this far
+    // right of the view's centre (clear of the wave and gold plaques).
+    autoEnded: { width: 136, x: 4 },
   },
   // Parchment tooltips (src/ui/Tooltip.js, e.g. the meal plaque's): padding
   // round the text, the gap between lines and where lines wrap.
@@ -2433,9 +2436,43 @@ export const BATTLE_LOG = {
   mvp: { ms: 2500, fadeMs: 300, x: 188, y: 126 },
 };
 
-// Battle speeds the x-button cycles through during a wave (1 = normal).
-// Session only: it isn't saved, and between waves everything runs at 1x.
-export const GAME_SPEEDS = [1, 2, 4];
+// Battle speeds the x-button cycles through during a wave (1 = normal),
+// free; x4 needs a rewarded ad (ADS.passes.speed4x). Session only: it isn't
+// saved, and between waves everything runs at 1x.
+export const GAME_SPEEDS = [1, 2];
+
+// Rewarded ads (src/ads/): only ever shown when the player taps for one,
+// with the reward said first; the reward only when the ad was watched to
+// the end. Two passes, each worth so many waves (an island wave, an Abyss
+// depth or a Boss Hunt is one; an Uncharted stage stageWaves), counted
+// down only while used and saved:
+//   speed4x: battle speed x4 (speed) for waves waves; when it runs out
+//            the battle drops back to x after.
+//   auto:    Auto battle (the ability bar's AUTO and AUTO NEXT) for waves
+//            waves; free until the island freeUntil is cleared (the
+//            tutorial and Skull Cove).
+// cooldownMs: at least this long between two ads. mock: the dev builds'
+// stand-in ad (ms long, then its Close button). admob: the Android app's
+// AdMob IDs: Google's official TEST ids (developers.google.com/admob/
+// android/test-ads); swap in the game's own (and the app id in
+// android/app/src/main/AndroidManifest.xml) before release, and set
+// testing false.
+export const ADS = {
+  cooldownMs: 30 * 1000,
+  stageWaves: 3,
+  passes: {
+    speed4x: { waves: 10, speed: 4, after: 2 },
+    auto: { waves: 15, freeUntil: 'skull_cove' },
+  },
+  mock: { ms: 5000 },
+  admob: {
+    appId: 'ca-app-pub-3940256099942544~3347511713',
+    rewarded: 'ca-app-pub-3940256099942544/5224354917',
+    testing: true,
+  },
+  // The "Auto ended" banner: how long it stays (real ms).
+  endedBannerMs: 12000,
+};
 
 // Enemies a wave sends in appear where they always have (layout.json's
 // enemySpawnX), behind the front leaves, and step out of the trees: they

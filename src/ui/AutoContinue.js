@@ -7,12 +7,15 @@ import { light, text } from './kit.js';
 // each after AUTO_CONTINUE.delayMs. Any other button (or a ship slot) pauses
 // it until a wave is started by hand with SET SAIL! again; so does a Boss
 // Hunt. Its AUTO NEXT toggle sits in the bottom-left corner of the view's
-// safe area, during waves too.
+// safe area, during waves too. It's part of Auto battle, so turning it on
+// asks gate(then) first: false (no Auto pass: the battle offers the ad, and
+// calls then() once it's earned) leaves it off.
 const auto = { on: false, paused: false };
 
 export class AutoContinue {
-  constructor(scene) {
+  constructor(scene, { gate = () => true } = {}) {
     this.scene = scene;
+    this.gate = gate;
     this.timer = null;
     this.starting = false;   // a wave it started itself (doesn't un-pause)
     // AUTO over NEXT (or PAUSED): gold while on, wood while off or paused.
@@ -30,8 +33,10 @@ export class AutoContinue {
 
     // Buttons that don't pause it: its own, SET SAIL! (a wave started by
     // hand resumes it instead) and the in-battle controls (speed, abilities).
+    // (Nor anything while an ad offer is up.)
     const onButton = (b) => {
-      if (b === this.button || b === scene.startButton || b === scene.speedButton) return;
+      if (scene.adOfferOpen) return;
+      if (b === this.button || b === scene.startButton || b === scene.speedButton || b === scene.speedAdButton) return;
       if (b.parentContainer === scene.abilityBar) return;
       this.pause();
     };
@@ -72,8 +77,17 @@ export class AutoContinue {
     this.button.setPosition(Math.round(view.safe.left + width / 2), Math.round(b - height / 2));
   }
 
+  // On and not paused: it will start the next wave.
+  get active() { return auto.on && !auto.paused; }
+
   toggle() {
-    auto.on = !auto.on;
+    if (!auto.on && !this.gate(() => this.set(true))) return;
+    this.set(!auto.on);
+  }
+
+  // Turn it on or off (an Auto pass ran out, or was just earned).
+  set(on) {
+    auto.on = on;
     auto.paused = false;
     this.refresh();
     if (auto.on && this.scene.state === 'idle') this.schedule();

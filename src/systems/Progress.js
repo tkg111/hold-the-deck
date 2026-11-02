@@ -1,5 +1,5 @@
 import {
-  ABILITY_SCALING, ABYSS, AUDIO, AWAKEN, BATTLE_LOG, ECONOMY, ENEMIES, EXPEDITIONS, FISHING, HEROES, HUNTS, ISLANDS, MEALS, PARTS, SHIP,
+  ABILITY_SCALING, ABYSS, ADS, AUDIO, AWAKEN, BATTLE_LOG, ECONOMY, ENEMIES, EXPEDITIONS, FISHING, HEROES, HUNTS, ISLANDS, MEALS, PARTS, SHIP,
   PACKS, RARITY, STARTING_HEROES, UI_KIT, UNCHARTED, UPGRADES, WANTED, WAVES,
 } from '../config.js';
 import { clearBonus, enemyFirstWave, islandContent } from './WaveManager.js';
@@ -158,6 +158,9 @@ export class Progress {
     this.largeText = false;         // Settings' Text size: Large (the Captain's words, tooltips)
     this.keepScreenOn = true;       // Settings' Keep screen on (src/keepAwake.js)
     this.autoAbilities = false;     // ability bar's Auto toggle
+    // Rewarded-ad passes (src/ads/, ADS.passes): the waves left of x4
+    // speed and of Auto battle.
+    this.boosts = { speed4x: 0, auto: 0 };
     // The Shipwright: how many levels a buy button buys (UI_KIT.buyAmounts:
     // '1', '10' or 'max'), and whether the panel is out (or slid away).
     this.buyAmount = UI_KIT.buyAmounts[0];
@@ -200,6 +203,7 @@ export class Progress {
       largeText: this.largeText,
       keepScreenOn: this.keepScreenOn,
       autoAbilities: this.autoAbilities,
+      boosts: { ...this.boosts },
       buyAmount: this.buyAmount,
       shipwrightOpen: this.shipwrightOpen,
       tutorial: { ...this.tutorial, tipsSeen: [...this.tutorial.tipsSeen] },
@@ -292,6 +296,7 @@ export class Progress {
     p.largeText = data.largeText === true;
     p.keepScreenOn = data.keepScreenOn !== false;
     p.autoAbilities = data.autoAbilities === true;
+    for (const id of Object.keys(p.boosts)) p.boosts[id] = int(data.boosts?.[id], 0);
     if (UI_KIT.buyAmounts.includes(data.buyAmount)) p.buyAmount = data.buyAmount;
     p.shipwrightOpen = data.shipwrightOpen !== false;
     const t = data.tutorial;
@@ -1090,6 +1095,26 @@ export class Progress {
       kept++;
       return id;
     });
+  }
+
+  // --- Rewarded-ad passes (ADS.passes) ---
+
+  // Auto battle is free until ADS.passes.auto.freeUntil is cleared (the
+  // tutorial and the first island), then needs a pass.
+  get autoFree() { return !this.islands[ADS.passes.auto.freeUntil]?.cleared; }
+  get autoAllowed() { return this.autoFree || this.boosts.auto > 0; }
+
+  // A rewarded ad watched to the end: its pass's waves (on top of any left).
+  grantPass(placement) {
+    this.boosts[placement] += ADS.passes[placement].waves;
+  }
+
+  // A battle used a pass: units of its waves (an Uncharted stage counts
+  // ADS.stageWaves). Returns whether that used it up.
+  usePass(placement, units = 1) {
+    if (this.boosts[placement] <= 0) return false;
+    this.boosts[placement] = Math.max(0, this.boosts[placement] - units);
+    return this.boosts[placement] === 0;
   }
 
   // What keeps sea i of the Uncharted Seas shut (null: open; see

@@ -242,11 +242,11 @@ const MIGRATIONS = {
   // cleared) and Crew Awakening (nobody awakened).
   24: (data) => ({ ...data, uncharted: newUnchartedRecord(), awakened: [] }),
   // v26: playtest round 2: the Settings' Keep screen on (on), the Galley's
-  // cooking pots (empty; meals already in the Pantry stay), and the
-  // Uncharted Seas' depth gate: every sea the save already had open stays
-  // open (the first only if the seas had opened, with a dive).
+  // cooking pots (empty; meals already in the Pantry stay), the Uncharted
+  // Seas' depth gate (every sea the save already had open stays open; the
+  // first only if the seas had opened, with a dive), and no ad passes yet.
   25: (data) => ({
-    ...data, keepScreenOn: true, pots: Array(MEALS.pots).fill(null), uncharted: grandfatherSeas(data),
+    ...data, keepScreenOn: true, pots: Array(MEALS.pots).fill(null), uncharted: grandfatherSeas(data), boosts: { speed4x: 0, auto: 0 },
   }),
 };
 

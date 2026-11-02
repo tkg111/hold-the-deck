@@ -1,8 +1,9 @@
 import Phaser from 'phaser';
 import {
-  ABYSS, ASHFALL, AUDIO, AUTO_CONTINUE, ENDING, ENEMIES, EXPEDITIONS, GAME_SPEEDS, HEROES, MOBILE, MOTES, PACKS, SCENERY, SIM, SNOWFALL,
+  ABYSS, ADS, ASHFALL, AUDIO, AUTO_CONTINUE, ENDING, ENEMIES, EXPEDITIONS, GAME_SPEEDS, HEROES, MOBILE, MOTES, PACKS, SCENERY, SIM, SNOWFALL,
   UI_KIT, UNCHARTED, AWAKEN, DISPLAY,
 } from '../config.js';
+import { ads } from '../ads/index.js';
 import { audio } from '../audio/Audio.js';
 import { initAudio, preloadAudio } from '../audio/load.js';
 import { music } from '../audio/Music.js';
@@ -121,8 +122,12 @@ export class GameScene extends Phaser.Scene {
     setVibration(this.progress.vibration);
     setLargeText(this.progress.largeText);
     setKeepAwake(this.progress.keepScreenOn);
+    // Auto battle needs a pass once the first island is cleared.
+    if (!this.progress.autoAllowed) this.progress.autoAbilities = false;
     this.state = STATE.IDLE;
     this.speed = this.speed ?? GAME_SPEEDS[0];  // kept across restarts in a session
+    if (!this.speeds.includes(this.speed)) this.speed = ADS.passes.speed4x.after;
+    this.adOfferOpen = false;   // a rewarded-ad offer (or the ad) is up
     this.slowMotion = 1;   // x the battle's speed (the tutorial's first merchant)
     this.enemies = [];
     this.projectiles = [];
@@ -472,11 +477,25 @@ export class GameScene extends Phaser.Scene {
       if (this.expeditionButton.enabled) return;
       this.showBanner('EXPEDITIONS', { detail: Expeditions.unlockLabel().toUpperCase() });
     });
-    // Battle speed (bottom-right, during waves): shows the current speed.
+    // Battle speed (bottom-right, during waves): shows the current speed; at
+    // x4 (a pass) "x4" over the waves left. Left of it while there's no x4
+    // pass, x4 for a rewarded ad ("AD"; "FREE" where there are no ads).
     const sp = UI_KIT.hud.speed;
     this.speedButton = new Button(this, 474 - sp.width / 2, 264 - sp.height / 2, {
       width: sp.width, height: sp.height, label: '', font: 'big', onClick: () => this.cycleSpeed(),
     });
+    this.speedLines = [
+      text(this, 0, -4, `x${ADS.passes.speed4x.speed}`, light()).setOrigin(0.5),
+      text(this, 0, 7, '', light({ font: 'small' })).setOrigin(0.5),
+    ];
+    this.speedButton.content.add(this.speedLines);
+    this.speedAdButton = new Button(this, 474 - sp.width - 4 - sp.width / 2, 264 - sp.height / 2, {
+      width: sp.width, height: sp.height, label: '', onClick: () => this.offerPass('speed4x'),
+    });
+    this.speedAdButton.content.add([
+      text(this, 0, -4, `x${ADS.passes.speed4x.speed}`, light()).setOrigin(0.5),
+      text(this, 0, 7, ads.free ? 'FREE' : 'AD', light({ font: 'small', color: '#ffd86a' })).setOrigin(0.5),
+    ]);
     // Abilities (bottom centre, during waves).
     this.abilityBar = new AbilityBar(this, {
       onTrigger: (i) => this.useAbility(i),
@@ -503,12 +522,14 @@ export class GameScene extends Phaser.Scene {
     }).setVisible(false).setDepth(20);
     this.nightShade = this.add.rectangle(0, 0, 1, 1, 0x060818, 1).setOrigin(0).setDepth(-10.5).setAlpha(0);
     this.bottomBar = group(
-      this.stageBackButton, this.logButton, this.mapButton, this.expeditionButton, this.galleyButton, this.startButton, this.packButton, this.collectionButton, this.wantedButton, this.speedButton,
+      this.stageBackButton, this.logButton, this.mapButton, this.expeditionButton, this.galleyButton, this.startButton, this.packButton, this.collectionButton, this.wantedButton, this.speedButton, this.speedAdButton,
     );
     // NEW ENEMY! alert and bounty toasts.
     this.notices = new Notices(this, this.progress);
-    // Auto-continue toggle (bottom-left).
-    this.autoContinue = new AutoContinue(this);
+    // Auto-continue toggle (bottom-left): part of Auto battle.
+    this.autoContinue = new AutoContinue(this, { gate: (then) => this.autoGate(then) });
+    // "Auto ended - watch an ad for 15 more waves?" (see autoEnded).
+    this.autoEndedBox = group().setDepth(21).setVisible(false);
 
     this.layoutUi(this.view);
   }
@@ -627,7 +648,11 @@ export class GameScene extends Phaser.Scene {
     const expeditionsOpen = Expeditions.isUnlocked(p);
     this.expeditionButton.setVisible(idle && !muster).setBadge(expeditionsOpen ? Expeditions.readyCount(p) : 0);
     if (this.expeditionButton.enabled !== expeditionsOpen) this.expeditionButton.setEnabled(expeditionsOpen);
-    this.speedButton.setVisible(!idle).setLabel(`x${this.speed}`);
+    const x4 = this.speed === ADS.passes.speed4x.speed;
+    this.speedButton.setVisible(!idle).setLabel(x4 ? '' : `x${this.speed}`);
+    for (const t of this.speedLines) t.setVisible(x4);
+    if (x4) this.speedLines[1].setText(`${p.boosts.speed4x} LEFT`);
+    this.speedAdButton.setVisible(!idle && p.boosts.speed4x <= 0);
     this.abilityBar.setVisible(!idle);
     // Badges: chests you can open (free ones, and with Pearls), posters
     // not opened yet.
@@ -1078,12 +1103,146 @@ export class GameScene extends Phaser.Scene {
     this.abilities.trigger(i);
   }
 
-  // Works mid-wave; saved with progress.
+  // Works mid-wave; saved with progress. Turning it on needs Auto battle
+  // (free until the first island is cleared, then a pass: see autoGate).
   toggleAutoAbilities() {
-    this.progress.autoAbilities = !this.progress.autoAbilities;
+    const p = this.progress;
+    if (!p.autoAbilities && !this.autoGate(() => this.setAutoAbilities(true))) return;
     sfx.play('ui_click');
-    this.abilityBar.refresh(this.abilities, this.progress.autoAbilities);
+    this.setAutoAbilities(!p.autoAbilities);
+  }
+
+  setAutoAbilities(on) {
+    this.progress.autoAbilities = on;
+    if (on && this.state === STATE.RUNNING) this.autoUsed = true;
+    this.abilityBar.refresh(this.abilities, on, this.autoLeft);
     this.save();
+  }
+
+  // Whether Auto battle may be turned on now; if not, offers the ad for an
+  // Auto pass, and then() runs once it's earned.
+  autoGate(then) {
+    if (this.progress.autoAllowed) {
+      if (this.state === STATE.RUNNING) this.autoUsed = true;
+      return true;
+    }
+    this.offerPass('auto', then);
+    return false;
+  }
+
+  // The Auto pass's waves left (null while Auto is free, or without one).
+  get autoLeft() {
+    const p = this.progress;
+    return p.autoFree || p.boosts.auto <= 0 ? null : p.boosts.auto;
+  }
+
+  // --- Rewarded ads (src/ads/, ADS.passes) ---
+
+  // Offer a pass for an ad, the reward said first ("Watch an ad: x4 speed
+  // for 10 waves."): Watch shows it (ads.showRewarded) and only a finished
+  // ad grants it, then then() (x4: the battle goes x4).
+  offerPass(placement, then = null) {
+    if (this.modalOpen || this.adOfferOpen) return;
+    const pass = ADS.passes[placement];
+    const reward = placement === 'auto' ? `Auto battle for ${pass.waves} waves` : `x${pass.speed} speed for ${pass.waves} waves`;
+    this.adOfferOpen = true;
+    const dialog = new ConfirmDialog(this, {
+      title: placement === 'auto' ? 'Auto battle' : `x${pass.speed} speed`,
+      message: ads.free ? `${reward}. (No ads in the web version: it's yours.)` : `Watch an ad: ${reward}.`,
+      confirmLabel: ads.free ? 'Get it' : 'Watch',
+      cancelLabel: 'No thanks',
+      onConfirm: () => this.watchAd(placement, then),
+    });
+    dialog.once('destroy', () => { this.adOfferOpen = false; });
+  }
+
+  // Show a rewarded ad (the battle paused meanwhile, unless there are no
+  // ads); watched to the end, the pass is granted and then() runs.
+  async watchAd(placement, then) {
+    const pause = !ads.free && this.sys.isActive();
+    this.adOfferOpen = true;
+    if (pause) this.scene.pause();
+    const watched = await ads.showRewarded(placement);
+    this.adOfferOpen = false;
+    if (!this.sys?.settings || this.sys.settings.status > Phaser.Scenes.PAUSED) return;   // the battle restarted meanwhile
+    if (pause && this.sys.isPaused()) this.scene.resume();
+    if (!watched) {
+      const wait = Math.ceil(ads.cooldownLeft() / 1000);
+      const detail = ads.lastError === 'closed' ? 'WATCH IT TO THE END FOR THE REWARD'
+        : ads.lastError === 'cooldown' ? `TRY AGAIN IN ${wait} S` : 'TRY AGAIN IN A MINUTE';
+      sfx.play('ui_error');
+      this.showBanner(ads.lastError === 'closed' ? 'AD CLOSED EARLY' : 'NO AD AVAILABLE RIGHT NOW', { detail, color: UI.colors.warn, hold: 2500 });
+      return;
+    }
+    const p = this.progress;
+    p.grantPass(placement);
+    sfx.play('legendary');
+    if (placement === 'speed4x') {
+      this.speed = ADS.passes.speed4x.speed;
+      if (this.state === STATE.RUNNING) this.usedX4 = true;
+      this.applySpeed();
+      this.showBanner(`X${this.speed} SPEED`, { detail: `FOR ${p.boosts.speed4x} WAVES` });
+    } else {
+      this.hideAutoEnded();
+      this.showBanner('AUTO BATTLE', { detail: `FOR ${p.boosts.auto} WAVES` });
+    }
+    then?.();
+    this.refreshUi();
+    this.save();
+  }
+
+  // At a wave's end: the passes it used lose a wave each (an Uncharted
+  // stage ADS.stageWaves). x4 run out: back to x2. Auto run out (or no
+  // longer free, its island cleared): Auto goes off, and a banner offers
+  // another pass.
+  spendPasses(stage) {
+    const p = this.progress;
+    const units = stage ? ADS.stageWaves : 1;
+    if (this.usedX4 && p.usePass('speed4x', units)) {
+      this.speed = ADS.passes.speed4x.after;
+      this.showBanner(`X${ADS.passes.speed4x.speed} SPEED ENDED`, { detail: `BACK TO X${this.speed}` });
+    }
+    if (!p.autoFree && this.autoUsed) p.usePass('auto', units);
+    if (!p.autoAllowed && (p.autoAbilities || this.autoContinue.active)) this.autoEnded();
+    this.usedX4 = false;
+    this.autoUsed = false;
+  }
+
+  // The battle's Auto pass ran out: Auto off, play goes on by hand, and a
+  // small banner offers more: "Auto ended - watch an ad for 15 more
+  // waves?" with Watch and No thanks (it goes by itself after a while).
+  autoEnded() {
+    this.progress.autoAbilities = false;
+    this.autoContinue.set(false);
+    const box = this.autoEndedBox;
+    box.removeAll(true);
+    const { waves } = ADS.passes.auto;
+    // In the gap between the wave and gold plaques, over the sky.
+    const w = UI_KIT.hud.autoEnded.width;
+    const msg = text(this, 0, 6, ads.free ? `AUTO ENDED - ${waves} MORE WAVES, FREE?` : `AUTO ENDED - WATCH AN AD FOR ${waves} MORE WAVES?`,
+      light({ font: 'small', align: 'center', wrap: w - 12 })).setOrigin(0.5, 0);
+    const by = 6 + msg.inkHeight + 10;
+    box.add([
+      panel(this, -w / 2, 0, w, by + 10, 'wood'), msg,
+      new Button(this, -33, by, {
+        width: 60, height: 16, style: 'gold', font: 'small', label: ads.free ? 'GET IT' : 'WATCH',
+        onClick: () => this.watchAd('auto', () => this.setAutoAbilities(true)),
+      }),
+      new Button(this, 33, by, {
+        width: 60, height: 16, font: 'small', label: 'NO THANKS', onClick: () => this.hideAutoEnded(),
+      }),
+    ]);
+    const e = hudEdges(this.view);
+    box.setPosition(e.centerX + DISPLAY.width / 2 + UI_KIT.hud.autoEnded.x, e.top + 4).setVisible(true);
+    this.autoEndedTimer?.remove();
+    this.autoEndedTimer = this.time.addEvent({ delay: ADS.endedBannerMs, callback: () => this.hideAutoEnded() });
+  }
+
+  hideAutoEnded() {
+    this.autoEndedTimer?.remove();
+    this.autoEndedTimer = null;
+    this.autoEndedBox.removeAll(true);
+    this.autoEndedBox.setVisible(false);
   }
 
   // A ship slot tapped between waves: a crewmate there gets their
@@ -1332,6 +1491,9 @@ export class GameScene extends Phaser.Scene {
     this.showBanner(stage.name.toUpperCase(), { detail: `WAVE 1/${stage.waves}`, color: UI.colors.text });
     sfx.play('wave_start');
     this.state = STATE.RUNNING;
+    // What this wave uses of the ad passes (see spendPasses).
+    this.usedX4 = this.speed === ADS.passes.speed4x.speed;
+    this.autoUsed = this.progress.autoAbilities || this.autoContinue.active;
     this.simCarry = 0;
     this.waveTime = 0;
     this.waveGold = 0;
@@ -1548,6 +1710,9 @@ export class GameScene extends Phaser.Scene {
     } else if (isSirenWave(this.progress.wave, island)) this.showBanner('A SIREN SINGS!', { color: UI.colors.warn });
     sfx.play('wave_start');
     this.state = STATE.RUNNING;
+    // What this wave uses of the ad passes (see spendPasses).
+    this.usedX4 = this.speed === ADS.passes.speed4x.speed;
+    this.autoUsed = this.progress.autoAbilities || this.autoContinue.active;
     this.simCarry = 0;   // game time not yet simulated (under one step)
     this.waveTime = 0;   // game time simulated this wave
     this.waveGold = 0;   // gold earned this wave (expedition rewards are based on it)
@@ -1665,6 +1830,7 @@ export class GameScene extends Phaser.Scene {
       this.autoContinue.pause();
       this.time.delayedCall(ENDING.delayMs, () => this.playEnding());
     }
+    this.spendPasses(stage);
     this.events.emit('wave-ended', won, {
       hunt: !!hunt || stage, stage, dive, diveOver: !!summary,
     });
@@ -1767,9 +1933,15 @@ export class GameScene extends Phaser.Scene {
     this.applySpeed();
   }
 
+  // The speeds the button cycles through: x1 and x2, and x4 with a pass.
+  get speeds() {
+    return this.progress.boosts.speed4x > 0 ? [...GAME_SPEEDS, ADS.passes.speed4x.speed] : GAME_SPEEDS;
+  }
+
   cycleSpeed() {
-    const i = GAME_SPEEDS.indexOf(this.speed);
-    this.speed = GAME_SPEEDS[(i + 1) % GAME_SPEEDS.length];
+    const { speeds } = this;
+    this.speed = speeds[(speeds.indexOf(this.speed) + 1) % speeds.length];
+    if (this.speed === ADS.passes.speed4x.speed) this.usedX4 = true;
     sfx.play('ui_click');
     this.applySpeed();
     this.refreshUi();
@@ -1805,7 +1977,7 @@ export class GameScene extends Phaser.Scene {
       if (this.state !== STATE.RUNNING) return;  // the wave ended
     }
     this.refreshUi();
-    this.abilityBar.refresh(this.abilities, this.progress.autoAbilities);
+    this.abilityBar.refresh(this.abilities, this.progress.autoAbilities, this.autoLeft);
   }
 
   // Once a second (real time), see whether an expedition has come back, for

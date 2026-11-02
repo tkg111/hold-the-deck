@@ -114,8 +114,9 @@ export class AbilityBar extends Phaser.GameObjects.Container {
     });
   }
 
-  // Every frame during a wave.
-  refresh(abilities, auto) {
+  // Every frame during a wave. autoLeft: the Auto pass's waves left, shown
+  // on AUTO (null: Auto is free).
+  refresh(abilities, auto, autoLeft = null) {
     const pulse = 0.5 + 0.5 * Math.sin(this.scene.time.now / ABILITY_BAR.glowPulseMs * Math.PI);
     this.entries.forEach((e, i) => {
       const r = abilities.remaining(i);
@@ -132,6 +133,7 @@ export class AbilityBar extends Phaser.GameObjects.Container {
       }
       e.glow.setVisible(r <= 0).setAlpha(0.35 + 0.65 * pulse);
     });
+    this.autoButton.setLabel(autoLeft == null ? 'AUTO' : `AUTO ${autoLeft}`);
     this.autoGlow.setVisible(auto);
     const color = auto ? ABILITY_BAR.autoOnColor : null;
     if (this.autoButton.text.color !== color) this.autoButton.text.setColor(color);
